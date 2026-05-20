@@ -93,15 +93,47 @@ def detect_type(text: str) -> str:
 
 def detect_risk(text: str) -> str:
     t = text.lower()
-    high = ["produção", "prod", "deploy", "main", "banco real", "senha", "token", "api key", "vps", "dns", "cliente real", "paciente"]
-    medium = ["github", "commit", "push", "webhook", "uazapi", "supabase", "n8n ativo"]
+
+    safe_negations = [
+        "sem produção",
+        "sem producao",
+        "não mexer em produção",
+        "nao mexer em producao",
+        "não usar produção",
+        "nao usar producao",
+        "sem deploy",
+        "não deployar",
+        "nao deployar",
+        "sem credenciais",
+        "sem senha",
+        "sem token",
+        "sem api key",
+        "sem banco real",
+        "sem envio real",
+        "read-only",
+        "somente leitura",
+    ]
+
+    for phrase in safe_negations:
+        t = t.replace(phrase, " ")
+
+    high = [
+        "produção", "producao", "prod", "deploy", "main",
+        "banco real", "senha", "token", "api key", "vps real",
+        "dns", "cliente real", "paciente", "credenciais"
+    ]
+
+    medium = [
+        "github", "commit", "push", "webhook", "uazapi",
+        "supabase", "n8n ativo", "empresa", "chefe", "ruan",
+        "claude", "vs code", "repo"
+    ]
+
     if any(x in t for x in high):
         return "alto"
     if any(x in t for x in medium):
         return "médio"
     return "baixo"
-
-
 def write_log(title: str, body: str):
     logs = ROOT / "09_LOGS"
     logs.mkdir(parents=True, exist_ok=True)
