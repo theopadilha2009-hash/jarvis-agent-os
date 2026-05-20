@@ -2,6 +2,7 @@
 from pathlib import Path
 from datetime import datetime
 import sys
+import subprocess
 import re
 import textwrap
 
@@ -751,6 +752,79 @@ def show_tools():
 
     print("Regra: registrado não significa conectado. Conectar só depois de teste em laboratório.")
 
+
+def checkpoint():
+    checkpoint_dir = ROOT / "10_TESTES" / "CHECKPOINTS"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    file = checkpoint_dir / f"{ts}_checkpoint.md"
+
+    def run(cmd):
+        try:
+            return subprocess.check_output(cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT).strip()
+        except Exception as e:
+            return f"indisponivel: {e}"
+
+    git_commit = run(["git", "rev-parse", "--short", "HEAD"])
+    git_status = run(["git", "status", "--short"]) or "limpo"
+
+    projects = sorted([p.name for p in (ROOT / "04_PROJETOS").glob("*") if p.is_dir()])
+    new_tasks = sorted([p.name for p in (ROOT / "02_TAREFAS/00_NOVAS").glob("*.md")])
+    logs = sorted([p.name for p in (ROOT / "09_LOGS").glob("*.md")])
+
+    commands = [
+        "./jarvis doctor",
+        "./jarvis report",
+        "./jarvis intake",
+        "./jarvis scan-inbox",
+        "./jarvis process-inbox",
+        "./jarvis next",
+        "./jarvis close-task",
+        "./jarvis create-project",
+        "./jarvis memory-from-task",
+        "./jarvis self-test",
+        "./jarvis tools",
+        "./jarvis checkpoint",
+    ]
+
+    content = "# Checkpoint — JARVIS Theo Padilha AI Worker\n\n"
+    content += f"## Data\n{datetime.now().isoformat(timespec='seconds')}\n\n"
+    content += "## Criador / dono\nTheo Padilha\n\n"
+    content += "## Status real\nLaboratório local em evolução. Não é produção.\n\n"
+    content += f"## Git\nCommit atual: `{git_commit}`\n\n"
+    content += f"Git status:\n```text\n{git_status}\n```\n\n"
+    content += "## Comandos disponíveis\n" + "\n".join([f"- `{cmd}`" for cmd in commands]) + "\n\n"
+    content += "## Projetos detectados\n" + "\n".join([f"- {p}" for p in projects]) + "\n\n"
+    content += "## Tasks novas\n" + ("\n".join([f"- {t}" for t in new_tasks]) if new_tasks else "- nenhuma") + "\n\n"
+    content += "## Logs recentes\n" + "\n".join([f"- {l}" for l in logs[-12:]]) + "\n\n"
+    content += "## Produção\nNada alterado.\n\n"
+    content += "## Credenciais\nNenhuma credencial deve estar salva neste laboratório.\n\n"
+    content += "## Próximo passo seguro\nContinuar evolução local antes de conectar Claude, Gemini, n8n, VPS ou APIs.\n"
+
+    file.write_text(content, encoding="utf-8")
+
+    log = write_log(
+        "checkpoint-created",
+        f"""# Log — Checkpoint criado
+
+## Checkpoint
+{file.relative_to(ROOT)}
+
+## Git commit
+{git_commit}
+
+## Status real
+Checkpoint local criado.
+
+## Produção
+Nada alterado.
+"""
+    )
+
+    print(f"Checkpoint criado: {file.relative_to(ROOT)}")
+    print(f"Log criado: {log.relative_to(ROOT)}")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -798,6 +872,8 @@ def main():
         self_test()
     elif cmd == "tools":
         show_tools()
+    elif cmd == "checkpoint":
+        checkpoint()
     else:
         help_msg()
 
