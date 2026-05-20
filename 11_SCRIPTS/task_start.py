@@ -114,7 +114,18 @@ def main():
 
     print("")
     print("4/5 Gerando prompt-pack manual...")
-    prompt_pack = run(["./jarvis", "prompt-pack", task])
+
+    company_like = "/VAMOO_PROJETOS/" in project_path or "VAMOO_PROJETOS" in project_path
+    prompt_task = task
+
+    if company_like:
+        prompt_task = (
+            "projeto da empresa no VS Code com executor externo autorizado: "
+            + task
+            + f" | projeto selecionado: {best['name']} | caminho: {project_path} | sem produção, sem credenciais, sem deploy"
+        )
+
+    prompt_pack = run(["./jarvis", "prompt-pack", prompt_task])
     print(prompt_pack)
 
     print("")
