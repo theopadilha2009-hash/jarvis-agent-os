@@ -114,8 +114,7 @@ def write_log(title: str, body: str):
         file = logs / base.replace(".md", f"-{counter}.md")
         counter += 1
 
-    file.write_text(body.strip() + "
-", encoding="utf-8")
+    file.write_text(body.strip() + "\n", encoding="utf-8")
     return file
 
 def create_task(text: str, source: str = "manual"):
