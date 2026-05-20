@@ -1298,7 +1298,7 @@ def launch_mission(text: str):
 
     meta = route_metadata(text)
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    mission_id = "MISSION-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    mission_id = "MISSION-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     slug = slugify(text)
 
     mission_dir = ROOT / "05_EXECUCAO" / "01_MISSOES"
@@ -1526,6 +1526,53 @@ Nada alterado.
     print("")
     print(f"Próximo passo seguro: {meta['first_action']}")
 
+
+def show_missions():
+    mission_dir = ROOT / "05_EXECUCAO" / "01_MISSOES"
+    task_dir = ROOT / "02_TAREFAS" / "00_NOVAS"
+
+    print("JARVIS — Theo Padilha AI Worker Missions")
+    print("")
+
+    if not mission_dir.exists():
+        print("Nenhuma pasta de missões encontrada.")
+        return
+
+    briefs = sorted(mission_dir.glob("*.md"))
+    if not briefs:
+        print("Nenhuma missão encontrada.")
+        return
+
+    open_tasks = {p.name for p in task_dir.glob("*.md")} if task_dir.exists() else set()
+
+    for brief in briefs[-20:]:
+        text = brief.read_text(encoding="utf-8", errors="ignore")
+        mission = extract_section(text, "## Pedido") or brief.stem
+        tipo = extract_section(text, "## Tipo") or "-"
+        risco = extract_section(text, "## Risco") or "-"
+        perfil = extract_section(text, "## Perfil") or "-"
+        ferramenta = extract_section(text, "## Ferramenta") or "-"
+        proximo = extract_section(text, "## Próximo passo seguro") or "-"
+
+        # detect related task names by same slug pieces
+        status = "brief criado"
+        for task_name in open_tasks:
+            if any(part and part in task_name for part in brief.stem.split("_")[:2]):
+                status = "task aberta"
+                break
+
+        print(f"- {brief.name}")
+        print(f"  Pedido: {mission[:120]}")
+        print(f"  Tipo: {tipo}")
+        print(f"  Risco: {risco}")
+        print(f"  Perfil: {perfil}")
+        print(f"  Ferramenta: {ferramenta}")
+        print(f"  Status: {status}")
+        print(f"  Próximo: {proximo[:120]}")
+        print("")
+
+    print("Regra: missão criada não significa execução feita. É preparação segura.")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -1588,6 +1635,8 @@ def main():
     elif cmd == "launch":
         text = " ".join(sys.argv[2:]).strip()
         launch_mission(text)
+    elif cmd == "missions":
+        show_missions()
     else:
         help_msg()
 
