@@ -1030,6 +1030,11 @@ def route_request(text: str):
         tool = "CHATGPT_COCKPIT + CLAUDE/GEMINI manual futuro"
         reason = "Site/portfólio pode ser editado em branch/local e publicado só com aprovação."
 
+    elif any(x in lower for x in ["empresa", "vamoo", "chefe", "ruan", "cliente da empresa", "projeto da empresa"]):
+        profile = "COMPANY_WORKSPACE"
+        tool = "CHATGPT_COCKPIT + CLAUDE_MANUAL/CLAUDE_CODE_FUTURO se autorizado"
+        reason = "Pedido menciona contexto de empresa; separar do modo pessoal e usar regras de autorização."
+
     elif "claude" in lower or "chefe" in lower:
         profile = "CHEFE_CLAUDE"
         tool = "CLAUDE_MANUAL / CLAUDE_CODE_FUTURO"
@@ -1274,6 +1279,13 @@ def route_metadata(text: str):
         mode = "branch/local"
         reason = "Site/portfólio pode ser editado em branch/local e publicado só com aprovação."
         first_action = "Localizar projeto, criar branch e planejar alteração."
+
+    elif any(x in lower for x in ["empresa", "vamoo", "chefe", "ruan", "cliente da empresa", "projeto da empresa"]):
+        profile = "COMPANY_WORKSPACE"
+        tool = "CHATGPT_COCKPIT + CLAUDE_MANUAL/CLAUDE_CODE_FUTURO se autorizado"
+        mode = "workspace empresa / branch / read-only primeiro"
+        reason = "Pedido menciona contexto de empresa; separar do modo pessoal e usar regras de autorização."
+        first_action = "Confirmar pasta, git status, branch, escopo e autorização antes de executar."
 
     elif "claude" in lower or "chefe" in lower:
         profile = "CHEFE_CLAUDE"

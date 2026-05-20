@@ -52,3 +52,12 @@ Ferramentas futuras: read-only, checklist, aprovação humana.
 Permissão: leitura/diagnóstico primeiro.
 Bloqueios: deploy, main, banco real, VPS real, envio real e credenciais sem autorização explícita.
 Status: regra de segurança permanente.
+
+### COMPANY_WORKSPACE
+Dono/usuário: Theo Padilha em projeto da empresa.
+Uso: cockpit local para projetos da empresa no VS Code, com regras de branch, Git, validação e autorização.
+Ferramentas atuais: ChatGPT manual, VS Code, Git, terminal local.
+Ferramentas futuras: Claude do chefe/equipe, Claude Code autorizado, Gemini, n8n, Vercel/Supabase quando permitido.
+Permissão: média, limitada ao projeto autorizado.
+Bloqueios: sem main direto, sem deploy, sem credenciais, sem banco real, sem envio real, sem produção sem autorização.
+Status: documentado.
