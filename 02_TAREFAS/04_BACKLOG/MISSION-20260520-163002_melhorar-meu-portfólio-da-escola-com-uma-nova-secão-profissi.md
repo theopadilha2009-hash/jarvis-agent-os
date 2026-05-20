@@ -62,3 +62,9 @@ Task criada automaticamente por `./jarvis launch`.
 
 ## Próximo passo
 Localizar projeto, criar branch e planejar alteração.
+
+
+## Backlog pelo JARVIS
+Status real: movida para backlog local.
+Movida em: 2026-05-20T16:38:24
+Produção: nada alterado.

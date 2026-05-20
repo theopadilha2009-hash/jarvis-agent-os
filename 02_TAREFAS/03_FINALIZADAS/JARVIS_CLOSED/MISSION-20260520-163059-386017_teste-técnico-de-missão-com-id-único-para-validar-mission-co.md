@@ -1,19 +1,19 @@
-# Mission Task — MISSION-20260520-163002
+# Mission Task — MISSION-20260520-163059-386017
 
 ## ID
-MISSION-20260520-163002
+MISSION-20260520-163059-386017
 
 ## Projeto
 A definir
 
 ## Pedido original
-pesquisar e planejar uma fábrica Roblox profissional com agentes, revisões, judges e monetização futura
+teste técnico de missão com ID único para validar Mission Control
 
 ## Objetivo final
 Transformar o pedido em execução segura, rastreável e validável.
 
 ## Tipo detectado
-Factory Roblox
+geral
 
 ## Status real
 Criado localmente. Nada executado.
@@ -25,13 +25,13 @@ baixo
 THEO_OWNER
 
 ## Ferramenta sugerida
-FLOW_SPEC + CHATGPT_COCKPIT
+CHATGPT_COCKPIT
 
 ## Modo de execução
-spec/laboratório
+laboratório local
 
 ## Motivo do roteamento
-Factory Roblox é projeto grande: começar com spec, estágios, judges e sandbox.
+Pedido geral: começar pelo cockpit, plano seguro e memória.
 
 ## Plano seguro inicial
 1. Reunir contexto.
@@ -61,4 +61,10 @@ Missão preparada para próxima etapa segura.
 Task criada automaticamente por `./jarvis launch`.
 
 ## Próximo passo
-Criar spec por estágios, judges, critérios e sandbox.
+Criar task e reunir contexto.
+
+## Fechamento pelo JARVIS
+Status real: finalizada localmente.
+Fechada em: 2026-05-20T16:38:24
+Produção: nada alterado.
+

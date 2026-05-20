@@ -1637,6 +1637,94 @@ def quality_gate():
         print("Ação segura:")
         print("- Resolver pendências antes de conectar IA externa, n8n, VPS ou APIs.")
 
+
+def defer_task(query: str = ""):
+    open_dir = ROOT / "02_TAREFAS/00_NOVAS"
+    backlog_dir = ROOT / "02_TAREFAS/04_BACKLOG"
+    backlog_dir.mkdir(parents=True, exist_ok=True)
+
+    tasks = sorted(open_dir.glob("*.md"))
+    if not tasks:
+        print("Nenhuma task nova para mover ao backlog.")
+        return
+
+    selected = None
+    if query:
+        q = query.lower()
+        for task in tasks:
+            txt = task.read_text(encoding="utf-8", errors="ignore")
+            if q in task.name.lower() or q in txt.lower():
+                selected = task
+                break
+        if selected is None:
+            print(f"Nenhuma task encontrada para: {query}")
+            return
+    else:
+        selected = tasks[0]
+
+    text = selected.read_text(encoding="utf-8", errors="ignore")
+    text += f"""
+
+## Backlog pelo JARVIS
+Status real: movida para backlog local.
+Movida em: {datetime.now().isoformat(timespec='seconds')}
+Produção: nada alterado.
+"""
+    selected.write_text(text, encoding="utf-8")
+
+    target = backlog_dir / selected.name
+    if target.exists():
+        target = target.with_name(target.stem + "-" + datetime.now().strftime("%H%M%S-%f") + target.suffix)
+
+    selected.rename(target)
+
+    log = write_log(
+        "task-deferred",
+        f"""# Log — Task movida para backlog
+
+## Task
+{target.name}
+
+## Local
+{target.relative_to(ROOT)}
+
+## Status real
+Movida para backlog local.
+
+## Produção
+Nada alterado.
+"""
+    )
+
+    print(f"Task movida para backlog: {target.relative_to(ROOT)}")
+    print(f"Log criado: {log.relative_to(ROOT)}")
+
+
+def show_backlog():
+    backlog_dir = ROOT / "02_TAREFAS/04_BACKLOG"
+    print("JARVIS — Theo Padilha AI Worker Backlog")
+    print("")
+
+    if not backlog_dir.exists():
+        print("Backlog ainda não existe.")
+        return
+
+    tasks = sorted(backlog_dir.glob("*.md"))
+    if not tasks:
+        print("Backlog vazio.")
+        return
+
+    for task in tasks[-30:]:
+        txt = task.read_text(encoding="utf-8", errors="ignore")
+        pedido = extract_section(txt, "## Pedido original") or task.stem
+        risco = extract_section(txt, "## Risco detectado") or "-"
+        tipo = extract_section(txt, "## Tipo detectado") or "-"
+        print(f"- {task.name}")
+        print(f"  Pedido: {pedido[:120]}")
+        print(f"  Tipo: {tipo}")
+        print(f"  Risco: {risco}")
+        print("")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -1703,6 +1791,11 @@ def main():
         show_missions()
     elif cmd == "quality-gate":
         quality_gate()
+    elif cmd == "defer-task":
+        query = " ".join(sys.argv[2:]).strip()
+        defer_task(query)
+    elif cmd == "backlog":
+        show_backlog()
     else:
         help_msg()
 
