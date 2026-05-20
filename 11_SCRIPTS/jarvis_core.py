@@ -31,6 +31,22 @@ INBOX_DIRS = [
     "00_COLE_AQUI/06_CODIGO_OU_REPO_INFO",
 ]
 
+def project_slug(name: str) -> str:
+    name = name.strip().upper()
+    replacements = {
+        "Á": "A", "À": "A", "Ã": "A", "Â": "A",
+        "É": "E", "Ê": "E",
+        "Í": "I",
+        "Ó": "O", "Õ": "O", "Ô": "O",
+        "Ú": "U",
+        "Ç": "C",
+    }
+    for old, new in replacements.items():
+        name = name.replace(old, new)
+    name = re.sub(r"[^A-Z0-9]+", "_", name)
+    name = re.sub(r"_+", "_", name).strip("_")
+    return name[:60] or "NOVO_PROJETO"
+
 def now_id():
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -392,6 +408,113 @@ Nada alterado.
     print(f"Task fechada: {target.relative_to(ROOT)}")
     print(f"Log criado: {log.relative_to(ROOT)}")
 
+def create_project(name: str):
+    if not name.strip():
+        print('Uso: ./jarvis create-project "Nome do Projeto"')
+        return
+
+    slug = project_slug(name)
+    project_dir = ROOT / "04_PROJETOS" / slug
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    status_file = project_dir / "PROJECT_STATUS.md"
+    next_file = project_dir / "NEXT_ACTIONS.md"
+
+    if not status_file.exists():
+        status_file.write_text(f"""# Project Status — {name}
+
+## Projeto
+{name}
+
+## Slug
+{slug}
+
+## Criador / dono do sistema
+Theo Padilha
+
+## Status real atual
+Criado localmente.
+
+## O que já existe
+- Pasta do projeto criada dentro do JARVIS.
+
+## O que foi criado
+- PROJECT_STATUS.md
+- NEXT_ACTIONS.md
+
+## O que foi configurado
+Nada ainda.
+
+## O que foi testado
+Criação local da estrutura.
+
+## O que foi validado
+Apenas existência local dos arquivos.
+
+## O que NÃO é produção
+Tudo. Este projeto ainda é apenas memória/estrutura local.
+
+## Riscos
+- Ainda não há contexto real.
+- Ainda não há execução.
+- Ainda não há automação conectada.
+
+## Próximo passo seguro
+Adicionar contexto inicial do projeto ou criar task relacionada.
+""", encoding="utf-8")
+
+    if not next_file.exists():
+        next_file.write_text(f"""# Next Actions — {name}
+
+## Agora
+- Adicionar contexto inicial do projeto.
+- Criar primeira task com `./jarvis intake`.
+
+## Depois
+- Classificar risco.
+- Criar plano seguro.
+- Decidir ferramenta: ChatGPT, Claude Code, Gemini, n8n ou manual.
+
+## Bloqueado por
+- Contexto ainda não informado.
+
+## Não fazer ainda
+- Produção.
+- Deploy.
+- VPS.
+- Credenciais.
+- API paga.
+""", encoding="utf-8")
+
+    log = write_log(
+        "project-created",
+        f"""# Log — Projeto criado
+
+## Projeto
+{name}
+
+## Slug
+{slug}
+
+## Local
+{project_dir.relative_to(ROOT)}
+
+## Status real
+Criado localmente.
+
+## Produção
+Nada alterado.
+
+## Próximo passo
+Adicionar contexto inicial e criar task.
+"""
+    )
+
+    print(f"Projeto criado/confirmado: {project_dir.relative_to(ROOT)}")
+    print(f"Status: {status_file.relative_to(ROOT)}")
+    print(f"Next actions: {next_file.relative_to(ROOT)}")
+    print(f"Log criado: {log.relative_to(ROOT)}")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -429,6 +552,9 @@ def main():
     elif cmd == "close-task":
         query = " ".join(sys.argv[2:]).strip()
         close_task(query)
+    elif cmd == "create-project":
+        name = " ".join(sys.argv[2:]).strip()
+        create_project(name)
     else:
         help_msg()
 
