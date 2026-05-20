@@ -1,0 +1,52 @@
+# Contexto JARVIS
+
+Sistema: JARVIS — Theo Padilha AI Worker
+Creator / Owner: Theo Padilha
+Status real: laboratório local. Não é produção.
+
+Pedido:
+corrigir bug de visitantes do GC sem produção
+
+Tipo detectado:
+bug/código
+
+Risco detectado:
+baixo
+
+Perfil sugerido:
+THEO_OWNER
+
+Ferramenta sugerida:
+CHATGPT_COCKPIT agora; CLAUDE_CODE_FUTURO depois
+
+Modo:
+branch/sandbox
+
+Motivo:
+Código precisa de branch, git status, patch mínimo, build/teste e sem deploy.
+
+Primeira ação segura:
+Confirmar git status, branch e escopo antes de editar.
+
+Bloqueios:
+- não pedir ou expor credenciais
+- não usar produção
+- não fazer deploy
+- não mexer em main/push/merge
+- não usar banco real
+- não enviar mensagem real
+- não usar API paga sem aprovação
+
+
+# Tarefa para ChatGPT Cockpit
+
+Atue como cockpit técnico.
+Entregue:
+1. diagnóstico
+2. plano seguro
+3. próximos passos
+4. riscos/não validado
+5. prompt curto para executor, se útil
+
+Não invente validação.
+Não diga que algo foi testado se não há evidência.
