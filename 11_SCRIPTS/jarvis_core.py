@@ -2441,6 +2441,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis handoff-latest         mostra último pacote para Claude/VS Code
 """)
 
 def workspace_check_command(path_text: str = ""):
@@ -2553,6 +2554,8 @@ def main():
     elif cmd == "executor-handoff":
         text = " ".join(sys.argv[2:]).strip()
         executor_handoff_command(text)
+    elif cmd == "handoff-latest":
+        handoff_latest_command()
     else:
         help_msg()
 
@@ -2562,6 +2565,10 @@ def executor_handoff_command(text: str = ""):
         print('Uso: ./jarvis executor-handoff "tarefa"')
         return
     subprocess.run(["python3", "11_SCRIPTS/executor_handoff.py", text], cwd=ROOT, check=False)
+
+def handoff_latest_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/handoff_latest.py"], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()
