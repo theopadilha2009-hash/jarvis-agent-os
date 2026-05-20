@@ -31,6 +31,19 @@ INBOX_DIRS = [
     "00_COLE_AQUI/06_CODIGO_OU_REPO_INFO",
 ]
 
+def extract_section(text: str, heading: str) -> str:
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() == heading:
+            content = []
+            for next_line in lines[i+1:]:
+                if next_line.startswith("## "):
+                    break
+                if next_line.strip():
+                    content.append(next_line)
+            return "\n".join(content).strip()
+    return ""
+
 def project_slug(name: str) -> str:
     name = name.strip().upper()
     replacements = {
@@ -515,15 +528,30 @@ Adicionar contexto inicial e criar task.
     print(f"Next actions: {next_file.relative_to(ROOT)}")
     print(f"Log criado: {log.relative_to(ROOT)}")
 
+
 def memory_from_task(query: str = ""):
     open_dir = ROOT / "02_TAREFAS/00_NOVAS"
-    tasks = sorted(open_dir.glob("*.md"))
+
+    if query:
+        search_dirs = [
+            ROOT / "02_TAREFAS/00_NOVAS",
+            ROOT / "02_TAREFAS/01_EM_ANDAMENTO",
+            ROOT / "02_TAREFAS/02_BLOQUEADAS",
+            ROOT / "02_TAREFAS/03_FINALIZADAS",
+        ]
+        tasks = []
+        for folder in search_dirs:
+            if folder.exists():
+                tasks.extend(sorted(folder.rglob("*.md")))
+    else:
+        tasks = sorted(open_dir.glob("*.md"))
 
     if not tasks:
-        print("Nenhuma task nova encontrada para transformar em memória.")
+        print("Nenhuma task encontrada para transformar em memória.")
         return
 
     selected = None
+
     if query:
         q = query.lower()
         for task in tasks:
@@ -551,17 +579,20 @@ def memory_from_task(query: str = ""):
     title_slug = slugify(f"{task_id} {pedido}")
     date = datetime.now().strftime("%Y-%m-%d")
 
-    # JARVIS/core tasks go to decisions by default. Others go to lessons.
     if "jarvis" in pedido.lower() or "jarvis" in projeto.lower():
         memory_dir = ROOT / "03_MEMORIA/02_DECISOES"
-        memory_file = memory_dir / f"{date}_{title_slug}.md"
         memory_kind = "Decisão / evolução do JARVIS"
     else:
         memory_dir = ROOT / "03_MEMORIA/01_APRENDIZADOS"
-        memory_file = memory_dir / f"{date}_{title_slug}.md"
         memory_kind = "Aprendizado"
 
     memory_dir.mkdir(parents=True, exist_ok=True)
+    memory_file = memory_dir / f"{date}_{title_slug}.md"
+
+    if memory_file.exists():
+        memory_file = memory_file.with_name(
+            memory_file.stem + "-" + datetime.now().strftime("%H%M%S") + memory_file.suffix
+        )
 
     memory_file.write_text(f"""# {memory_kind} — {task_id}
 
@@ -625,9 +656,15 @@ Nada alterado.
 
     print(f"Memória criada: {memory_file.relative_to(ROOT)}")
     print(f"Log criado: {log.relative_to(ROOT)}")
-    print("")
-    print("Próximo passo sugerido:")
-    print(f'./jarvis close-task "{task_id}"')
+
+    try:
+        selected.relative_to(open_dir)
+        print("")
+        print("Próximo passo sugerido:")
+        print(f'./jarvis close-task "{task_id}"')
+    except ValueError:
+        print("")
+        print("Task já não está em 00_NOVAS; não precisa fechar novamente.")
 
 def help_msg():
     print("""Comandos:
