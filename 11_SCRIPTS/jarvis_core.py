@@ -666,6 +666,47 @@ Nada alterado.
         print("")
         print("Task já não está em 00_NOVAS; não precisa fechar novamente.")
 
+def self_test():
+    print("JARVIS — Theo Padilha AI Worker Self-Test")
+    print("")
+
+    checks = []
+
+    def add_check(name, ok, detail=""):
+        checks.append((name, ok, detail))
+        status = "OK" if ok else "FALHA"
+        print(f"{status}  {name}" + (f" — {detail}" if detail else ""))
+
+    # Required folders
+    for d in REQUIRED_DIRS:
+        add_check(f"diretório {d}", (ROOT / d).is_dir())
+
+    # Core files
+    add_check("arquivo README.md", (ROOT / "README.md").is_file())
+    add_check("arquivo jarvis", (ROOT / "jarvis").is_file())
+    add_check("script jarvis_core.py", (ROOT / "11_SCRIPTS/jarvis_core.py").is_file())
+
+    # Project and memory
+    add_check("projeto JARVIS_CORE", (ROOT / "04_PROJETOS/JARVIS_CORE").is_dir())
+    add_check("identidade Theo Padilha", (ROOT / "01_SISTEMA/00_REGRAS/IDENTIDADE_JARVIS_THEO_PADILHA.md").is_file())
+
+    # Logs and tasks
+    logs = list((ROOT / "09_LOGS").glob("*.md"))
+    add_check("logs existentes", len(logs) > 0, f"{len(logs)} log(s)")
+
+    new_tasks = list((ROOT / "02_TAREFAS/00_NOVAS").glob("*.md"))
+    add_check("task inbox acessível", (ROOT / "02_TAREFAS/00_NOVAS").is_dir(), f"{len(new_tasks)} task(s) nova(s)")
+
+    # Git
+    git_dir = ROOT / ".git"
+    add_check("git inicializado", git_dir.is_dir())
+
+    ok_all = all(ok for _, ok, _ in checks)
+
+    print("")
+    print("Resultado:", "SELF-TEST PASSOU" if ok_all else "SELF-TEST FALHOU")
+    print("Status real: teste local, sem produção, sem credenciais.")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -709,6 +750,8 @@ def main():
     elif cmd == "memory-from-task":
         query = " ".join(sys.argv[2:]).strip()
         memory_from_task(query)
+    elif cmd == "self-test":
+        self_test()
     else:
         help_msg()
 
