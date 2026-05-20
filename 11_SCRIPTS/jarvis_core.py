@@ -1725,6 +1725,143 @@ def show_backlog():
         print(f"  Risco: {risco}")
         print("")
 
+
+def security_audit():
+    print("JARVIS — Theo Padilha AI Worker Security Audit")
+    print("")
+
+    audit_dir = ROOT / "10_TESTES" / "AUDITS"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
+    audit_file = audit_dir / f"{ts}_security-audit.md"
+
+    ignore_parts = {
+        ".git", "__pycache__", ".cache", ".runtime", "99_ARQUIVO_MORTO"
+    }
+
+    scan_ext = {
+        ".md", ".txt", ".py", ".json", ".yml", ".yaml", ".env", ".sh", ".toml"
+    }
+
+    risky_name_terms = [
+        ".env", "secret", "token", "credential", "credentials",
+        "senha", "password", "apikey", "api_key", "service_role",
+        "private_key", "uazapi", "instance_token"
+    ]
+
+    risky_content_terms = [
+        "api_key", "apikey", "secret_key", "service_role", "bearer ",
+        "authorization:", "password=", "senha=", "token=", "instance token",
+        "private_key", "BEGIN PRIVATE KEY", "sk-", "xoxb-", "ghp_"
+    ]
+
+    files_scanned = 0
+    risky_names = []
+    risky_contents = []
+
+    for path in ROOT.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(ROOT)
+        parts = set(rel.parts)
+
+        if parts & ignore_parts:
+            continue
+
+        if path.suffix.lower() not in scan_ext and path.name != "jarvis":
+            continue
+
+        files_scanned += 1
+        name_lower = path.name.lower()
+        rel_str = str(rel)
+
+        if any(term in name_lower for term in risky_name_terms):
+            risky_names.append(rel_str)
+
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore").lower()
+        except Exception:
+            continue
+
+        hits = []
+        for term in risky_content_terms:
+            if term.lower() in text:
+                hits.append(term)
+
+        if hits:
+            risky_contents.append((rel_str, sorted(set(hits))))
+
+    status = "PASSOU" if not risky_names and not risky_contents else "PENDÊNCIAS"
+
+    lines = []
+    lines.append("# Security Audit — JARVIS Theo Padilha AI Worker")
+    lines.append("")
+    lines.append(f"## Data\n{datetime.now().isoformat(timespec='seconds')}")
+    lines.append("")
+    lines.append("## Status real\nAuditoria local. Nada foi alterado em produção.")
+    lines.append("")
+    lines.append(f"## Resultado\n{status}")
+    lines.append("")
+    lines.append(f"## Arquivos analisados\n{files_scanned}")
+    lines.append("")
+    lines.append("## Arquivos com nome sensível")
+    if risky_names:
+        for item in risky_names:
+            lines.append(f"- {item}")
+    else:
+        lines.append("- nenhum")
+    lines.append("")
+    lines.append("## Arquivos com termos sensíveis no conteúdo")
+    if risky_contents:
+        for file, hits in risky_contents:
+            lines.append(f"- {file}: {', '.join(hits)}")
+    else:
+        lines.append("- nenhum")
+    lines.append("")
+    lines.append("## Observação")
+    lines.append("Este audit não imprime segredos. Ele só lista arquivos/termos suspeitos para revisão.")
+    lines.append("")
+    lines.append("## Próximo passo seguro")
+    if status == "PASSOU":
+        lines.append("Pode continuar evolução local.")
+    else:
+        lines.append("Revisar os arquivos apontados antes de conectar IA externa, n8n, VPS ou APIs.")
+
+    audit_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    log = write_log(
+        "security-audit",
+        f"""# Log — Security audit
+
+## Audit
+{audit_file.relative_to(ROOT)}
+
+## Resultado
+{status}
+
+## Arquivos analisados
+{files_scanned}
+
+## Produção
+Nada alterado.
+"""
+    )
+
+    print(f"Resultado: SECURITY AUDIT {status}")
+    print(f"Arquivos analisados: {files_scanned}")
+    print(f"Audit salvo: {audit_file.relative_to(ROOT)}")
+    print(f"Log criado: {log.relative_to(ROOT)}")
+
+    if risky_names or risky_contents:
+        print("")
+        print("Pendências detectadas:")
+        for item in risky_names[:20]:
+            print(f"- nome sensível: {item}")
+        for file, hits in risky_contents[:20]:
+            print(f"- conteúdo sensível: {file} -> {', '.join(hits)}")
+        print("")
+        print("Ação segura: revisar antes de conectar qualquer executor externo.")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -1791,6 +1928,8 @@ def main():
         show_missions()
     elif cmd == "quality-gate":
         quality_gate()
+    elif cmd == "security-audit":
+        security_audit()
     elif cmd == "defer-task":
         query = " ".join(sys.argv[2:]).strip()
         defer_task(query)
