@@ -1,0 +1,12 @@
+{
+  "name": "VAMOO_JARVIS_LAB_v0_2_PRONTO",
+  "status_real": {
+    "criado": true,
+    "configurado": "estrutura e templates locais",
+    "testado": "zip gerado",
+    "validado": false,
+    "producao": false
+  },
+  "created_at": "2026-05-20T18:21:49",
+  "rule": "laboratorio local sem credenciais e sem execucao perigosa"
+}

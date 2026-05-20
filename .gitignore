@@ -23,3 +23,12 @@ __pycache__/
 # Future local runtime
 .runtime/
 .cache/
+
+# Keep inbox/reference folder structure, but do not commit user inputs or heavy references
+00_COLE_AQUI/**
+!00_COLE_AQUI/**/
+!00_COLE_AQUI/**/.gitkeep
+
+08_REFERENCIAS/**
+!08_REFERENCIAS/**/
+!08_REFERENCIAS/**/.gitkeep
