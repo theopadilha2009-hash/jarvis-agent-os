@@ -926,6 +926,46 @@ def summary():
     print("")
     print(f"Resumo salvo em: {out.relative_to(ROOT)}")
 
+
+def show_profiles():
+    profiles = ROOT / "01_SISTEMA/02_DECISORES/EXECUTOR_PROFILES.md"
+    print("JARVIS — Theo Padilha AI Worker Profiles")
+    print("")
+
+    if not profiles.exists():
+        print("Executor Profiles não encontrado.")
+        print("Esperado: 01_SISTEMA/02_DECISORES/EXECUTOR_PROFILES.md")
+        return
+
+    text = profiles.read_text(encoding="utf-8", errors="ignore")
+
+    current = None
+    fields = {}
+    parsed = []
+
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("### "):
+            if current:
+                parsed.append((current, fields))
+            current = line.replace("### ", "").strip()
+            fields = {}
+        elif ":" in line and current:
+            key, value = line.split(":", 1)
+            fields[key.strip()] = value.strip()
+
+    if current:
+        parsed.append((current, fields))
+
+    for name, data in parsed:
+        print(f"- {name}")
+        for key in ["Dono", "Uso", "Ferramentas atuais", "Ferramentas futuras", "Permissão", "Bloqueios", "Status"]:
+            if key in data:
+                print(f"  {key}: {data[key]}")
+        print("")
+
+    print("Regra: perfil define permissão. Não libera produção, credenciais, VPS, deploy ou API paga sozinho.")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -977,6 +1017,8 @@ def main():
         checkpoint()
     elif cmd == "summary":
         summary()
+    elif cmd == "profiles":
+        show_profiles()
     else:
         help_msg()
 
