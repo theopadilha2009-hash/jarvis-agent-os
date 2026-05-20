@@ -1862,6 +1862,195 @@ Nada alterado.
         print("")
         print("Ação segura: revisar antes de conectar qualquer executor externo.")
 
+
+def prompt_pack(text: str):
+    if not text.strip():
+        print('Uso: ./jarvis prompt-pack "pedido"')
+        return
+
+    meta = route_metadata(text) if "route_metadata" in globals() else {
+        "task_type": detect_type(text),
+        "risk": detect_risk(text),
+        "profile": "THEO_OWNER",
+        "tool": "CHATGPT_COCKPIT",
+        "mode": "laboratório local",
+        "reason": "Fallback routing.",
+        "first_action": "Criar task e reunir contexto.",
+    }
+
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
+    out_dir = ROOT / "06_PROMPTS" / "99_GENERATED" / f"{ts}_{slugify(text)}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    shared_context = f"""# Contexto JARVIS
+
+Sistema: JARVIS — Theo Padilha AI Worker
+Creator / Owner: Theo Padilha
+Status real: laboratório local. Não é produção.
+
+Pedido:
+{text}
+
+Tipo detectado:
+{meta['task_type']}
+
+Risco detectado:
+{meta['risk']}
+
+Perfil sugerido:
+{meta['profile']}
+
+Ferramenta sugerida:
+{meta['tool']}
+
+Modo:
+{meta['mode']}
+
+Motivo:
+{meta['reason']}
+
+Primeira ação segura:
+{meta['first_action']}
+
+Bloqueios:
+- não pedir ou expor credenciais
+- não usar produção
+- não fazer deploy
+- não mexer em main/push/merge
+- não usar banco real
+- não enviar mensagem real
+- não usar API paga sem aprovação
+"""
+
+    chatgpt_prompt = shared_context + """
+
+# Tarefa para ChatGPT Cockpit
+
+Atue como cockpit técnico.
+Entregue:
+1. diagnóstico
+2. plano seguro
+3. próximos passos
+4. riscos/não validado
+5. prompt curto para executor, se útil
+
+Não invente validação.
+Não diga que algo foi testado se não há evidência.
+"""
+
+    claude_prompt = shared_context + """
+
+# Tarefa para Claude / Claude Code
+
+Modo inicial: read-only.
+Antes de editar:
+- confirmar pasta/projeto
+- rodar git status
+- identificar branch
+- localizar arquivos relevantes
+- propor patch mínimo
+
+Se for autorizado editar:
+- não mexer na main
+- não refatorar fora do escopo
+- não commitar/push/deployar
+- rodar build/teste possível
+- resumir arquivos alterados
+
+Saída obrigatória:
+- arquivos lidos
+- diagnóstico
+- plano
+- alterações sugeridas ou feitas
+- testes rodados
+- riscos restantes
+"""
+
+    gemini_prompt = shared_context + """
+
+# Tarefa para Gemini
+
+Use como segundo cérebro de baixo custo/manual.
+Entregue:
+- análise alternativa
+- riscos que podem ter passado batido
+- opções free/baixo custo
+- plano simplificado
+- pontos para validar antes de executar
+
+Não assumir acesso a arquivos locais.
+Não usar dados sensíveis.
+"""
+
+    output_instructions = f"""# Output Intake Instructions
+
+Depois de usar qualquer executor manual:
+
+1. Salvar a resposta em:
+`00_COLE_AQUI/03_OUTPUTS_CLAUDE_CHATGPT/`
+
+2. Rodar:
+`./jarvis process-inbox`
+
+3. Depois:
+`./jarvis next`
+
+4. Se virar aprendizado:
+`./jarvis memory-from-task "trecho"`
+
+5. Validar:
+`./jarvis quality-gate`
+
+Status real:
+Prompt pack criado. Executor externo ainda não conectado.
+"""
+
+    files = {
+        "00_CONTEXT.md": shared_context,
+        "01_CHATGPT_COCKPIT_PROMPT.md": chatgpt_prompt,
+        "02_CLAUDE_MANUAL_PROMPT.md": claude_prompt,
+        "03_GEMINI_MANUAL_PROMPT.md": gemini_prompt,
+        "04_OUTPUT_INTAKE_INSTRUCTIONS.md": output_instructions,
+    }
+
+    for name, content in files.items():
+        (out_dir / name).write_text(content.strip() + "\n", encoding="utf-8")
+
+    log = write_log(
+        "prompt-pack-created",
+        f"""# Log — Prompt pack criado
+
+## Pedido
+{text}
+
+## Pasta
+{out_dir.relative_to(ROOT)}
+
+## Perfil
+{meta['profile']}
+
+## Ferramenta sugerida
+{meta['tool']}
+
+## Risco
+{meta['risk']}
+
+## Status real
+Prompt pack criado localmente. Nenhum executor externo conectado.
+
+## Produção
+Nada alterado.
+"""
+    )
+
+    print("JARVIS — Theo Padilha AI Worker Prompt Pack")
+    print(f"Pasta: {out_dir.relative_to(ROOT)}")
+    print(f"Log: {log.relative_to(ROOT)}")
+    print(f"Perfil: {meta['profile']}")
+    print(f"Ferramenta: {meta['tool']}")
+    print(f"Risco: {meta['risk']}")
+    print("Status real: prompts criados, nada conectado.")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -1935,6 +2124,9 @@ def main():
         defer_task(query)
     elif cmd == "backlog":
         show_backlog()
+    elif cmd == "prompt-pack":
+        text = " ".join(sys.argv[2:]).strip()
+        prompt_pack(text)
     else:
         help_msg()
 
