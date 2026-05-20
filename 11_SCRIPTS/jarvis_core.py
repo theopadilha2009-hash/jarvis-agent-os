@@ -2448,6 +2448,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis release-check          roda validação completa local
   ./jarvis smoke-test             testa comandos principais do JARVIS
   ./jarvis handoff-open           abre último handoff no Finder
   ./jarvis handoff-latest         mostra último pacote para Claude/VS Code
@@ -2569,6 +2570,8 @@ def main():
         handoff_open_command()
     elif cmd == "smoke-test":
         smoke_test_command()
+    elif cmd == "release-check":
+        release_check_command()
     else:
         help_msg()
 
@@ -2590,6 +2593,10 @@ def handoff_open_command():
 def smoke_test_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/cli_smoke_test.py"], cwd=ROOT, check=False)
+
+def release_check_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/release_check.py"], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()
