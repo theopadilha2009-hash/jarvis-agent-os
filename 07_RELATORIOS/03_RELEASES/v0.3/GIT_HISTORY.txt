@@ -1,0 +1,15 @@
+b60ad31 chore: version git safety hook
+98ed082 chore: document local git safety hook
+c83bd7a Revert "fix: rebuild security audit v2 and enforce quality gate"
+dd76608 fix: rebuild security audit v2 and enforce quality gate
+a1d9094 fix: reduce security audit false positives and gate quality
+5c615e4 feat: add local security audit command
+490dd38 feat: add backlog task management
+52c7379 feat: add quality gate command
+2e1c613 fix: repair write_log syntax and keep collision-safe logs
+68c8185 fix: make log filenames collision-safe
+d12e3a5 fix: make mission ids unique and add missions list
+1d26135 feat: add mission launch workflow
+4407d45 feat: add safe execution plan command
+48c6c4f feat: add request routing command
+ce50314 feat: add executor profiles command

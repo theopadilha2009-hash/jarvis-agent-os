@@ -1,0 +1,30 @@
+JARVIS — Theo Padilha AI Worker Missions
+
+- 2026-05-20_16-30-02_melhorar-meu-portfólio-da-escola-com-uma-nova-secão-profissi_mission-brief.md
+  Pedido: melhorar meu portfólio da escola com uma nova seção profissional sobre projetos de IA e automação
+  Tipo: portfólio/site
+  Risco: baixo
+  Perfil: THEO_OWNER
+  Ferramenta: CHATGPT_COCKPIT + CLAUDE/GEMINI manual futuro
+  Status: brief criado
+  Próximo: Localizar projeto, criar branch e planejar alteração.
+
+- 2026-05-20_16-30-02_pesquisar-e-planejar-uma-fábrica-roblox-profissional-com-age_mission-brief.md
+  Pedido: pesquisar e planejar uma fábrica Roblox profissional com agentes, revisões, judges e monetização futura
+  Tipo: Factory Roblox
+  Risco: baixo
+  Perfil: THEO_OWNER
+  Ferramenta: FLOW_SPEC + CHATGPT_COCKPIT
+  Status: brief criado
+  Próximo: Criar spec por estágios, judges, critérios e sandbox.
+
+- 2026-05-20_16-30-59_teste-técnico-de-missão-com-id-único-para-validar-mission-co_mission-brief.md
+  Pedido: teste técnico de missão com ID único para validar Mission Control
+  Tipo: geral
+  Risco: baixo
+  Perfil: THEO_OWNER
+  Ferramenta: CHATGPT_COCKPIT
+  Status: brief criado
+  Próximo: Criar task e reunir contexto.
+
+Regra: missão criada não significa execução feita. É preparação segura.
