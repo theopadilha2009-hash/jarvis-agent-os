@@ -101,11 +101,21 @@ def detect_risk(text: str) -> str:
         return "médio"
     return "baixo"
 
+
 def write_log(title: str, body: str):
     logs = ROOT / "09_LOGS"
     logs.mkdir(parents=True, exist_ok=True)
-    file = logs / f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{slugify(title)}.md"
-    file.write_text(body.strip() + "\n", encoding="utf-8")
+
+    base = f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')}_{slugify(title)}.md"
+    file = logs / base
+
+    counter = 1
+    while file.exists():
+        file = logs / base.replace(".md", f"-{counter}.md")
+        counter += 1
+
+    file.write_text(body.strip() + "
+", encoding="utf-8")
     return file
 
 def create_task(text: str, source: str = "manual"):
