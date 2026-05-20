@@ -2443,6 +2443,11 @@ def help_msg():
   ./jarvis help                   ajuda
 """)
 
+def workspace_check_command(path_text: str = ""):
+    import subprocess
+    target = path_text.strip() or "."
+    subprocess.run(["python3", "11_SCRIPTS/workspace_check.py", target], cwd=ROOT, check=False)
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
 
