@@ -62,3 +62,9 @@ Task criada automaticamente por `./jarvis launch`.
 
 ## Próximo passo
 Confirmar pasta, git status, branch, escopo e autorização antes de executar.
+
+## Fechamento pelo JARVIS
+Status real: finalizada localmente.
+Fechada em: 2026-05-20T17:34:09
+Produção: nada alterado.
+
