@@ -1,0 +1,20 @@
+31b767a test: close company workspace validation mission
+9ec7c7b test: validate company workspace mission launch
+1b75c75 fix: sync plan with routing metadata
+4793568 fix: prioritize company workspace routing
+0e2c315 fix: make risk detection negation-aware for company workspace
+9ae4a46 feat: add company workspace profile routing
+d750b67 docs: add company workspace mode rules
+974dc9d feat: add executor output review intake
+a698ea7 feat: add manual executor prompt pack
+b678950 docs: add v0.4 executor roadmap and contracts
+c2f6f71 chore: create JARVIS v0.3 release snapshot
+b60ad31 chore: version git safety hook
+98ed082 chore: document local git safety hook
+c83bd7a Revert "fix: rebuild security audit v2 and enforce quality gate"
+dd76608 fix: rebuild security audit v2 and enforce quality gate
+a1d9094 fix: reduce security audit false positives and gate quality
+5c615e4 feat: add local security audit command
+490dd38 feat: add backlog task management
+52c7379 feat: add quality gate command
+2e1c613 fix: repair write_log syntax and keep collision-safe logs

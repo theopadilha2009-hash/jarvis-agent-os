@@ -1,0 +1,12 @@
+JARVIS — Theo Padilha AI Worker Backlog
+
+- MISSION-20260520-163002_melhorar-meu-portfólio-da-escola-com-uma-nova-secão-profissi.md
+  Pedido: melhorar meu portfólio da escola com uma nova seção profissional sobre projetos de IA e automação
+  Tipo: portfólio/site
+  Risco: baixo
+
+- MISSION-20260520-163002_pesquisar-e-planejar-uma-fábrica-roblox-profissional-com-age.md
+  Pedido: pesquisar e planejar uma fábrica Roblox profissional com agentes, revisões, judges e monetização futura
+  Tipo: Factory Roblox
+  Risco: baixo
+

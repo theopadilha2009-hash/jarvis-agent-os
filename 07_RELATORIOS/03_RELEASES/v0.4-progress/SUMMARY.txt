@@ -1,3 +1,5 @@
+JARVIS — Theo Padilha AI Worker Summary
+
 # JARVIS — Theo Padilha AI Worker
 
 ## Criador / dono
@@ -69,3 +71,5 @@ Continuar evoluindo localmente antes de conectar Claude, Gemini, n8n, VPS, APIs 
 
 ## Frase simples
 JARVIS é um worker local criado por Theo Padilha para organizar projetos, tarefas, memória, logs, ferramentas e próximos passos com segurança.
+
+Resumo salvo em: 07_RELATORIOS/02_TECNICOS/ULTIMO_RESUMO_EXECUTIVO_JARVIS.md
