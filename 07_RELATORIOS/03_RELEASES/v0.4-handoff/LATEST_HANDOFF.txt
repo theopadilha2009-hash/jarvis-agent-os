@@ -1,0 +1,15 @@
+JARVIS — Theo Padilha AI Worker Latest Handoff
+
+Pasta: /Users/usuario1/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO/05_EXECUCAO/07_EXECUTOR_HANDOFFS/2026-05-20_18-25-41-612756_corrigir-bug-de-visitantes-do-gc-sem-produ-o
+
+Arquivos:
+- 00_CONTEXT.md
+- 01_CLAUDE_HANDOFF.md
+- 02_SAFE_COMMANDS.md
+- 03_CHATGPT_REVIEW_PROMPT.md
+
+Comando para abrir:
+open /Users/usuario1/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO/05_EXECUCAO/07_EXECUTOR_HANDOFFS/2026-05-20_18-25-41-612756_corrigir-bug-de-visitantes-do-gc-sem-produ-o
+
+Arquivo principal para Claude:
+/Users/usuario1/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO/05_EXECUCAO/07_EXECUTOR_HANDOFFS/2026-05-20_18-25-41-612756_corrigir-bug-de-visitantes-do-gc-sem-produ-o/01_CLAUDE_HANDOFF.md
