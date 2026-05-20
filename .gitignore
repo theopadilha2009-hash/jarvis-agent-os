@@ -1,0 +1,25 @@
+# Secrets / env
+.env
+.env.*
+*.pem
+*.key
+*secret*
+*token*
+*credential*
+*credentials*
+*senha*
+*password*
+
+# Backups / temporary
+*.bak-*
+.DS_Store
+__pycache__/
+*.pyc
+
+# Archives and old inputs
+99_ARQUIVO_MORTO/
+*.zip
+
+# Future local runtime
+.runtime/
+.cache/
