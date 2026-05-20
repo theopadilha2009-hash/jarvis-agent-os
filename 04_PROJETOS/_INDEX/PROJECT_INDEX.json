@@ -1,0 +1,43 @@
+[
+  {
+    "name": "gc-gestao-de-cristo",
+    "path": "/Users/usuario1/VAMOO_PROJETOS/gc-gestao-de-cristo",
+    "type": "web-app/código",
+    "git": true,
+    "branch": "analise-inicial-theo",
+    "status": "limpo",
+    "env_files": [
+      ".env.local",
+      ".env.local.backup-antes-supabase-url",
+      ".env.local.backup-antes-vercel-real",
+      ".env.vercel.check"
+    ],
+    "risk": "médio",
+    "next": "./jarvis workspace-check /Users/usuario1/VAMOO_PROJETOS/gc-gestao-de-cristo"
+  },
+  {
+    "name": "ls-clinica-agent",
+    "path": "/Users/usuario1/VAMOO_PROJETOS/ls-clinica-agent",
+    "type": "n8n/workflow",
+    "git": true,
+    "branch": "analysis/ls-v1-4-3-polish",
+    "status": "?? 03_OUTPUT/ls-v1-2-inbound-final-uazapi-safe.workflow.json\n?? 03_OUTPUT/ls-v1-3-1-staging-safe-early-allowlist.workflow.json\n?? 03_OUTPUT/ls-v1-3-2-polish-cost-fallback.workflow.json\n?? 03_OUTPUT/ls-v1-3-3-test-safe-final.workflow.json\n?? 03_OUTPUT/ls-v1-3-4-sensitive-quickreply-fix.workflow.json\n?? 03_OUTPUT/ls-v1-3-final-uazapi-real-architecture.workflow.json\n?? 03_OUTPUT/ls-v1-4-1-final-staging-polish.workflow.json\n?? 03_OUTPUT/ls-v1-4-2-sdr-kommo-cutoff.workflow.json\n?? 03_OUTPUT/ls-v1-4-conversation-state-scheduling.workflow.json",
+    "env_files": [],
+    "risk": "médio",
+    "next": "./jarvis workspace-check /Users/usuario1/VAMOO_PROJETOS/ls-clinica-agent"
+  },
+  {
+    "name": "oficina",
+    "path": "/Users/usuario1/VAMOO_PROJETOS/oficina",
+    "type": "web-app/código",
+    "git": true,
+    "branch": "fix/bugs-oficina-20260519-1516",
+    "status": "limpo",
+    "env_files": [
+      ".env",
+      ".env.example"
+    ],
+    "risk": "médio",
+    "next": "./jarvis workspace-check /Users/usuario1/VAMOO_PROJETOS/oficina"
+  }
+]
