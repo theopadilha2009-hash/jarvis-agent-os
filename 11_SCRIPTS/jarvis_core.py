@@ -2506,6 +2506,9 @@ def main():
         prompt_pack(text)
     elif cmd == "review-outputs":
         review_outputs()
+    elif cmd == "workspace-check":
+        path_text = " ".join(sys.argv[2:]).strip()
+        workspace_check_command(path_text)
     else:
         help_msg()
 
