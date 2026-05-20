@@ -1,0 +1,53 @@
+# Command Catalog — JARVIS Theo Padilha AI Worker
+
+## Status real
+Catálogo local de comandos. Não é produção.
+
+## Saúde / validação
+- `./jarvis self-test`
+- `./jarvis quality-gate`
+- `./jarvis smoke-test`
+- `./jarvis release-check`
+
+## Status / checkpoint
+- `./jarvis report`
+- `./jarvis summary`
+- `./jarvis checkpoint`
+
+## Tasks
+- `./jarvis intake "pedido"`
+- `./jarvis next`
+- `./jarvis close-task "texto"`
+- `./jarvis backlog`
+
+## Projetos do Mac
+- `./jarvis workspace-scan ~/VAMOO_PROJETOS`
+- `./jarvis project-index ~/VAMOO_PROJETOS`
+- `./jarvis project-select "tarefa"`
+- `./jarvis workspace-check /caminho/do/projeto`
+
+## Execução assistida
+- `./jarvis task-start "tarefa"`
+- `./jarvis executor-handoff "tarefa"`
+- `./jarvis handoff-latest`
+- `./jarvis handoff-print`
+- `./jarvis review-outputs`
+
+## Prompts / executores
+- `./jarvis prompt-pack "pedido"`
+- `./jarvis tools`
+- `./jarvis profiles`
+
+## Fluxo recomendado para tarefa real
+1. `./jarvis project-index ~/VAMOO_PROJETOS`
+2. `./jarvis project-select "sua tarefa"`
+3. `./jarvis task-start "sua tarefa"`
+4. `./jarvis executor-handoff "sua tarefa"`
+5. `./jarvis handoff-print`
+6. Usar Claude/ChatGPT/Gemini manualmente
+7. Salvar output em `00_COLE_AQUI/03_OUTPUTS_CLAUDE_CHATGPT/`
+8. `./jarvis review-outputs`
+9. `./jarvis quality-gate`
+
+## Regra
+Plano, prompt, handoff e task-start não significam execução feita. Produção só com autorização.
