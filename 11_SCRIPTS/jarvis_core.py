@@ -2453,6 +2453,11 @@ def workspace_scan_command(path_text: str = ""):
     target = path_text.strip() or "."
     subprocess.run(["python3", "11_SCRIPTS/workspace_scan.py", target], cwd=ROOT, check=False)
 
+def project_index_command(path_text: str = ""):
+    import subprocess
+    target = path_text.strip() or "~/VAMOO_PROJETOS"
+    subprocess.run(["python3", "11_SCRIPTS/project_index.py", target], cwd=ROOT, check=False)
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
 
@@ -2522,6 +2527,9 @@ def main():
     elif cmd == "workspace-scan":
         path_text = " ".join(sys.argv[2:]).strip()
         workspace_scan_command(path_text)
+    elif cmd == "project-index":
+        path_text = " ".join(sys.argv[2:]).strip()
+        project_index_command(path_text)
     else:
         help_msg()
 
