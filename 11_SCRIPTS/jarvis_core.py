@@ -1212,6 +1212,320 @@ Nada alterado.
     print(f"- Ferramenta: {tool}")
     print(f"- Próximo passo: {first_action}")
 
+
+def route_metadata(text: str):
+    task_type = detect_type(text)
+    risk = detect_risk(text)
+    lower = text.lower()
+
+    profile = "THEO_OWNER"
+    tool = "CHATGPT_COCKPIT"
+    mode = "laboratório local"
+    reason = "Pedido geral: começar pelo cockpit, plano seguro e memória."
+    first_action = "Criar task e reunir contexto."
+
+    if risk == "alto":
+        profile = "PRODUCTION_LOCKED"
+        tool = "CHATGPT_COCKPIT + checklist read-only"
+        mode = "diagnóstico read-only"
+        reason = "Pedido contém risco alto. Só diagnóstico/plano até aprovação humana."
+        first_action = "Criar plano de diagnóstico. Não executar ação real."
+
+    elif task_type == "VPS/infra":
+        profile = "PRODUCTION_LOCKED"
+        tool = "CHATGPT_COCKPIT + checklist read-only"
+        mode = "infra read-only"
+        reason = "Infra/VPS exige modo seguro, backup e aprovação antes de qualquer comando real."
+        first_action = "Mapear ambiente, risco e backup antes de qualquer comando."
+
+    elif task_type == "n8n/workflow":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT + N8N_FUTURO"
+        mode = "mock/dry-run, active=false"
+        reason = "Workflow n8n deve começar com análise, mock/dry-run, active=false e logs."
+        first_action = "Analisar JSON/workflow sanitizado e criar plano de teste controlado."
+
+    elif task_type == "bug/código":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT agora; CLAUDE_CODE_FUTURO depois"
+        mode = "branch/sandbox"
+        reason = "Código precisa de branch, git status, patch mínimo, build/teste e sem deploy."
+        first_action = "Confirmar git status, branch e escopo antes de editar."
+
+    elif task_type == "Factory Roblox":
+        profile = "THEO_OWNER"
+        tool = "FLOW_SPEC + CHATGPT_COCKPIT"
+        mode = "spec/laboratório"
+        reason = "Factory Roblox é projeto grande: começar com spec, estágios, judges e sandbox."
+        first_action = "Criar spec por estágios, judges, critérios e sandbox."
+
+    elif task_type == "portfólio/site":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT + CLAUDE/GEMINI manual futuro"
+        mode = "branch/local"
+        reason = "Site/portfólio pode ser editado em branch/local e publicado só com aprovação."
+        first_action = "Localizar projeto, criar branch e planejar alteração."
+
+    elif "claude" in lower or "chefe" in lower:
+        profile = "CHEFE_CLAUDE"
+        tool = "CLAUDE_MANUAL / CLAUDE_CODE_FUTURO"
+        mode = "perfil separado"
+        reason = "Pedido menciona Claude/chefe; usar perfil separado, sem misturar projeto pessoal sensível."
+        first_action = "Separar contexto autorizado e não misturar projeto pessoal sensível."
+
+    elif "free" in lower or "grátis" in lower or "gratis" in lower or "ollama" in lower or "groq" in lower:
+        profile = "LAB_FREE"
+        tool = "OLLAMA_LOCAL_FUTURO / GROQ_API_FUTURO / GEMINI_MANUAL"
+        mode = "sandbox/free-first"
+        reason = "Pedido pede baixo custo/free-first; usar laboratório e evitar dados sensíveis."
+        first_action = "Usar dados não sensíveis e limitar custo."
+
+    return {
+        "task_type": task_type,
+        "risk": risk,
+        "profile": profile,
+        "tool": tool,
+        "mode": mode,
+        "reason": reason,
+        "first_action": first_action,
+    }
+
+
+def launch_mission(text: str):
+    if not text.strip():
+        print('Uso: ./jarvis launch "pedido"')
+        return
+
+    meta = route_metadata(text)
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    mission_id = "MISSION-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    slug = slugify(text)
+
+    mission_dir = ROOT / "05_EXECUCAO" / "01_MISSOES"
+    plan_dir = ROOT / "05_EXECUCAO" / "00_PLANOS_SEGUROS"
+    task_dir = ROOT / "02_TAREFAS" / "00_NOVAS"
+    mission_dir.mkdir(parents=True, exist_ok=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    task_dir.mkdir(parents=True, exist_ok=True)
+
+    task_file = task_dir / f"{mission_id}_{slug}.md"
+    plan_file = plan_dir / f"{ts}_{slug}.md"
+    brief_file = mission_dir / f"{ts}_{slug}_mission-brief.md"
+
+    blockers = [
+        "produção",
+        "VPS real",
+        "deploy",
+        "main/push/merge",
+        "credenciais",
+        "banco real",
+        "envio real para cliente/paciente/lead",
+        "API paga relevante",
+        "instalação de ferramenta nova",
+        "autoalteração de arquitetura",
+    ]
+
+    task_content = f"""# Mission Task — {mission_id}
+
+## ID
+{mission_id}
+
+## Projeto
+A definir
+
+## Pedido original
+{text}
+
+## Objetivo final
+Transformar o pedido em execução segura, rastreável e validável.
+
+## Tipo detectado
+{meta['task_type']}
+
+## Status real
+Criado localmente. Nada executado.
+
+## Risco detectado
+{meta['risk']}
+
+## Perfil sugerido
+{meta['profile']}
+
+## Ferramenta sugerida
+{meta['tool']}
+
+## Modo de execução
+{meta['mode']}
+
+## Motivo do roteamento
+{meta['reason']}
+
+## Plano seguro inicial
+1. Reunir contexto.
+2. Confirmar ambiente.
+3. Validar risco.
+4. Separar leitura, plano, execução e validação.
+5. Executar apenas em laboratório/branch/sandbox quando permitido.
+6. Gerar evidência.
+7. Atualizar memória e relatório.
+
+## Aprovação humana necessária antes de
+""" + "\n".join([f"- {b}" for b in blockers]) + f"""
+
+## Resultado esperado
+Missão preparada para próxima etapa segura.
+
+## Resultado obtido
+Task criada automaticamente por `./jarvis launch`.
+
+## Próximo passo
+{meta['first_action']}
+"""
+
+    plan_content = f"""# Plano Seguro — {mission_id}
+
+## Pedido
+{text}
+
+## Tipo detectado
+{meta['task_type']}
+
+## Risco detectado
+{meta['risk']}
+
+## Perfil sugerido
+{meta['profile']}
+
+## Ferramenta sugerida
+{meta['tool']}
+
+## Modo
+{meta['mode']}
+
+## Status real
+Plano criado localmente. Nada executado.
+
+## Primeira ação segura
+{meta['first_action']}
+
+## Fases
+### Fase 1 — Contexto
+Reunir arquivos, prints, logs, descrição, projeto e objetivo.
+
+### Fase 2 — Diagnóstico
+Entender ambiente, risco, ferramenta e limite.
+
+### Fase 3 — Execução segura
+Executar somente em laboratório/local/branch/sandbox, se permitido.
+
+### Fase 4 — Validação
+Rodar self-test, build, diff, review ou checklist aplicável.
+
+### Fase 5 — Memória
+Criar aprendizado, decisão, log e relatório.
+
+## Bloqueios sem aprovação
+""" + "\n".join([f"- {b}" for b in blockers]) + """
+
+## Produção
+Nada alterado.
+
+## Criador / dono
+Theo Padilha.
+"""
+
+    brief_content = f"""# Mission Brief — {mission_id}
+
+## Pedido
+{text}
+
+## Resumo executivo
+JARVIS recebeu o pedido, classificou o tipo, estimou risco, escolheu perfil/ferramenta sugerida e criou task + plano seguro. Nenhuma ação perigosa foi executada.
+
+## Tipo
+{meta['task_type']}
+
+## Risco
+{meta['risk']}
+
+## Perfil
+{meta['profile']}
+
+## Ferramenta
+{meta['tool']}
+
+## Modo
+{meta['mode']}
+
+## Motivo
+{meta['reason']}
+
+## Arquivos criados
+- `{task_file.relative_to(ROOT)}`
+- `{plan_file.relative_to(ROOT)}`
+- `{brief_file.relative_to(ROOT)}`
+
+## Próximo passo seguro
+{meta['first_action']}
+
+## Status real
+Missão preparada localmente. Não é produção.
+"""
+
+    task_file.write_text(task_content, encoding="utf-8")
+    plan_file.write_text(plan_content, encoding="utf-8")
+    brief_file.write_text(brief_content, encoding="utf-8")
+
+    log = write_log(
+        "mission-launched",
+        f"""# Log — Mission launched
+
+## Mission
+{mission_id}
+
+## Pedido
+{text}
+
+## Task
+{task_file.relative_to(ROOT)}
+
+## Plano
+{plan_file.relative_to(ROOT)}
+
+## Brief
+{brief_file.relative_to(ROOT)}
+
+## Perfil
+{meta['profile']}
+
+## Ferramenta
+{meta['tool']}
+
+## Risco
+{meta['risk']}
+
+## Status real
+Missão criada localmente. Nada executado.
+
+## Produção
+Nada alterado.
+"""
+    )
+
+    print("JARVIS — Theo Padilha AI Worker Mission Launch")
+    print("")
+    print(f"Mission: {mission_id}")
+    print(f"Tipo: {meta['task_type']}")
+    print(f"Risco: {meta['risk']}")
+    print(f"Perfil: {meta['profile']}")
+    print(f"Ferramenta: {meta['tool']}")
+    print(f"Task: {task_file.relative_to(ROOT)}")
+    print(f"Plano: {plan_file.relative_to(ROOT)}")
+    print(f"Brief: {brief_file.relative_to(ROOT)}")
+    print(f"Log: {log.relative_to(ROOT)}")
+    print("")
+    print(f"Próximo passo seguro: {meta['first_action']}")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -1271,6 +1585,9 @@ def main():
     elif cmd == "plan":
         text = " ".join(sys.argv[2:]).strip()
         create_plan(text)
+    elif cmd == "launch":
+        text = " ".join(sys.argv[2:]).strip()
+        launch_mission(text)
     else:
         help_msg()
 
