@@ -2183,6 +2183,138 @@ Nada alterado.
     print(f"Outputs revisados: {count}")
     print(f"Log criado: {log.relative_to(ROOT)}")
 
+# Override v2 — company routing priority
+def is_company_context(text: str) -> bool:
+    lower = text.lower()
+    return any(x in lower for x in [
+        "empresa",
+        "vamoo",
+        "chefe",
+        "ruan",
+        "cliente da empresa",
+        "projeto da empresa",
+        "vs code com claude",
+        "claude do chefe"
+    ])
+
+
+def route_metadata(text: str):
+    task_type = detect_type(text)
+    risk = detect_risk(text)
+    lower = text.lower()
+
+    profile = "THEO_OWNER"
+    tool = "CHATGPT_COCKPIT"
+    mode = "laboratório local"
+    reason = "Pedido geral: começar pelo cockpit, plano seguro e memória."
+    first_action = "Criar task e reunir contexto."
+
+    if is_company_context(text) and risk != "alto":
+        profile = "COMPANY_WORKSPACE"
+        tool = "CHATGPT_COCKPIT + CLAUDE_MANUAL/CLAUDE_CODE_FUTURO se autorizado"
+        mode = "workspace empresa / branch / read-only primeiro"
+        reason = "Pedido menciona contexto de empresa; usar workspace separado, VS Code/Git seguro e Claude apenas como executor autorizado."
+        first_action = "Confirmar pasta, git status, branch, escopo e autorização antes de executar."
+
+    elif risk == "alto":
+        profile = "PRODUCTION_LOCKED"
+        tool = "CHATGPT_COCKPIT + checklist read-only"
+        mode = "diagnóstico read-only"
+        reason = "Pedido contém risco alto. Só diagnóstico/plano até aprovação humana."
+        first_action = "Criar plano de diagnóstico. Não executar ação real."
+
+    elif task_type == "VPS/infra":
+        profile = "PRODUCTION_LOCKED"
+        tool = "CHATGPT_COCKPIT + checklist read-only"
+        mode = "infra read-only"
+        reason = "Infra/VPS exige modo seguro, backup e aprovação antes de qualquer comando real."
+        first_action = "Mapear ambiente, risco e backup antes de qualquer comando."
+
+    elif task_type == "n8n/workflow":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT + N8N_FUTURO"
+        mode = "mock/dry-run, active=false"
+        reason = "Workflow n8n deve começar com análise, mock/dry-run, active=false e logs."
+        first_action = "Analisar JSON/workflow sanitizado e criar plano de teste controlado."
+
+    elif task_type == "bug/código":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT agora; CLAUDE_CODE_FUTURO depois"
+        mode = "branch/sandbox"
+        reason = "Código precisa de branch, git status, patch mínimo, build/teste e sem deploy."
+        first_action = "Confirmar git status, branch e escopo antes de editar."
+
+    elif task_type == "Factory Roblox":
+        profile = "THEO_OWNER"
+        tool = "FLOW_SPEC + CHATGPT_COCKPIT"
+        mode = "spec/laboratório"
+        reason = "Factory Roblox é projeto grande: começar com spec, estágios, judges e sandbox."
+        first_action = "Criar spec por estágios, judges, critérios e sandbox."
+
+    elif task_type == "portfólio/site":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT + CLAUDE/GEMINI manual futuro"
+        mode = "branch/local"
+        reason = "Site/portfólio pode ser editado em branch/local e publicado só com aprovação."
+        first_action = "Localizar projeto, criar branch e planejar alteração."
+
+    elif "claude" in lower:
+        profile = "CHEFE_CLAUDE"
+        tool = "CLAUDE_MANUAL / CLAUDE_CODE_FUTURO"
+        mode = "perfil separado"
+        reason = "Pedido menciona Claude; usar perfil separado e sem misturar projeto pessoal sensível."
+        first_action = "Separar contexto autorizado e não misturar projeto pessoal sensível."
+
+    elif "free" in lower or "grátis" in lower or "gratis" in lower or "ollama" in lower or "groq" in lower:
+        profile = "LAB_FREE"
+        tool = "OLLAMA_LOCAL_FUTURO / GROQ_API_FUTURO / GEMINI_MANUAL"
+        mode = "sandbox/free-first"
+        reason = "Pedido pede baixo custo/free-first; usar laboratório e evitar dados sensíveis."
+        first_action = "Usar dados não sensíveis e limitar custo."
+
+    return {
+        "task_type": task_type,
+        "risk": risk,
+        "profile": profile,
+        "tool": tool,
+        "mode": mode,
+        "reason": reason,
+        "first_action": first_action,
+    }
+
+
+def route_request(text: str):
+    if not text.strip():
+        print('Uso: ./jarvis route "pedido"')
+        return
+
+    meta = route_metadata(text)
+
+    print("JARVIS — Theo Padilha AI Worker Route")
+    print("")
+    print(f"Pedido: {text}")
+    print(f"Tipo detectado: {meta['task_type']}")
+    print(f"Risco detectado: {meta['risk']}")
+    print(f"Perfil sugerido: {meta['profile']}")
+    print(f"Ferramenta sugerida: {meta['tool']}")
+    print(f"Motivo: {meta['reason']}")
+    print("")
+    print("Bloqueios permanentes sem aprovação humana:")
+    for item in [
+        "produção",
+        "VPS real",
+        "deploy",
+        "main/push/merge",
+        "credenciais",
+        "banco real",
+        "envio real",
+        "API paga relevante",
+    ]:
+        print(f"- {item}")
+    print("")
+    print("Próximo passo seguro:")
+    print(meta["first_action"])
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
