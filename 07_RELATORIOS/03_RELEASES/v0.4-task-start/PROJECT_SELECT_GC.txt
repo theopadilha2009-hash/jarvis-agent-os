@@ -1,0 +1,21 @@
+JARVIS — Theo Padilha AI Worker Project Select
+
+Tarefa: corrigir bug de visitantes do GC sem produção
+
+Projeto sugerido:
+- Nome: gc-gestao-de-cristo
+- Caminho: /Users/usuario1/VAMOO_PROJETOS/gc-gestao-de-cristo
+- Tipo: web-app/código
+- Branch: analise-inicial-theo
+- Status: limpo
+- Risco: médio
+- Score: 20
+- Motivos: tarefa parece código/repo, contexto GC, git limpo
+
+Próximo passo seguro:
+./jarvis workspace-check /Users/usuario1/VAMOO_PROJETOS/gc-gestao-de-cristo
+
+Top opções:
+- gc-gestao-de-cristo | score 20 | /Users/usuario1/VAMOO_PROJETOS/gc-gestao-de-cristo
+- oficina | score 8 | /Users/usuario1/VAMOO_PROJETOS/oficina
+- ls-clinica-agent | score 6 | /Users/usuario1/VAMOO_PROJETOS/ls-clinica-agent

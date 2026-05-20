@@ -1,0 +1,25 @@
+336fa77 fix: make task start company workspace aware
+2d56c91 feat: add autonomous task start preparation
+82705d2 fix: wire project select into jarvis cli
+5fae27a feat: add project selection command
+38ccf1f feat: wire project index into jarvis cli
+4652b74 feat: add project index generator
+19512e0 feat: wire workspace scan into jarvis cli
+ac17b88 feat: add standalone workspace scan script
+24a11dd fix: repair workspace check cli shortcut
+dc20685 feat: wire workspace check into jarvis cli
+c22bd59 feat: add standalone workspace check script
+9d755c0 chore: snapshot v0.4 progress state
+31b767a test: close company workspace validation mission
+9ec7c7b test: validate company workspace mission launch
+1b75c75 fix: sync plan with routing metadata
+4793568 fix: prioritize company workspace routing
+0e2c315 fix: make risk detection negation-aware for company workspace
+9ae4a46 feat: add company workspace profile routing
+d750b67 docs: add company workspace mode rules
+974dc9d feat: add executor output review intake
+a698ea7 feat: add manual executor prompt pack
+b678950 docs: add v0.4 executor roadmap and contracts
+c2f6f71 chore: create JARVIS v0.3 release snapshot
+b60ad31 chore: version git safety hook
+98ed082 chore: document local git safety hook
