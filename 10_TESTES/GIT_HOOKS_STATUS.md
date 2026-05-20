@@ -1,7 +1,7 @@
 # Git Hooks Status — JARVIS Theo Padilha
 
 ## Status real
-Pre-commit hook local criado.
+Pre-commit hook versionado em `.githooks/pre-commit` e ativado localmente com `core.hooksPath`.
 
 ## O que ele valida
 - Python syntax de `11_SCRIPTS/jarvis_core.py`
@@ -11,4 +11,5 @@ Pre-commit hook local criado.
 Nada alterado.
 
 ## Observação
-Hooks Git são locais. Se o projeto for clonado em outro Mac, precisam ser reinstalados ou documentados.
+Agora o hook fica versionado no repositório. Em outro Mac, basta rodar:
+`git config core.hooksPath .githooks`

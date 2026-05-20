@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -e
+
+echo "JARVIS pre-commit: Python syntax..."
+
+python3 -m py_compile 11_SCRIPTS/jarvis_core.py
+
+echo "JARVIS pre-commit: blocked secret-like files..."
+
+if git diff --cached --name-only | grep -E '(^|/)(\.env|.*\.pem|.*\.key)$' >/dev/null; then
+  echo "BLOCKED: staged secret-like file detected."
+  exit 1
+fi
+
+echo "JARVIS pre-commit: OK"
