@@ -2051,6 +2051,94 @@ Nada alterado.
     print(f"Risco: {meta['risk']}")
     print("Status real: prompts criados, nada conectado.")
 
+
+def review_outputs():
+    inbox = ROOT / "00_COLE_AQUI/03_OUTPUTS_CLAUDE_CHATGPT"
+    reviewed = ROOT / "05_EXECUCAO/03_EXECUTOR_OUTPUTS_REVIEWED"
+    archive = ROOT / "99_ARQUIVO_MORTO/EXECUTOR_OUTPUTS_PROCESSADOS" / datetime.now().strftime("%Y-%m-%d")
+    reviewed.mkdir(parents=True, exist_ok=True)
+    archive.mkdir(parents=True, exist_ok=True)
+
+    files = sorted([p for p in inbox.glob("*.md") if p.is_file()])
+    if not files:
+        print("Nenhum output .md encontrado em 00_COLE_AQUI/03_OUTPUTS_CLAUDE_CHATGPT")
+        return
+
+    count = 0
+    for src in files:
+        raw = src.read_text(encoding="utf-8", errors="ignore").strip()
+        if not raw:
+            continue
+
+        risk = detect_risk(raw)
+        task_type = detect_type(raw)
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
+        slug = slugify(src.stem)
+        review_file = reviewed / f"{ts}_{slug}_review.md"
+
+        review = f"""# Executor Output Review — JARVIS
+
+## Fonte
+`{src.relative_to(ROOT)}`
+
+## Status real
+Output externo processado localmente. Nada executado.
+
+## Tipo detectado
+{task_type}
+
+## Risco detectado
+{risk}
+
+## Resumo bruto
+{raw[:1800]}
+
+## Decisão JARVIS
+Este output deve ser tratado como sugestão de executor externo, não como verdade validada.
+
+## Próximo passo seguro
+- Se for código: revisar diff, branch, build/teste antes de aplicar.
+- Se for n8n: importar inactive/dry-run antes de qualquer ativação.
+- Se for VPS/produção: read-only e aprovação humana.
+- Se for documentação: transformar em memória ou relatório.
+
+## Produção
+Nada alterado.
+
+## Criador / dono
+Theo Padilha.
+"""
+        review_file.write_text(review, encoding="utf-8")
+
+        create_task(
+            f"Revisar output externo processado: {review_file.relative_to(ROOT)}",
+            source=str(src.relative_to(ROOT))
+        )
+
+        target = archive / src.name
+        if target.exists():
+            target = target.with_name(target.stem + "-" + datetime.now().strftime("%H%M%S-%f") + target.suffix)
+        src.rename(target)
+        count += 1
+
+    log = write_log(
+        "executor-outputs-reviewed",
+        f"""# Log — Executor outputs reviewed
+
+## Quantidade
+{count}
+
+## Status real
+Outputs externos revisados localmente.
+
+## Produção
+Nada alterado.
+"""
+    )
+
+    print(f"Outputs revisados: {count}")
+    print(f"Log criado: {log.relative_to(ROOT)}")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2127,6 +2215,8 @@ def main():
     elif cmd == "prompt-pack":
         text = " ".join(sys.argv[2:]).strip()
         prompt_pack(text)
+    elif cmd == "review-outputs":
+        review_outputs()
     else:
         help_msg()
 
