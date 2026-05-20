@@ -2315,6 +2315,119 @@ def route_request(text: str):
     print("Próximo passo seguro:")
     print(meta["first_action"])
 
+# Override v3 — plan uses route_metadata
+def create_plan(text: str):
+    if not text.strip():
+        print('Uso: ./jarvis plan "pedido"')
+        return
+
+    meta = route_metadata(text)
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    plan_dir = ROOT / "05_EXECUCAO" / "00_PLANOS_SEGUROS"
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    plan_file = plan_dir / f"{ts}_{slugify(text)}.md"
+
+    blockers = [
+        "produção",
+        "VPS real",
+        "deploy",
+        "main/push/merge",
+        "credenciais",
+        "banco real",
+        "envio real para cliente/paciente/lead",
+        "API paga relevante",
+        "instalação de ferramenta nova",
+        "autoalteração de arquitetura",
+    ]
+
+    content = f"""# Plano Seguro — JARVIS Theo Padilha AI Worker
+
+## Pedido
+{text}
+
+## Tipo detectado
+{meta['task_type']}
+
+## Risco detectado
+{meta['risk']}
+
+## Perfil sugerido
+{meta['profile']}
+
+## Ferramenta sugerida
+{meta['tool']}
+
+## Modo de execução
+{meta['mode']}
+
+## Motivo do roteamento
+{meta['reason']}
+
+## Status real
+Plano criado localmente. Nada executado.
+
+## Primeira ação segura
+{meta['first_action']}
+
+## Etapas recomendadas
+1. Confirmar projeto, pasta e contexto.
+2. Rodar `git status` quando houver repo.
+3. Confirmar branch e escopo.
+4. Separar leitura, plano, execução e validação.
+5. Executar só em laboratório/branch/sandbox quando permitido.
+6. Rodar validação possível.
+7. Salvar logs, memória e relatório.
+8. Pedir aprovação humana antes de qualquer ação sensível.
+
+## Bloqueios sem aprovação humana
+""" + "\n".join([f"- {b}" for b in blockers]) + """
+
+## Produção
+Nada alterado.
+
+## Criador / dono
+Theo Padilha.
+"""
+
+    plan_file.write_text(content, encoding="utf-8")
+
+    log = write_log(
+        "safe-plan-created",
+        f"""# Log — Plano seguro criado
+
+## Plano
+{plan_file.relative_to(ROOT)}
+
+## Pedido
+{text}
+
+## Perfil
+{meta['profile']}
+
+## Ferramenta
+{meta['tool']}
+
+## Risco
+{meta['risk']}
+
+## Status real
+Plano criado. Nada executado.
+
+## Produção
+Nada alterado.
+"""
+    )
+
+    print(f"Plano criado: {plan_file.relative_to(ROOT)}")
+    print(f"Log criado: {log.relative_to(ROOT)}")
+    print("")
+    print("Resumo:")
+    print(f"- Tipo: {meta['task_type']}")
+    print(f"- Risco: {meta['risk']}")
+    print(f"- Perfil: {meta['profile']}")
+    print(f"- Ferramenta: {meta['tool']}")
+    print(f"- Próximo passo: {meta['first_action']}")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
