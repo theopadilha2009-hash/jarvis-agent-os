@@ -2441,6 +2441,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis handoff-open           abre último handoff no Finder
   ./jarvis handoff-latest         mostra último pacote para Claude/VS Code
 """)
 
@@ -2556,6 +2557,8 @@ def main():
         executor_handoff_command(text)
     elif cmd == "handoff-latest":
         handoff_latest_command()
+    elif cmd == "handoff-open":
+        handoff_open_command()
     else:
         help_msg()
 
@@ -2569,6 +2572,10 @@ def executor_handoff_command(text: str = ""):
 def handoff_latest_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/handoff_latest.py"], cwd=ROOT, check=False)
+
+def handoff_open_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/handoff_open.py"], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()
