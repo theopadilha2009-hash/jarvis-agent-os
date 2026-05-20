@@ -1649,6 +1649,13 @@ def quality_gate():
     py_compile = run(["python3", "-m", "py_compile", "11_SCRIPTS/jarvis_core.py"])
     check("Python compile", not py_compile.startswith("ERRO"), py_compile if py_compile else "sem erro")
 
+    smoke_py = ROOT / "11_SCRIPTS" / "cli_smoke_test.py"
+    if smoke_py.exists():
+        smoke_compile = run(["python3", "-m", "py_compile", "11_SCRIPTS/cli_smoke_test.py"])
+        check("Smoke script compile", not smoke_compile.startswith("ERRO"), smoke_compile if smoke_compile else "sem erro")
+    else:
+        check("Smoke script compile", False, "cli_smoke_test.py ausente")
+
     git_status = run(["git", "status", "--short"])
     check("Git status", git_status == "", "limpo" if git_status == "" else git_status.replace("\n", " | "))
 
