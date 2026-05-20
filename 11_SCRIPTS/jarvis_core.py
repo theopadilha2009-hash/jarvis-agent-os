@@ -1606,16 +1606,12 @@ def quality_gate():
     check("Python compile", not py_compile.startswith("ERRO"), py_compile if py_compile else "sem erro")
 
     git_status = run(["git", "status", "--short"])
-    check("Git status", git_status == "", "limpo" if git_status == "" else git_status.replace("\n", " | "))
+    check("Git status", git_status == "", "limpo" if git_status == "" else git_status.replace("
+", " | "))
 
-    required_ok = all((ROOT / d).is_dir() for d in REQUIRED_DIRS)
-    check("Estrutura principal", required_ok)
-
-    identity_ok = (ROOT / "01_SISTEMA/00_REGRAS/IDENTIDADE_JARVIS_THEO_PADILHA.md").is_file()
-    check("Identidade Theo Padilha", identity_ok)
-
-    scripts_ok = (ROOT / "jarvis").is_file() and (ROOT / "11_SCRIPTS/jarvis_core.py").is_file()
-    check("CLI presente", scripts_ok)
+    check("Estrutura principal", all((ROOT / d).is_dir() for d in REQUIRED_DIRS))
+    check("Identidade Theo Padilha", (ROOT / "01_SISTEMA/00_REGRAS/IDENTIDADE_JARVIS_THEO_PADILHA.md").is_file())
+    check("CLI presente", (ROOT / "jarvis").is_file() and (ROOT / "11_SCRIPTS/jarvis_core.py").is_file())
 
     new_tasks = list((ROOT / "02_TAREFAS/00_NOVAS").glob("*.md"))
     check("Tasks abertas", len(new_tasks) == 0, f"{len(new_tasks)} aberta(s)")
@@ -1625,6 +1621,13 @@ def quality_gate():
 
     logs = list((ROOT / "09_LOGS").glob("*.md"))
     check("Logs", len(logs) > 0, f"{len(logs)} log(s)")
+
+    marker = ROOT / "10_TESTES/AUDITS/LAST_SECURITY_AUDIT_STATUS.txt"
+    if marker.exists():
+        audit_status = marker.read_text(encoding="utf-8", errors="ignore").strip()
+        check("Security audit", audit_status == "PASSOU", audit_status)
+    else:
+        check("Security audit", False, "sem audit v2 registrado")
 
     ok_all = all(checks)
 
@@ -1636,7 +1639,6 @@ def quality_gate():
         print("")
         print("Ação segura:")
         print("- Resolver pendências antes de conectar IA externa, n8n, VPS ou APIs.")
-
 
 def defer_task(query: str = ""):
     open_dir = ROOT / "02_TAREFAS/00_NOVAS"
@@ -1727,111 +1729,98 @@ def show_backlog():
 
 
 def security_audit():
-    print("JARVIS — Theo Padilha AI Worker Security Audit")
+    print("JARVIS — Theo Padilha AI Worker Security Audit v2")
     print("")
 
     audit_dir = ROOT / "10_TESTES" / "AUDITS"
     audit_dir.mkdir(parents=True, exist_ok=True)
+
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
-    audit_file = audit_dir / f"{ts}_security-audit.md"
+    audit_file = audit_dir / f"{ts}_security-audit-v2.md"
+    marker = audit_dir / "LAST_SECURITY_AUDIT_STATUS.txt"
 
-    ignore_parts = {
-        ".git", "__pycache__", ".cache", ".runtime", "99_ARQUIVO_MORTO"
+    ignore_parts = {".git", "__pycache__", ".cache", ".runtime", "99_ARQUIVO_MORTO"}
+    scan_ext = {".md", ".txt", ".py", ".json", ".yml", ".yaml", ".env", ".sh", ".toml"}
+
+    patterns = {
+        "OPENAI_STYLE_KEY": r"(?<![A-Za-z0-9_\-])sk-[A-Za-z0-9_\-]{20,}(?![A-Za-z0-9_\-])",
+        "GITHUB_TOKEN": r"\bghp_[A-Za-z0-9_]{20,}\b",
+        "SLACK_TOKEN": r"\bxox[baprs]-[A-Za-z0-9\-]{20,}\b",
+        "PRIVATE_KEY_BLOCK": r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
+        "ASSIGNMENT_SECRET": r"(?i)\b(api[_-]?key|secret[_-]?key|password|senha|token|service_role)\s*[:=]\s*['\\"]?[A-Za-z0-9_\-/.]{16,}",
+        "AUTH_BEARER": r"(?i)\bauthorization\s*[:=]\s*['\\"]?bearer\s+[A-Za-z0-9_\-/.]{16,}",
     }
-
-    scan_ext = {
-        ".md", ".txt", ".py", ".json", ".yml", ".yaml", ".env", ".sh", ".toml"
-    }
-
-    risky_name_terms = [
-        ".env", "secret", "token", "credential", "credentials",
-        "senha", "password", "apikey", "api_key", "service_role",
-        "private_key", "uazapi", "instance_token"
-    ]
-
-    risky_content_terms = [
-        "api_key", "apikey", "secret_key", "service_role", "bearer ",
-        "authorization:", "password=", "senha=", "token=", "instance token",
-        "private_key", "BEGIN PRIVATE KEY", "sk-", "xoxb-", "ghp_"
-    ]
 
     files_scanned = 0
-    risky_names = []
-    risky_contents = []
+    findings = []
 
     for path in ROOT.rglob("*"):
         if not path.is_file():
             continue
-        rel = path.relative_to(ROOT)
-        parts = set(rel.parts)
 
-        if parts & ignore_parts:
+        rel = path.relative_to(ROOT)
+        if set(rel.parts) & ignore_parts:
             continue
 
         if path.suffix.lower() not in scan_ext and path.name != "jarvis":
             continue
 
         files_scanned += 1
-        name_lower = path.name.lower()
-        rel_str = str(rel)
-
-        if any(term in name_lower for term in risky_name_terms):
-            risky_names.append(rel_str)
 
         try:
-            text = path.read_text(encoding="utf-8", errors="ignore").lower()
+            text = path.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
 
-        hits = []
-        for term in risky_content_terms:
-            if term.lower() in text:
-                hits.append(term)
+        for label, pattern in patterns.items():
+            count = len(list(re.finditer(pattern, text)))
+            if count:
+                findings.append((str(rel), label, count))
 
-        if hits:
-            risky_contents.append((rel_str, sorted(set(hits))))
+    status = "PASSOU" if not findings else "PENDENCIAS"
+    marker.write_text(status + "
+", encoding="utf-8")
 
-    status = "PASSOU" if not risky_names and not risky_contents else "PENDÊNCIAS"
+    lines = [
+        "# Security Audit v2 — JARVIS Theo Padilha AI Worker",
+        "",
+        f"## Data
+{datetime.now().isoformat(timespec='seconds')}",
+        "",
+        "## Status real
+Auditoria local. Nada foi alterado em produção.",
+        "",
+        f"## Resultado
+{status}",
+        "",
+        f"## Arquivos analisados
+{files_scanned}",
+        "",
+        "## Achados",
+    ]
 
-    lines = []
-    lines.append("# Security Audit — JARVIS Theo Padilha AI Worker")
-    lines.append("")
-    lines.append(f"## Data\n{datetime.now().isoformat(timespec='seconds')}")
-    lines.append("")
-    lines.append("## Status real\nAuditoria local. Nada foi alterado em produção.")
-    lines.append("")
-    lines.append(f"## Resultado\n{status}")
-    lines.append("")
-    lines.append(f"## Arquivos analisados\n{files_scanned}")
-    lines.append("")
-    lines.append("## Arquivos com nome sensível")
-    if risky_names:
-        for item in risky_names:
-            lines.append(f"- {item}")
+    if findings:
+        for file, label, count in findings:
+            lines.append(f"- {file}: {label} ({count})")
     else:
         lines.append("- nenhum")
-    lines.append("")
-    lines.append("## Arquivos com termos sensíveis no conteúdo")
-    if risky_contents:
-        for file, hits in risky_contents:
-            lines.append(f"- {file}: {', '.join(hits)}")
-    else:
-        lines.append("- nenhum")
-    lines.append("")
-    lines.append("## Observação")
-    lines.append("Este audit não imprime segredos. Ele só lista arquivos/termos suspeitos para revisão.")
-    lines.append("")
-    lines.append("## Próximo passo seguro")
-    if status == "PASSOU":
-        lines.append("Pode continuar evolução local.")
-    else:
-        lines.append("Revisar os arquivos apontados antes de conectar IA externa, n8n, VPS ou APIs.")
 
-    audit_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    lines += [
+        "",
+        "## Observação",
+        "Audit v2 usa regex de formato real de segredo e reduz falsos positivos de palavras comuns.",
+        "",
+        "## Próximo passo seguro",
+        "Continuar evolução local." if status == "PASSOU" else "Revisar achados antes de conectar executor externo, n8n, VPS ou APIs.",
+    ]
+
+    audit_file.write_text("
+".join(lines) + "
+", encoding="utf-8")
 
     log = write_log(
-        "security-audit",
-        f"""# Log — Security audit
+        "security-audit-v2",
+        f"""# Log — Security audit v2
 
 ## Audit
 {audit_file.relative_to(ROOT)}
@@ -1847,20 +1836,16 @@ Nada alterado.
 """
     )
 
-    print(f"Resultado: SECURITY AUDIT {status}")
+    print(f"Resultado: SECURITY AUDIT v2 {status}")
     print(f"Arquivos analisados: {files_scanned}")
     print(f"Audit salvo: {audit_file.relative_to(ROOT)}")
     print(f"Log criado: {log.relative_to(ROOT)}")
 
-    if risky_names or risky_contents:
+    if findings:
         print("")
-        print("Pendências detectadas:")
-        for item in risky_names[:20]:
-            print(f"- nome sensível: {item}")
-        for file, hits in risky_contents[:20]:
-            print(f"- conteúdo sensível: {file} -> {', '.join(hits)}")
-        print("")
-        print("Ação segura: revisar antes de conectar qualquer executor externo.")
+        print("Achados:")
+        for file, label, count in findings[:20]:
+            print(f"- {file} -> {label} ({count})")
 
 def help_msg():
     print("""Comandos:
