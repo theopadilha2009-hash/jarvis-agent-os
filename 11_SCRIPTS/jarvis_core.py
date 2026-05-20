@@ -2458,6 +2458,13 @@ def project_index_command(path_text: str = ""):
     target = path_text.strip() or "~/VAMOO_PROJETOS"
     subprocess.run(["python3", "11_SCRIPTS/project_index.py", target], cwd=ROOT, check=False)
 
+def project_select_command(text: str = ""):
+    import subprocess
+    if not text.strip():
+        print('Uso: ./jarvis project-select "tarefa"')
+        return
+    subprocess.run(["python3", "11_SCRIPTS/project_select.py", text], cwd=ROOT, check=False)
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
 
@@ -2530,6 +2537,9 @@ def main():
     elif cmd == "project-index":
         path_text = " ".join(sys.argv[2:]).strip()
         project_index_command(path_text)
+    elif cmd == "project-select":
+        text = " ".join(sys.argv[2:]).strip()
+        project_select_command(text)
     else:
         help_msg()
 
