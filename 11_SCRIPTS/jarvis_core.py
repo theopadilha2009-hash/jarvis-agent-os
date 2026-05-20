@@ -2448,6 +2448,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis task-status            mostra último status operacional
   ./jarvis commands               mostra catálogo profissional de comandos
   ./jarvis handoff-print          imprime último prompt Claude no terminal
   ./jarvis release-check          roda validação completa local
@@ -2578,6 +2579,8 @@ def main():
         handoff_print_command()
     elif cmd == "commands":
         commands_command()
+    elif cmd == "task-status":
+        task_status_command()
     else:
         help_msg()
 
@@ -2611,6 +2614,10 @@ def handoff_print_command():
 def commands_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/command_catalog.py"], cwd=ROOT, check=False)
+
+def task_status_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/task_status.py"], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()
