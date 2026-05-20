@@ -2441,6 +2441,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis smoke-test             testa comandos principais do JARVIS
   ./jarvis handoff-open           abre último handoff no Finder
   ./jarvis handoff-latest         mostra último pacote para Claude/VS Code
 """)
@@ -2559,6 +2560,8 @@ def main():
         handoff_latest_command()
     elif cmd == "handoff-open":
         handoff_open_command()
+    elif cmd == "smoke-test":
+        smoke_test_command()
     else:
         help_msg()
 
@@ -2576,6 +2579,10 @@ def handoff_latest_command():
 def handoff_open_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/handoff_open.py"], cwd=ROOT, check=False)
+
+def smoke_test_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/cli_smoke_test.py"], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()
