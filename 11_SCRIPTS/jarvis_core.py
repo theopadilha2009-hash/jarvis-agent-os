@@ -1582,6 +1582,61 @@ def show_missions():
 
     print("Regra: missão criada não significa execução feita. É preparação segura.")
 
+
+def quality_gate():
+    print("JARVIS — Theo Padilha AI Worker Quality Gate")
+    print("")
+
+    def run(cmd):
+        try:
+            return subprocess.check_output(cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT).strip()
+        except subprocess.CalledProcessError as e:
+            return "ERRO: " + e.output.strip()
+        except Exception as e:
+            return "ERRO: " + str(e)
+
+    checks = []
+
+    def check(name, ok, detail=""):
+        checks.append(ok)
+        status = "OK" if ok else "FALHA"
+        print(f"{status}  {name}" + (f" — {detail}" if detail else ""))
+
+    py_compile = run(["python3", "-m", "py_compile", "11_SCRIPTS/jarvis_core.py"])
+    check("Python compile", not py_compile.startswith("ERRO"), py_compile if py_compile else "sem erro")
+
+    git_status = run(["git", "status", "--short"])
+    check("Git status", git_status == "", "limpo" if git_status == "" else git_status.replace("\n", " | "))
+
+    required_ok = all((ROOT / d).is_dir() for d in REQUIRED_DIRS)
+    check("Estrutura principal", required_ok)
+
+    identity_ok = (ROOT / "01_SISTEMA/00_REGRAS/IDENTIDADE_JARVIS_THEO_PADILHA.md").is_file()
+    check("Identidade Theo Padilha", identity_ok)
+
+    scripts_ok = (ROOT / "jarvis").is_file() and (ROOT / "11_SCRIPTS/jarvis_core.py").is_file()
+    check("CLI presente", scripts_ok)
+
+    new_tasks = list((ROOT / "02_TAREFAS/00_NOVAS").glob("*.md"))
+    check("Tasks abertas", len(new_tasks) == 0, f"{len(new_tasks)} aberta(s)")
+
+    missions = list((ROOT / "05_EXECUCAO/01_MISSOES").glob("*.md")) if (ROOT / "05_EXECUCAO/01_MISSOES").exists() else []
+    check("Missões registradas", True, f"{len(missions)} brief(s)")
+
+    logs = list((ROOT / "09_LOGS").glob("*.md"))
+    check("Logs", len(logs) > 0, f"{len(logs)} log(s)")
+
+    ok_all = all(checks)
+
+    print("")
+    print("Resultado:", "QUALITY GATE PASSOU" if ok_all else "QUALITY GATE COM PENDÊNCIAS")
+    print("Status real: validação local. Produção não alterada.")
+
+    if not ok_all:
+        print("")
+        print("Ação segura:")
+        print("- Resolver pendências antes de conectar IA externa, n8n, VPS ou APIs.")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -1646,6 +1701,8 @@ def main():
         launch_mission(text)
     elif cmd == "missions":
         show_missions()
+    elif cmd == "quality-gate":
+        quality_gate()
     else:
         help_msg()
 
