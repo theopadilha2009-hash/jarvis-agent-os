@@ -2550,8 +2550,18 @@ def main():
     elif cmd == "task-start":
         text = " ".join(sys.argv[2:]).strip()
         task_start_command(text)
+    elif cmd == "executor-handoff":
+        text = " ".join(sys.argv[2:]).strip()
+        executor_handoff_command(text)
     else:
         help_msg()
+
+def executor_handoff_command(text: str = ""):
+    import subprocess
+    if not text.strip():
+        print('Uso: ./jarvis executor-handoff "tarefa"')
+        return
+    subprocess.run(["python3", "11_SCRIPTS/executor_handoff.py", text], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()
