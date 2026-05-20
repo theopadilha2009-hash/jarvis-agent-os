@@ -825,6 +825,107 @@ Nada alterado.
     print(f"Checkpoint criado: {file.relative_to(ROOT)}")
     print(f"Log criado: {log.relative_to(ROOT)}")
 
+
+def summary():
+    print("JARVIS — Theo Padilha AI Worker Summary")
+    print("")
+
+    def run(cmd):
+        try:
+            return subprocess.check_output(cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT).strip()
+        except Exception as e:
+            return f"indisponivel: {e}"
+
+    git_commit = run(["git", "rev-parse", "--short", "HEAD"])
+    git_status = run(["git", "status", "--short"]) or "limpo"
+
+    projects = sorted([p.name for p in (ROOT / "04_PROJETOS").glob("*") if p.is_dir()])
+    new_tasks = sorted([p.name for p in (ROOT / "02_TAREFAS/00_NOVAS").glob("*.md")])
+    logs = sorted([p.name for p in (ROOT / "09_LOGS").glob("*.md")])
+    checkpoints = sorted([p.name for p in (ROOT / "10_TESTES/CHECKPOINTS").glob("*.md")]) if (ROOT / "10_TESTES/CHECKPOINTS").exists() else []
+
+    commands = [
+        "./jarvis doctor",
+        "./jarvis report",
+        "./jarvis intake",
+        "./jarvis scan-inbox",
+        "./jarvis process-inbox",
+        "./jarvis next",
+        "./jarvis close-task",
+        "./jarvis create-project",
+        "./jarvis memory-from-task",
+        "./jarvis self-test",
+        "./jarvis tools",
+        "./jarvis checkpoint",
+        "./jarvis summary",
+    ]
+
+    content = []
+    content.append("# JARVIS — Theo Padilha AI Worker")
+    content.append("")
+    content.append("## Criador / dono")
+    content.append("Theo Padilha")
+    content.append("")
+    content.append("## Status real")
+    content.append("Laboratório local funcionando. Não é produção. Não executa ações perigosas sem aprovação humana.")
+    content.append("")
+    content.append("## Git")
+    content.append(f"Commit atual: {git_commit}")
+    content.append(f"Status: {git_status}")
+    content.append("")
+    content.append("## O que já existe")
+    content.append("- CLI local `./jarvis`")
+    content.append("- sistema de tasks")
+    content.append("- processamento de inbox")
+    content.append("- arquivamento de entradas processadas")
+    content.append("- criação de projetos")
+    content.append("- fechamento de tasks")
+    content.append("- memória a partir de task")
+    content.append("- self-test")
+    content.append("- tool registry")
+    content.append("- checkpoint")
+    content.append("- Git versionado localmente")
+    content.append("")
+    content.append("## Projetos registrados")
+    for p in projects:
+        content.append(f"- {p}")
+    content.append("")
+    content.append("## Tasks novas")
+    if new_tasks:
+        for t in new_tasks:
+            content.append(f"- {t}")
+    else:
+        content.append("- nenhuma")
+    content.append("")
+    content.append("## Último checkpoint")
+    content.append(f"- {checkpoints[-1] if checkpoints else 'nenhum'}")
+    content.append("")
+    content.append("## Logs registrados")
+    content.append(f"{len(logs)} log(s)")
+    content.append("")
+    content.append("## Comandos disponíveis")
+    for cmd in commands:
+        content.append(f"- `{cmd}`")
+    content.append("")
+    content.append("## Ferramentas mapeadas")
+    content.append("ChatGPT, Claude manual/futuro, Gemini manual/futuro, Ollama, Groq, DeepSeek, Flow, n8n, Playwright e Ruflo estão registrados como ferramentas possíveis, mas nem todas estão conectadas.")
+    content.append("")
+    content.append("## Próximo passo seguro")
+    content.append("Continuar evoluindo localmente antes de conectar Claude, Gemini, n8n, VPS, APIs ou qualquer produção.")
+    content.append("")
+    content.append("## Frase simples")
+    content.append("JARVIS é um worker local criado por Theo Padilha para organizar projetos, tarefas, memória, logs, ferramentas e próximos passos com segurança.")
+
+    summary_text = "\n".join(content)
+
+    out = ROOT / "07_RELATORIOS/02_TECNICOS/ULTIMO_RESUMO_EXECUTIVO_JARVIS.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(summary_text + "\n", encoding="utf-8")
+
+    print(summary_text)
+    print("")
+    print(f"Resumo salvo em: {out.relative_to(ROOT)}")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -874,6 +975,8 @@ def main():
         show_tools()
     elif cmd == "checkpoint":
         checkpoint()
+    elif cmd == "summary":
+        summary()
     else:
         help_msg()
 
