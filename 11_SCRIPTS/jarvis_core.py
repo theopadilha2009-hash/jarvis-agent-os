@@ -966,6 +966,90 @@ def show_profiles():
 
     print("Regra: perfil define permissão. Não libera produção, credenciais, VPS, deploy ou API paga sozinho.")
 
+
+def route_request(text: str):
+    if not text.strip():
+        print('Uso: ./jarvis route "pedido"')
+        return
+
+    task_type = detect_type(text)
+    risk = detect_risk(text)
+    lower = text.lower()
+
+    profile = "THEO_OWNER"
+    tool = "CHATGPT_COCKPIT"
+    reason = "Pedido geral: começar pelo cockpit, plano seguro e memória."
+
+    blocked = [
+        "produção",
+        "VPS real",
+        "deploy",
+        "main/push/merge",
+        "credenciais",
+        "banco real",
+        "envio real",
+        "API paga relevante",
+    ]
+
+    if risk == "alto":
+        profile = "PRODUCTION_LOCKED"
+        tool = "CHATGPT_COCKPIT + checklist read-only"
+        reason = "Pedido contém risco alto. Só diagnóstico/plano até aprovação humana."
+
+    elif task_type == "VPS/infra":
+        profile = "PRODUCTION_LOCKED"
+        tool = "CHATGPT_COCKPIT + terminal read-only futuro"
+        reason = "Infra/VPS exige modo seguro, backup e aprovação antes de qualquer comando real."
+
+    elif task_type == "n8n/workflow":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT + N8N_FUTURO"
+        reason = "Workflow n8n deve começar com análise, mock/dry-run, active=false e logs."
+
+    elif task_type == "bug/código":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT agora; CLAUDE_CODE_FUTURO quando disponível"
+        reason = "Código precisa de branch, git status, patch mínimo, build/teste e sem deploy."
+
+    elif task_type == "Factory Roblox":
+        profile = "THEO_OWNER"
+        tool = "FLOW_SPEC + CHATGPT_COCKPIT; depois CLAUDE/GEMINI"
+        reason = "Factory Roblox é projeto grande: começar com spec, estágios, judges e sandbox."
+
+    elif task_type == "portfólio/site":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT + CLAUDE/GEMINI manual futuro"
+        reason = "Site/portfólio pode ser editado em branch/local e publicado só com aprovação."
+
+    elif "claude" in lower or "chefe" in lower:
+        profile = "CHEFE_CLAUDE"
+        tool = "CLAUDE_MANUAL / CLAUDE_CODE_FUTURO"
+        reason = "Pedido menciona Claude/chefe; usar perfil separado, sem misturar projeto pessoal sensível."
+
+    elif "free" in lower or "grátis" in lower or "gratis" in lower or "ollama" in lower or "groq" in lower:
+        profile = "LAB_FREE"
+        tool = "OLLAMA_LOCAL_FUTURO / GROQ_API_FUTURO / GEMINI_MANUAL"
+        reason = "Pedido pede baixo custo/free-first; usar laboratório e evitar dados sensíveis."
+
+    print("JARVIS — Theo Padilha AI Worker Route")
+    print("")
+    print(f"Pedido: {text}")
+    print(f"Tipo detectado: {task_type}")
+    print(f"Risco detectado: {risk}")
+    print(f"Perfil sugerido: {profile}")
+    print(f"Ferramenta sugerida: {tool}")
+    print(f"Motivo: {reason}")
+    print("")
+    print("Bloqueios permanentes sem aprovação humana:")
+    for item in blocked:
+        print(f"- {item}")
+    print("")
+    print("Próximo passo seguro:")
+    if risk == "alto":
+        print("Criar task read-only e plano de diagnóstico. Não executar ação real.")
+    else:
+        print("Criar task com ./jarvis intake ou adicionar contexto em 00_COLE_AQUI.")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -1019,6 +1103,9 @@ def main():
         summary()
     elif cmd == "profiles":
         show_profiles()
+    elif cmd == "route":
+        text = " ".join(sys.argv[2:]).strip()
+        route_request(text)
     else:
         help_msg()
 
