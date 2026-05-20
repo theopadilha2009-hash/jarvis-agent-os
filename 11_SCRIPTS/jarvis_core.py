@@ -707,6 +707,50 @@ def self_test():
     print("Resultado:", "SELF-TEST PASSOU" if ok_all else "SELF-TEST FALHOU")
     print("Status real: teste local, sem produção, sem credenciais.")
 
+def show_tools():
+    registry = ROOT / "01_SISTEMA/02_DECISORES/TOOL_REGISTRY.md"
+    print("JARVIS — Theo Padilha AI Worker Tools")
+    print("")
+
+    if not registry.exists():
+        print("Tool Registry não encontrado.")
+        print("Esperado: 01_SISTEMA/02_DECISORES/TOOL_REGISTRY.md")
+        return
+
+    text = registry.read_text(encoding="utf-8", errors="ignore")
+    current = None
+    status = None
+    uso = None
+    risco = None
+
+    tools = []
+
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("### "):
+            if current:
+                tools.append((current, status, uso, risco))
+            current = line.replace("### ", "").strip()
+            status = uso = risco = "-"
+        elif line.startswith("Status:"):
+            status = line.replace("Status:", "").strip()
+        elif line.startswith("Uso:"):
+            uso = line.replace("Uso:", "").strip()
+        elif line.startswith("Risco:"):
+            risco = line.replace("Risco:", "").strip()
+
+    if current:
+        tools.append((current, status, uso, risco))
+
+    for name, status, uso, risco in tools:
+        print(f"- {name}")
+        print(f"  Status: {status}")
+        print(f"  Uso: {uso}")
+        print(f"  Risco: {risco}")
+        print("")
+
+    print("Regra: registrado não significa conectado. Conectar só depois de teste em laboratório.")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -752,6 +796,8 @@ def main():
         memory_from_task(query)
     elif cmd == "self-test":
         self_test()
+    elif cmd == "tools":
+        show_tools()
     else:
         help_msg()
 
