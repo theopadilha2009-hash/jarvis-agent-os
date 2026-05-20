@@ -1050,6 +1050,168 @@ def route_request(text: str):
     else:
         print("Criar task com ./jarvis intake ou adicionar contexto em 00_COLE_AQUI.")
 
+
+def create_plan(text: str):
+    if not text.strip():
+        print('Uso: ./jarvis plan "pedido"')
+        return
+
+    task_type = detect_type(text)
+    risk = detect_risk(text)
+    lower = text.lower()
+
+    profile = "THEO_OWNER"
+    tool = "CHATGPT_COCKPIT"
+    mode = "laboratório local"
+    first_action = "Criar task e reunir contexto."
+
+    if risk == "alto":
+        profile = "PRODUCTION_LOCKED"
+        tool = "CHATGPT_COCKPIT + checklist read-only"
+        mode = "diagnóstico read-only"
+        first_action = "Criar plano de diagnóstico. Não executar ação real."
+
+    elif task_type == "VPS/infra":
+        profile = "PRODUCTION_LOCKED"
+        tool = "CHATGPT_COCKPIT + checklist read-only"
+        mode = "infra read-only"
+        first_action = "Mapear ambiente, risco e backup antes de qualquer comando."
+
+    elif task_type == "n8n/workflow":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT + N8N_FUTURO"
+        mode = "mock/dry-run, active=false"
+        first_action = "Analisar JSON/workflow sanitizado e criar plano de teste controlado."
+
+    elif task_type == "bug/código":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT agora; CLAUDE_CODE_FUTURO depois"
+        mode = "branch/sandbox"
+        first_action = "Confirmar git status, branch e escopo antes de editar."
+
+    elif task_type == "Factory Roblox":
+        profile = "THEO_OWNER"
+        tool = "FLOW_SPEC + CHATGPT_COCKPIT"
+        mode = "spec/laboratório"
+        first_action = "Criar spec por estágios, judges, critérios e sandbox."
+
+    elif task_type == "portfólio/site":
+        profile = "THEO_OWNER"
+        tool = "CHATGPT_COCKPIT + CLAUDE/GEMINI manual futuro"
+        mode = "branch/local"
+        first_action = "Localizar projeto, criar branch e planejar alteração."
+
+    elif "claude" in lower or "chefe" in lower:
+        profile = "CHEFE_CLAUDE"
+        tool = "CLAUDE_MANUAL / CLAUDE_CODE_FUTURO"
+        mode = "perfil separado"
+        first_action = "Separar contexto autorizado e não misturar projeto pessoal sensível."
+
+    elif "free" in lower or "grátis" in lower or "gratis" in lower or "ollama" in lower or "groq" in lower:
+        profile = "LAB_FREE"
+        tool = "OLLAMA_LOCAL_FUTURO / GROQ_API_FUTURO / GEMINI_MANUAL"
+        mode = "sandbox/free-first"
+        first_action = "Usar dados não sensíveis e limitar custo."
+
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    plan_dir = ROOT / "05_EXECUCAO" / "00_PLANOS_SEGUROS"
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    plan_file = plan_dir / f"{ts}_{slugify(text)}.md"
+
+    content = f"""# Plano Seguro — JARVIS Theo Padilha AI Worker
+
+## Pedido
+{text}
+
+## Tipo detectado
+{task_type}
+
+## Risco detectado
+{risk}
+
+## Perfil sugerido
+{profile}
+
+## Ferramenta sugerida
+{tool}
+
+## Modo de execução
+{mode}
+
+## Status real
+Plano criado localmente. Nada executado.
+
+## Primeira ação segura
+{first_action}
+
+## Etapas recomendadas
+1. Criar ou vincular task.
+2. Reunir contexto em `00_COLE_AQUI` ou projeto correspondente.
+3. Confirmar risco e ambiente.
+4. Separar leitura, plano, execução e validação.
+5. Executar apenas em laboratório/branch/sandbox quando permitido.
+6. Rodar validação possível.
+7. Salvar memória, logs e relatório.
+8. Pedir aprovação humana antes de qualquer ação sensível.
+
+## Bloqueios sem aprovação humana
+- produção
+- VPS real
+- deploy
+- main/push/merge
+- credenciais
+- banco real
+- envio real para cliente/paciente/lead
+- API paga relevante
+- instalação de ferramenta nova
+- autoalteração de arquitetura
+
+## Próximo passo
+{first_action}
+
+## Criador / dono
+Theo Padilha.
+"""
+
+    plan_file.write_text(content, encoding="utf-8")
+
+    log = write_log(
+        "safe-plan-created",
+        f"""# Log — Plano seguro criado
+
+## Plano
+{plan_file.relative_to(ROOT)}
+
+## Pedido
+{text}
+
+## Perfil
+{profile}
+
+## Ferramenta
+{tool}
+
+## Risco
+{risk}
+
+## Status real
+Plano criado. Nada executado.
+
+## Produção
+Nada alterado.
+"""
+    )
+
+    print(f"Plano criado: {plan_file.relative_to(ROOT)}")
+    print(f"Log criado: {log.relative_to(ROOT)}")
+    print("")
+    print("Resumo:")
+    print(f"- Tipo: {task_type}")
+    print(f"- Risco: {risk}")
+    print(f"- Perfil: {profile}")
+    print(f"- Ferramenta: {tool}")
+    print(f"- Próximo passo: {first_action}")
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -1106,6 +1268,9 @@ def main():
     elif cmd == "route":
         text = " ".join(sys.argv[2:]).strip()
         route_request(text)
+    elif cmd == "plan":
+        text = " ".join(sys.argv[2:]).strip()
+        create_plan(text)
     else:
         help_msg()
 
