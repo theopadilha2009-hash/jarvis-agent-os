@@ -515,6 +515,120 @@ Adicionar contexto inicial e criar task.
     print(f"Next actions: {next_file.relative_to(ROOT)}")
     print(f"Log criado: {log.relative_to(ROOT)}")
 
+def memory_from_task(query: str = ""):
+    open_dir = ROOT / "02_TAREFAS/00_NOVAS"
+    tasks = sorted(open_dir.glob("*.md"))
+
+    if not tasks:
+        print("Nenhuma task nova encontrada para transformar em memória.")
+        return
+
+    selected = None
+    if query:
+        q = query.lower()
+        for task in tasks:
+            task_text = task.read_text(encoding="utf-8", errors="ignore")
+            if q in task.name.lower() or q in task_text.lower():
+                selected = task
+                break
+        if selected is None:
+            print(f"Nenhuma task encontrada para: {query}")
+            return
+    else:
+        selected = tasks[0]
+
+    text = selected.read_text(encoding="utf-8", errors="ignore")
+
+    task_id = extract_section(text, "## ID") or selected.stem
+    projeto = extract_section(text, "## Projeto") or "A definir"
+    pedido = extract_section(text, "## Pedido original") or "-"
+    objetivo = extract_section(text, "## Objetivo final") or "-"
+    tipo = extract_section(text, "## Tipo detectado") or extract_section(text, "## Tipo") or "-"
+    risco = extract_section(text, "## Risco detectado") or extract_section(text, "## Risco") or "-"
+    status = extract_section(text, "## Status real") or "-"
+    proximo = extract_section(text, "## Próximo passo") or "-"
+
+    title_slug = slugify(f"{task_id} {pedido}")
+    date = datetime.now().strftime("%Y-%m-%d")
+
+    # JARVIS/core tasks go to decisions by default. Others go to lessons.
+    if "jarvis" in pedido.lower() or "jarvis" in projeto.lower():
+        memory_dir = ROOT / "03_MEMORIA/02_DECISOES"
+        memory_file = memory_dir / f"{date}_{title_slug}.md"
+        memory_kind = "Decisão / evolução do JARVIS"
+    else:
+        memory_dir = ROOT / "03_MEMORIA/01_APRENDIZADOS"
+        memory_file = memory_dir / f"{date}_{title_slug}.md"
+        memory_kind = "Aprendizado"
+
+    memory_dir.mkdir(parents=True, exist_ok=True)
+
+    memory_file.write_text(f"""# {memory_kind} — {task_id}
+
+## Origem
+Task: `{selected.relative_to(ROOT)}`
+
+## Projeto
+{projeto}
+
+## Pedido original
+{pedido}
+
+## Objetivo
+{objetivo}
+
+## Tipo
+{tipo}
+
+## Risco
+{risco}
+
+## Status real no momento da memória
+{status}
+
+## Decisão / aprendizado registrado
+Esta task foi transformada em memória operacional pelo comando `./jarvis memory-from-task`.
+
+## Interpretação operacional
+JARVIS deve preservar tarefas importantes como memória reutilizável para reduzir retrabalho, manter histórico de decisões e facilitar evolução segura do sistema.
+
+## Próximo passo seguro
+{proximo}
+
+## Produção
+Nada alterado.
+
+## Criador / dono
+Theo Padilha.
+""", encoding="utf-8")
+
+    log = write_log(
+        "memory-from-task",
+        f"""# Log — Memória criada a partir de task
+
+## Task
+{selected.name}
+
+## Memória criada
+{memory_file.relative_to(ROOT)}
+
+## Tipo
+{memory_kind}
+
+## Status real
+Memória criada localmente.
+
+## Produção
+Nada alterado.
+"""
+    )
+
+    print(f"Memória criada: {memory_file.relative_to(ROOT)}")
+    print(f"Log criado: {log.relative_to(ROOT)}")
+    print("")
+    print("Próximo passo sugerido:")
+    print(f'./jarvis close-task "{task_id}"')
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -555,6 +669,9 @@ def main():
     elif cmd == "create-project":
         name = " ".join(sys.argv[2:]).strip()
         create_project(name)
+    elif cmd == "memory-from-task":
+        query = " ".join(sys.argv[2:]).strip()
+        memory_from_task(query)
     else:
         help_msg()
 
