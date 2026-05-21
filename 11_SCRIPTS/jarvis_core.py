@@ -1688,6 +1688,10 @@ def quality_gate():
         print("Ação segura:")
         print("- Resolver pendências antes de conectar IA externa, n8n, VPS ou APIs.")
 
+        # QUALITY_GATE_EXIT_NONZERO_V1
+        import sys
+        sys.exit(1)
+
 
 def defer_task(query: str = ""):
     open_dir = ROOT / "02_TAREFAS/00_NOVAS"

@@ -47,6 +47,11 @@ CHECKS = [
         "expect": ["QUALITY GATE PASSOU", "Git status"],
     },
     {
+        "name": "safety-gate-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "safety-gate"],
+        "expect": ["SAFETY GATE PASSOU", "Relatório: desativado por JARVIS_NO_REPORT=1"],
+    },
+    {
         "name": "smoke-test",
         "cmd": ["./jarvis", "smoke-test"],
         "expect": ["CLI SMOKE TEST PASSOU", "conteúdo esperado"],
@@ -64,7 +69,7 @@ def run(cmd):
 
 def main():
     print("JARVIS — Theo Padilha AI Worker Release Check")
-    print("Modo: compile + storage + secret + quality + content-aware smoke")
+    print("Modo: compile + storage + secret + quality + safety no-report + content-aware smoke")
     print("")
 
     results = []

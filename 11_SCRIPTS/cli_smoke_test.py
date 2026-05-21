@@ -13,8 +13,8 @@ CHECKS = [
     },
     {
         "name": "safety-gate",
-        "cmd": ["./jarvis", "safety-gate"],
-        "expect": ["Safety Gate", "SAFETY GATE PASSOU", "Produção não alterada"],
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "safety-gate"],
+        "expect": ["Safety Gate", "SAFETY GATE PASSOU", "Produção não alterada", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
         "name": "secret-scan",
