@@ -12,6 +12,11 @@ CHECKS = [
         "expect": ["Comandos:", "./jarvis help"],
     },
     {
+        "name": "cockpit",
+        "cmd": ["./jarvis", "cockpit"],
+        "expect": ["JARVIS — Theo Padilha AI Worker Cockpit", "Execution modes", "Próximo passo seguro", "Produção"],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],
