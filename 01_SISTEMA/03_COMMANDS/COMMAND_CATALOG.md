@@ -137,3 +137,18 @@ Depois de `./jarvis auto-task "tarefa"`:
 6. `./jarvis safety-gate`
 
 Status real: pending-artifacts só inspeciona. Não altera nada.
+
+## Auto-task + pending-artifacts
+
+`./jarvis auto-task "tarefa"` agora roda `pending-artifacts` no final.
+
+Isso não versiona nada sozinho. Só mostra o que foi gerado para o operador decidir o que commitar.
+
+Fluxo correto:
+1. `./jarvis auto-task "tarefa"`
+2. revisar saída do `pending-artifacts`
+3. `./jarvis secret-scan`
+4. `git add ...`
+5. `git commit -m "..."`
+6. `./jarvis release-check`
+7. `./jarvis safety-gate`

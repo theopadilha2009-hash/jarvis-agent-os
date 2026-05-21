@@ -95,6 +95,7 @@ def main():
     print("## Próximo passo seguro")
     print("- Para classificar modo: ./jarvis mode-plan \"tarefa\"")
     print("- Para preparar tarefa: ./jarvis auto-task \"tarefa\"")
+    print("- Para ver pendências geradas: ./jarvis pending-artifacts")
     print("- Para revisar resposta externa: ./jarvis review-output-v2 arquivo.md")
     print("- Para ver índice de revisões: ./jarvis review-output-index")
     print("- Para validação forte: ./jarvis safety-gate")

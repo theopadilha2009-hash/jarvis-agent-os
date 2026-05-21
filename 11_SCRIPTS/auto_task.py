@@ -48,6 +48,7 @@ def main():
         ('executor-handoff', ['./jarvis', 'executor-handoff', task]),
         ('handoff-print', ['./jarvis', 'handoff-print']),
         ('task-status', ['./jarvis', 'task-status']),
+        ('pending-artifacts', ['./jarvis', 'pending-artifacts']),
     ]
 
     results = []
@@ -90,7 +91,7 @@ def main():
         '',
         '## Observação operacional',
         'Auto-task não roda release-check internamente porque gera artefatos e deixa Git sujo por design.',
-        'Versione os artefatos gerados e só depois rode release-check/safety-gate.',
+        'Use pending-artifacts para ver o que foi gerado, versionar artefatos úteis e só depois rodar release-check/safety-gate.',
         '',
         '## Próximo passo seguro',
         'Usar o handoff gerado manualmente em Claude/VS Code, começando read-only.',
