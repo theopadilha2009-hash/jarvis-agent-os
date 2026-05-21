@@ -1,7 +1,7 @@
 # System Overview — JARVIS Theo Padilha AI Worker
 
 ## Data
-2026-05-20T19:39:29
+2026-05-21T14:13:19
 
 ## Criador / dono
 Theo Padilha
@@ -10,9 +10,12 @@ Theo Padilha
 Laboratório local estável. Não é produção.
 
 ## Git
-Commit: 5d54d3a
-Status: M 11_SCRIPTS/jarvis_core.py
-?? 11_SCRIPTS/system_overview.py
+Commit: f69679c
+Status: M 01_SISTEMA/03_COMMANDS/COMMAND_CATALOG.md
+ M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
+ M 07_RELATORIOS/02_TECNICOS/ULTIMO_TASK_STATUS.md
+ M 11_SCRIPTS/cli_smoke_test.py
+?? 10_TESTES/SMOKE_TESTS/2026-05-21_14-13-18-502777_cli-smoke-test.md
 
 ## Capacidades atuais
 - mapear projetos do Mac
@@ -36,8 +39,8 @@ Status: M 11_SCRIPTS/jarvis_core.py
 - `./jarvis release-check`
 
 ## Artefatos registrados
-Smoke tests: 12
-Release checks: 9
+Smoke tests: 16
+Release checks: 12
 Checkpoints: 6
 
 ## Catálogo de comandos

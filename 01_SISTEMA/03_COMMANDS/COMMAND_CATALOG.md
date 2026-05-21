@@ -12,6 +12,8 @@ Catálogo local de comandos. Não é produção.
 ## Status / checkpoint
 - `./jarvis report`
 - `./jarvis summary`
+- `./jarvis overview`
+- `./jarvis task-status`
 - `./jarvis checkpoint`
 
 ## Tasks
@@ -27,6 +29,8 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis workspace-check /caminho/do/projeto`
 
 ## Execução assistida
+- `./jarvis task-brief "tarefa"`
+- `./jarvis task-brief-latest`
 - `./jarvis task-start "tarefa"`
 - `./jarvis executor-handoff "tarefa"`
 - `./jarvis handoff-latest`
@@ -39,11 +43,13 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis profiles`
 
 ## Fluxo recomendado para tarefa real
+0. `./jarvis overview`
 1. `./jarvis project-index ~/VAMOO_PROJETOS`
 2. `./jarvis project-select "sua tarefa"`
-3. `./jarvis task-start "sua tarefa"`
-4. `./jarvis executor-handoff "sua tarefa"`
-5. `./jarvis handoff-print`
+3. `./jarvis task-brief "sua tarefa"`
+4. `./jarvis task-start "sua tarefa"`
+5. `./jarvis executor-handoff "sua tarefa"`
+6. `./jarvis handoff-print`
 6. Usar Claude/ChatGPT/Gemini manualmente
 7. Salvar output em `00_COLE_AQUI/03_OUTPUTS_CLAUDE_CHATGPT/`
 8. `./jarvis review-outputs`
