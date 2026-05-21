@@ -78,6 +78,11 @@ CHECKS = [
         "expect": ["Project Select", "Projeto sugerido", "Próximo passo seguro"],
     },
     {
+        "name": "readonly-run-latest",
+        "cmd": ["./jarvis", "readonly-run-latest"],
+        "expect": ["Latest READONLY RUN", "READONLY RUN", "Status real"],
+    },
+    {
         "name": "task-brief-latest",
         "cmd": ["./jarvis", "task-brief-latest"],
         "expect": ["Latest Task Brief", "Status real", "Próximo passo seguro"],

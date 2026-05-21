@@ -48,6 +48,7 @@ def main():
 
     latest_auto = latest_file("05_EXECUCAO/09_AUTO_TASK_RUNS", "*.md")
     latest_mode_plan = latest_file("05_EXECUCAO/11_MODE_PLANS", "*.md")
+    latest_readonly = latest_file("05_EXECUCAO/12_READONLY_RUNS", "*.md")
     latest_review_index = ROOT / "07_RELATORIOS/02_TECNICOS/ULTIMO_EXECUTOR_OUTPUT_INDEX.md"
     latest_review = latest_file("05_EXECUCAO/10_EXECUTOR_OUTPUT_REVIEWS", "*.md")
     latest_handoff = latest_dir("05_EXECUCAO/07_EXECUTOR_HANDOFFS")
@@ -81,6 +82,7 @@ def main():
     print("## Últimos artefatos")
     print(f"- Auto-task: {rel(latest_auto)}")
     print(f"- Mode plan: {rel(latest_mode_plan)}")
+    print(f"- Readonly run: {rel(latest_readonly)}")
     print(f"- Task brief: {rel(latest_task_brief)}")
     print(f"- Handoff: {rel(latest_handoff)}")
     print(f"- Review latest: {rel(latest_review)}")
@@ -95,6 +97,7 @@ def main():
     print("## Próximo passo seguro")
     print("- Para classificar modo: ./jarvis mode-plan \"tarefa\"")
     print("- Para preparar tarefa: ./jarvis auto-task \"tarefa\"")
+    print("- Para inspecionar sem alterar: ./jarvis readonly-run \"tarefa\"")
     print("- Para ver pendências geradas: ./jarvis pending-artifacts")
     print("- Para revisar resposta externa: ./jarvis review-output-v2 arquivo.md")
     print("- Para ver índice de revisões: ./jarvis review-output-index")
