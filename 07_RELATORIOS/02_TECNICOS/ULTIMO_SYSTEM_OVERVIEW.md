@@ -1,7 +1,7 @@
 # System Overview — JARVIS Theo Padilha AI Worker
 
 ## Data
-2026-05-21T14:25:53
+2026-05-21T14:29:23
 
 ## Criador / dono
 Theo Padilha
@@ -10,16 +10,16 @@ Theo Padilha
 Laboratório local estável. Não é produção.
 
 ## Git
-Commit: 9e84d79
-Status: M 01_SISTEMA/04_OPERATOR_GUIDES/OPERATOR_GUIDE_V0_4.md
- M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
+Commit: 30cc305
+Status: M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
  M 07_RELATORIOS/02_TECNICOS/ULTIMO_TASK_STATUS.md
- M 11_SCRIPTS/cli_smoke_test.py
- M 11_SCRIPTS/system_overview.py
-?? 07_RELATORIOS/03_RELEASES/v0.4-auto-task/
-?? 10_TESTES/RELEASE_CHECKS/2026-05-21_14-25-52-206400_release-check.md
-?? 10_TESTES/SMOKE_TESTS/2026-05-21_14-25-50-509964_cli-smoke-test.md
-?? 10_TESTES/SMOKE_TESTS/2026-05-21_14-25-52-200254_cli-smoke-test.md
+ M 10_TESTES/FIXTURES/executor_output_safe_sample.md
+ M 11_SCRIPTS/review_outputs_v2.py
+?? 05_EXECUCAO/10_EXECUTOR_OUTPUT_REVIEWS/2026-05-21_14-29-22-924135_executor-output-safe-sample_review.md
+?? 05_EXECUCAO/10_EXECUTOR_OUTPUT_REVIEWS/2026-05-21_14-29-23-024364_executor-output-risky-sample_review.md
+?? 09_LOGS/2026-05-21_14-29-22-924135_executor-output-review.md
+?? 09_LOGS/2026-05-21_14-29-23-024364_executor-output-review.md
+?? 10_TESTES/FIXTURES/executor_output_risky_sample.md
 
 ## Capacidades atuais
 - mapear projetos do Mac
@@ -46,8 +46,8 @@ Status: M 01_SISTEMA/04_OPERATOR_GUIDES/OPERATOR_GUIDE_V0_4.md
 - `./jarvis release-check`
 
 ## Artefatos registrados
-Smoke tests: 24
-Release checks: 19
+Smoke tests: 26
+Release checks: 21
 Checkpoints: 7
 
 ## Catálogo de comandos

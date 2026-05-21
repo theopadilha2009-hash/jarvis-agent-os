@@ -25,6 +25,13 @@ CHANGE_WORDS = [
     "deletei", "removi", "patch", "diff", "files changed", "arquivo",
 ]
 
+NEGATION_HINTS = [
+    "não", "nao", "sem", "nunca", "no ", "not ", "without",
+    "não executar", "nao executar", "não fazer", "nao fazer",
+    "não mexer", "nao mexer", "não expor", "nao expor",
+    "não usar", "nao usar", "não commitar", "nao commitar",
+]
+
 def slugify(text):
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:90] or "executor-output"
 
@@ -52,6 +59,39 @@ def infer_executor(text, filename):
         return "CHATGPT"
     return "UNKNOWN"
 
+def context_windows(text, word, radius=80):
+    low = text.lower()
+    w = word.lower()
+    out = []
+    start = 0
+    while True:
+        idx = low.find(w, start)
+        if idx == -1:
+            break
+        a = max(0, idx - radius)
+        b = min(len(text), idx + len(word) + radius)
+        out.append(text[a:b])
+        start = idx + len(word)
+    return out
+
+def is_negated_context(window):
+    low = window.lower()
+    return any(h in low for h in NEGATION_HINTS)
+
+def risk_analysis(text):
+    strong = []
+    mitigated = []
+    for word in RISK_WORDS:
+        windows = context_windows(text, word)
+        if not windows:
+            continue
+        non_negated = [w for w in windows if not is_negated_context(w)]
+        if non_negated:
+            strong.append(word)
+        else:
+            mitigated.append(word)
+    return sorted(set(strong)), sorted(set(mitigated))
+
 def find_hits(text, words):
     low = text.lower()
     return sorted(set(w for w in words if w in low))
@@ -65,7 +105,7 @@ def extract_files(text):
 
 def classify_status(text):
     low = text.lower()
-    if any(x in low for x in ["não editei", "no changes", "read-only", "read only", "sem alterar"]):
+    if any(x in low for x in ["não editei", "nao editei", "no changes", "read-only", "read only", "sem alterar"]):
         return "read-only / análise"
     if any(x in low for x in ["alterei", "modified", "updated", "patch", "files changed"]):
         return "alteração sugerida ou realizada pelo executor"
@@ -75,21 +115,27 @@ def review_file(path):
     raw = path.read_text(encoding="utf-8", errors="ignore")
     safe = sanitize(raw)
     executor = infer_executor(safe, path.name)
-    risks = find_hits(safe, RISK_WORDS)
+    strong_risks, mitigated_risks = risk_analysis(safe)
     validations = find_hits(safe, VALIDATION_WORDS)
     changes = find_hits(safe, CHANGE_WORDS)
     files = extract_files(safe)
     status = classify_status(safe)
 
-    production_risk = any(x in risks for x in ["deploy", "production", "produção", "prod", "push", "merge", "main", "master"])
-    secret_risk = any(x in risks for x in [".env", "token", "api key", "apikey", "password", "senha", "secret", "service_role", "authorization", "bearer", "cookie", "qr code"])
+    production_words = {"deploy", "production", "produção", "prod", "push", "merge", "main", "master", "sudo", "rm -rf", "drop table", "delete from", "truncate"}
+    secret_words = {".env", "token", "api key", "apikey", "password", "senha", "secret", "service_role", "authorization", "bearer", "cookie", "qr code"}
+
+    production_risk = any(x in production_words for x in strong_risks)
+    secret_risk = any(x in secret_words for x in strong_risks)
 
     if production_risk or secret_risk:
         decision = "PARAR E REVISAR COM HUMANO"
-        next_step = "Não aplicar mudanças. Revisar riscos, diff e presença de segredo antes de continuar."
-    elif validations:
+        next_step = "Não aplicar mudanças. Revisar riscos fortes, diff e presença de segredo antes de continuar."
+    elif validations and (changes or status == "read-only / análise"):
         decision = "PODE SEGUIR COM REVISÃO"
         next_step = "Revisar arquivos/diff localmente e confirmar se build/teste realmente passou."
+    elif validations:
+        decision = "PODE SEGUIR COM REVISÃO"
+        next_step = "Confirmar comandos executados e revisar evidência de validação."
     else:
         decision = "PRECISA DE VALIDAÇÃO"
         next_step = "Pedir ao executor comandos rodados, arquivos alterados e resultado de build/teste."
@@ -119,7 +165,9 @@ def review_file(path):
         "",
         f"## Decisão\n{decision}",
         "",
-        f"## Riscos detectados\n{', '.join(risks) if risks else 'nenhum risco textual forte detectado'}",
+        f"## Riscos fortes detectados\n{', '.join(strong_risks) if strong_risks else 'nenhum risco textual forte detectado'}",
+        "",
+        f"## Riscos mencionados como bloqueio/negação\n{', '.join(mitigated_risks) if mitigated_risks else 'nenhum'}",
         "",
         f"## Sinais de validação\n{', '.join(validations) if validations else 'nenhum build/test/lint claro detectado'}",
         "",
