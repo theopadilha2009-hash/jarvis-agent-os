@@ -1,7 +1,7 @@
 # System Overview — JARVIS Theo Padilha AI Worker
 
 ## Data
-2026-05-21T14:29:23
+2026-05-21T14:33:46
 
 ## Criador / dono
 Theo Padilha
@@ -10,16 +10,10 @@ Theo Padilha
 Laboratório local estável. Não é produção.
 
 ## Git
-Commit: 30cc305
-Status: M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
- M 07_RELATORIOS/02_TECNICOS/ULTIMO_TASK_STATUS.md
- M 10_TESTES/FIXTURES/executor_output_safe_sample.md
- M 11_SCRIPTS/review_outputs_v2.py
-?? 05_EXECUCAO/10_EXECUTOR_OUTPUT_REVIEWS/2026-05-21_14-29-22-924135_executor-output-safe-sample_review.md
-?? 05_EXECUCAO/10_EXECUTOR_OUTPUT_REVIEWS/2026-05-21_14-29-23-024364_executor-output-risky-sample_review.md
-?? 09_LOGS/2026-05-21_14-29-22-924135_executor-output-review.md
-?? 09_LOGS/2026-05-21_14-29-23-024364_executor-output-review.md
-?? 10_TESTES/FIXTURES/executor_output_risky_sample.md
+Commit: 4ab977b
+Status: M 01_SISTEMA/03_COMMANDS/COMMAND_CATALOG.md
+?? 01_SISTEMA/00_REGRAS/REGRAS_EXECUCAO_FORTE_CREDENCIAIS.md
+?? 03_MEMORIA/02_DECISOES/2026-05-21_decisao-execucao-forte-credenciais-protegidas.md
 
 ## Capacidades atuais
 - mapear projetos do Mac
@@ -46,8 +40,8 @@ Status: M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
 - `./jarvis release-check`
 
 ## Artefatos registrados
-Smoke tests: 26
-Release checks: 21
+Smoke tests: 27
+Release checks: 22
 Checkpoints: 7
 
 ## Catálogo de comandos
