@@ -13,6 +13,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis release-check`
 
 ## Status / checkpoint
+- `./jarvis snapshot-prep-core`
 - `./jarvis pending-artifacts`
 - `./jarvis report-policy`
 - `./jarvis cockpit`
@@ -152,3 +153,9 @@ Fluxo correto:
 5. `git commit -m "..."`
 6. `./jarvis release-check`
 7. `./jarvis safety-gate`
+
+## Snapshot limpo
+
+`./jarvis snapshot-prep-core` cria snapshot em pasta temporária primeiro e usa no-report quando aplicável.
+
+Objetivo: evitar que snapshots gerem artefatos surpresa e quebrem o quality-gate.

@@ -2,6 +2,7 @@ from pathlib import Path
 from datetime import datetime
 import subprocess
 import sys
+import os
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -53,8 +54,8 @@ CHECKS = [
     },
     {
         "name": "smoke-test",
-        "cmd": ["./jarvis", "smoke-test"],
-        "expect": ["CLI SMOKE TEST PASSOU", "conteúdo esperado"],
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "smoke-test"],
+        "expect": ["CLI SMOKE TEST PASSOU", "conteúdo esperado", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
 ]
 
@@ -131,11 +132,16 @@ def main():
             "",
         ]
 
-    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    no_report = os.environ.get("JARVIS_NO_REPORT") == "1"
 
     print("")
     print(f"Resultado: {'RELEASE CHECK PASSOU' if passed else 'RELEASE CHECK FALHOU'}")
-    print(f"Relatório: {report.relative_to(ROOT)}")
+
+    if no_report:
+        print("Relatório: desativado por JARVIS_NO_REPORT=1")
+    else:
+        report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"Relatório: {report.relative_to(ROOT)}")
 
     if not passed:
         sys.exit(1)

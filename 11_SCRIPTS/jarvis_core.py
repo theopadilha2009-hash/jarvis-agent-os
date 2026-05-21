@@ -2482,6 +2482,10 @@ def pending_artifacts_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/pending_artifacts.py"], cwd=ROOT, check=False)
 
+def snapshot_prep_core_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/snapshot_preparation_core.py"], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2495,6 +2499,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis snapshot-prep-core     cria snapshot limpo do preparation core
   ./jarvis pending-artifacts      lista artefatos gerados pendentes no Git
   ./jarvis safety-gate            roda secret-scan, storage-health e quality-gate
   ./jarvis secret-scan            procura segredos em arquivos versionados
@@ -2676,6 +2681,8 @@ def main():
         mode_plan_command(text)
     elif cmd == "pending-artifacts":
         pending_artifacts_command()
+    elif cmd == "snapshot-prep-core":
+        snapshot_prep_core_command()
     else:
         help_msg()
 
