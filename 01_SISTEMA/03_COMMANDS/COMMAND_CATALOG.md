@@ -35,6 +35,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis workspace-check /caminho/do/projeto`
 
 ## Execução assistida
+- `./jarvis mode-plan "tarefa"`
 - `./jarvis task-brief "tarefa"`
 - `./jarvis task-brief-latest`
 - `./jarvis auto-task "tarefa"`
@@ -93,3 +94,11 @@ Regra: segredo pode ser usado localmente quando autorizado, mas não pode ser sa
 - `./jarvis release-check` agora inclui compile, secret-scan, storage-health, quality-gate e smoke-test com validação de conteúdo.
 
 Status real: validação local forte. Não altera projeto real, VPS, n8n ou produção.
+
+## Planejamento por modo
+
+- `./jarvis mode-plan "tarefa"` classifica a tarefa em PREPARE, READONLY, LOCAL_EXEC, INFRA_EXEC ou PRODUCTION_ARMED.
+- Nenhuma execução forte deve acontecer sem modo declarado.
+- O modo define o próximo comando seguro e os bloqueios.
+
+Status real: classificação local. Não executa projeto real.

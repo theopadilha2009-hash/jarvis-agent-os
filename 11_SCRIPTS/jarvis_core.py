@@ -2471,6 +2471,13 @@ def safety_gate_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/safety_gate.py"], cwd=ROOT, check=False)
 
+def mode_plan_command(text: str = ""):
+    import subprocess
+    if not text.strip():
+        print('Uso: ./jarvis mode-plan "tarefa"')
+        return
+    subprocess.run(["python3", "11_SCRIPTS/mode_plan.py", text], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2659,6 +2666,9 @@ def main():
         secret_scan_command()
     elif cmd == "safety-gate":
         safety_gate_command()
+    elif cmd == "mode-plan":
+        text = " ".join(sys.argv[2:]).strip()
+        mode_plan_command(text)
     else:
         help_msg()
 
