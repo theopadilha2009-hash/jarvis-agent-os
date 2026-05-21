@@ -57,6 +57,11 @@ CHECKS = [
         "expect": ["Latest Auto Task", "Auto Task Run", "Nada executado no projeto real"],
     },
     {
+        "name": "review-output-index",
+        "cmd": ["./jarvis", "review-output-index"],
+        "expect": ["Executor Output Index", "Reviews indexados", "Relatório"],
+    },
+    {
         "name": "review-output-latest",
         "cmd": ["./jarvis", "review-output-latest"],
         "expect": ["Latest Executor Output Review", "Executor Output Review", "Status real"],

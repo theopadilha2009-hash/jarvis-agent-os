@@ -41,6 +41,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis review-outputs`
 - `./jarvis review-output-v2 arquivo.md`
 - `./jarvis review-output-latest`
+- `./jarvis review-output-index`
 
 ## Prompts / executores
 - `./jarvis prompt-pack "pedido"`
