@@ -2448,6 +2448,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis task-brief-latest      imprime último briefing de tarefa
   ./jarvis overview               mostra visão atual completa do sistema
   ./jarvis task-status            mostra último status operacional
   ./jarvis commands               mostra catálogo profissional de comandos
@@ -2587,6 +2588,8 @@ def main():
     elif cmd == "task-brief":
         text = " ".join(sys.argv[2:]).strip()
         task_brief_command(text)
+    elif cmd == "task-brief-latest":
+        task_brief_latest_command()
     else:
         help_msg()
 
@@ -2635,6 +2638,10 @@ def task_brief_command(text: str = ""):
         print('Uso: ./jarvis task-brief "tarefa"')
         return
     subprocess.run(["python3", "11_SCRIPTS/task_brief.py", text], cwd=ROOT, check=False)
+
+def task_brief_latest_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/task_brief_latest.py"], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()
