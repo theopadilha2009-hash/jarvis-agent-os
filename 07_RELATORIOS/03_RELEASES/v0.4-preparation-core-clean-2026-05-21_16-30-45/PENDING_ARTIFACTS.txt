@@ -1,0 +1,7 @@
+JARVIS — Theo Padilha AI Worker Pending Artifacts
+
+Status real: inspeção local de Git. Nada alterado.
+
+Git status: limpo
+
+Nada para versionar.
