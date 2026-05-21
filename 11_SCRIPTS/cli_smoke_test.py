@@ -12,6 +12,11 @@ CHECKS = [
         "expect": ["Comandos:", "./jarvis help"],
     },
     {
+        "name": "report-policy",
+        "cmd": ["./jarvis", "report-policy"],
+        "expect": ["Report Policy", "ULTIMO_*.md", "Snapshot versionado"],
+    },
+    {
         "name": "cockpit",
         "cmd": ["./jarvis", "cockpit"],
         "expect": ["JARVIS — Theo Padilha AI Worker Cockpit", "Execution modes", "Próximo passo seguro", "Produção"],

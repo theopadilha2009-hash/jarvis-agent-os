@@ -2451,6 +2451,10 @@ def cockpit_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/cockpit.py"], cwd=ROOT, check=False)
 
+def report_policy_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2464,6 +2468,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis report-policy          mostra política de relatórios e snapshots
   ./jarvis cockpit                mostra painel operacional local
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
@@ -2627,6 +2632,8 @@ def main():
         review_output_index_command()
     elif cmd == "cockpit":
         cockpit_command()
+    elif cmd == "report-policy":
+        report_policy_command()
     else:
         help_msg()
 

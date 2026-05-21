@@ -10,6 +10,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis release-check`
 
 ## Status / checkpoint
+- `./jarvis report-policy`
 - `./jarvis cockpit`
 - `./jarvis execution-modes`
 - `./jarvis report`
