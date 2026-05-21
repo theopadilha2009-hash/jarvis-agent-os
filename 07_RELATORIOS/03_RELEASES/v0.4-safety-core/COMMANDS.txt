@@ -1,3 +1,5 @@
+JARVIS — Theo Padilha AI Worker Command Catalog
+
 # Command Catalog — JARVIS Theo Padilha AI Worker
 
 ## Status real
@@ -93,3 +95,4 @@ Regra: segredo pode ser usado localmente quando autorizado, mas não pode ser sa
 - `./jarvis release-check` agora inclui compile, secret-scan, storage-health, quality-gate e smoke-test com validação de conteúdo.
 
 Status real: validação local forte. Não altera projeto real, VPS, n8n ou produção.
+

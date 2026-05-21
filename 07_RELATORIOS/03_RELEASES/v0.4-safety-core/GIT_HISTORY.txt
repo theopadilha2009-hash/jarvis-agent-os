@@ -1,0 +1,70 @@
+1505df2 test: add passing safety gate after release hardening
+17bebc9 test: add passing release check after hardening
+ae66d13 test: harden release check with security and storage gates
+c1edb82 feat: add strong safety gate command
+026a6f9 fix: track secret scan script despite ignore rules
+18abb8c feat: add tracked secret scan command
+a7a6a23 feat: add storage health command
+dbee7de docs: add report storage policy command
+59ed940 chore: stop tracking volatile latest reports
+6692beb chore: snapshot v0.4 cockpit milestone
+b0d53f4 docs: refresh latest reports after cockpit command
+c3f2af5 feat: add local cockpit command
+3bbb8da feat: add executor output review index
+bbf975e feat: add latest executor output review command
+033f628 test: make cli smoke test content-aware
+a2d1ec7 fix: wire execution modes command correctly
+8e4492b docs: refresh latest reports after execution modes attempt
+9e9769b feat: add strong execution modes command
+db47f51 docs: refresh latest reports after strong execution rules
+8b1b851 docs: define strong execution modes and protected credentials
+4ab977b fix: make executor output review risk detection context-aware
+30cc305 feat: add executor output review v2
+20d3d1a chore: consolidate auto task milestone
+9e84d79 docs: refresh latest reports after auto task latest
+fc9c70b feat: add latest auto task shortcut
+ad76c27 feat: add preparation-only auto task command
+55db183 docs: refresh latest task status after operator docs cleanup
+f30b110 docs: clean operator docs before auto task
+7e1078f chore: snapshot v0.4 operator ready state
+c800645 test: update command catalog and smoke coverage
+f69679c feat: add latest task brief shortcut
+b2f8149 feat: add task brief command
+d2743f9 feat: add system overview command
+5d54d3a chore: snapshot v0.4 stable state
+a476458 fix: clean task status formatting
+12c63c2 feat: add task status command
+669aacc docs: add operator guide v0.4
+a653480 test: expand smoke test coverage
+37410a4 docs: add command catalog
+90fc7fe feat: add handoff print shortcut
+46f55e0 feat: add release check command
+318348a test: add smoke script check to quality gate
+8eb34a4 feat: add cli smoke test command
+7084545 chore: snapshot v0.4 handoff milestone
+fd3b6e2 feat: add handoff open shortcut
+e690628 feat: add latest handoff shortcut
+fda07b3 fix: wire executor handoff into jarvis cli
+d15ff53 feat: add executor handoff generator
+37869c2 chore: snapshot v0.4 task start milestone
+336fa77 fix: make task start company workspace aware
+2d56c91 feat: add autonomous task start preparation
+82705d2 fix: wire project select into jarvis cli
+5fae27a feat: add project selection command
+38ccf1f feat: wire project index into jarvis cli
+4652b74 feat: add project index generator
+19512e0 feat: wire workspace scan into jarvis cli
+ac17b88 feat: add standalone workspace scan script
+24a11dd fix: repair workspace check cli shortcut
+dc20685 feat: wire workspace check into jarvis cli
+c22bd59 feat: add standalone workspace check script
+9d755c0 chore: snapshot v0.4 progress state
+31b767a test: close company workspace validation mission
+9ec7c7b test: validate company workspace mission launch
+1b75c75 fix: sync plan with routing metadata
+4793568 fix: prioritize company workspace routing
+0e2c315 fix: make risk detection negation-aware for company workspace
+9ae4a46 feat: add company workspace profile routing
+d750b67 docs: add company workspace mode rules
+974dc9d feat: add executor output review intake
+a698ea7 feat: add manual executor prompt pack

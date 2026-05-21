@@ -1,0 +1,43 @@
+JARVIS — Theo Padilha AI Worker Cockpit
+
+Status real: painel local. Nada executado em projeto real.
+
+## Git
+- Commit: 1505df2
+- Status: M 01_SISTEMA/03_COMMANDS/COMMAND_CATALOG.md
+ M 11_SCRIPTS/cockpit.py
+?? 07_RELATORIOS/03_RELEASES/v0.4-safety-core/
+?? 10_TESTES/RELEASE_CHECKS/2026-05-21_15-29-08-513225_release-check.md
+?? 10_TESTES/SAFETY_GATES/2026-05-21_15-29-04-640113_safety-gate.md
+?? 10_TESTES/SAFETY_GATES/2026-05-21_15-29-06-425172_safety-gate.md
+?? 10_TESTES/SMOKE_TESTS/2026-05-21_15-29-08-505680_cli-smoke-test.md
+
+## Execution modes
+- PREPARE: preparar
+- READONLY: inspecionar sem alterar
+- LOCAL_EXEC: editar local e testar
+- INFRA_EXEC: operar VPS/Docker/n8n com escopo
+- PRODUCTION_ARMED: ação real sensível com autorização
+
+## Últimos artefatos
+- Auto-task: 05_EXECUCAO/09_AUTO_TASK_RUNS/2026-05-21_14-19-13-028947_corrigir-bug-de-visitantes-do-gc-sem-produ-o_auto-task.md
+- Task brief: 05_EXECUCAO/08_TASK_BRIEFS/2026-05-21_14-19-09-690097_corrigir-bug-de-visitantes-do-gc-sem-produ-o_task-brief.md
+- Handoff: 05_EXECUCAO/07_EXECUTOR_HANDOFFS/2026-05-21_14-19-11-113350_corrigir-bug-de-visitantes-do-gc-sem-produ-o
+- Review latest: 05_EXECUCAO/10_EXECUTOR_OUTPUT_REVIEWS/2026-05-21_14-29-23-024364_executor-output-risky-sample_review.md
+- Review index: 07_RELATORIOS/02_TECNICOS/ULTIMO_EXECUTOR_OUTPUT_INDEX.md
+- Release-check: 10_TESTES/RELEASE_CHECKS/2026-05-21_15-29-08-513225_release-check.md
+- Safety-gate: 10_TESTES/SAFETY_GATES/2026-05-21_15-29-06-425172_safety-gate.md
+- Smoke-test: 10_TESTES/SMOKE_TESTS/2026-05-21_15-29-08-505680_cli-smoke-test.md
+
+## Executor output reviews
+- Total: 3 | - PARAR E REVISAR COM HUMANO: 2 - PODE SEGUIR COM REVISÃO: 1
+
+## Próximo passo seguro
+- Para preparar tarefa: ./jarvis auto-task "tarefa"
+- Para revisar resposta externa: ./jarvis review-output-v2 arquivo.md
+- Para ver índice de revisões: ./jarvis review-output-index
+- Para validação forte: ./jarvis safety-gate
+- Para operação forte futura: declarar modo PREPARE/READONLY/LOCAL_EXEC/INFRA_EXEC/PRODUCTION_ARMED
+
+## Produção
+Nada alterado.

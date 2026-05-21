@@ -52,6 +52,7 @@ def main():
     latest_handoff = latest_dir("05_EXECUCAO/07_EXECUTOR_HANDOFFS")
     latest_task_brief = latest_file("05_EXECUCAO/08_TASK_BRIEFS", "*.md")
     latest_release = latest_file("10_TESTES/RELEASE_CHECKS", "*.md")
+    latest_safety = latest_file("10_TESTES/SAFETY_GATES", "*.md")
     latest_smoke = latest_file("10_TESTES/SMOKE_TESTS", "*.md")
 
     review_summary = "nenhum"
@@ -83,6 +84,7 @@ def main():
     print(f"- Review latest: {rel(latest_review)}")
     print(f"- Review index: {rel(latest_review_index) if latest_review_index.exists() else 'nenhum'}")
     print(f"- Release-check: {rel(latest_release)}")
+    print(f"- Safety-gate: {rel(latest_safety)}")
     print(f"- Smoke-test: {rel(latest_smoke)}")
     print("")
     print("## Executor output reviews")
@@ -92,6 +94,7 @@ def main():
     print("- Para preparar tarefa: ./jarvis auto-task \"tarefa\"")
     print("- Para revisar resposta externa: ./jarvis review-output-v2 arquivo.md")
     print("- Para ver índice de revisões: ./jarvis review-output-index")
+    print("- Para validação forte: ./jarvis safety-gate")
     print("- Para operação forte futura: declarar modo PREPARE/READONLY/LOCAL_EXEC/INFRA_EXEC/PRODUCTION_ARMED")
     print("")
     print("## Produção")
