@@ -12,6 +12,11 @@ CHECKS = [
         "expect": ["Comandos:", "./jarvis help"],
     },
     {
+        "name": "secret-scan",
+        "cmd": ["./jarvis", "secret-scan"],
+        "expect": ["Secret Scan", "SECRET SCAN PASSOU", "Nenhum segredo foi impresso"],
+    },
+    {
         "name": "storage-health",
         "cmd": ["./jarvis", "storage-health"],
         "expect": ["Storage Health", "STORAGE HEALTH PASSOU", "Produção não alterada"],
