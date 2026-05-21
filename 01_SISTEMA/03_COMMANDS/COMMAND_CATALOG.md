@@ -65,3 +65,15 @@ Plano, prompt, handoff e task-start não significam execução feita. Produção
 - `./jarvis auto-task-latest` imprime o último relatório sem criar novo run.
 
 Status real: `auto-task` prepara e valida localmente; não edita projeto real e não significa produção.
+
+## Direção futura — execução forte
+
+JARVIS deve evoluir para operar:
+- projetos locais;
+- VPS;
+- Docker/Portainer/Traefik;
+- n8n workflows;
+- credenciais locais protegidas;
+- deploys e produção somente em modo autorizado.
+
+Regra: segredo pode ser usado localmente quando autorizado, mas não pode ser salvo em Git, relatório, chat ou prompt externo.
