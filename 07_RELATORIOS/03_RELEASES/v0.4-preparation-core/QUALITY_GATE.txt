@@ -1,0 +1,17 @@
+JARVIS — Theo Padilha AI Worker Quality Gate
+
+OK  Python compile — sem erro
+OK  Smoke script compile — sem erro
+FALHA  Git status — ?? 05_EXECUCAO/11_MODE_PLANS/2026-05-21_16-27-35-789605_investigar-bug-no-projeto-gc-sem-alterar-produ-o_mode-plan.md | ?? 10_TESTES/RELEASE_CHECKS/2026-05-21_16-27-42-583381_release-check.md | ?? 10_TESTES/SAFETY_GATES/2026-05-21_16-27-37-459114_safety-gate.md | ?? 10_TESTES/SMOKE_TESTS/2026-05-21_16-27-42-576263_cli-smoke-test.md
+OK  Estrutura principal
+OK  Identidade Theo Padilha
+OK  CLI presente
+OK  Tasks abertas — 0 aberta(s)
+OK  Missões registradas — 4 brief(s)
+OK  Logs — 47 log(s)
+
+Resultado: QUALITY GATE COM PENDÊNCIAS
+Status real: validação local. Produção não alterada.
+
+Ação segura:
+- Resolver pendências antes de conectar IA externa, n8n, VPS ou APIs.

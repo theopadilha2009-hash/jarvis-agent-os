@@ -1,0 +1,18 @@
+JARVIS — Theo Padilha AI Worker Pending Artifacts
+
+Status real: inspeção local de Git. Nada alterado.
+
+Git status:
+- ?? 05_EXECUCAO/11_MODE_PLANS/2026-05-21_16-27-35-789605_investigar-bug-no-projeto-gc-sem-alterar-produ-o_mode-plan.md
+
+Categorias detectadas:
+- mode plans: 1 item(ns)
+
+Comando de add sugerido:
+git add \
+  05_EXECUCAO/11_MODE_PLANS
+
+Regra:
+- Rode secret-scan antes de commit se houver prompts/logs novos.
+- Commitar artefatos gerados é aceitável quando representam um marco útil.
+- Não versionar .env, tokens, chaves, cookies, QR codes ou workflows com segredo.

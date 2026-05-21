@@ -1,0 +1,17 @@
+JARVIS — Theo Padilha AI Worker Mode Plan
+
+Tarefa: investigar bug no projeto GC sem alterar produção
+Modo sugerido: READONLY
+
+Sinais usados: investigar, sem alterar
+Sinais mitigados por negação: produção
+
+Regras:
+- Pode ler arquivos, logs, status, estrutura e documentação.
+- Não altera código, banco, workflow, VPS ou produção.
+- Pode gerar diagnóstico e próximo passo.
+
+Próximo comando seguro: ./jarvis executor-handoff "investigar bug no projeto GC sem alterar produção"
+Relatório: 05_EXECUCAO/11_MODE_PLANS/2026-05-21_16-27-35-789605_investigar-bug-no-projeto-gc-sem-alterar-produ-o_mode-plan.md
+
+Status real: plano local. Nada executado no projeto real.

@@ -1,0 +1,29 @@
+JARVIS — Theo Padilha AI Worker Safety Gate
+Status real: validação local forte. Produção não alterada.
+
+OK  secret-scan
+OK  storage-health
+FALHA  quality-gate
+  exit code: 1
+  conteúdo ausente: QUALITY GATE PASSOU
+JARVIS — Theo Padilha AI Worker Quality Gate
+
+OK  Python compile — sem erro
+OK  Smoke script compile — sem erro
+FALHA  Git status — ?? 05_EXECUCAO/11_MODE_PLANS/2026-05-21_16-27-35-789605_investigar-bug-no-projeto-gc-sem-alterar-produ-o_mode-plan.md
+OK  Estrutura principal
+OK  Identidade Theo Padilha
+OK  CLI presente
+OK  Tasks abertas — 0 aberta(s)
+OK  Missões registradas — 4 brief(s)
+OK  Logs — 47 log(s)
+
+Resultado: QUALITY GATE COM PENDÊNCIAS
+Status real: validação local. Produção não alterada.
+
+Ação segura:
+- Resolver pendências antes de conectar IA externa, n8n, VPS ou APIs.
+
+Resultado: SAFETY GATE COM PENDÊNCIAS
+Status real: nada aplicado em projeto real, VPS, n8n ou produção.
+Relatório: 10_TESTES/SAFETY_GATES/2026-05-21_16-27-37-459114_safety-gate.md
