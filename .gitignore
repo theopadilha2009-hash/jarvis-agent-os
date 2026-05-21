@@ -32,3 +32,5 @@ __pycache__/
 08_REFERENCIAS/**
 !08_REFERENCIAS/**/
 !08_REFERENCIAS/**/.gitkeep
+# JARVIS volatile latest reports
+07_RELATORIOS/02_TECNICOS/ULTIMO_*.md
