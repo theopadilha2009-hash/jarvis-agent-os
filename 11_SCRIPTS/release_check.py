@@ -6,33 +6,94 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 CHECKS = [
-    ["python3", "-m", "py_compile", "11_SCRIPTS/jarvis_core.py"],
-    ["python3", "-m", "py_compile", "11_SCRIPTS/cli_smoke_test.py"],
-    ["./jarvis", "self-test"],
-    ["./jarvis", "quality-gate"],
-    ["./jarvis", "smoke-test"],
+    {
+        "name": "compile jarvis_core",
+        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/jarvis_core.py"],
+        "expect": [],
+    },
+    {
+        "name": "compile cli_smoke_test",
+        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/cli_smoke_test.py"],
+        "expect": [],
+    },
+    {
+        "name": "compile secret_scan",
+        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/secret_scan.py"],
+        "expect": [],
+    },
+    {
+        "name": "compile storage_health",
+        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/storage_health.py"],
+        "expect": [],
+    },
+    {
+        "name": "compile safety_gate",
+        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/safety_gate.py"],
+        "expect": [],
+    },
+    {
+        "name": "secret-scan",
+        "cmd": ["./jarvis", "secret-scan"],
+        "expect": ["SECRET SCAN PASSOU", "Nenhum segredo foi impresso"],
+    },
+    {
+        "name": "storage-health",
+        "cmd": ["./jarvis", "storage-health"],
+        "expect": ["STORAGE HEALTH PASSOU", "Produção não alterada"],
+    },
+    {
+        "name": "quality-gate",
+        "cmd": ["./jarvis", "quality-gate"],
+        "expect": ["QUALITY GATE PASSOU", "Git status"],
+    },
+    {
+        "name": "smoke-test",
+        "cmd": ["./jarvis", "smoke-test"],
+        "expect": ["CLI SMOKE TEST PASSOU", "conteúdo esperado"],
+    },
 ]
 
 def run(cmd):
     try:
-        out = subprocess.check_output(cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT)
-        return True, out.strip()
+        output = subprocess.check_output(cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT)
+        return 0, output.strip()
     except subprocess.CalledProcessError as e:
-        return False, e.output.strip()
+        return e.returncode, e.output.strip()
     except Exception as e:
-        return False, str(e)
+        return 1, f"ERRO: {e}"
 
 def main():
     print("JARVIS — Theo Padilha AI Worker Release Check")
+    print("Modo: compile + storage + secret + quality + content-aware smoke")
     print("")
 
     results = []
-    for cmd in CHECKS:
-        ok, out = run(cmd)
-        results.append((cmd, ok, out))
-        print(("OK" if ok else "FALHA") + "  " + " ".join(cmd))
 
-    passed = all(ok for _, ok, _ in results)
+    for check in CHECKS:
+        code, output = run(check["cmd"])
+        missing = [x for x in check["expect"] if x not in output]
+        ok = code == 0 and not missing
+
+        results.append({
+            "name": check["name"],
+            "cmd": check["cmd"],
+            "ok": ok,
+            "code": code,
+            "missing": missing,
+            "output": output,
+        })
+
+        if ok:
+            print(f"OK  {' '.join(check['cmd'])}")
+        else:
+            print(f"FALHA  {' '.join(check['cmd'])}")
+            if code != 0:
+                print(f"  exit code: {code}")
+            if missing:
+                print(f"  conteúdo ausente: {', '.join(missing)}")
+            print(output[-2000:])
+
+    passed = all(r["ok"] for r in results)
 
     out_dir = ROOT / "10_TESTES" / "RELEASE_CHECKS"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -47,17 +108,20 @@ def main():
         f"## Resultado\n{'PASSOU' if passed else 'FALHOU'}",
         "",
         "## Status real",
-        "Validação local. Nada de produção.",
+        "Validação local de release. Produção não alterada.",
         "",
     ]
 
-    for cmd, ok, out in results:
+    for r in results:
         lines += [
-            f"## {' '.join(cmd)}",
-            f"Status: {'OK' if ok else 'FALHA'}",
+            f"## {r['name']}",
+            f"Comando: `{' '.join(r['cmd'])}`",
+            f"Status: {'OK' if r['ok'] else 'FALHA'}",
+            f"Exit code: {r['code']}",
+            f"Conteúdo ausente: {', '.join(r['missing']) if r['missing'] else 'nenhum'}",
             "",
             "```text",
-            out[-4000:],
+            r["output"][-5000:],
             "```",
             "",
         ]

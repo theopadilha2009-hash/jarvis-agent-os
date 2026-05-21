@@ -22,6 +22,7 @@ Comandos como `cockpit`, `overview`, `task-status`, `review-output-index`, `summ
 - snapshots em `07_RELATORIOS/03_RELEASES/`;
 - smoke tests em `10_TESTES/SMOKE_TESTS/`;
 - release checks em `10_TESTES/RELEASE_CHECKS/`;
+- safety gates em `10_TESTES/SAFETY_GATES/`;
 - checkpoints em `10_TESTES/CHECKPOINTS/`;
 - handoffs, briefs e auto-task runs quando representam marco útil.
 
