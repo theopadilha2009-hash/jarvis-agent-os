@@ -2486,6 +2486,13 @@ def snapshot_prep_core_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/snapshot_preparation_core.py"], cwd=ROOT, check=False)
 
+def readonly_run_command(text: str = ""):
+    import subprocess
+    if not text.strip():
+        print('Uso: ./jarvis readonly-run "tarefa"')
+        return
+    subprocess.run(["python3", "11_SCRIPTS/readonly_run.py", text], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2683,6 +2690,9 @@ def main():
         pending_artifacts_command()
     elif cmd == "snapshot-prep-core":
         snapshot_prep_core_command()
+    elif cmd == "readonly-run":
+        text = " ".join(sys.argv[2:]).strip()
+        readonly_run_command(text)
     else:
         help_msg()
 

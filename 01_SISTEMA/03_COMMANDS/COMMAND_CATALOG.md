@@ -37,6 +37,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis workspace-check /caminho/do/projeto`
 
 ## Execução assistida
+- `./jarvis readonly-run "tarefa"`
 - `./jarvis mode-plan "tarefa"`
 - `./jarvis task-brief "tarefa"`
 - `./jarvis task-brief-latest`
@@ -159,3 +160,25 @@ Fluxo correto:
 `./jarvis snapshot-prep-core` cria snapshot em pasta temporária primeiro e usa no-report quando aplicável.
 
 Objetivo: evitar que snapshots gerem artefatos surpresa e quebrem o quality-gate.
+
+## READONLY_RUN
+
+`./jarvis readonly-run "tarefa"` faz inspeção local segura de um projeto detectado no Mac.
+
+Ele pode:
+- selecionar projeto provável;
+- ler git status/branch/log;
+- listar estrutura root;
+- ler README;
+- ler package.json;
+- detectar `.env` sem abrir conteúdo.
+
+Ele não pode:
+- editar arquivos;
+- rodar build;
+- instalar dependências;
+- abrir `.env`;
+- fazer push/deploy;
+- mexer em VPS, n8n ou produção.
+
+Status real: inspeção local read-only.
