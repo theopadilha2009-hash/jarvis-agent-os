@@ -12,6 +12,11 @@ CHECKS = [
         "expect": ["Comandos:", "./jarvis help"],
     },
     {
+        "name": "storage-health",
+        "cmd": ["./jarvis", "storage-health"],
+        "expect": ["Storage Health", "STORAGE HEALTH PASSOU", "Produção não alterada"],
+    },
+    {
         "name": "report-policy",
         "cmd": ["./jarvis", "report-policy"],
         "expect": ["Report Policy", "ULTIMO_*.md", "Snapshot versionado"],
