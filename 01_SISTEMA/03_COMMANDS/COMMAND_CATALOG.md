@@ -39,6 +39,8 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis handoff-latest`
 - `./jarvis handoff-print`
 - `./jarvis review-outputs`
+- `./jarvis review-output-v2 arquivo.md`
+- `./jarvis review-output-latest`
 
 ## Prompts / executores
 - `./jarvis prompt-pack "pedido"`

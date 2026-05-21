@@ -57,6 +57,11 @@ CHECKS = [
         "expect": ["Latest Auto Task", "Auto Task Run", "Nada executado no projeto real"],
     },
     {
+        "name": "review-output-latest",
+        "cmd": ["./jarvis", "review-output-latest"],
+        "expect": ["Latest Executor Output Review", "Executor Output Review", "Status real"],
+    },
+    {
         "name": "handoff-latest",
         "cmd": ["./jarvis", "handoff-latest"],
         "expect": ["Latest Handoff", "Arquivo principal para Claude"],

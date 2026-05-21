@@ -2439,6 +2439,10 @@ def execution_modes_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/execution_modes.py"], cwd=ROOT, check=False)
 
+def review_output_latest_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/review_output_latest.py"], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2452,6 +2456,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
   ./jarvis review-output-v2       revisa output de executor externo
   ./jarvis auto-task-latest       imprime último auto-task
@@ -2606,6 +2611,8 @@ def main():
         review_output_v2_command(sys.argv[2:])
     elif cmd == "execution-modes":
         execution_modes_command()
+    elif cmd == "review-output-latest":
+        review_output_latest_command()
     else:
         help_msg()
 
