@@ -5,41 +5,109 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 
-COMMANDS = [
-    ["./jarvis", "help"],
-    ["./jarvis", "commands"],
-    ["./jarvis", "execution-modes"],
-    ["./jarvis", "overview"],
-    ["./jarvis", "task-status"],
-    ["./jarvis", "self-test"],
-    ["./jarvis", "quality-gate"],
-    ["./jarvis", "project-select", "corrigir bug de visitantes do GC"],
-    ["./jarvis", "task-brief-latest"],
-    ["./jarvis", "auto-task-latest"],
-    ["./jarvis", "handoff-latest"],
-    ["./jarvis", "handoff-print"],
+CHECKS = [
+    {
+        "name": "help",
+        "cmd": ["./jarvis", "help"],
+        "expect": ["Comandos:", "./jarvis help"],
+    },
+    {
+        "name": "commands",
+        "cmd": ["./jarvis", "commands"],
+        "expect": ["Command Catalog", "auto-task", "quality-gate"],
+    },
+    {
+        "name": "execution-modes",
+        "cmd": ["./jarvis", "execution-modes"],
+        "expect": ["PREPARE", "READONLY", "LOCAL_EXEC", "INFRA_EXEC", "PRODUCTION_ARMED"],
+    },
+    {
+        "name": "overview",
+        "cmd": ["./jarvis", "overview"],
+        "expect": ["System Overview", "Status real", "Produção"],
+    },
+    {
+        "name": "task-status",
+        "cmd": ["./jarvis", "task-status"],
+        "expect": ["Task Status", "Git status", "Próximo passo seguro"],
+    },
+    {
+        "name": "self-test",
+        "cmd": ["./jarvis", "self-test"],
+        "expect": ["SELF-TEST PASSOU", "Status real"],
+    },
+    {
+        "name": "quality-gate",
+        "cmd": ["./jarvis", "quality-gate"],
+        "expect": ["QUALITY GATE", "Python compile", "Git status"],
+    },
+    {
+        "name": "project-select",
+        "cmd": ["./jarvis", "project-select", "corrigir bug de visitantes do GC"],
+        "expect": ["Project Select", "Projeto sugerido", "Próximo passo seguro"],
+    },
+    {
+        "name": "task-brief-latest",
+        "cmd": ["./jarvis", "task-brief-latest"],
+        "expect": ["Latest Task Brief", "Status real", "Próximo passo seguro"],
+    },
+    {
+        "name": "auto-task-latest",
+        "cmd": ["./jarvis", "auto-task-latest"],
+        "expect": ["Latest Auto Task", "Auto Task Run", "Nada executado no projeto real"],
+    },
+    {
+        "name": "handoff-latest",
+        "cmd": ["./jarvis", "handoff-latest"],
+        "expect": ["Latest Handoff", "Arquivo principal para Claude"],
+    },
+    {
+        "name": "handoff-print",
+        "cmd": ["./jarvis", "handoff-print"],
+        "expect": ["Handoff Print", "Prompt para Claude", "Regras obrigatórias"],
+    },
 ]
 
 def run(cmd):
     try:
-        out = subprocess.check_output(cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT)
-        return True, out.strip()
+        output = subprocess.check_output(cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT)
+        return 0, output.strip()
     except subprocess.CalledProcessError as e:
-        return False, e.output.strip()
+        return e.returncode, e.output.strip()
     except Exception as e:
-        return False, str(e)
+        return 1, f"ERRO: {e}"
 
 def main():
     print("JARVIS — Theo Padilha AI Worker CLI Smoke Test")
+    print("Modo: exit code + conteúdo esperado")
     print("")
 
     results = []
-    for cmd in COMMANDS:
-        ok, out = run(cmd)
-        results.append((cmd, ok, out))
-        print(("OK" if ok else "FALHA") + "  " + " ".join(cmd))
 
-    passed = all(ok for _, ok, _ in results)
+    for check in CHECKS:
+        code, output = run(check["cmd"])
+        missing = [x for x in check["expect"] if x not in output]
+        ok = code == 0 and not missing
+
+        results.append({
+            "name": check["name"],
+            "cmd": check["cmd"],
+            "ok": ok,
+            "code": code,
+            "missing": missing,
+            "output": output,
+        })
+
+        if ok:
+            print(f"OK  {' '.join(check['cmd'])}")
+        else:
+            print(f"FALHA  {' '.join(check['cmd'])}")
+            if code != 0:
+                print(f"  exit code: {code}")
+            if missing:
+                print(f"  conteúdo ausente: {', '.join(missing)}")
+
+    passed = all(r["ok"] for r in results)
 
     out_dir = ROOT / "10_TESTES" / "SMOKE_TESTS"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -54,17 +122,20 @@ def main():
         f"## Resultado\n{'PASSOU' if passed else 'FALHOU'}",
         "",
         "## Status real",
-        "Teste local de comandos. Nada de produção.",
+        "Teste local de CLI. Nada de produção.",
         "",
     ]
 
-    for cmd, ok, out in results:
+    for r in results:
         lines += [
-            f"## {' '.join(cmd)}",
-            f"Status: {'OK' if ok else 'FALHA'}",
+            f"## {r['name']}",
+            f"Comando: `{' '.join(r['cmd'])}`",
+            f"Status: {'OK' if r['ok'] else 'FALHA'}",
+            f"Exit code: {r['code']}",
+            f"Conteúdo ausente: {', '.join(r['missing']) if r['missing'] else 'nenhum'}",
             "",
             "```text",
-            out[-3000:],
+            r["output"][-4000:],
             "```",
             "",
         ]
