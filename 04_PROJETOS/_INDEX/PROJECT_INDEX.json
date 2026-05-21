@@ -5,7 +5,7 @@
     "type": "web-app/código",
     "git": true,
     "branch": "analise-inicial-theo",
-    "status": "limpo",
+    "status": "?? RELATORIO-20-05.md",
     "env_files": [
       ".env.local",
       ".env.local.backup-antes-supabase-url",

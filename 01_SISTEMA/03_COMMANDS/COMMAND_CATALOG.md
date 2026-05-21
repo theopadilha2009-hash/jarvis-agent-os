@@ -102,3 +102,11 @@ Status real: validação local forte. Não altera projeto real, VPS, n8n ou prod
 - O modo define o próximo comando seguro e os bloqueios.
 
 Status real: classificação local. Não executa projeto real.
+
+## Auto-task com mode-plan
+
+`./jarvis auto-task "tarefa"` agora começa executando `mode-plan` em modo no-report.
+
+Isso garante que a preparação já declare se a tarefa parece PREPARE, READONLY, LOCAL_EXEC, INFRA_EXEC ou PRODUCTION_ARMED antes de criar handoff e próximos passos.
+
+Status real: continua sendo preparação local. Não edita projeto real.

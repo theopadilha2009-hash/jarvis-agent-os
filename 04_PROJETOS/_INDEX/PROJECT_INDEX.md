@@ -1,7 +1,7 @@
 # Project Index — JARVIS Theo Padilha AI Worker
 
 ## Data
-2026-05-21T14:19:10
+2026-05-21T15:47:59
 
 ## Base analisada
 /Users/usuario1/VAMOO_PROJETOS
@@ -14,7 +14,7 @@
 - Tipo: web-app/código
 - Git: sim
 - Branch: analise-inicial-theo
-- Status: limpo
+- Status: ?? RELATORIO-20-05.md
 - .env: .env.local, .env.local.backup-antes-supabase-url, .env.local.backup-antes-vercel-real, .env.vercel.check
 - Risco: médio
 - Próximo comando: `./jarvis workspace-check /Users/usuario1/VAMOO_PROJETOS/gc-gestao-de-cristo`

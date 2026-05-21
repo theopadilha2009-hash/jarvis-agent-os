@@ -40,6 +40,7 @@ def main():
     print('')
 
     steps = [
+        ('mode-plan', ['env', 'JARVIS_NO_REPORT=1', './jarvis', 'mode-plan', task]),
         ('project-index', ['./jarvis', 'project-index', '~/VAMOO_PROJETOS']),
         ('project-select', ['./jarvis', 'project-select', task]),
         ('task-brief', ['./jarvis', 'task-brief', task]),
@@ -75,7 +76,7 @@ def main():
         f'## Tarefa\n{task}',
         '',
         '## Status real',
-        'Preparação local automatizada. Nada executado no projeto real.',
+        'Preparação local automatizada com mode-plan inicial. Nada executado no projeto real.',
         '',
         f'## Resultado\n{("PASSOU" if passed else "FALHOU")}',
         '',
