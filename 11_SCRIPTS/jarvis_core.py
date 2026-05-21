@@ -2463,6 +2463,10 @@ def secret_scan_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/secret_scan.py"], cwd=ROOT, check=False)
 
+def safety_gate_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/safety_gate.py"], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2476,6 +2480,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis safety-gate            roda secret-scan, storage-health e quality-gate
   ./jarvis secret-scan            procura segredos em arquivos versionados
   ./jarvis storage-health         valida tracking/ignore de relatórios e segredos
   ./jarvis report-policy          mostra política de relatórios e snapshots
@@ -2648,6 +2653,8 @@ def main():
         storage_health_command()
     elif cmd == "secret-scan":
         secret_scan_command()
+    elif cmd == "safety-gate":
+        safety_gate_command()
     else:
         help_msg()
 

@@ -4,6 +4,7 @@
 Catálogo local de comandos. Não é produção.
 
 ## Saúde / validação
+- `./jarvis safety-gate`
 - `./jarvis secret-scan`
 - `./jarvis storage-health`
 - `./jarvis self-test`
