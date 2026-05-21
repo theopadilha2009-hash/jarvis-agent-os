@@ -31,6 +31,8 @@ Catálogo local de comandos. Não é produção.
 ## Execução assistida
 - `./jarvis task-brief "tarefa"`
 - `./jarvis task-brief-latest`
+- `./jarvis auto-task "tarefa"`
+- `./jarvis auto-task-latest`
 - `./jarvis task-start "tarefa"`
 - `./jarvis executor-handoff "tarefa"`
 - `./jarvis handoff-latest`
@@ -57,3 +59,9 @@ Catálogo local de comandos. Não é produção.
 
 ## Regra
 Plano, prompt, handoff e task-start não significam execução feita. Produção só com autorização.
+
+## Atalho de preparação completa
+- `./jarvis auto-task "sua tarefa"` roda a preparação local completa: índice, seleção, briefing, task-start, handoff, print, status e release-check.
+- `./jarvis auto-task-latest` imprime o último relatório sem criar novo run.
+
+Status real: `auto-task` prepara e valida localmente; não edita projeto real e não significa produção.

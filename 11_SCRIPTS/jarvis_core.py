@@ -2448,6 +2448,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis auto-task-latest       imprime último auto-task
   ./jarvis task-brief-latest      imprime último briefing de tarefa
   ./jarvis overview               mostra visão atual completa do sistema
   ./jarvis task-status            mostra último status operacional
@@ -2593,6 +2594,8 @@ def main():
     elif cmd == "auto-task":
         text = " ".join(sys.argv[2:]).strip()
         auto_task_command(text)
+    elif cmd == "auto-task-latest":
+        auto_task_latest_command()
     else:
         help_msg()
 
@@ -2652,6 +2655,10 @@ def auto_task_command(text: str = ""):
         print('Uso: ./jarvis auto-task "tarefa"')
         return
     subprocess.run(["python3", "11_SCRIPTS/auto_task.py", text], cwd=ROOT, check=False)
+
+def auto_task_latest_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/auto_task_latest.py"], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()
