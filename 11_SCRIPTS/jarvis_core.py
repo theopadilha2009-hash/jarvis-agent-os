@@ -2584,6 +2584,9 @@ def main():
         task_status_command()
     elif cmd == "overview":
         overview_command()
+    elif cmd == "task-brief":
+        text = " ".join(sys.argv[2:]).strip()
+        task_brief_command(text)
     else:
         help_msg()
 
@@ -2625,6 +2628,13 @@ def task_status_command():
 def overview_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/system_overview.py"], cwd=ROOT, check=False)
+
+def task_brief_command(text: str = ""):
+    import subprocess
+    if not text.strip():
+        print('Uso: ./jarvis task-brief "tarefa"')
+        return
+    subprocess.run(["python3", "11_SCRIPTS/task_brief.py", text], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()
