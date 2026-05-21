@@ -110,3 +110,16 @@ Status real: classificação local. Não executa projeto real.
 Isso garante que a preparação já declare se a tarefa parece PREPARE, READONLY, LOCAL_EXEC, INFRA_EXEC ou PRODUCTION_ARMED antes de criar handoff e próximos passos.
 
 Status real: continua sendo preparação local. Não edita projeto real.
+
+## Auto-task preparation-only
+
+`./jarvis auto-task "tarefa"` prepara a tarefa e gera artefatos locais. Ele não deve rodar `release-check` internamente porque os próprios artefatos deixam o Git sujo.
+
+Fluxo correto:
+1. rodar auto-task;
+2. revisar/trackear artefatos gerados;
+3. commitar;
+4. rodar release-check;
+5. rodar safety-gate.
+
+Status real: auto-task prepara. Não valida release sozinho.

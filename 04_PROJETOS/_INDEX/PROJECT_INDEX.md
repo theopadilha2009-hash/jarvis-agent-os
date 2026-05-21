@@ -1,7 +1,7 @@
 # Project Index — JARVIS Theo Padilha AI Worker
 
 ## Data
-2026-05-21T15:47:59
+2026-05-21T15:56:22
 
 ## Base analisada
 /Users/usuario1/VAMOO_PROJETOS
@@ -41,7 +41,7 @@
 - Caminho: `/Users/usuario1/VAMOO_PROJETOS/oficina`
 - Tipo: web-app/código
 - Git: sim
-- Branch: fix/patio-agenda-status-20260520
+- Branch: fix/patio-agenda-status-clean
 - Status: limpo
 - .env: .env, .env.example
 - Risco: médio

@@ -48,7 +48,6 @@ def main():
         ('executor-handoff', ['./jarvis', 'executor-handoff', task]),
         ('handoff-print', ['./jarvis', 'handoff-print']),
         ('task-status', ['./jarvis', 'task-status']),
-        ('release-check', ['./jarvis', 'release-check']),
     ]
 
     results = []
@@ -76,7 +75,7 @@ def main():
         f'## Tarefa\n{task}',
         '',
         '## Status real',
-        'Preparação local automatizada com mode-plan inicial. Nada executado no projeto real.',
+        'Preparação local automatizada com mode-plan inicial. Nada executado no projeto real. Release-check deve rodar depois que os artefatos gerados forem versionados.',
         '',
         f'## Resultado\n{("PASSOU" if passed else "FALHOU")}',
         '',
@@ -88,6 +87,10 @@ def main():
     lines.extend([
         '## Produção',
         'Nada alterado.',
+        '',
+        '## Observação operacional',
+        'Auto-task não roda release-check internamente porque gera artefatos e deixa Git sujo por design.',
+        'Versione os artefatos gerados e só depois rode release-check/safety-gate.',
         '',
         '## Próximo passo seguro',
         'Usar o handoff gerado manualmente em Claude/VS Code, começando read-only.',
