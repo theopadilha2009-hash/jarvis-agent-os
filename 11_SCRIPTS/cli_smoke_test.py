@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS = [
     ["./jarvis", "help"],
     ["./jarvis", "commands"],
+    ["./jarvis", "execution-modes"],
     ["./jarvis", "overview"],
     ["./jarvis", "task-status"],
     ["./jarvis", "self-test"],
