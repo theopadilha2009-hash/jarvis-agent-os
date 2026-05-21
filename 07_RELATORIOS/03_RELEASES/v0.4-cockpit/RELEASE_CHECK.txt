@@ -1,0 +1,10 @@
+JARVIS — Theo Padilha AI Worker Release Check
+
+OK  python3 -m py_compile 11_SCRIPTS/jarvis_core.py
+OK  python3 -m py_compile 11_SCRIPTS/cli_smoke_test.py
+OK  ./jarvis self-test
+OK  ./jarvis quality-gate
+OK  ./jarvis smoke-test
+
+Resultado: RELEASE CHECK PASSOU
+Relatório: 10_TESTES/RELEASE_CHECKS/2026-05-21_15-07-38-573030_release-check.md
