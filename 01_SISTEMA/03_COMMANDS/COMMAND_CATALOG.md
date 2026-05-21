@@ -50,10 +50,10 @@ Catálogo local de comandos. Não é produção.
 4. `./jarvis task-start "sua tarefa"`
 5. `./jarvis executor-handoff "sua tarefa"`
 6. `./jarvis handoff-print`
-6. Usar Claude/ChatGPT/Gemini manualmente
-7. Salvar output em `00_COLE_AQUI/03_OUTPUTS_CLAUDE_CHATGPT/`
-8. `./jarvis review-outputs`
-9. `./jarvis quality-gate`
+7. Usar Claude/ChatGPT/Gemini manualmente
+8. Salvar output em `00_COLE_AQUI/03_OUTPUTS_CLAUDE_CHATGPT/`
+9. `./jarvis review-outputs`
+10. `./jarvis quality-gate`
 
 ## Regra
 Plano, prompt, handoff e task-start não significam execução feita. Produção só com autorização.

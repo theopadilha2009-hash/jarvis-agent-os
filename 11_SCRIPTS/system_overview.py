@@ -62,7 +62,7 @@ def main():
         '',
         '## Produção\nNada alterado.',
         '',
-        '## Próximo passo seguro\nCriar `task-brief` para transformar uma tarefa em um briefing único pronto para execução manual.',
+        '## Próximo passo seguro\nCriar `auto-task` em modo preparação apenas, sem editar projeto real.',
     ]
 
     out = ROOT / '07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md'

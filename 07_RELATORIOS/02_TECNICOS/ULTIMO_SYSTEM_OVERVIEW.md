@@ -1,7 +1,7 @@
 # System Overview — JARVIS Theo Padilha AI Worker
 
 ## Data
-2026-05-21T14:15:05
+2026-05-21T14:16:22
 
 ## Criador / dono
 Theo Padilha
@@ -10,14 +10,10 @@ Theo Padilha
 Laboratório local estável. Não é produção.
 
 ## Git
-Commit: c800645
-Status: M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
- M 07_RELATORIOS/02_TECNICOS/ULTIMO_TASK_STATUS.md
-?? 07_RELATORIOS/03_RELEASES/v0.4-operator-ready/
-?? 09_LOGS/2026-05-21_14-15-01-570511_checkpoint-created.md
-?? 10_TESTES/CHECKPOINTS/2026-05-21_14-15-01_checkpoint.md
-?? 10_TESTES/RELEASE_CHECKS/2026-05-21_14-15-03-653852_release-check.md
-?? 10_TESTES/SMOKE_TESTS/2026-05-21_14-15-03-647447_cli-smoke-test.md
+Commit: 7e1078f
+Status: M 01_SISTEMA/03_COMMANDS/COMMAND_CATALOG.md
+ M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
+ M 11_SCRIPTS/system_overview.py
 
 ## Capacidades atuais
 - mapear projetos do Mac
@@ -41,8 +37,8 @@ Status: M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
 - `./jarvis release-check`
 
 ## Artefatos registrados
-Smoke tests: 18
-Release checks: 14
+Smoke tests: 19
+Release checks: 15
 Checkpoints: 7
 
 ## Catálogo de comandos
@@ -55,4 +51,4 @@ Checkpoints: 7
 Nada alterado.
 
 ## Próximo passo seguro
-Criar `task-brief` para transformar uma tarefa em um briefing único pronto para execução manual.
+Criar `auto-task` em modo preparação apenas, sem editar projeto real.
