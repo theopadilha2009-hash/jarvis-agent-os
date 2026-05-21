@@ -2478,6 +2478,10 @@ def mode_plan_command(text: str = ""):
         return
     subprocess.run(["python3", "11_SCRIPTS/mode_plan.py", text], cwd=ROOT, check=False)
 
+def pending_artifacts_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/pending_artifacts.py"], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2491,6 +2495,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis pending-artifacts      lista artefatos gerados pendentes no Git
   ./jarvis safety-gate            roda secret-scan, storage-health e quality-gate
   ./jarvis secret-scan            procura segredos em arquivos versionados
   ./jarvis storage-health         valida tracking/ignore de relatórios e segredos
@@ -2669,6 +2674,8 @@ def main():
     elif cmd == "mode-plan":
         text = " ".join(sys.argv[2:]).strip()
         mode_plan_command(text)
+    elif cmd == "pending-artifacts":
+        pending_artifacts_command()
     else:
         help_msg()
 

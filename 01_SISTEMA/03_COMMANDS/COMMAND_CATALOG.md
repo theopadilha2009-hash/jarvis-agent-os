@@ -13,6 +13,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis release-check`
 
 ## Status / checkpoint
+- `./jarvis pending-artifacts`
 - `./jarvis report-policy`
 - `./jarvis cockpit`
 - `./jarvis execution-modes`
@@ -123,3 +124,16 @@ Fluxo correto:
 5. rodar safety-gate.
 
 Status real: auto-task prepara. Não valida release sozinho.
+
+## Fluxo pós auto-task
+
+Depois de `./jarvis auto-task "tarefa"`:
+
+1. `./jarvis pending-artifacts`
+2. `./jarvis secret-scan`
+3. `git add ...`
+4. `git commit -m "..."` 
+5. `./jarvis release-check`
+6. `./jarvis safety-gate`
+
+Status real: pending-artifacts só inspeciona. Não altera nada.

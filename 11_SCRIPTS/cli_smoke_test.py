@@ -27,6 +27,11 @@ CHECKS = [
         "expect": ["Storage Health", "STORAGE HEALTH PASSOU", "Produção não alterada"],
     },
     {
+        "name": "pending-artifacts",
+        "cmd": ["./jarvis", "pending-artifacts"],
+        "expect": ["Pending Artifacts", "Status real", "Git status"],
+    },
+    {
         "name": "report-policy",
         "cmd": ["./jarvis", "report-policy"],
         "expect": ["Report Policy", "ULTIMO_*.md", "Snapshot versionado"],
