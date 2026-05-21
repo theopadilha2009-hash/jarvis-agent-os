@@ -2590,6 +2590,9 @@ def main():
         task_brief_command(text)
     elif cmd == "task-brief-latest":
         task_brief_latest_command()
+    elif cmd == "auto-task":
+        text = " ".join(sys.argv[2:]).strip()
+        auto_task_command(text)
     else:
         help_msg()
 
@@ -2642,6 +2645,13 @@ def task_brief_command(text: str = ""):
 def task_brief_latest_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/task_brief_latest.py"], cwd=ROOT, check=False)
+
+def auto_task_command(text: str = ""):
+    import subprocess
+    if not text.strip():
+        print('Uso: ./jarvis auto-task "tarefa"')
+        return
+    subprocess.run(["python3", "11_SCRIPTS/auto_task.py", text], cwd=ROOT, check=False)
 
 if __name__ == "__main__":
     main()

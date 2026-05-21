@@ -31,7 +31,7 @@
     "path": "/Users/usuario1/VAMOO_PROJETOS/oficina",
     "type": "web-app/código",
     "git": true,
-    "branch": "fix/bugs-oficina-20260519-1516",
+    "branch": "fix/patio-agenda-status-20260520",
     "status": "limpo",
     "env_files": [
       ".env",
