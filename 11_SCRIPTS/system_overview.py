@@ -39,6 +39,7 @@ def main():
         '- checar workspace antes de execução',
         '- gerar task-start',
         '- gerar handoff para Claude/VS Code',
+        '- rodar preparação completa com auto-task',
         '- imprimir último handoff no terminal',
         '- revisar outputs manuais',
         '- rodar smoke-test, release-check e quality-gate',
@@ -50,6 +51,8 @@ def main():
         '- `./jarvis project-index ~/VAMOO_PROJETOS`',
         '- `./jarvis project-select "tarefa"`',
         '- `./jarvis task-start "tarefa"`',
+        '- `./jarvis auto-task "tarefa"`',
+        '- `./jarvis auto-task-latest`',
         '- `./jarvis executor-handoff "tarefa"`',
         '- `./jarvis handoff-print`',
         '- `./jarvis release-check`',
@@ -62,7 +65,7 @@ def main():
         '',
         '## Produção\nNada alterado.',
         '',
-        '## Próximo passo seguro\nCriar `auto-task` em modo preparação apenas, sem editar projeto real.',
+        '## Próximo passo seguro\nConsolidar revisão de outputs e depois planejar executor read-only, sem edição automática ainda.',
     ]
 
     out = ROOT / '07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md'

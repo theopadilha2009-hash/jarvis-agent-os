@@ -9,6 +9,25 @@ Guia operacional local. Não é produção.
 ## Regra principal
 JARVIS prepara, organiza, valida e gera handoff. Execução real em projeto, produção, deploy, VPS, envio real ou credenciais só com autorização.
 
+
+## Atalho recomendado agora
+
+Para uma tarefa real comum, o fluxo mais forte é:
+
+`./jarvis auto-task "sua tarefa"`
+
+Esse comando prepara automaticamente:
+- índice de projetos;
+- seleção provável do projeto;
+- task brief;
+- task start;
+- executor handoff;
+- impressão do handoff;
+- task status;
+- release-check.
+
+Status real: prepara tudo localmente, mas não edita o projeto real.
+
 ## Fluxo padrão para tarefa real
 
 1. Atualizar índice dos projetos:
@@ -67,4 +86,4 @@ JARVIS prepara, organiza, valida e gera handoff. Execução real em projeto, pro
 - Sempre separar criado, preparado, testado, validado e produção.
 
 ## Próximo marco técnico
-Criar `task-status`, para listar a última tarefa preparada, último handoff, último release-check e próximo passo seguro.
+Criar camada de executor read-only, depois de consolidar auto-task e revisão de outputs. Não conectar executor com permissão de edição ainda.

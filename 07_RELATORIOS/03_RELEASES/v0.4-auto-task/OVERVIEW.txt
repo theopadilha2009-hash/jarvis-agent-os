@@ -1,7 +1,9 @@
+JARVIS — Theo Padilha AI Worker System Overview
+
 # System Overview — JARVIS Theo Padilha AI Worker
 
 ## Data
-2026-05-21T14:25:53
+2026-05-21T14:25:52
 
 ## Criador / dono
 Theo Padilha
@@ -61,3 +63,5 @@ Nada alterado.
 
 ## Próximo passo seguro
 Consolidar revisão de outputs e depois planejar executor read-only, sem edição automática ainda.
+
+Relatório salvo em: 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md

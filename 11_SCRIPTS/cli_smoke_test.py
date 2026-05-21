@@ -14,6 +14,7 @@ COMMANDS = [
     ["./jarvis", "quality-gate"],
     ["./jarvis", "project-select", "corrigir bug de visitantes do GC"],
     ["./jarvis", "task-brief-latest"],
+    ["./jarvis", "auto-task-latest"],
     ["./jarvis", "handoff-latest"],
     ["./jarvis", "handoff-print"],
 ]

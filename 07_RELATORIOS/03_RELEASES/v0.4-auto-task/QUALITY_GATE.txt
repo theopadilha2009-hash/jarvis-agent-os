@@ -1,0 +1,17 @@
+JARVIS — Theo Padilha AI Worker Quality Gate
+
+OK  Python compile — sem erro
+OK  Smoke script compile — sem erro
+FALHA  Git status — M 01_SISTEMA/04_OPERATOR_GUIDES/OPERATOR_GUIDE_V0_4.md |  M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md |  M 07_RELATORIOS/02_TECNICOS/ULTIMO_TASK_STATUS.md |  M 11_SCRIPTS/cli_smoke_test.py |  M 11_SCRIPTS/system_overview.py | ?? 07_RELATORIOS/03_RELEASES/v0.4-auto-task/ | ?? 10_TESTES/RELEASE_CHECKS/2026-05-21_14-25-52-206400_release-check.md | ?? 10_TESTES/RELEASE_CHECKS/2026-05-21_14-25-54-714991_release-check.md | ?? 10_TESTES/SMOKE_TESTS/2026-05-21_14-25-50-509964_cli-smoke-test.md | ?? 10_TESTES/SMOKE_TESTS/2026-05-21_14-25-52-200254_cli-smoke-test.md | ?? 10_TESTES/SMOKE_TESTS/2026-05-21_14-25-54-708831_cli-smoke-test.md
+OK  Estrutura principal
+OK  Identidade Theo Padilha
+OK  CLI presente
+OK  Tasks abertas — 0 aberta(s)
+OK  Missões registradas — 4 brief(s)
+OK  Logs — 41 log(s)
+
+Resultado: QUALITY GATE COM PENDÊNCIAS
+Status real: validação local. Produção não alterada.
+
+Ação segura:
+- Resolver pendências antes de conectar IA externa, n8n, VPS ou APIs.
