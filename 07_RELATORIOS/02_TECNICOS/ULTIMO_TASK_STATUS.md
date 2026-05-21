@@ -1,19 +1,15 @@
 # Task Status — JARVIS Theo Padilha AI Worker
 
 ## Data
-2026-05-21T14:15:05
+2026-05-21T14:16:22
 
 ## Git commit
-c800645
+7e1078f
 
 ## Git status
-M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
- M 07_RELATORIOS/02_TECNICOS/ULTIMO_TASK_STATUS.md
-?? 07_RELATORIOS/03_RELEASES/v0.4-operator-ready/
-?? 09_LOGS/2026-05-21_14-15-01-570511_checkpoint-created.md
-?? 10_TESTES/CHECKPOINTS/2026-05-21_14-15-01_checkpoint.md
-?? 10_TESTES/RELEASE_CHECKS/2026-05-21_14-15-03-653852_release-check.md
-?? 10_TESTES/SMOKE_TESTS/2026-05-21_14-15-03-647447_cli-smoke-test.md
+M 01_SISTEMA/03_COMMANDS/COMMAND_CATALOG.md
+ M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
+ M 11_SCRIPTS/system_overview.py
 
 ## Último task-start
 05_EXECUCAO/06_TASK_STARTS/2026-05-20_18-19-01-916026_corrigir-bug-de-visitantes-do-gc-sem-produ-o_task-start.md
@@ -22,10 +18,10 @@ M 07_RELATORIOS/02_TECNICOS/ULTIMO_SYSTEM_OVERVIEW.md
 05_EXECUCAO/07_EXECUTOR_HANDOFFS/2026-05-20_18-25-41-612756_corrigir-bug-de-visitantes-do-gc-sem-produ-o
 
 ## Último release-check
-10_TESTES/RELEASE_CHECKS/2026-05-21_14-15-03-653852_release-check.md
+10_TESTES/RELEASE_CHECKS/2026-05-21_14-15-05-993355_release-check.md
 
 ## Último smoke-test
-10_TESTES/SMOKE_TESTS/2026-05-21_14-15-03-647447_cli-smoke-test.md
+10_TESTES/SMOKE_TESTS/2026-05-21_14-15-05-986956_cli-smoke-test.md
 
 ## Último checkpoint
 10_TESTES/CHECKPOINTS/2026-05-21_14-15-01_checkpoint.md
