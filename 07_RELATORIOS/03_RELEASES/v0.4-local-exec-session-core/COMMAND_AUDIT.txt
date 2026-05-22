@@ -1,0 +1,193 @@
+JARVIS — Theo Padilha AI Worker Command Audit
+Status real: auditoria local de comandos. Produção não alterada.
+
+## quality-gate
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## smoke-test
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## release-check
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: AVISO
+
+## safety-gate
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## secret-scan
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## storage-health
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## cockpit
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## mode-plan
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: AVISO
+
+## auto-task
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## pending-artifacts
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## readonly-run
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-plan
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-ready
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-handoff
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-review
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-flow
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-session
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-session-latest
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-flow-latest
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-review-latest
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-handoff-latest
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-ready-latest
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## local-exec-plan-latest
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## readonly-run-latest
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## executor-handoff
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: AVISO
+
+## handoff-latest
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## handoff-print
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## review-output-v2
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: AVISO
+
+## review-output-index
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## review-output-latest
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: OK
+
+## snapshot-prep-core
+- core: OK
+- help: OK
+- catalog: OK
+- smoke: AVISO
+
+Scripts Python detectados: 46
+
+Resultado: COMMAND AUDIT PASSOU
+Status real: nada alterado.

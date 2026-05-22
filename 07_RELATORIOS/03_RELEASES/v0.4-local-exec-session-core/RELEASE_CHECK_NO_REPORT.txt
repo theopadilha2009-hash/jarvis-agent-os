@@ -1,0 +1,58 @@
+JARVIS — Theo Padilha AI Worker Release Check
+Modo: compile + storage + secret + quality + safety no-report + content-aware smoke
+
+OK  python3 -m py_compile 11_SCRIPTS/auto_task.py
+OK  python3 -m py_compile 11_SCRIPTS/auto_task_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/cli_smoke_test.py
+OK  python3 -m py_compile 11_SCRIPTS/cockpit.py
+OK  python3 -m py_compile 11_SCRIPTS/command_audit.py
+OK  python3 -m py_compile 11_SCRIPTS/command_catalog.py
+OK  python3 -m py_compile 11_SCRIPTS/execution_modes.py
+OK  python3 -m py_compile 11_SCRIPTS/executor_handoff.py
+OK  python3 -m py_compile 11_SCRIPTS/handoff_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/handoff_open.py
+OK  python3 -m py_compile 11_SCRIPTS/handoff_print.py
+OK  python3 -m py_compile 11_SCRIPTS/jarvis_core.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_flow.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_flow_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_handoff.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_handoff_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_plan.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_plan_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_ready.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_ready_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_review.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_review_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_session.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_session_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/mode_plan.py
+OK  python3 -m py_compile 11_SCRIPTS/pending_artifacts.py
+OK  python3 -m py_compile 11_SCRIPTS/project_index.py
+OK  python3 -m py_compile 11_SCRIPTS/project_select.py
+OK  python3 -m py_compile 11_SCRIPTS/readonly_run.py
+OK  python3 -m py_compile 11_SCRIPTS/readonly_run_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/release_check.py
+OK  python3 -m py_compile 11_SCRIPTS/report_policy.py
+OK  python3 -m py_compile 11_SCRIPTS/review_output_index.py
+OK  python3 -m py_compile 11_SCRIPTS/review_output_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/review_outputs_v2.py
+OK  python3 -m py_compile 11_SCRIPTS/safety_gate.py
+OK  python3 -m py_compile 11_SCRIPTS/secret_scan.py
+OK  python3 -m py_compile 11_SCRIPTS/snapshot_preparation_core.py
+OK  python3 -m py_compile 11_SCRIPTS/storage_health.py
+OK  python3 -m py_compile 11_SCRIPTS/system_overview.py
+OK  python3 -m py_compile 11_SCRIPTS/task_brief.py
+OK  python3 -m py_compile 11_SCRIPTS/task_brief_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/task_start.py
+OK  python3 -m py_compile 11_SCRIPTS/task_status.py
+OK  python3 -m py_compile 11_SCRIPTS/workspace_check.py
+OK  python3 -m py_compile 11_SCRIPTS/workspace_scan.py
+OK  ./jarvis secret-scan
+OK  ./jarvis storage-health
+OK  ./jarvis quality-gate
+OK  ./jarvis command-audit
+OK  env JARVIS_NO_REPORT=1 ./jarvis safety-gate
+OK  env JARVIS_NO_REPORT=1 ./jarvis smoke-test
+
+Resultado: RELEASE CHECK PASSOU
+Relatório: desativado por JARVIS_NO_REPORT=1
