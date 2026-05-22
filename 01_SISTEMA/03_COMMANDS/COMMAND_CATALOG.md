@@ -259,3 +259,13 @@ Correção: usar detecção de path mais recente para handoffs.
 `./jarvis local-exec-review arquivo.md` revisa a saída de Claude/VS Code depois de uma execução local.
 
 Status real: cria revisão. Não aplica patch, não commita, não faz push e não faz deploy.
+
+## LOCAL_EXEC Review negation-aware
+
+`local-exec-review` deve diferenciar risco real de frase negada.
+
+Exemplo:
+- “Fiz push” bloqueia.
+- “Não fiz push” não bloqueia.
+- “Rodei deploy” bloqueia.
+- “Não fiz deploy” não bloqueia.
