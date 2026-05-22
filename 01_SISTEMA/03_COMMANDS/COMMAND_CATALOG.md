@@ -42,6 +42,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis local-exec-ready "tarefa"`
 - `./jarvis local-exec-handoff "tarefa"`
 - `./jarvis local-exec-review arquivo.md`
+- `./jarvis local-exec-flow "tarefa"`
 - `./jarvis local-exec-review-latest`
 - `./jarvis local-exec-handoff-latest`
 - `./jarvis local-exec-ready-latest`
@@ -270,3 +271,10 @@ Exemplo:
 - “Não fiz push” não bloqueia.
 - “Rodei deploy” bloqueia.
 - “Não fiz deploy” não bloqueia.
+
+## LOCAL_EXEC Flow
+
+`./jarvis local-exec-flow "tarefa"` mostra o fluxo seguro completo:
+PREPARE → READONLY → PLAN → READY → HANDOFF → REVIEW.
+
+Status real: guia operacional. Não edita projeto, não faz build, não faz commit, não faz push e não faz deploy.

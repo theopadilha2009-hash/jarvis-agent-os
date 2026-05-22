@@ -2546,6 +2546,13 @@ def local_exec_review_latest_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/local_exec_review_latest.py"], cwd=ROOT, check=False)
 
+def local_exec_flow_command(text: str = ""):
+    import subprocess
+    if not text.strip():
+        print('Uso: ./jarvis local-exec-flow "tarefa"')
+        return
+    subprocess.run(["python3", "11_SCRIPTS/local_exec_flow.py", text], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2559,6 +2566,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis local-exec-flow "task" guia fluxo LOCAL_EXEC completo
   ./jarvis local-exec-review-latest imprime última revisão LOCAL_EXEC
   ./jarvis local-exec-review arquivo.md revisa saída LOCAL_EXEC
   ./jarvis local-exec-handoff-latest imprime último pacote LOCAL_EXEC
@@ -2781,6 +2789,9 @@ def main():
         local_exec_review_command(sys.argv[2:])
     elif cmd == "local-exec-review-latest":
         local_exec_review_latest_command()
+    elif cmd == "local-exec-flow":
+        text = " ".join(sys.argv[2:]).strip()
+        local_exec_flow_command(text)
     else:
         help_msg()
 
