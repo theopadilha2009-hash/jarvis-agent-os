@@ -1,0 +1,56 @@
+{
+  "schema": "jarvis-project-registry-v0.5",
+  "created_at": "2026-05-22T17:44:46",
+  "status_real": "Registry local criado. Nenhum projeto real foi editado.",
+  "projects": [
+    {
+      "alias": "oficina",
+      "name": "oficina",
+      "path": "/Users/usuario1/VAMOO_PROJETOS/oficina",
+      "profile": "COMPANY_WORKSPACE",
+      "type": "web-app",
+      "path_exists": true,
+      "is_git": true,
+      "branch": "fix/patio-agenda-status-clean",
+      "git_clean": true,
+      "package_manager": "bun",
+      "allowed_for_local_exec": true,
+      "notes": "Projeto permitido para LOCAL_EXEC somente com project lock explícito."
+    },
+    {
+      "alias": "gc",
+      "name": "gc-gestao-de-cristo",
+      "path": "/Users/usuario1/VAMOO_PROJETOS/gc-gestao-de-cristo",
+      "profile": "COMPANY_WORKSPACE",
+      "type": "web-app",
+      "path_exists": true,
+      "is_git": true,
+      "branch": "analise-inicial-theo",
+      "git_clean": true,
+      "package_manager": "npm",
+      "allowed_for_local_exec": true,
+      "notes": "Projeto permitido para LOCAL_EXEC somente com project lock explícito."
+    },
+    {
+      "alias": "ls",
+      "name": "ls-clinica-agent",
+      "path": "/Users/usuario1/VAMOO_PROJETOS/ls-clinica-agent",
+      "profile": "COMPANY_WORKSPACE",
+      "type": "n8n-agent-lab",
+      "path_exists": true,
+      "is_git": true,
+      "branch": "analysis/ls-v1-4-3-polish",
+      "git_clean": false,
+      "package_manager": "unknown",
+      "allowed_for_local_exec": true,
+      "notes": "Projeto permitido para LOCAL_EXEC somente com project lock explícito."
+    }
+  ],
+  "rules": [
+    "LOCAL_EXEC real deve usar alias explícito.",
+    "Não escolher projeto por chute quando houver risco de edição.",
+    "Não abrir .env ou credenciais.",
+    "Não fazer push, merge ou deploy automático.",
+    "Claude é opcional, não obrigatório."
+  ]
+}
