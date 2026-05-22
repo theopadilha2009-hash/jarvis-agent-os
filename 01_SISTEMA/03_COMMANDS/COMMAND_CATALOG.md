@@ -41,6 +41,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis local-exec-plan "tarefa"`
 - `./jarvis local-exec-ready "tarefa"`
 - `./jarvis local-exec-handoff "tarefa"`
+- `./jarvis local-exec-review arquivo.md`
 - `./jarvis local-exec-handoff-latest`
 - `./jarvis local-exec-ready-latest`
 - `./jarvis local-exec-plan-latest`
@@ -252,3 +253,9 @@ Status real: cria handoff. Não edita projeto, não faz build, não faz push, n�
 `./jarvis cockpit` deve mostrar o último pacote `local-exec-handoff`, mesmo sendo diretório e não arquivo `.md`.
 
 Correção: usar detecção de path mais recente para handoffs.
+
+## LOCAL_EXEC Review
+
+`./jarvis local-exec-review arquivo.md` revisa a saída de Claude/VS Code depois de uma execução local.
+
+Status real: cria revisão. Não aplica patch, não commita, não faz push e não faz deploy.

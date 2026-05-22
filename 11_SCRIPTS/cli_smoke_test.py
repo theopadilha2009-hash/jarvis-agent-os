@@ -103,6 +103,11 @@ CHECKS = [
         "expect": ["READONLY RUN", "inspeção local read-only", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
+        "name": "local-exec-review-fixtures",
+        "cmd": ["./jarvis", "local-exec-review", "--fixtures"],
+        "expect": ["LOCAL_EXEC Review", "Fixtures LOCAL_EXEC"],
+    },
+    {
         "name": "local-exec-handoff-latest",
         "cmd": ["./jarvis", "local-exec-handoff-latest"],
         "expect": ["Latest LOCAL_EXEC Handoff", "Arquivo principal", "LOCAL_EXEC"],

@@ -20,6 +20,7 @@ CRITICAL_COMMANDS = [
     "local-exec-plan",
     "local-exec-ready",
     "local-exec-handoff",
+    "local-exec-review",
     "local-exec-handoff-latest",
     "local-exec-ready-latest",
     "local-exec-plan-latest",
