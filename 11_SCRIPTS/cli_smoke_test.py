@@ -123,6 +123,11 @@ CHECKS = [
         "expect": ["Latest LOCAL_EXEC Session", "LOCAL_EXEC Session", "Artefatos gerados"],
     },
     {
+        "name": "local-exec-session-project-lock-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "local-exec-session", "--project", "oficina", "corrigir bug local sem deploy"],
+        "expect": ["LOCAL_EXEC Session", "Project lock: oficina", "Projeto selecionado: oficina", "Relatório: desativado por JARVIS_NO_REPORT=1"],
+    },
+    {
         "name": "local-exec-session-no-report",
         "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "local-exec-session", "corrigir bug local no projeto oficina sem deploy"],
         "expect": ["LOCAL_EXEC Session", "sessão de preparação local", "Relatório: desativado por JARVIS_NO_REPORT=1"],

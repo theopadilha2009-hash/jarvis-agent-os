@@ -296,3 +296,9 @@ Status real: cria artefatos de preparação. Não edita projeto, não faz build,
 `./jarvis project-resolve oficina` valida o alias e mostra caminho, branch, Git status e próximo passo seguro.
 
 Status real: não edita projeto, não faz build, não faz push e não faz deploy.
+
+## LOCAL_EXEC Session com Project Lock
+
+`./jarvis local-exec-session --project oficina "tarefa"` prepara sessão travada no projeto informado.
+
+Status real: prepara flow/read-only/plan/ready/handoff. Não edita projeto, não faz build, não faz push e não faz deploy.
