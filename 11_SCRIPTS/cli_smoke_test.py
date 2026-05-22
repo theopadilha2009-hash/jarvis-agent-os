@@ -93,6 +93,11 @@ CHECKS = [
         "expect": ["READONLY RUN", "inspeção local read-only", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
+        "name": "local-exec-plan-latest",
+        "cmd": ["./jarvis", "local-exec-plan-latest"],
+        "expect": ["Latest LOCAL_EXEC Plan", "LOCAL_EXEC Plan", "Status real"],
+    },
+    {
         "name": "readonly-run-latest",
         "cmd": ["./jarvis", "readonly-run-latest"],
         "expect": ["Latest READONLY RUN", "READONLY RUN", "Status real"],
