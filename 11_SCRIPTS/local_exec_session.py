@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime
+import json
 import os
 import re
 import subprocess
@@ -7,6 +8,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "05_EXECUCAO" / "18_LOCAL_EXEC_SESSIONS"
+REGISTRY = ROOT / "01_SISTEMA" / "05_PROJECT_REGISTRY" / "PROJECT_REGISTRY.json"
 
 def slugify(text):
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:90] or "local-exec-session"
@@ -19,41 +21,101 @@ def run(cmd):
     except Exception as e:
         return f"ERRO: {e}"
 
-def latest(pattern_root, pattern):
-    base = ROOT / pattern_root
+def latest(folder, pattern):
+    base = ROOT / folder
     if not base.exists():
         return "nenhum"
     items = sorted(base.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
     return str(items[0].relative_to(ROOT)) if items else "nenhum"
 
+def parse_args(argv):
+    project_alias = None
+    task_parts = []
+    i = 0
+
+    while i < len(argv):
+        arg = argv[i]
+
+        if arg == "--project":
+            if i + 1 >= len(argv):
+                print("FALHA: --project exige alias.")
+                sys.exit(1)
+            project_alias = argv[i + 1].strip().lower()
+            i += 2
+            continue
+
+        if arg.startswith("--project="):
+            project_alias = arg.split("=", 1)[1].strip().lower()
+            i += 1
+            continue
+
+        task_parts.append(arg)
+        i += 1
+
+    return project_alias, " ".join(task_parts).strip()
+
+def load_project(alias):
+    if not alias:
+        return None
+
+    if not REGISTRY.exists():
+        print("FALHA: PROJECT_REGISTRY.json não encontrado.")
+        sys.exit(1)
+
+    registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
+    projects = {p["alias"]: p for p in registry.get("projects", [])}
+
+    if alias not in projects:
+        print(f"FALHA: project alias não registrado: {alias}")
+        print("")
+        print("Aliases disponíveis:")
+        for key in sorted(projects):
+            print(f"- {key}")
+        sys.exit(1)
+
+    project = projects[alias]
+
+    if not project.get("allowed_for_local_exec", False):
+        print(f"FALHA: projeto não permitido para LOCAL_EXEC: {alias}")
+        sys.exit(1)
+
+    return project
+
 def main():
-    task = " ".join(sys.argv[1:]).strip()
+    project_alias, task = parse_args(sys.argv[1:])
     no_report = os.environ.get("JARVIS_NO_REPORT") == "1"
 
     if not task:
+        print('Uso: ./jarvis local-exec-session --project oficina "tarefa"')
         print('Uso: ./jarvis local-exec-session "tarefa"')
         sys.exit(1)
+
+    project = load_project(project_alias)
+    execution_task = f"{project_alias} {task}" if project else task
 
     print("JARVIS — Theo Padilha AI Worker LOCAL_EXEC Session")
     print("")
     print("Status real: sessão de preparação local. Nenhum projeto foi editado.")
     print(f"Tarefa: {task}")
+
+    if project:
+        print(f"Project lock: {project_alias} -> {project['path']}")
+    else:
+        print("Project lock: não informado; seleção automática ainda permitida para compatibilidade.")
+
     print("")
 
     steps = [
-        ("FLOW", ["./jarvis", "local-exec-flow", task]),
-        ("READONLY", ["./jarvis", "readonly-run", task]),
-        ("PLAN", ["./jarvis", "local-exec-plan", task]),
-        ("READY", ["./jarvis", "local-exec-ready", task]),
-        ("HANDOFF", ["./jarvis", "local-exec-handoff", task]),
+        ("FLOW", ["./jarvis", "local-exec-flow", execution_task]),
+        ("READONLY", ["./jarvis", "readonly-run", execution_task]),
+        ("PLAN", ["./jarvis", "local-exec-plan", execution_task]),
+        ("READY", ["./jarvis", "local-exec-ready", execution_task]),
+        ("HANDOFF", ["./jarvis", "local-exec-handoff", execution_task]),
     ]
-
-    outputs = []
 
     for name, cmd in steps:
         print(f"=== {name} ===")
         out = run(cmd)
-        outputs.append((name, cmd, out))
         print(out)
         print("")
 
@@ -72,6 +134,10 @@ def main():
         "",
         f"## Tarefa\n{task}",
         "",
+        f"## Project lock\n{project_alias or 'não informado'}",
+        "",
+        f"## Project path\n`{project['path'] if project else 'seleção automática'}`",
+        "",
         "## Status real",
         "Sessão de preparação local. Nenhum projeto foi editado.",
         "",
@@ -83,7 +149,7 @@ def main():
         f"- Handoff: `{artifacts['handoff']}`",
         "",
         "## Próximo passo seguro",
-        "Abrir o handoff gerado e enviar para Claude/VS Code. Depois salvar a resposta em arquivo e rodar `./jarvis local-exec-review arquivo.md`.",
+        "Abrir o handoff gerado. Se usar executor externo, salvar a resposta em arquivo e rodar `./jarvis local-exec-review arquivo.md`.",
         "",
         "## Bloqueios mantidos",
         "- Sem push.",
@@ -101,7 +167,8 @@ def main():
     else:
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
-        out = OUT_DIR / f"{ts}_{slugify(task)}_local-exec-session.md"
+        name = slugify((f"project-{project_alias}-" if project_alias else "") + task)
+        out = OUT_DIR / f"{ts}_{name}_local-exec-session.md"
         out.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"Relatório: {out.relative_to(ROOT)}")
 
