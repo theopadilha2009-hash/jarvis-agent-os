@@ -83,6 +83,11 @@ CHECKS = [
         "expect": ["Project Select", "Projeto sugerido", "Próximo passo seguro"],
     },
     {
+        "name": "local-exec-plan-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "local-exec-plan", "corrigir bug local no projeto oficina sem deploy"],
+        "expect": ["LOCAL_EXEC Plan", "Nenhum arquivo do projeto foi alterado", "Relatório: desativado por JARVIS_NO_REPORT=1"],
+    },
+    {
         "name": "readonly-run-no-report",
         "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "readonly-run", "investigar bug no projeto GC sem alterar produção"],
         "expect": ["READONLY RUN", "inspeção local read-only", "Relatório: desativado por JARVIS_NO_REPORT=1"],

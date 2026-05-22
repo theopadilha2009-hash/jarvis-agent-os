@@ -17,6 +17,7 @@ CRITICAL_COMMANDS = [
     "auto-task",
     "pending-artifacts",
     "readonly-run",
+    "local-exec-plan",
     "readonly-run-latest",
     "executor-handoff",
     "handoff-latest",
