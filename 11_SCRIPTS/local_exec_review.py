@@ -42,37 +42,57 @@ GOOD_PATTERNS = [
 def slugify(text):
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:90] or "local-exec-review"
 
+def has_any(text, phrases):
+    return any(phrase in text for phrase in phrases)
+
 def classify(text):
     lowered = text.lower()
+
+    risk_rules = [
+        ("push", r"\bpush(ed)?\b", ["não fiz push", "sem push", "no push", "push não realizado"]),
+        ("merge", r"\bmerge(d)?\b", ["não fiz merge", "sem merge", "no merge", "merge não realizado"]),
+        ("deploy", r"\bdeploy(ed)?\b", ["não fiz deploy", "sem deploy", "no deploy", "deploy não realizado"]),
+        ("produção/production", r"\bprodução\b|\bproduction\b", [
+            "produção não alterada",
+            "não alterei produção",
+            "sem produção",
+            "nenhum risco de produção",
+            "production not changed",
+            "no production changes",
+        ]),
+        ("main/master", r"\bmain\b|\bmaster\b", [
+            "não mexi em main",
+            "não mexi em main/master",
+            "não alterei main",
+            "sem mexer em main",
+            "não mexa em main",
+        ]),
+        (".env", r"\.env", ["não abri .env", "não li .env", ".env não aberto", "sem .env"]),
+        ("token/authorization/api key", r"token\s*=|authorization:\s*bearer|api[_-]?key", [
+            "não usei token",
+            "sem token",
+            "sem credenciais",
+            "no credentials",
+        ]),
+        ("senha/password/secret/cookie/qr", r"senha|password|secret|cookie|qr\s*code", [
+            "sem senha",
+            "sem credenciais",
+            "no credentials",
+            "sem cookies",
+            "sem qr",
+        ]),
+    ]
 
     blockers = []
     signals = []
 
-    for pat in BLOCK_PATTERNS:
-        if re.search(pat, lowered, flags=re.I):
-            blockers.append(pat)
+    for name, pattern, negations in risk_rules:
+        if re.search(pattern, lowered, flags=re.I) and not has_any(lowered, negations):
+            blockers.append(name)
 
     for pat in GOOD_PATTERNS:
         if re.search(pat, lowered, flags=re.I):
             signals.append(pat)
-
-    negated_safe_phrases = [
-        "não fiz push",
-        "sem push",
-        "não fiz deploy",
-        "sem deploy",
-        "produção não alterada",
-        "não alterei produção",
-        "não abri .env",
-        "sem credenciais",
-    ]
-
-    # Remove some false positives when the text is explicitly saying it did NOT do the risky action.
-    if any(x in lowered for x in negated_safe_phrases):
-        blockers = [
-            b for b in blockers
-            if b not in [r"\bpush(ed)?\b", r"\bdeploy(ed)?\b", r"\bprodução\b", r"\bproduction\b", r"\.env"]
-        ]
 
     if blockers:
         return "PARAR E REVISAR COM HUMANO", blockers, signals
