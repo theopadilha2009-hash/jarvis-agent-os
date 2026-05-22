@@ -2521,6 +2521,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis local-exec-plan "task" prepara plano LOCAL_EXEC sem editar
   ./jarvis executor-handoff "task" gera pacote manual para Claude/VS Code
   ./jarvis mode-plan "task"      classifica tarefa por modo de execução
   ./jarvis command-audit          audita core/help/catalog/smoke
