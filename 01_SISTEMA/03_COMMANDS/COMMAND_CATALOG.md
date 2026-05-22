@@ -43,6 +43,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis local-exec-handoff "tarefa"`
 - `./jarvis local-exec-review arquivo.md`
 - `./jarvis local-exec-flow "tarefa"`
+- `./jarvis local-exec-session "tarefa"`
 - `./jarvis local-exec-flow-latest`
 - `./jarvis local-exec-review-latest`
 - `./jarvis local-exec-handoff-latest`
@@ -279,3 +280,10 @@ Exemplo:
 PREPARE → READONLY → PLAN → READY → HANDOFF → REVIEW.
 
 Status real: guia operacional. Não edita projeto, não faz build, não faz commit, não faz push e não faz deploy.
+
+## LOCAL_EXEC Session
+
+`./jarvis local-exec-session "tarefa"` prepara em um comando:
+flow, readonly-run, local-exec-plan, local-exec-ready e local-exec-handoff.
+
+Status real: cria artefatos de preparação. Não edita projeto, não faz build, não commita, não faz push e não faz deploy.
