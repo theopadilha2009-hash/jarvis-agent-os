@@ -212,3 +212,13 @@ Objetivo: evitar que um comando novo seja criado sem validação de sintaxe.
 `./jarvis release-check` agora roda `command-audit` diretamente.
 
 Objetivo: detectar drift entre core, help, catalog e smoke antes de considerar a release válida.
+
+## Safety-gate inclui command-audit
+
+`./jarvis safety-gate` agora roda:
+- secret-scan;
+- storage-health;
+- command-audit;
+- quality-gate.
+
+Objetivo: impedir seguir com comandos críticos fora de sincronia entre core, help, catalog e smoke.

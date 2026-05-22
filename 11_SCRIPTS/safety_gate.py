@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECKS = [
     ("secret-scan", ["./jarvis", "secret-scan"], ["SECRET SCAN PASSOU"]),
     ("storage-health", ["./jarvis", "storage-health"], ["STORAGE HEALTH PASSOU"]),
+    ("command-audit", ["./jarvis", "command-audit"], ["COMMAND AUDIT PASSOU"]),
     ("quality-gate", ["./jarvis", "quality-gate"], ["QUALITY GATE PASSOU"]),
 ]
 
