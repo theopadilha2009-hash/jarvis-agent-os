@@ -39,6 +39,7 @@ Catálogo local de comandos. Não é produção.
 
 ## Execução assistida
 - `./jarvis local-exec-plan "tarefa"`
+- `./jarvis local-exec-ready "tarefa"`
 - `./jarvis local-exec-plan-latest`
 - `./jarvis readonly-run "tarefa"`
 - `./jarvis readonly-run-latest`
@@ -230,3 +231,9 @@ Objetivo: impedir seguir com comandos críticos fora de sincronia entre core, he
 `./jarvis local-exec-plan "tarefa"` prepara plano de execução local sem editar projeto.
 
 Ele detecta projeto provável, branch, git status, package manager e comandos sugeridos. Não roda install/build/test, não edita arquivos e não toca produção.
+
+## LOCAL_EXEC Ready Check
+
+`./jarvis local-exec-ready "tarefa"` checa se uma execução local pode começar.
+
+Ele não edita projeto. Ele verifica branch, Git status, package manager provável, blockers e warnings.

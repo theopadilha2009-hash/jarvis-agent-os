@@ -18,6 +18,7 @@ CRITICAL_COMMANDS = [
     "pending-artifacts",
     "readonly-run",
     "local-exec-plan",
+    "local-exec-ready",
     "local-exec-plan-latest",
     "readonly-run-latest",
     "executor-handoff",
