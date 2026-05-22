@@ -2497,6 +2497,10 @@ def readonly_run_latest_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/readonly_run_latest.py"], cwd=ROOT, check=False)
 
+def command_audit_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/command_audit.py"], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2510,6 +2514,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis command-audit          audita core/help/catalog/smoke
   ./jarvis readonly-run-latest    imprime última inspeção read-only
   ./jarvis snapshot-prep-core     cria snapshot limpo do preparation core
   ./jarvis pending-artifacts      lista artefatos gerados pendentes no Git
@@ -2700,6 +2705,8 @@ def main():
         readonly_run_command(text)
     elif cmd == "readonly-run-latest":
         readonly_run_latest_command()
+    elif cmd == "command-audit":
+        command_audit_command()
     else:
         help_msg()
 

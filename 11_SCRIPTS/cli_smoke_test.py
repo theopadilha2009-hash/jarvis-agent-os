@@ -18,6 +18,11 @@ CHECKS = [
         "expect": ["Safety Gate", "SAFETY GATE PASSOU", "Produção não alterada", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
+        "name": "command-audit",
+        "cmd": ["./jarvis", "command-audit"],
+        "expect": ["Command Audit", "COMMAND AUDIT PASSOU", "Produção não alterada"],
+    },
+    {
         "name": "secret-scan",
         "cmd": ["./jarvis", "secret-scan"],
         "expect": ["Secret Scan", "SECRET SCAN PASSOU", "Nenhum segredo foi impresso"],
