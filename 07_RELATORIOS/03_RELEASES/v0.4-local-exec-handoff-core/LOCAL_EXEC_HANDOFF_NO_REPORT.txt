@@ -1,0 +1,13 @@
+JARVIS — Theo Padilha AI Worker LOCAL_EXEC Handoff
+
+Status real: pacote de execução local. Nenhum arquivo do projeto foi alterado.
+Tarefa: corrigir bug local no projeto oficina sem deploy
+
+Projeto selecionado: oficina
+Caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+Branch: fix/patio-agenda-status-clean
+Git status: limpo
+Package manager provável: bun
+Relatório: desativado por JARVIS_NO_REPORT=1
+
+Status real: preview local. Nada gerado.

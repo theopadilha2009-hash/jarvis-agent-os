@@ -1,0 +1,17 @@
+JARVIS — Theo Padilha AI Worker LOCAL_EXEC Plan
+
+Status real: plano local. Nenhum arquivo do projeto foi alterado.
+Tarefa: corrigir bug local no projeto oficina sem deploy
+
+Projeto selecionado: oficina
+Caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+Branch: fix/patio-agenda-status-clean
+Git status: limpo
+Package manager provável: bun
+Risco inicial: médio
+Ação de branch: branch não é main/master; confirmar escopo antes de editar
+
+Relatório: desativado por JARVIS_NO_REPORT=1
+
+Próximo passo seguro: revisar plano antes de qualquer edição.
+Produção: nada alterado.

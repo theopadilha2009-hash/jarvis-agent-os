@@ -1,0 +1,130 @@
+aeb9c0e test: add safety after cockpit local handoff fix
+9fbcb13 test: add release after cockpit local handoff fix
+9f39d27 test: add smoke after cockpit local handoff fix
+1830bf7 fix: show latest local exec handoff in cockpit
+9bd97d5 test: add safety after latest local exec handoff
+be002d8 test: add release after latest local exec handoff
+a958c42 test: add smoke after latest local exec handoff
+e558641 feat: add latest local exec handoff command
+f5c2b49 test: add safety after local exec handoff
+85cbae8 test: add release after local exec handoff
+3e2b95d test: add smoke after local exec handoff
+92d06f4 feat: add local exec handoff generator
+316c162 chore: snapshot v0.4 local exec core
+3d55847 test: add safety after latest local exec ready
+cc7b28a test: add release after latest local exec ready
+ab0da60 test: add smoke after latest local exec ready
+04470d7 feat: add latest local exec ready command
+90ee2e7 test: add clean safety after local exec ready fix
+a5692e0 test: add clean release after local exec ready fix
+02a38a9 test: add clean smoke after local exec ready fix
+6082c82 fix: repair local exec ready check
+5a74d06 test: add safety after local exec ready check
+a72b197 test: add release after local exec ready check
+4de1146 test: add smoke after local exec ready check
+b1eba5d test: add safety after latest local exec plan
+fa4aade test: add release after latest local exec plan
+389359f test: add smoke after latest local exec plan
+8415c70 feat: add latest local exec plan command
+6391911 test: add clean safety after local exec help fix
+01db82e test: add clean release after local exec help fix
+f2d2aea test: add clean smoke after local exec help fix
+bfef049 fix: expose local exec plan in help
+4a5754b test: validate safety after local exec command wiring
+b873eb8 test: validate release after local exec command wiring
+63307d0 test: wire local exec plan into audit cockpit and smoke
+3a1309d test: validate safety after local exec plan
+d316344 test: validate release after local exec plan
+43e7f83 feat: add local exec planning command
+20bc30d chore: snapshot v0.4 validation core
+42029fc test: validate safety with command audit
+3bb4d54 test: validate release after safety command audit
+998885b test: include command audit in safety gate
+9d4390f test: validate safety after release command audit
+34938a5 test: validate release with command audit
+b1965bc test: include command audit in release check
+bc05137 test: add clean safety after command audit fix
+2e1ac34 test: add clean release after command audit fix
+24195ed test: add clean smoke after command audit fix
+b9ef942 fix: expose critical commands in help for command audit
+86801e9 test: validate safety after command audit
+143dceb test: validate release after command audit
+94d7a86 feat: add command audit
+da08a1e test: validate safety after compile-all release check
+6155b63 test: validate compile-all release check
+7a6437a test: make release check compile all scripts
+05eab8d test: add clean safety after clean smoke
+e5b918b test: add clean release after clean smoke
+f70da5b test: add clean smoke after readonly no-report
+59858d7 test: validate safety after readonly no-report
+95f1117 test: validate release after readonly no-report
+15891f3 fix: add no-report mode to readonly run
+6d1b20c test: validate safety after readonly sanitization
+18099fb test: validate release after readonly sanitization
+dd7019c fix: sanitize secret-like filenames in readonly run reports
+8b01424 test: validate safety after readonly latest
+20dd7bc test: validate release after readonly latest
+d446775 feat: add latest readonly run command
+fcf80c6 test: validate safety after readonly run
+8b74a0c test: validate release after readonly run
+7b4c10f feat: add readonly run local project inspector
+d7d2c3d test: validate safety after clean snapshot flow
+09bf618 test: validate release after clean snapshot flow
+a7b9683 chore: snapshot v0.4 preparation core clean
+b0402bd fix: add no-report snapshot-safe validation flow
+316234f chore: track artifacts generated during preparation core snapshot
+56e61f6 chore: snapshot v0.4 preparation core
+abddf27 test: validate safety after auto task pending artifacts
+6abf881 test: validate release after auto task pending artifacts
+84d6a8f feat: show pending artifacts at end of auto task
+f58fa62 test: validate safety after pending artifacts inspector
+08c399f test: validate release after pending artifacts inspector
+7fd0269 feat: add pending artifacts inspector
+15c183b test: validate safety after preparation-only auto task
+d9e7a84 test: validate release after preparation-only auto task
+603ccd8 fix: keep auto task preparation-only before release checks
+215e2f8 docs: document auto task mode integration cleanup
+d1384cb test: add clean safety after auto task artifact cleanup
+a4a381f test: add clean release after auto task artifact cleanup
+0e5f29c chore: track generated artifacts from auto task mode integration
+d575b61 test: validate safety after auto task mode integration
+10ae19c test: validate release after auto task mode integration
+09883d9 feat: integrate mode plan into auto task and cockpit
+9615e61 test: validate safety after mode planner fix
+6d38f47 test: validate release after mode planner fix
+1b3c6d3 fix: make mode planner negation-aware
+a34a9b2 test: validate safety after mode planner
+7bff72a test: validate release after mode planner
+7d3e4d1 feat: add execution mode planner
+a930c44 test: validate safety gate after no-report flow
+39d3969 test: validate no-report release flow
+342036e fix: make gates nonzero and no-report aware
+f47a07e docs: document clean validation after safety core snapshot
+1a3d7cf test: add clean safety gate after safety core snapshot
+fdd6f52 test: add clean release check after safety core snapshot
+c8d5a70 chore: snapshot v0.4 safety core
+1505df2 test: add passing safety gate after release hardening
+17bebc9 test: add passing release check after hardening
+ae66d13 test: harden release check with security and storage gates
+c1edb82 feat: add strong safety gate command
+026a6f9 fix: track secret scan script despite ignore rules
+18abb8c feat: add tracked secret scan command
+a7a6a23 feat: add storage health command
+dbee7de docs: add report storage policy command
+59ed940 chore: stop tracking volatile latest reports
+6692beb chore: snapshot v0.4 cockpit milestone
+b0d53f4 docs: refresh latest reports after cockpit command
+c3f2af5 feat: add local cockpit command
+3bbb8da feat: add executor output review index
+bbf975e feat: add latest executor output review command
+033f628 test: make cli smoke test content-aware
+a2d1ec7 fix: wire execution modes command correctly
+8e4492b docs: refresh latest reports after execution modes attempt
+9e9769b feat: add strong execution modes command
+db47f51 docs: refresh latest reports after strong execution rules
+8b1b851 docs: define strong execution modes and protected credentials
+4ab977b fix: make executor output review risk detection context-aware
+30cc305 feat: add executor output review v2
+20d3d1a chore: consolidate auto task milestone
+9e84d79 docs: refresh latest reports after auto task latest
+fc9c70b feat: add latest auto task shortcut
