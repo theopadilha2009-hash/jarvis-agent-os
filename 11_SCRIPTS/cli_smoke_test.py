@@ -103,6 +103,11 @@ CHECKS = [
         "expect": ["READONLY RUN", "inspeção local read-only", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
+        "name": "local-exec-flow-latest",
+        "cmd": ["./jarvis", "local-exec-flow-latest"],
+        "expect": ["Latest LOCAL_EXEC Flow", "LOCAL_EXEC Flow", "Fluxo seguro"],
+    },
+    {
         "name": "local-exec-flow-no-report",
         "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "local-exec-flow", "corrigir bug local no projeto oficina sem deploy"],
         "expect": ["LOCAL_EXEC Flow", "Fluxo seguro", "Relatório: desativado por JARVIS_NO_REPORT=1"],
