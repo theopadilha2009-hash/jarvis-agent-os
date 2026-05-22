@@ -40,6 +40,7 @@ Catálogo local de comandos. Não é produção.
 ## Execução assistida
 - `./jarvis local-exec-plan "tarefa"`
 - `./jarvis local-exec-ready "tarefa"`
+- `./jarvis local-exec-ready-latest`
 - `./jarvis local-exec-plan-latest`
 - `./jarvis readonly-run "tarefa"`
 - `./jarvis readonly-run-latest`

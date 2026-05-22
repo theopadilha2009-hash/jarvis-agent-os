@@ -2519,6 +2519,10 @@ def local_exec_ready_command(text: str = ""):
         return
     subprocess.run(["python3", "11_SCRIPTS/local_exec_ready.py", text], cwd=ROOT, check=False)
 
+def local_exec_ready_latest_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/local_exec_ready_latest.py"], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2532,6 +2536,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis local-exec-ready-latest imprime último LOCAL_EXEC ready check
   ./jarvis local-exec-ready "task" checa se LOCAL_EXEC pode iniciar
   ./jarvis local-exec-plan-latest imprime último plano LOCAL_EXEC
   ./jarvis local-exec-plan "task" prepara plano LOCAL_EXEC sem editar
@@ -2738,6 +2743,8 @@ def main():
     elif cmd == "local-exec-ready":
         text = " ".join(sys.argv[2:]).strip()
         local_exec_ready_command(text)
+    elif cmd == "local-exec-ready-latest":
+        local_exec_ready_latest_command()
     else:
         help_msg()
 
