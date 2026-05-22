@@ -288,3 +288,11 @@ Status real: guia operacional. Não edita projeto, não faz build, não faz comm
 flow, readonly-run, local-exec-plan, local-exec-ready e local-exec-handoff.
 
 Status real: cria artefatos de preparação. Não edita projeto, não faz build, não commita, não faz push e não faz deploy.
+
+## Project Resolve
+
+`./jarvis project-resolve` lista aliases disponíveis.
+
+`./jarvis project-resolve oficina` valida o alias e mostra caminho, branch, Git status e próximo passo seguro.
+
+Status real: não edita projeto, não faz build, não faz push e não faz deploy.

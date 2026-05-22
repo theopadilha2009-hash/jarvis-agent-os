@@ -2568,6 +2568,11 @@ def local_exec_session_latest_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/local_exec_session_latest.py"], cwd=ROOT, check=False)
 
+def project_resolve_command(args=None):
+    import subprocess
+    args = args or []
+    subprocess.run(["python3", "11_SCRIPTS/project_resolve.py", *args], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2581,6 +2586,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis project-resolve [alias] valida alias de projeto
   ./jarvis local-exec-session-latest imprime última sessão LOCAL_EXEC
   ./jarvis local-exec-session "task" prepara sessão LOCAL_EXEC completa
   ./jarvis local-exec-flow-latest imprime último guia LOCAL_EXEC
@@ -2817,6 +2823,8 @@ def main():
         local_exec_session_command(text)
     elif cmd == "local-exec-session-latest":
         local_exec_session_latest_command()
+    elif cmd == "project-resolve":
+        project_resolve_command(sys.argv[2:])
     else:
         help_msg()
 

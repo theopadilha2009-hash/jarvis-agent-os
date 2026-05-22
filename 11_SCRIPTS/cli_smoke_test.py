@@ -78,6 +78,16 @@ CHECKS = [
         "expect": ["QUALITY GATE", "Python compile", "Git status"],
     },
     {
+        "name": "project-resolve-list",
+        "cmd": ["./jarvis", "project-resolve"],
+        "expect": ["Project Resolve", "Projetos disponíveis", "oficina"],
+    },
+    {
+        "name": "project-resolve-oficina",
+        "cmd": ["./jarvis", "project-resolve", "oficina"],
+        "expect": ["PROJECT RESOLVE PASSOU", "LOCAL_EXEC permitido", "local-exec-session --project oficina"],
+    },
+    {
         "name": "project-select",
         "cmd": ["./jarvis", "project-select", "corrigir bug de visitantes do GC"],
         "expect": ["Project Select", "Projeto sugerido", "Próximo passo seguro"],
