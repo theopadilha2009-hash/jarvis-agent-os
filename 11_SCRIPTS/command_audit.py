@@ -19,6 +19,7 @@ CRITICAL_COMMANDS = [
     "readonly-run",
     "local-exec-plan",
     "local-exec-ready",
+    "local-exec-handoff",
     "local-exec-ready-latest",
     "local-exec-plan-latest",
     "readonly-run-latest",

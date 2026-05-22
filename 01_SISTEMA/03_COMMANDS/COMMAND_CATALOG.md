@@ -40,6 +40,7 @@ Catálogo local de comandos. Não é produção.
 ## Execução assistida
 - `./jarvis local-exec-plan "tarefa"`
 - `./jarvis local-exec-ready "tarefa"`
+- `./jarvis local-exec-handoff "tarefa"`
 - `./jarvis local-exec-ready-latest`
 - `./jarvis local-exec-plan-latest`
 - `./jarvis readonly-run "tarefa"`
@@ -238,3 +239,9 @@ Ele detecta projeto provável, branch, git status, package manager e comandos su
 `./jarvis local-exec-ready "tarefa"` checa se uma execução local pode começar.
 
 Ele não edita projeto. Ele verifica branch, Git status, package manager provável, blockers e warnings.
+
+## LOCAL_EXEC Handoff
+
+`./jarvis local-exec-handoff "tarefa"` gera pacote curto para Claude/VS Code executar edição local em branch segura.
+
+Status real: cria handoff. Não edita projeto, não faz build, não faz push, não faz deploy.
