@@ -189,6 +189,8 @@ def env_check(path):
 
 def main():
     task = " ".join(sys.argv[1:]).strip()
+    no_report = os.environ.get("JARVIS_NO_REPORT") == "1"
+
     if not task:
         print('Uso: ./jarvis readonly-run "tarefa"')
         sys.exit(1)
@@ -220,9 +222,7 @@ def main():
     env = env_check(path)
     readme = safe_read(path / "README.md", max_chars=3000) if (path / "README.md").exists() else "README.md não encontrado"
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
-    out = OUT_DIR / f"{ts}_{slugify(task)}_readonly-run.md"
+    out = None
 
     lines = [
         "# READONLY RUN — JARVIS Theo Padilha AI Worker",
@@ -278,11 +278,17 @@ def main():
         "Nada alterado.",
     ]
 
-    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
     print(f"Branch: {git_branch or 'sem branch'}")
     print(f"Git status: {git_status or 'limpo'}")
-    print(f"Relatório: {out.relative_to(ROOT)}")
+
+    if no_report:
+        print("Relatório: desativado por JARVIS_NO_REPORT=1")
+    else:
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
+        out = OUT_DIR / f"{ts}_{slugify(task)}_readonly-run.md"
+        out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"Relatório: {out.relative_to(ROOT)}")
     print("")
     print("Próximo passo seguro: revisar relatório e só depois decidir modo seguinte.")
     print("Produção: nada alterado.")

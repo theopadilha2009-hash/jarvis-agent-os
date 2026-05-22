@@ -78,6 +78,11 @@ CHECKS = [
         "expect": ["Project Select", "Projeto sugerido", "Próximo passo seguro"],
     },
     {
+        "name": "readonly-run-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "readonly-run", "investigar bug no projeto GC sem alterar produção"],
+        "expect": ["READONLY RUN", "inspeção local read-only", "Relatório: desativado por JARVIS_NO_REPORT=1"],
+    },
+    {
         "name": "readonly-run-latest",
         "cmd": ["./jarvis", "readonly-run-latest"],
         "expect": ["Latest READONLY RUN", "READONLY RUN", "Status real"],

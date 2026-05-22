@@ -189,3 +189,13 @@ Status real: inspeção local read-only.
 `readonly-run` não deve salvar nomes nem conteúdos de `.env*`, chaves, tokens ou arquivos de credenciais.
 
 Quando detectar algo secret-like, deve registrar apenas contagem/placeholder.
+
+## READONLY_RUN no-report
+
+`env JARVIS_NO_REPORT=1 ./jarvis readonly-run "tarefa"` executa inspeção read-only sem gravar novo relatório.
+
+Uso correto:
+- smoke-test;
+- release-check;
+- snapshots;
+- validação rápida sem gerar artefatos.
