@@ -24,6 +24,19 @@ def latest_dir(path):
     dirs = [x for x in p.iterdir() if x.is_dir()]
     return max(dirs, key=lambda x: x.stat().st_mtime) if dirs else None
 
+def latest_path(folder: str, pattern: str = "*"):
+    path = ROOT / folder
+
+    if not path.exists():
+        return None
+
+    items = [p for p in path.glob(pattern)]
+
+    if not items:
+        return None
+
+    return max(items, key=lambda p: p.stat().st_mtime)
+
 def rel(path):
     if not path:
         return "nenhum"
@@ -51,7 +64,7 @@ def main():
     latest_readonly = latest_file("05_EXECUCAO/12_READONLY_RUNS", "*.md")
     latest_local_exec = latest_file("05_EXECUCAO/13_LOCAL_EXEC_PLANS", "*.md")
     latest_local_ready = latest_file("05_EXECUCAO/14_LOCAL_EXEC_READY", "*.md")
-    latest_local_handoff = latest_file("05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS", "*")
+    latest_local_handoff = latest_path("05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS", "*")
     latest_review_index = ROOT / "07_RELATORIOS/02_TECNICOS/ULTIMO_EXECUTOR_OUTPUT_INDEX.md"
     latest_review = latest_file("05_EXECUCAO/10_EXECUTOR_OUTPUT_REVIEWS", "*.md")
     latest_handoff = latest_dir("05_EXECUCAO/07_EXECUTOR_HANDOFFS")

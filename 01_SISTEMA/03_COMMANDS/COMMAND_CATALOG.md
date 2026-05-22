@@ -246,3 +246,9 @@ Ele não edita projeto. Ele verifica branch, Git status, package manager prováv
 `./jarvis local-exec-handoff "tarefa"` gera pacote curto para Claude/VS Code executar edição local em branch segura.
 
 Status real: cria handoff. Não edita projeto, não faz build, não faz push, não faz deploy.
+
+## Cockpit detecta diretórios de handoff
+
+`./jarvis cockpit` deve mostrar o último pacote `local-exec-handoff`, mesmo sendo diretório e não arquivo `.md`.
+
+Correção: usar detecção de path mais recente para handoffs.
