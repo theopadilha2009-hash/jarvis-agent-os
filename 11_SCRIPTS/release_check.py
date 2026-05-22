@@ -37,6 +37,11 @@ def build_checks():
             "expect": ["QUALITY GATE PASSOU", "Git status"],
         },
         {
+            "name": "command-audit",
+            "cmd": ["./jarvis", "command-audit"],
+            "expect": ["COMMAND AUDIT PASSOU", "Produção não alterada"],
+        },
+        {
             "name": "safety-gate-no-report",
             "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "safety-gate"],
             "expect": ["SAFETY GATE PASSOU", "Relatório: desativado por JARVIS_NO_REPORT=1"],

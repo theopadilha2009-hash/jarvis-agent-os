@@ -206,3 +206,9 @@ Uso correto:
 `./jarvis release-check` agora compila todos os arquivos `.py` em `11_SCRIPTS/`.
 
 Objetivo: evitar que um comando novo seja criado sem validação de sintaxe.
+
+## Release-check inclui command-audit
+
+`./jarvis release-check` agora roda `command-audit` diretamente.
+
+Objetivo: detectar drift entre core, help, catalog e smoke antes de considerar a release válida.
