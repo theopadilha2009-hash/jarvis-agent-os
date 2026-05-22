@@ -41,6 +41,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis local-exec-plan "tarefa"`
 - `./jarvis local-exec-ready "tarefa"`
 - `./jarvis local-exec-handoff "tarefa"`
+- `./jarvis local-exec-handoff-latest`
 - `./jarvis local-exec-ready-latest`
 - `./jarvis local-exec-plan-latest`
 - `./jarvis readonly-run "tarefa"`

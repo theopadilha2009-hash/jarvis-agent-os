@@ -2530,6 +2530,10 @@ def local_exec_handoff_command(text: str = ""):
         return
     subprocess.run(["python3", "11_SCRIPTS/local_exec_handoff.py", text], cwd=ROOT, check=False)
 
+def local_exec_handoff_latest_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/local_exec_handoff_latest.py"], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2543,6 +2547,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis local-exec-handoff-latest imprime último pacote LOCAL_EXEC
   ./jarvis local-exec-handoff "task" gera pacote LOCAL_EXEC para executor
   ./jarvis local-exec-ready-latest imprime último LOCAL_EXEC ready check
   ./jarvis local-exec-ready "task" checa se LOCAL_EXEC pode iniciar
@@ -2756,6 +2761,8 @@ def main():
     elif cmd == "local-exec-handoff":
         text = " ".join(sys.argv[2:]).strip()
         local_exec_handoff_command(text)
+    elif cmd == "local-exec-handoff-latest":
+        local_exec_handoff_latest_command()
     else:
         help_msg()
 
