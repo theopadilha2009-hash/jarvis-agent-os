@@ -183,3 +183,9 @@ Ele não pode:
 - mexer em VPS, n8n ou produção.
 
 Status real: inspeção local read-only.
+
+## READONLY_RUN sanitiza nomes secret-like
+
+`readonly-run` não deve salvar nomes nem conteúdos de `.env*`, chaves, tokens ou arquivos de credenciais.
+
+Quando detectar algo secret-like, deve registrar apenas contagem/placeholder.

@@ -34,8 +34,26 @@ def run(cmd, cwd):
     except Exception as e:
         return f"ERRO: {e}"
 
+
+def is_secret_like_name(name):
+    low = name.lower()
+    return (
+        low.startswith(".env")
+        or low in {"id_rsa", "id_ed25519"}
+        or low.endswith((".pem", ".key", ".p12", ".pfx"))
+        or "token" in low
+        or "secret" in low
+        or "credential" in low
+        or "credencial" in low
+    )
+
+def display_name(path):
+    if is_secret_like_name(path.name):
+        return "[SECRET-LIKE FILE HIDDEN]"
+    return path.name
+
 def safe_read(path, max_chars=8000):
-    if path.name in SECRET_NAMES or path.name.startswith(".env"):
+    if is_secret_like_name(path.name):
         return "[SKIPPED SECRET-LIKE FILE]"
     try:
         text = path.read_text(encoding="utf-8", errors="ignore")
@@ -118,7 +136,11 @@ def tree_snapshot(path, max_items=80):
         if child.name in SKIP_DIRS or child.name.startswith(".DS_Store"):
             continue
         marker = "/" if child.is_dir() else ""
-        items.append(child.name + marker)
+        name = display_name(child)
+        rendered = name + marker
+        if name == "[SECRET-LIKE FILE HIDDEN]" and any("[SECRET-LIKE FILE HIDDEN]" in x for x in items):
+            continue
+        items.append(rendered)
         if len(items) >= max_items:
             break
 
@@ -157,13 +179,13 @@ def package_info(path):
 def env_check(path):
     hits = []
     for p in path.iterdir():
-        if p.name.startswith(".env"):
-            hits.append(p.name)
+        if is_secret_like_name(p.name):
+            hits.append("[SECRET-LIKE FILE HIDDEN]")
 
     if not hits:
-        return "Nenhum .env no root detectado."
+        return "Nenhum arquivo secret-like no root detectado."
 
-    return "Arquivos .env detectados no root, não lidos: " + ", ".join(hits)
+    return f"{len(hits)} arquivo(s) secret-like detectado(s) no root. Nomes e conteúdos ocultados."
 
 def main():
     task = " ".join(sys.argv[1:]).strip()
@@ -241,7 +263,7 @@ def main():
         pkg,
         "```",
         "",
-        "## .env check",
+        "## Secret-like file check",
         env,
         "",
         "## README preview",
