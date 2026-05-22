@@ -67,6 +67,7 @@ def main():
     latest_local_handoff = latest_path("05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS", "*")
     latest_local_review = latest_file("05_EXECUCAO/16_LOCAL_EXEC_REVIEWS", "*.md")
     latest_local_flow = latest_file("05_EXECUCAO/17_LOCAL_EXEC_FLOWS", "*.md")
+    latest_local_session = latest_file("05_EXECUCAO/18_LOCAL_EXEC_SESSIONS", "*.md")
     latest_review_index = ROOT / "07_RELATORIOS/02_TECNICOS/ULTIMO_EXECUTOR_OUTPUT_INDEX.md"
     latest_review = latest_file("05_EXECUCAO/10_EXECUTOR_OUTPUT_REVIEWS", "*.md")
     latest_handoff = latest_dir("05_EXECUCAO/07_EXECUTOR_HANDOFFS")
@@ -106,6 +107,7 @@ def main():
     print(f"- Local exec handoff: {rel(latest_local_handoff)}")
     print(f"- Local exec review: {rel(latest_local_review)}")
     print(f"- Local exec flow: {rel(latest_local_flow)}")
+    print(f"- Local exec session: {rel(latest_local_session)}")
     print(f"- Task brief: {rel(latest_task_brief)}")
     print(f"- Handoff: {rel(latest_handoff)}")
     print(f"- Review latest: {rel(latest_review)}")
@@ -126,6 +128,7 @@ def main():
     print("- Para gerar pacote LOCAL_EXEC: ./jarvis local-exec-handoff \"tarefa\"")
     print("- Para revisar saída LOCAL_EXEC: ./jarvis local-exec-review arquivo.md")
     print("- Para ver o fluxo LOCAL_EXEC completo: ./jarvis local-exec-flow \"tarefa\"")
+    print("- Para preparar sessão LOCAL_EXEC completa: ./jarvis local-exec-session \"tarefa\"")
     print("- Para ver pendências geradas: ./jarvis pending-artifacts")
     print("- Para revisar resposta externa: ./jarvis review-output-v2 arquivo.md")
     print("- Para ver índice de revisões: ./jarvis review-output-index")

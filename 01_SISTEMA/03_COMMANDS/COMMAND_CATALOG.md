@@ -44,6 +44,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis local-exec-review arquivo.md`
 - `./jarvis local-exec-flow "tarefa"`
 - `./jarvis local-exec-session "tarefa"`
+- `./jarvis local-exec-session-latest`
 - `./jarvis local-exec-flow-latest`
 - `./jarvis local-exec-review-latest`
 - `./jarvis local-exec-handoff-latest`

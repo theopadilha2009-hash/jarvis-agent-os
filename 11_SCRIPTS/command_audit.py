@@ -23,6 +23,7 @@ CRITICAL_COMMANDS = [
     "local-exec-review",
     "local-exec-flow",
     "local-exec-session",
+    "local-exec-session-latest",
     "local-exec-flow-latest",
     "local-exec-review-latest",
     "local-exec-handoff-latest",
