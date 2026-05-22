@@ -199,3 +199,9 @@ Uso correto:
 - release-check;
 - snapshots;
 - validação rápida sem gerar artefatos.
+
+## Release-check compila todos os scripts
+
+`./jarvis release-check` agora compila todos os arquivos `.py` em `11_SCRIPTS/`.
+
+Objetivo: evitar que um comando novo seja criado sem validação de sintaxe.

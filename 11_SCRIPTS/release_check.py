@@ -6,58 +6,49 @@ import os
 
 ROOT = Path(__file__).resolve().parents[1]
 
-CHECKS = [
-    {
-        "name": "compile jarvis_core",
-        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/jarvis_core.py"],
-        "expect": [],
-    },
-    {
-        "name": "compile cli_smoke_test",
-        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/cli_smoke_test.py"],
-        "expect": [],
-    },
-    {
-        "name": "compile secret_scan",
-        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/secret_scan.py"],
-        "expect": [],
-    },
-    {
-        "name": "compile storage_health",
-        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/storage_health.py"],
-        "expect": [],
-    },
-    {
-        "name": "compile safety_gate",
-        "cmd": ["python3", "-m", "py_compile", "11_SCRIPTS/safety_gate.py"],
-        "expect": [],
-    },
-    {
-        "name": "secret-scan",
-        "cmd": ["./jarvis", "secret-scan"],
-        "expect": ["SECRET SCAN PASSOU", "Nenhum segredo foi impresso"],
-    },
-    {
-        "name": "storage-health",
-        "cmd": ["./jarvis", "storage-health"],
-        "expect": ["STORAGE HEALTH PASSOU", "Produção não alterada"],
-    },
-    {
-        "name": "quality-gate",
-        "cmd": ["./jarvis", "quality-gate"],
-        "expect": ["QUALITY GATE PASSOU", "Git status"],
-    },
-    {
-        "name": "safety-gate-no-report",
-        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "safety-gate"],
-        "expect": ["SAFETY GATE PASSOU", "Relatório: desativado por JARVIS_NO_REPORT=1"],
-    },
-    {
-        "name": "smoke-test",
-        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "smoke-test"],
-        "expect": ["CLI SMOKE TEST PASSOU", "conteúdo esperado", "Relatório: desativado por JARVIS_NO_REPORT=1"],
-    },
-]
+def build_checks():
+    checks = []
+
+    scripts_dir = ROOT / "11_SCRIPTS"
+    scripts = sorted(p for p in scripts_dir.glob("*.py") if p.is_file())
+
+    for script in scripts:
+        rel = str(script.relative_to(ROOT))
+        checks.append({
+            "name": f"compile {rel}",
+            "cmd": ["python3", "-m", "py_compile", rel],
+            "expect": [],
+        })
+
+    checks.extend([
+        {
+            "name": "secret-scan",
+            "cmd": ["./jarvis", "secret-scan"],
+            "expect": ["SECRET SCAN PASSOU", "Nenhum segredo foi impresso"],
+        },
+        {
+            "name": "storage-health",
+            "cmd": ["./jarvis", "storage-health"],
+            "expect": ["STORAGE HEALTH PASSOU", "Produção não alterada"],
+        },
+        {
+            "name": "quality-gate",
+            "cmd": ["./jarvis", "quality-gate"],
+            "expect": ["QUALITY GATE PASSOU", "Git status"],
+        },
+        {
+            "name": "safety-gate-no-report",
+            "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "safety-gate"],
+            "expect": ["SAFETY GATE PASSOU", "Relatório: desativado por JARVIS_NO_REPORT=1"],
+        },
+        {
+            "name": "smoke-test",
+            "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "smoke-test"],
+            "expect": ["CLI SMOKE TEST PASSOU", "conteúdo esperado", "Relatório: desativado por JARVIS_NO_REPORT=1"],
+        },
+    ])
+
+    return checks
 
 def run(cmd):
     try:
@@ -75,7 +66,9 @@ def main():
 
     results = []
 
-    for check in CHECKS:
+    checks = build_checks()
+
+    for check in checks:
         code, output = run(check["cmd"])
         missing = [x for x in check["expect"] if x not in output]
         ok = code == 0 and not missing
