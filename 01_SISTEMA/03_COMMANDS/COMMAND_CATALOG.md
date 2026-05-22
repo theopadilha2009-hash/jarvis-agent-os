@@ -38,6 +38,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis workspace-check /caminho/do/projeto`
 
 ## Execução assistida
+- `./jarvis local-exec-plan "tarefa"`
 - `./jarvis readonly-run "tarefa"`
 - `./jarvis readonly-run-latest`
 - `./jarvis mode-plan "tarefa"`
@@ -222,3 +223,9 @@ Objetivo: detectar drift entre core, help, catalog e smoke antes de considerar a
 - quality-gate.
 
 Objetivo: impedir seguir com comandos críticos fora de sincronia entre core, help, catalog e smoke.
+
+## LOCAL_EXEC Plan
+
+`./jarvis local-exec-plan "tarefa"` prepara plano de execução local sem editar projeto.
+
+Ele detecta projeto provável, branch, git status, package manager e comandos sugeridos. Não roda install/build/test, não edita arquivos e não toca produção.

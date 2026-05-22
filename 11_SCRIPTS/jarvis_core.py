@@ -2501,6 +2501,13 @@ def command_audit_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/command_audit.py"], cwd=ROOT, check=False)
 
+def local_exec_plan_command(text: str = ""):
+    import subprocess
+    if not text.strip():
+        print('Uso: ./jarvis local-exec-plan "tarefa"')
+        return
+    subprocess.run(["python3", "11_SCRIPTS/local_exec_plan.py", text], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2709,6 +2716,9 @@ def main():
         readonly_run_latest_command()
     elif cmd == "command-audit":
         command_audit_command()
+    elif cmd == "local-exec-plan":
+        text = " ".join(sys.argv[2:]).strip()
+        local_exec_plan_command(text)
     else:
         help_msg()
 
