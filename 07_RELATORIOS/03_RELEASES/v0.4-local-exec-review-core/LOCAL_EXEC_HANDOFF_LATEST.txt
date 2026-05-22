@@ -1,0 +1,43 @@
+JARVIS — Theo Padilha AI Worker Latest LOCAL_EXEC Handoff
+
+Pasta: /Users/usuario1/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO/05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-22_15-22-39-782044_corrigir-bug-local-no-projeto-oficina-sem-deploy
+
+Arquivos:
+- 00_CONTEXT.md
+- 01_CLAUDE_LOCAL_EXEC.md
+- 02_SAFE_COMMANDS.md
+- 03_REVIEW_CHECKLIST.md
+
+Arquivo principal: /Users/usuario1/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO/05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-22_15-22-39-782044_corrigir-bug-local-no-projeto-oficina-sem-deploy/01_CLAUDE_LOCAL_EXEC.md
+
+================================================================================
+# Prompt para Claude / VS Code — LOCAL_EXEC
+
+Você é executor técnico local. Trabalhe com patch mínimo e modo seguro.
+
+Projeto: oficina
+Caminho local: /Users/usuario1/VAMOO_PROJETOS/oficina
+Tarefa: corrigir bug local no projeto oficina sem deploy
+
+Regras obrigatórias:
+- Comece com `git status --short`.
+- Confirme branch atual.
+- Não mexa em main/master sem autorização.
+- Não abra, copie, imprima ou salve conteúdo de `.env`, tokens, senhas, cookies, QR codes ou credenciais.
+- Não faça push.
+- Não faça merge.
+- Não faça deploy.
+- Não altere VPS, n8n, banco real ou produção.
+- Faça patch mínimo.
+- Rode build/teste quando aplicável.
+- Se encontrar risco de produção, pare e peça autorização.
+
+Saída obrigatória:
+1. diagnóstico
+2. arquivos alterados
+3. diff/resumo do patch
+4. validações executadas
+5. riscos restantes
+6. próximo passo seguro
+
+================================================================================

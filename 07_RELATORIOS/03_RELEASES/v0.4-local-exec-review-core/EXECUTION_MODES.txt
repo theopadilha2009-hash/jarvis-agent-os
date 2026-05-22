@@ -1,0 +1,29 @@
+JARVIS — Theo Padilha AI Worker Execution Modes
+
+Status real: modos de execução documentados. Nada executado.
+
+PREPARE
+- Planeja, cria briefing, handoff, prompts, checklist e relatórios.
+- Não altera projeto real.
+
+READONLY
+- Inspeciona arquivos, Git, logs, Docker, n8n, VPS ou projeto.
+- Não altera nada.
+
+LOCAL_EXEC
+- Pode editar projeto local, criar branch, rodar build/teste e preparar commit.
+- Sem push/deploy sem autorização.
+
+INFRA_EXEC
+- Pode operar VPS, Docker, Portainer, Traefik, n8n e serviços reais.
+- Exige escopo explícito e backup/checkpoint antes de ação sensível.
+
+PRODUCTION_ARMED
+- Modo para deploy, push, merge, ativar workflow, enviar mensagem real, alterar banco real, trocar DNS ou rodar migration.
+- Exige autorização explícita.
+
+Regra de credenciais:
+- Credenciais podem ser usadas localmente quando autorizado.
+- Nunca salvar segredo em Git, relatório, prompt externo ou log permanente.
+
+Arquivo de regra: 01_SISTEMA/00_REGRAS/REGRAS_EXECUCAO_FORTE_CREDENCIAIS.md
