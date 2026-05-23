@@ -2584,6 +2584,10 @@ def next_step_command(args=None):
     args = args or []
     subprocess.run(["python3", "11_SCRIPTS/next_step.py", *args], cwd=ROOT, check=False)
 
+def future_tools_radar_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/future_tools_radar.py"], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2597,6 +2601,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis future-tools-radar mostra radar futuro de ferramentas
   ./jarvis next-step [alias] mostra opções humanas do próximo passo
   ./jarvis project-menu [alias] menu humano de projeto
   ./jarvis project-resolve [alias] valida alias de projeto
@@ -2841,6 +2846,8 @@ def main():
         project_menu_command(sys.argv[2:])
     elif cmd == "next-step":
         next_step_command(sys.argv[2:])
+    elif cmd == "future-tools-radar":
+        future_tools_radar_command()
     else:
         help_msg()
 

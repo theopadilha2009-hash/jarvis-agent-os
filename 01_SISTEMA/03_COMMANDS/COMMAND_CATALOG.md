@@ -318,3 +318,9 @@ Status real: menu local. Não edita projeto, não faz build, não faz push e nã
 `./jarvis next-step oficina` mostra comandos seguros para o projeto escolhido.
 
 Status real: orientação local. Não edita projeto, não faz build, não faz push e não faz deploy.
+
+## Future Tools Radar
+
+`./jarvis future-tools-radar` imprime o radar de ferramentas futuras.
+
+Status real: leitura local. Não instala, não configura, não conecta API, não cria conta e não altera produção.

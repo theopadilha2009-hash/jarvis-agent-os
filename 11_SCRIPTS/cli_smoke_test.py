@@ -78,6 +78,11 @@ CHECKS = [
         "expect": ["QUALITY GATE", "Python compile", "Git status"],
     },
     {
+        "name": "future-tools-radar",
+        "cmd": ["./jarvis", "future-tools-radar"],
+        "expect": ["Future Tools Radar", "Nada foi instalado", "Produção"],
+    },
+    {
         "name": "next-step",
         "cmd": ["./jarvis", "next-step"],
         "expect": ["Next Step", "Opções agora", "project-menu"],
