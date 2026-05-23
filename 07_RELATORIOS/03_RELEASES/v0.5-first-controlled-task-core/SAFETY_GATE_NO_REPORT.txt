@@ -1,0 +1,12 @@
+JARVIS — Theo Padilha AI Worker Safety Gate
+Status real: validação local forte. Produção não alterada.
+Modo: no-report para uso interno em smoke/release.
+
+OK  secret-scan
+OK  storage-health
+OK  command-audit
+OK  quality-gate
+
+Resultado: SAFETY GATE PASSOU
+Status real: nada aplicado em projeto real, VPS, n8n ou produção.
+Relatório: desativado por JARVIS_NO_REPORT=1
