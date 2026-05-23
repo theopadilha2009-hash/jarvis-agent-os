@@ -1,7 +1,7 @@
 # Status v0.6 Final — JARVIS Theo Padilha AI Worker
 
 ## Data
-2026-05-23T11:50:37
+2026-05-23T11:57:26
 
 ## Status real
 v0.6 fechada como camada `run-safe`: preparação guiada, project lock obrigatório e handoff seguro.
