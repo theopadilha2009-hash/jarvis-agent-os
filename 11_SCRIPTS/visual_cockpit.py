@@ -126,6 +126,7 @@ def build_text():
     session_p = latest_file("05_EXECUCAO/18_LOCAL_EXEC_SESSIONS")
     handoff_p = latest_dir("05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS")
     review_p = latest_file("05_EXECUCAO/16_LOCAL_EXEC_REVIEWS")
+    mission_p = latest_dir("05_EXECUCAO/21_CLAUDE_MISSIONS")
 
     project_lock = project_lock_from(session_p)
     review = review_decision(review_p)
@@ -188,6 +189,10 @@ def build_text():
         "## Latest handoff",
         f"- Pacote: {rel(handoff_p)}",
         f"- Idade: {age_str(handoff_p)}",
+        "",
+        "## Latest Claude mission",
+        f"- Pacote: {rel(mission_p)}",
+        f"- Idade: {age_str(mission_p)}",
         "",
         "## Latest LOCAL_EXEC review decision",
         f"- Decisão: **{review}**",

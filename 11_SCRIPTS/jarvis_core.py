@@ -2459,6 +2459,15 @@ def visual_cockpit_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/visual_cockpit.py"], cwd=ROOT, check=False)
 
+def claude_mission_command(args=None):
+    import subprocess
+    args = args or []
+    subprocess.run(["python3", "11_SCRIPTS/claude_mission.py", *args], cwd=ROOT, check=False)
+
+def claude_mission_latest_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/claude_mission_latest.py"], cwd=ROOT, check=False)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -2639,6 +2648,8 @@ def help_msg():
   ./jarvis report-policy          mostra política de relatórios e snapshots
   ./jarvis cockpit                mostra painel operacional local
   ./jarvis visual-cockpit         mostra dashboard visual de gates, lock e próximas ações
+  ./jarvis claude-mission         gera mission pack pronto para Claude Code
+  ./jarvis claude-mission-latest  imprime a missão Claude mais recente
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2803,6 +2814,10 @@ def main():
         cockpit_command()
     elif cmd == "visual-cockpit":
         visual_cockpit_command()
+    elif cmd == "claude-mission":
+        claude_mission_command(sys.argv[2:])
+    elif cmd == "claude-mission-latest":
+        claude_mission_latest_command()
     elif cmd == "report-policy":
         report_policy_command()
     elif cmd == "storage-health":

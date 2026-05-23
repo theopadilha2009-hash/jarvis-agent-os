@@ -19,6 +19,8 @@ CRITICAL_COMMANDS = [
     "storage-health",
     "cockpit",
     "visual-cockpit",
+    "claude-mission",
+    "claude-mission-latest",
     "mode-plan",
     "auto-task",
     "pending-artifacts",

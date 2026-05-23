@@ -60,6 +60,24 @@ CHECKS = [
         ],
     },
     {
+        "name": "claude-mission-jarvis-core-audit-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "claude-mission", "--jarvis-core", "--type", "audit", "plan safe next improvement"],
+        "expect": [
+            "Claude Mission",
+            "--jarvis-core",
+            "audit",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
+        "name": "claude-mission-latest",
+        "cmd": ["./jarvis", "claude-mission-latest"],
+        "expect": [
+            "Claude Mission Latest",
+            "Status real",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

@@ -19,6 +19,9 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis report-policy`
 - `./jarvis cockpit`
 - `./jarvis visual-cockpit`
+- `./jarvis claude-mission --jarvis-core --type audit "tarefa"`
+- `./jarvis claude-mission --project ALIAS --type audit "tarefa"`
+- `./jarvis claude-mission-latest`
 - `./jarvis execution-modes`
 - `./jarvis report`
 - `./jarvis summary`
