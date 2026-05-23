@@ -1,0 +1,47 @@
+JARVIS — Theo Padilha AI Worker Claude Mission Latest
+Status real: leitura local da missão mais recente. Nenhum projeto foi editado.
+
+Mission pack: 05_EXECUCAO/21_CLAUDE_MISSIONS/2026-05-23_14-03-56-165572_jarvis-core_patch_improve-jarvis-safely-without-production
+Idade: 5m
+
+Arquivos:
+- [OK] 05_EXECUCAO/21_CLAUDE_MISSIONS/2026-05-23_14-03-56-165572_jarvis-core_patch_improve-jarvis-safely-without-production/00_MISSION_SUMMARY.md
+- [OK] 05_EXECUCAO/21_CLAUDE_MISSIONS/2026-05-23_14-03-56-165572_jarvis-core_patch_improve-jarvis-safely-without-production/01_CLAUDE_PROMPT.md
+- [OK] 05_EXECUCAO/21_CLAUDE_MISSIONS/2026-05-23_14-03-56-165572_jarvis-core_patch_improve-jarvis-safely-without-production/02_VALIDATION_CHECKLIST.md
+- [OK] 05_EXECUCAO/21_CLAUDE_MISSIONS/2026-05-23_14-03-56-165572_jarvis-core_patch_improve-jarvis-safely-without-production/03_RETURN_FORMAT.md
+
+=== Preview: 00_MISSION_SUMMARY.md (primeiras 30 linhas) ===
+# Claude Mission Summary
+
+## Data
+2026-05-23T14:03:56
+
+## Scope
+jarvis-core
+
+## Type
+patch
+
+## Task
+improve JARVIS safely without production
+
+## Status real
+Mission pack local. Nenhum projeto foi editado por este pacote.
+
+## Files in this mission
+- 00_MISSION_SUMMARY.md (este arquivo)
+- 01_CLAUDE_PROMPT.md
+- 02_VALIDATION_CHECKLIST.md
+- 03_RETURN_FORMAT.md
+
+## Como usar
+1. Abrir 01_CLAUDE_PROMPT.md.
+2. Colar inteiro no Claude Code.
+3. Pedir para Claude executar conforme o modo.
+4. Conferir contra 02_VALIDATION_CHECKLIST.md.
+5. Receber resposta no formato 03_RETURN_FORMAT.md.
+
+...
+
+Para colar no Claude Code, abra: 05_EXECUCAO/21_CLAUDE_MISSIONS/2026-05-23_14-03-56-165572_jarvis-core_patch_improve-jarvis-safely-without-production/01_CLAUDE_PROMPT.md
+Produção: nada alterado.
