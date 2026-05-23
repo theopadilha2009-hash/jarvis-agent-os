@@ -1,0 +1,114 @@
+JARVIS — Theo Padilha AI Worker Future Tools Radar
+
+Status real: leitura local. Nenhuma ferramenta foi instalada, configurada ou conectada.
+
+# Future Tools Radar — JARVIS / VAMOO AI
+
+## Status real
+
+Radar criado para consulta futura. Nada foi instalado, configurado, conectado, testado ou validado.
+
+## Regra
+
+Ferramenta no radar não entra automaticamente no stack.
+
+Só usar se reduzir retrabalho, risco, tempo ou custo em um projeto real.
+
+## Ferramentas anotadas
+
+### Core atual mantido
+- n8n continua stack principal de automação.
+- JARVIS continua local/free-first.
+- Claude continua opcional.
+- VS Code/Git continuam base para execução local segura.
+
+### Automação / workflows
+- n8n
+- Make.com
+
+Decisão: manter n8n como base. Make.com fica como comparação futura, não substituição agora.
+
+### Scraping / browser automation / pesquisa
+- Apify
+- Skyvern
+- Dumpling AI
+
+Possível uso futuro:
+- SiteHunter
+- prospecção pública controlada
+- auditoria de sites
+- coleta de evidências
+- teste de páginas
+
+Trava: não raspar área logada, dados sensíveis ou volume alto sem revisão.
+
+### Agentes prontos / agent builders
+- Relevance AI
+- Agentive
+
+Possível uso futuro:
+- comparar ideias de agentes
+- estudar padrões prontos
+- prototipar sem mexer no stack principal
+
+Trava: não substituir n8n/JARVIS sem caso real e teste pequeno.
+
+### Prompt / biblioteca de prompts
+- Prompt Cowboy
+
+Possível uso futuro:
+- inspiração de prompts
+- exemplos para estudo
+- melhorar documentação de prompts
+
+Trava: prompt externo não vira regra de produção sem revisão.
+
+### Voz / áudio
+- ElevenLabs
+
+Possível uso futuro:
+- conteúdo
+- agente com voz
+- respostas em áudio
+- demo comercial
+
+Trava: só usar quando voz fizer parte real do produto.
+
+### Vídeo comercial / prospecção
+- Sendspark
+
+Possível uso futuro:
+- prospecção personalizada
+- vídeo curto para lead
+- demonstração comercial
+
+Trava: não automatizar envio real sem aprovação humana.
+
+## Não fazer agora
+
+- Não instalar.
+- Não criar conta.
+- Não conectar API.
+- Não comprar plano.
+- Não mudar a arquitetura do JARVIS.
+- Não adicionar ao fluxo principal.
+- Não tratar link de afiliado como fonte técnica.
+
+## Próximo uso correto
+
+Quando aparecer uma tarefa real, perguntar:
+
+1. Essa ferramenta reduz retrabalho agora?
+2. Existe alternativa gratuita/local?
+3. Tem risco de custo, segredo ou dados sensíveis?
+4. Dá para testar em laboratório?
+5. O resultado ajuda um projeto real?
+
+Se a resposta não for clara, deixar no radar.
+
+## Produção
+
+Nada alterado.
+
+
+Produção: nada alterado.
