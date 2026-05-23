@@ -179,28 +179,28 @@ CHECKS = [
     },
     {
         "name": "local-exec-review-fixture-safe",
-        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_safe_sample.md"],
-        "expect": ["LOCAL_EXEC Review", "[PODE SEGUIR COM REVISÃO]"],
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_safe_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PODE SEGUIR COM REVISÃO]", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
         "name": "local-exec-review-fixture-risky",
-        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_risky_sample.md"],
-        "expect": ["LOCAL_EXEC Review", "[PARAR E REVISAR COM HUMANO]"],
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_risky_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PARAR E REVISAR COM HUMANO]", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
         "name": "local-exec-review-fixture-mixed",
-        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_mixed_sample.md"],
-        "expect": ["LOCAL_EXEC Review", "[PARAR E REVISAR COM HUMANO]"],
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_mixed_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PARAR E REVISAR COM HUMANO]", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
         "name": "local-exec-review-fixture-codefence",
-        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_codefence_sample.md"],
-        "expect": ["LOCAL_EXEC Review", "[PARAR E REVISAR COM HUMANO]"],
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_codefence_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PARAR E REVISAR COM HUMANO]", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
         "name": "local-exec-review-fixture-negated-only",
-        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_negated_only_sample.md"],
-        "expect": ["LOCAL_EXEC Review", "[PODE SEGUIR COM REVISÃO]"],
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_negated_only_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PODE SEGUIR COM REVISÃO]", "Relatório: desativado por JARVIS_NO_REPORT=1"],
     },
     {
         "name": "local-exec-handoff-latest",

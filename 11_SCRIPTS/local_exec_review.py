@@ -181,6 +181,10 @@ def review_file(path):
     text = path.read_text(encoding="utf-8", errors="ignore")
     decision, blockers, signals = classify(text)
 
+    if os.environ.get("JARVIS_NO_REPORT") == "1":
+        print(f"OK  {path} -> (no report) [{decision}]")
+        return decision
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     out = OUT_DIR / f"{ts}_{slugify(path.stem)}_local-exec-review.md"
@@ -400,7 +404,11 @@ def main():
         sys.exit(1)
 
     print("")
-    print("Status real: revisão criada. Projeto não alterado.")
+    if os.environ.get("JARVIS_NO_REPORT") == "1":
+        print("Status real: revisão local. Projeto não alterado.")
+        print("Relatório: desativado por JARVIS_NO_REPORT=1")
+    else:
+        print("Status real: revisão criada. Projeto não alterado.")
     print("Produção: nada alterado.")
 
 if __name__ == "__main__":
