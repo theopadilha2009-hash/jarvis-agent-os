@@ -18,6 +18,7 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis pending-artifacts`
 - `./jarvis report-policy`
 - `./jarvis cockpit`
+- `./jarvis visual-cockpit`
 - `./jarvis execution-modes`
 - `./jarvis report`
 - `./jarvis summary`

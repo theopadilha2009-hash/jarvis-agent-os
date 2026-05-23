@@ -18,6 +18,7 @@ CRITICAL_COMMANDS = [
     "secret-scan",
     "storage-health",
     "cockpit",
+    "visual-cockpit",
     "mode-plan",
     "auto-task",
     "pending-artifacts",

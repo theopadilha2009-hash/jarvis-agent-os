@@ -48,6 +48,18 @@ CHECKS = [
         "expect": ["JARVIS — Theo Padilha AI Worker Cockpit", "Execution modes", "Próximo passo seguro", "Produção"],
     },
     {
+        "name": "visual-cockpit",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "visual-cockpit"],
+        "expect": [
+            "Visual Cockpit",
+            "Gate status (last run)",
+            "Latest project lock",
+            "Latest LOCAL_EXEC review decision",
+            "Must NOT do",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

@@ -2455,6 +2455,10 @@ def cockpit_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/cockpit.py"], cwd=ROOT, check=False)
 
+def visual_cockpit_command():
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/visual_cockpit.py"], cwd=ROOT, check=False)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -2634,6 +2638,7 @@ def help_msg():
   ./jarvis storage-health         valida tracking/ignore de relatórios e segredos
   ./jarvis report-policy          mostra política de relatórios e snapshots
   ./jarvis cockpit                mostra painel operacional local
+  ./jarvis visual-cockpit         mostra dashboard visual de gates, lock e próximas ações
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2796,6 +2801,8 @@ def main():
         review_output_index_command()
     elif cmd == "cockpit":
         cockpit_command()
+    elif cmd == "visual-cockpit":
+        visual_cockpit_command()
     elif cmd == "report-policy":
         report_policy_command()
     elif cmd == "storage-health":
