@@ -178,6 +178,31 @@ CHECKS = [
         "expect": ["LOCAL_EXEC Review", "Fixtures LOCAL_EXEC"],
     },
     {
+        "name": "local-exec-review-fixture-safe",
+        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_safe_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PODE SEGUIR COM REVISÃO]"],
+    },
+    {
+        "name": "local-exec-review-fixture-risky",
+        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_risky_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PARAR E REVISAR COM HUMANO]"],
+    },
+    {
+        "name": "local-exec-review-fixture-mixed",
+        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_mixed_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PARAR E REVISAR COM HUMANO]"],
+    },
+    {
+        "name": "local-exec-review-fixture-codefence",
+        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_codefence_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PARAR E REVISAR COM HUMANO]"],
+    },
+    {
+        "name": "local-exec-review-fixture-negated-only",
+        "cmd": ["./jarvis", "local-exec-review", "10_TESTES/FIXTURES/local_exec_output_negated_only_sample.md"],
+        "expect": ["LOCAL_EXEC Review", "[PODE SEGUIR COM REVISÃO]"],
+    },
+    {
         "name": "local-exec-handoff-latest",
         "cmd": ["./jarvis", "local-exec-handoff-latest"],
         "expect": ["Latest LOCAL_EXEC Handoff", "Arquivo principal", "LOCAL_EXEC"],
