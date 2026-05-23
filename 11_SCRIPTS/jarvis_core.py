@@ -2574,6 +2574,11 @@ def project_resolve_command(args=None):
     args = args or []
     subprocess.run(["python3", "11_SCRIPTS/project_resolve.py", *args], cwd=ROOT, check=False)
 
+def project_menu_command(args=None):
+    import subprocess
+    args = args or []
+    subprocess.run(["python3", "11_SCRIPTS/project_menu.py", *args], cwd=ROOT, check=False)
+
 def help_msg():
     print("""Comandos:
   ./jarvis doctor                 full health check
@@ -2587,6 +2592,7 @@ def help_msg():
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
   ./jarvis help                   ajuda
+  ./jarvis project-menu [alias] menu humano de projeto
   ./jarvis project-resolve [alias] valida alias de projeto
   ./jarvis local-exec-session-latest imprime última sessão LOCAL_EXEC
   ./jarvis local-exec-session "task" prepara sessão LOCAL_EXEC completa
@@ -2825,6 +2831,8 @@ def main():
         local_exec_session_latest_command()
     elif cmd == "project-resolve":
         project_resolve_command(sys.argv[2:])
+    elif cmd == "project-menu":
+        project_menu_command(sys.argv[2:])
     else:
         help_msg()
 

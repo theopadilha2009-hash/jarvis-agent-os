@@ -302,3 +302,11 @@ Status real: não edita projeto, não faz build, não faz push e não faz deploy
 `./jarvis local-exec-session --project oficina "tarefa"` prepara sessão travada no projeto informado.
 
 Status real: prepara flow/read-only/plan/ready/handoff. Não edita projeto, não faz build, não faz push e não faz deploy.
+
+## Project Menu
+
+`./jarvis project-menu` mostra os projetos disponíveis e opções práticas.
+
+`./jarvis project-menu oficina` mostra o estado do projeto e comandos recomendados.
+
+Status real: menu local. Não edita projeto, não faz build, não faz push e não faz deploy.

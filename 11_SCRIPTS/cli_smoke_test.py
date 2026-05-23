@@ -78,6 +78,16 @@ CHECKS = [
         "expect": ["QUALITY GATE", "Python compile", "Git status"],
     },
     {
+        "name": "project-menu-list",
+        "cmd": ["./jarvis", "project-menu"],
+        "expect": ["Project Menu", "Projetos disponíveis", "Opções"],
+    },
+    {
+        "name": "project-menu-oficina",
+        "cmd": ["./jarvis", "project-menu", "oficina"],
+        "expect": ["Project Menu", "Ações recomendadas", "local-exec-session --project oficina"],
+    },
+    {
         "name": "project-resolve-list",
         "cmd": ["./jarvis", "project-resolve"],
         "expect": ["Project Resolve", "Projetos disponíveis", "oficina"],
