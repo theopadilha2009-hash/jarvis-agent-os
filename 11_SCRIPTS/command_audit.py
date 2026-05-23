@@ -9,6 +9,7 @@ CRITICAL_COMMANDS = [
     "project-resolve",
     "project-menu",
     "next-step",
+    "run-safe",
     "future-tools-radar",
     "quality-gate",
     "smoke-test",

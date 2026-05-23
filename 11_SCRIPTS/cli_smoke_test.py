@@ -78,6 +78,11 @@ CHECKS = [
         "expect": ["QUALITY GATE", "Python compile", "Git status"],
     },
     {
+        "name": "run-safe-project-lock-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "run-safe", "--project", "oficina", "revisar tarefa segura sem deploy"],
+        "expect": ["RUN SAFE", "Project lock: oficina", "LOCAL EXEC SESSION", "Resultado: RUN SAFE PASSOU"],
+    },
+    {
         "name": "future-tools-radar",
         "cmd": ["./jarvis", "future-tools-radar"],
         "expect": ["Future Tools Radar", "Nada foi instalado", "Produção"],

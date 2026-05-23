@@ -324,3 +324,9 @@ Status real: orientação local. Não edita projeto, não faz build, não faz pu
 `./jarvis future-tools-radar` imprime o radar de ferramentas futuras.
 
 Status real: leitura local. Não instala, não configura, não conecta API, não cria conta e não altera produção.
+
+## Run Safe
+
+`./jarvis run-safe --project oficina "tarefa"` orquestra project-resolve, next-step, local-exec-session e handoff.
+
+Status real: preparação local guiada. Não aplica patch, não roda build/test real como decisão final, não faz commit/push/PR e não faz deploy.
