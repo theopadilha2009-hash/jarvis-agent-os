@@ -1,0 +1,20 @@
+2546299 test: validate safety after visual cockpit
+8ff5fe4 test: validate release after visual cockpit
+9cc0257 test: add smoke after visual cockpit
+4eaaa9d feat: add visual cockpit dashboard
+dc9722b test: validate safety after local-exec-review no-report fix
+0a6af7b test: validate release after local-exec-review no-report fix
+2982cc1 test: add smoke after local-exec-review no-report fix
+f82c2ec fix: prevent local-exec-review artifacts in no-report mode
+35b0d5a test: add clean safety after backup archive cleanup
+c02f935 test: add clean release after backup archive cleanup
+cdf9e60 test: add clean safety after backup archive cleanup
+d15d7af test: add clean release after backup archive cleanup
+f3a2a4c test: validate safety after backup archive cleanup
+df92913 test: validate release after backup archive cleanup
+ab65ed9 chore: archive jarvis core backup files
+4cba563 test: validate safety after local-exec-review hardening
+c0ae6cf test: validate release after local-exec-review hardening
+f6a86b7 test: add smoke after local-exec-review hardening
+2140d91 feat: harden local-exec-review classifier
+0f08299 test: validate safety after v0.6 final note
