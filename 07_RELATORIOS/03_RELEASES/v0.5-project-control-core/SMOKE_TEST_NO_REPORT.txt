@@ -1,0 +1,48 @@
+JARVIS — Theo Padilha AI Worker CLI Smoke Test
+Modo: exit code + conteúdo esperado
+
+OK  ./jarvis help
+OK  env JARVIS_NO_REPORT=1 ./jarvis safety-gate
+OK  ./jarvis command-audit
+OK  ./jarvis secret-scan
+OK  ./jarvis storage-health
+OK  ./jarvis pending-artifacts
+OK  ./jarvis report-policy
+OK  ./jarvis cockpit
+OK  ./jarvis commands
+OK  ./jarvis execution-modes
+OK  ./jarvis overview
+OK  ./jarvis task-status
+OK  ./jarvis self-test
+OK  ./jarvis quality-gate
+OK  ./jarvis next-step
+OK  ./jarvis next-step oficina
+OK  ./jarvis project-menu
+OK  ./jarvis project-menu oficina
+OK  ./jarvis project-resolve
+OK  ./jarvis project-resolve oficina
+OK  ./jarvis project-select corrigir bug de visitantes do GC
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-handoff corrigir bug local no projeto oficina sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-ready corrigir bug local no projeto oficina sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-plan corrigir bug local no projeto oficina sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis readonly-run investigar bug no projeto GC sem alterar produção
+OK  ./jarvis local-exec-flow-latest
+OK  ./jarvis local-exec-session-latest
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-session --project oficina corrigir bug local sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-session corrigir bug local no projeto oficina sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-flow corrigir bug local no projeto oficina sem deploy
+OK  ./jarvis local-exec-review-latest
+OK  ./jarvis local-exec-review --fixtures
+OK  ./jarvis local-exec-handoff-latest
+OK  ./jarvis local-exec-ready-latest
+OK  ./jarvis local-exec-plan-latest
+OK  ./jarvis readonly-run-latest
+OK  ./jarvis task-brief-latest
+OK  ./jarvis auto-task-latest
+OK  ./jarvis review-output-index
+OK  ./jarvis review-output-latest
+OK  ./jarvis handoff-latest
+OK  ./jarvis handoff-print
+
+Resultado: CLI SMOKE TEST PASSOU
+Relatório: desativado por JARVIS_NO_REPORT=1

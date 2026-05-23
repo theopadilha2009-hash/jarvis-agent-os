@@ -1,0 +1,49 @@
+JARVIS — Theo Padilha AI Worker Project Menu
+
+Status real: menu local. Nenhum projeto foi editado.
+
+Projetos disponíveis:
+
+[oficina] oficina
+  status: pronto
+  caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+  branch: fix/patio-agenda-status-clean
+  git: limpo
+  package: bun
+
+[gc] gc-gestao-de-cristo
+  status: pronto
+  caminho: /Users/usuario1/VAMOO_PROJETOS/gc-gestao-de-cristo
+  branch: analise-inicial-theo
+  git: limpo
+  package: npm
+
+[ls] ls-clinica-agent
+  status: revisar
+  caminho: /Users/usuario1/VAMOO_PROJETOS/ls-clinica-agent
+  branch: analysis/ls-v1-4-3-polish
+  git: ?? 03_OUTPUT/ls-v1-2-inbound-final-uazapi-safe.workflow.json
+?? 03_OUTPUT/ls-v1-3-1-staging-safe-early-allowlist.workflow.json
+?? 03_OUTPUT/ls-v1-3-2-polish-cost-fallback.workflow.json
+?? 03_OUTPUT/ls-v1-3-3-test-safe-final.workflow.json
+?? 03_OUTPUT/ls-v1-3-4-sensitive-quickreply-fix.workflow.json
+?? 03_OUTPUT/ls-v1-3-final-uazapi-real-architecture.workflow.json
+?? 03_OUTPUT/ls-v1-4-1-final-staging-polish.workflow.json
+?? 03_OUTPUT/ls-v1-4-2-sdr-kommo-cutoff.workflow.json
+?? 03_OUTPUT/ls-v1-4-conversation-state-scheduling.workflow.json
+  package: unknown
+
+Opções:
+1. Ver projeto:
+   ./jarvis project-menu oficina
+
+2. Validar projeto:
+   ./jarvis project-resolve oficina
+
+3. Preparar sessão LOCAL_EXEC travada:
+   ./jarvis local-exec-session --project oficina "descrever tarefa sem deploy"
+
+4. Ver último handoff:
+   ./jarvis local-exec-handoff-latest
+
+Produção: nada alterado.

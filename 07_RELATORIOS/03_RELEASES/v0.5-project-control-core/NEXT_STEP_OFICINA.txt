@@ -1,0 +1,42 @@
+JARVIS — Theo Padilha AI Worker Next Step
+
+Status real: orientação local. Nenhum projeto foi editado.
+
+Base JARVIS:
+- commit: fad7a29
+- git: limpo
+
+Últimos artefatos:
+- sessão LOCAL_EXEC: 05_EXECUCAO/18_LOCAL_EXEC_SESSIONS/2026-05-23_09-49-13-115755_project-oficina-corrigir-bug-local-sem-deploy_local-exec-session.md
+- handoff LOCAL_EXEC: 05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-23_09-49-13-105279_oficina-corrigir-bug-local-sem-deploy
+- review LOCAL_EXEC: 05_EXECUCAO/16_LOCAL_EXEC_REVIEWS/2026-05-22_15-33-07-731746_local-exec-output-risky-sample_local-exec-review.md
+
+Projeto selecionado: oficina
+- nome: oficina
+- caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+- estado: pronto
+- branch: fix/patio-agenda-status-clean
+- git: limpo
+- package: bun
+
+Opções para este projeto:
+1. Conferir alias e caminho:
+   ./jarvis project-resolve oficina
+
+2. Preparar sessão LOCAL_EXEC:
+   ./jarvis local-exec-session --project oficina "descrever tarefa sem deploy"
+
+3. Abrir último handoff depois da sessão:
+   ./jarvis local-exec-handoff-latest
+
+4. Revisar saída de executor depois:
+   ./jarvis local-exec-review caminho/da/resposta.md
+
+Travas:
+- sem push
+- sem merge
+- sem deploy
+- sem VPS/n8n/produção
+- Claude opcional, não obrigatório
+
+Produção: nada alterado.

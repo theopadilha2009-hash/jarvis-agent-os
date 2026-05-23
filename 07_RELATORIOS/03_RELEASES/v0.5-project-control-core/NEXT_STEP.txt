@@ -1,0 +1,40 @@
+JARVIS — Theo Padilha AI Worker Next Step
+
+Status real: orientação local. Nenhum projeto foi editado.
+
+Base JARVIS:
+- commit: fad7a29
+- git: limpo
+
+Últimos artefatos:
+- sessão LOCAL_EXEC: 05_EXECUCAO/18_LOCAL_EXEC_SESSIONS/2026-05-23_09-49-13-115755_project-oficina-corrigir-bug-local-sem-deploy_local-exec-session.md
+- handoff LOCAL_EXEC: 05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-23_09-49-13-105279_oficina-corrigir-bug-local-sem-deploy
+- review LOCAL_EXEC: 05_EXECUCAO/16_LOCAL_EXEC_REVIEWS/2026-05-22_15-33-07-731746_local-exec-output-risky-sample_local-exec-review.md
+
+Projetos:
+
+- oficina: oficina | pronto | branch fix/patio-agenda-status-clean | bun
+- gc: gc-gestao-de-cristo | pronto | branch analise-inicial-theo | npm
+- ls: ls-clinica-agent | revisar | branch analysis/ls-v1-4-3-polish | unknown
+
+Opções agora:
+1. Ver menu de projetos:
+   ./jarvis project-menu
+
+2. Ver projeto específico:
+   ./jarvis project-menu oficina
+
+3. Validar projeto antes de tarefa:
+   ./jarvis project-resolve oficina
+
+4. Preparar tarefa segura travada no projeto:
+   ./jarvis local-exec-session --project oficina "descrever tarefa sem deploy"
+
+5. Ver último handoff:
+   ./jarvis local-exec-handoff-latest
+
+Decisão recomendada:
+- Se ainda não sabe o projeto: rode ./jarvis project-menu
+- Se já sabe o projeto: rode ./jarvis project-menu ALIAS
+
+Produção: nada alterado.

@@ -1,0 +1,33 @@
+JARVIS — Theo Padilha AI Worker Project Menu
+
+Status real: menu local. Nenhum projeto foi editado.
+
+[oficina] oficina
+  status: pronto
+  caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+  branch: fix/patio-agenda-status-clean
+  git: limpo
+  package: bun
+
+Ações recomendadas:
+
+1. Conferir projeto:
+   ./jarvis project-resolve oficina
+
+2. Preparar tarefa segura:
+   ./jarvis local-exec-session --project oficina "descrever tarefa sem deploy"
+
+3. Ver handoff depois da sessão:
+   ./jarvis local-exec-handoff-latest
+
+4. Revisar resposta do executor depois:
+   ./jarvis local-exec-review caminho/da/resposta.md
+
+Travas:
+- sem push
+- sem merge
+- sem deploy
+- sem VPS/n8n/produção
+- Claude opcional, não obrigatório
+
+Produção: nada alterado.
