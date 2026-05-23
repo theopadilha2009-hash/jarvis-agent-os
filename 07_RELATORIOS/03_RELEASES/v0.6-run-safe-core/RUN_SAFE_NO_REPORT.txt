@@ -1,0 +1,312 @@
+JARVIS — Theo Padilha AI Worker RUN SAFE
+
+Status real: orquestração local segura. Nenhum patch, push, deploy, VPS, n8n ou produção.
+
+Project lock: oficina
+Tarefa: snapshot seguro do run-safe sem deploy
+
+=== PROJECT RESOLVE ===
+JARVIS — Theo Padilha AI Worker Project Resolve
+
+Status real: resolução local de projeto. Nenhum projeto foi editado.
+
+Alias: oficina
+Nome: oficina
+Caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+Existe: True
+Git: True
+Branch atual: fix/patio-agenda-status-clean
+Git status: limpo
+Package manager: bun
+LOCAL_EXEC permitido: True
+
+Resultado: PROJECT RESOLVE PASSOU
+Próximo passo seguro:
+./jarvis local-exec-session --project oficina "tarefa sem deploy"
+
+Produção: nada alterado.
+
+=== NEXT STEP ===
+JARVIS — Theo Padilha AI Worker Next Step
+
+Status real: orientação local. Nenhum projeto foi editado.
+
+Base JARVIS:
+- commit: c70474b
+- git: limpo
+
+Últimos artefatos:
+- sessão LOCAL_EXEC: 05_EXECUCAO/18_LOCAL_EXEC_SESSIONS/2026-05-23_11-19-09-795034_project-oficina-revisar-tarefa-segura-sem-deploy_local-exec-session.md
+- handoff LOCAL_EXEC: 05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-23_11-19-09-787360_oficina-revisar-tarefa-segura-sem-deploy
+- review LOCAL_EXEC: 05_EXECUCAO/16_LOCAL_EXEC_REVIEWS/2026-05-22_15-33-07-731746_local-exec-output-risky-sample_local-exec-review.md
+
+Projeto selecionado: oficina
+- nome: oficina
+- caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+- estado: pronto
+- branch: fix/patio-agenda-status-clean
+- git: limpo
+- package: bun
+
+Opções para este projeto:
+1. Conferir alias e caminho:
+   ./jarvis project-resolve oficina
+
+2. Preparar sessão LOCAL_EXEC:
+   ./jarvis local-exec-session --project oficina "descrever tarefa sem deploy"
+
+3. Abrir último handoff depois da sessão:
+   ./jarvis local-exec-handoff-latest
+
+4. Revisar saída de executor depois:
+   ./jarvis local-exec-review caminho/da/resposta.md
+
+Travas:
+- sem push
+- sem merge
+- sem deploy
+- sem VPS/n8n/produção
+- Claude opcional, não obrigatório
+
+Produção: nada alterado.
+
+=== LOCAL EXEC SESSION ===
+JARVIS — Theo Padilha AI Worker LOCAL_EXEC Session
+
+Status real: sessão de preparação local. Nenhum projeto foi editado.
+Tarefa: snapshot seguro do run-safe sem deploy
+Project lock: oficina -> /Users/usuario1/VAMOO_PROJETOS/oficina
+
+=== FLOW ===
+JARVIS — Theo Padilha AI Worker LOCAL_EXEC Flow
+
+Status real: guia operacional local. Nenhum projeto foi alterado.
+Tarefa: oficina snapshot seguro do run-safe sem deploy
+
+# LOCAL_EXEC Flow — JARVIS Theo Padilha AI Worker
+
+## Data
+2026-05-23T11:26:23
+
+## Tarefa
+oficina snapshot seguro do run-safe sem deploy
+
+## Status real
+Guia operacional local criado. Nenhum projeto foi alterado.
+
+## Fluxo seguro
+1. PREPARE — classificar modo e preparar contexto.
+2. READONLY — inspecionar projeto sem alterar.
+3. LOCAL_EXEC PLAN — planejar edição local.
+4. LOCAL_EXEC READY — checar blockers antes de editar.
+5. LOCAL_EXEC HANDOFF — gerar pacote curto para Claude/VS Code.
+6. LOCAL_EXEC REVIEW — revisar saída do executor antes de aceitar patch.
+
+## Comandos recomendados
+```bash
+./jarvis mode-plan "oficina snapshot seguro do run-safe sem deploy"
+./jarvis readonly-run "oficina snapshot seguro do run-safe sem deploy"
+./jarvis local-exec-plan "oficina snapshot seguro do run-safe sem deploy"
+./jarvis local-exec-ready "oficina snapshot seguro do run-safe sem deploy"
+./jarvis local-exec-handoff "oficina snapshot seguro do run-safe sem deploy"
+# depois de rodar Claude/VS Code e salvar a resposta em arquivo:
+./jarvis local-exec-review caminho/da/resposta.md
+```
+
+## Travamentos obrigatórios
+- não editar main/master sem branch segura;
+- não abrir/copiar `.env`; usar apenas variáveis locais existentes;
+- não fazer push;
+- não fazer merge;
+- não fazer deploy;
+- não alterar VPS, n8n, banco real ou produção;
+- se a revisão bloquear, parar e revisar com humano.
+
+## Critério para avançar
+- `local-exec-ready` sem blocker crítico;
+- Claude/VS Code respondeu com arquivos alterados e validações;
+- `local-exec-review` não classificou como `PARAR E REVISAR COM HUMANO`; 
+- build/test reportado ou justificativa clara.
+
+## Ainda não executa
+- patch automático;
+- commit automático;
+- push/PR automático;
+- deploy;
+- VPS/n8n/produção.
+
+## Produção
+Nada alterado.
+
+Relatório: desativado por JARVIS_NO_REPORT=1
+
+=== READONLY ===
+JARVIS — Theo Padilha AI Worker READONLY RUN
+
+Status real: inspeção local read-only. Nada alterado.
+Tarefa: oficina snapshot seguro do run-safe sem deploy
+
+Projeto selecionado: oficina
+Caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+Motivos: git, package.json, src, json, readme
+
+Branch: fix/patio-agenda-status-clean
+Git status: limpo
+Relatório: desativado por JARVIS_NO_REPORT=1
+
+Próximo passo seguro: revisar relatório e só depois decidir modo seguinte.
+Produção: nada alterado.
+
+=== PLAN ===
+JARVIS — Theo Padilha AI Worker LOCAL_EXEC Plan
+
+Status real: plano local. Nenhum arquivo do projeto foi alterado.
+Tarefa: oficina snapshot seguro do run-safe sem deploy
+
+Projeto selecionado: oficina
+Caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+Branch: fix/patio-agenda-status-clean
+Git status: limpo
+Package manager provável: bun
+Risco inicial: médio
+Ação de branch: branch não é main/master; confirmar escopo antes de editar
+
+Relatório: desativado por JARVIS_NO_REPORT=1
+
+Próximo passo seguro: revisar plano antes de qualquer edição.
+Produção: nada alterado.
+
+=== READY ===
+JARVIS — Theo Padilha AI Worker LOCAL_EXEC Ready Check
+
+Status real: checagem local. Nenhum arquivo do projeto foi alterado.
+Tarefa: oficina snapshot seguro do run-safe sem deploy
+
+Projeto selecionado: oficina
+Caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+Branch: fix/patio-agenda-status-clean
+Git status: limpo
+Package manager provável: bun
+Blockers: 0
+Warnings: 1
+
+Resultado: LOCAL EXEC READY PASSOU
+Relatório: desativado por JARVIS_NO_REPORT=1
+
+Status real: checagem local. Projeto não alterado.
+Produção: nada alterado.
+
+=== HANDOFF ===
+JARVIS — Theo Padilha AI Worker LOCAL_EXEC Handoff
+
+Status real: pacote de execução local. Nenhum arquivo do projeto foi alterado.
+Tarefa: oficina snapshot seguro do run-safe sem deploy
+
+Projeto selecionado: oficina
+Caminho: /Users/usuario1/VAMOO_PROJETOS/oficina
+Branch: fix/patio-agenda-status-clean
+Git status: limpo
+Package manager provável: bun
+Relatório: desativado por JARVIS_NO_REPORT=1
+
+Status real: preview local. Nada gerado.
+
+Relatório: desativado por JARVIS_NO_REPORT=1
+
+Status real: sessão preparada. Projeto não editado.
+Produção: nada alterado.
+
+=== LOCAL EXEC SESSION LATEST ===
+JARVIS — Theo Padilha AI Worker Latest LOCAL_EXEC Session
+
+Arquivo: /Users/usuario1/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO/05_EXECUCAO/18_LOCAL_EXEC_SESSIONS/2026-05-23_11-19-09-795034_project-oficina-revisar-tarefa-segura-sem-deploy_local-exec-session.md
+
+================================================================================
+# LOCAL_EXEC Session — JARVIS Theo Padilha AI Worker
+
+## Data
+2026-05-23T11:19:09
+
+## Tarefa
+revisar tarefa segura sem deploy
+
+## Project lock
+oficina
+
+## Project path
+`/Users/usuario1/VAMOO_PROJETOS/oficina`
+
+## Status real
+Sessão de preparação local. Nenhum projeto foi editado.
+
+## Artefatos gerados
+- Flow: `05_EXECUCAO/17_LOCAL_EXEC_FLOWS/2026-05-23_11-19-08-791279_oficina-revisar-tarefa-segura-sem-deploy_local-exec-flow.md`
+- Readonly: `05_EXECUCAO/12_READONLY_RUNS/2026-05-23_11-19-09-073202_oficina-revisar-tarefa-segura-sem-deploy_readonly-run.md`
+- Plan: `05_EXECUCAO/13_LOCAL_EXEC_PLANS/2026-05-23_11-19-09-264326_oficina-revisar-tarefa-segura-sem-deploy_local-exec-plan.md`
+- Ready: `05_EXECUCAO/14_LOCAL_EXEC_READY/2026-05-23_11-19-09-527753_oficina-revisar-tarefa-segura-sem-deploy_local-exec-ready.md`
+- Handoff: `05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-23_11-19-09-787360_oficina-revisar-tarefa-segura-sem-deploy`
+
+## Próximo passo seguro
+Abrir o handoff gerado. Se usar executor externo, salvar a resposta em arquivo e rodar `./jarvis local-exec-review arquivo.md`.
+
+## Bloqueios mantidos
+- Sem push.
+- Sem merge.
+- Sem deploy.
+- Sem VPS/n8n/produção.
+- Sem leitura/exposição de `.env` ou credenciais.
+
+## Produção
+Nada alterado.
+
+================================================================================
+
+=== LOCAL EXEC HANDOFF LATEST ===
+JARVIS — Theo Padilha AI Worker Latest LOCAL_EXEC Handoff
+
+Pasta: /Users/usuario1/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO/05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-23_11-19-09-787360_oficina-revisar-tarefa-segura-sem-deploy
+
+Arquivos:
+- 00_CONTEXT.md
+- 01_CLAUDE_LOCAL_EXEC.md
+- 02_SAFE_COMMANDS.md
+- 03_REVIEW_CHECKLIST.md
+
+Arquivo principal: /Users/usuario1/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO/05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-23_11-19-09-787360_oficina-revisar-tarefa-segura-sem-deploy/01_CLAUDE_LOCAL_EXEC.md
+
+================================================================================
+# Prompt para Claude / VS Code — LOCAL_EXEC
+
+Você é executor técnico local. Trabalhe com patch mínimo e modo seguro.
+
+Projeto: oficina
+Caminho local: /Users/usuario1/VAMOO_PROJETOS/oficina
+Tarefa: oficina revisar tarefa segura sem deploy
+
+Regras obrigatórias:
+- Comece com `git status --short`.
+- Confirme branch atual.
+- Não mexa em main/master sem autorização.
+- Não abra, copie, imprima ou salve conteúdo de `.env`, tokens, senhas, cookies, QR codes ou credenciais.
+- Não faça push.
+- Não faça merge.
+- Não faça deploy.
+- Não altere VPS, n8n, banco real ou produção.
+- Faça patch mínimo.
+- Rode build/teste quando aplicável.
+- Se encontrar risco de produção, pare e peça autorização.
+
+Saída obrigatória:
+1. diagnóstico
+2. arquivos alterados
+3. diff/resumo do patch
+4. validações executadas
+5. riscos restantes
+6. próximo passo seguro
+
+================================================================================
+
+Relatório RUN_SAFE: desativado por JARVIS_NO_REPORT=1
+
+Resultado: RUN SAFE PASSOU
+Status real: preparação guiada concluída. Produção não alterada.

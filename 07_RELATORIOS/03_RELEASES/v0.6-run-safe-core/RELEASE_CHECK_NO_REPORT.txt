@@ -1,0 +1,162 @@
+JARVIS — Theo Padilha AI Worker Release Check
+Modo: compile + storage + secret + quality + safety no-report + content-aware smoke
+
+OK  python3 -m py_compile 11_SCRIPTS/auto_task.py
+OK  python3 -m py_compile 11_SCRIPTS/auto_task_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/cli_smoke_test.py
+OK  python3 -m py_compile 11_SCRIPTS/cockpit.py
+OK  python3 -m py_compile 11_SCRIPTS/command_audit.py
+OK  python3 -m py_compile 11_SCRIPTS/command_catalog.py
+OK  python3 -m py_compile 11_SCRIPTS/execution_modes.py
+OK  python3 -m py_compile 11_SCRIPTS/executor_handoff.py
+OK  python3 -m py_compile 11_SCRIPTS/future_tools_radar.py
+OK  python3 -m py_compile 11_SCRIPTS/handoff_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/handoff_open.py
+OK  python3 -m py_compile 11_SCRIPTS/handoff_print.py
+OK  python3 -m py_compile 11_SCRIPTS/jarvis_core.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_flow.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_flow_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_handoff.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_handoff_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_plan.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_plan_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_ready.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_ready_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_review.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_review_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_session.py
+OK  python3 -m py_compile 11_SCRIPTS/local_exec_session_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/mode_plan.py
+OK  python3 -m py_compile 11_SCRIPTS/next_step.py
+OK  python3 -m py_compile 11_SCRIPTS/pending_artifacts.py
+OK  python3 -m py_compile 11_SCRIPTS/project_index.py
+OK  python3 -m py_compile 11_SCRIPTS/project_menu.py
+OK  python3 -m py_compile 11_SCRIPTS/project_resolve.py
+OK  python3 -m py_compile 11_SCRIPTS/project_select.py
+OK  python3 -m py_compile 11_SCRIPTS/readonly_run.py
+OK  python3 -m py_compile 11_SCRIPTS/readonly_run_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/release_check.py
+OK  python3 -m py_compile 11_SCRIPTS/report_policy.py
+OK  python3 -m py_compile 11_SCRIPTS/review_output_index.py
+OK  python3 -m py_compile 11_SCRIPTS/review_output_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/review_outputs_v2.py
+OK  python3 -m py_compile 11_SCRIPTS/run_safe.py
+OK  python3 -m py_compile 11_SCRIPTS/safety_gate.py
+OK  python3 -m py_compile 11_SCRIPTS/secret_scan.py
+OK  python3 -m py_compile 11_SCRIPTS/snapshot_preparation_core.py
+OK  python3 -m py_compile 11_SCRIPTS/storage_health.py
+OK  python3 -m py_compile 11_SCRIPTS/system_overview.py
+OK  python3 -m py_compile 11_SCRIPTS/task_brief.py
+OK  python3 -m py_compile 11_SCRIPTS/task_brief_latest.py
+OK  python3 -m py_compile 11_SCRIPTS/task_start.py
+OK  python3 -m py_compile 11_SCRIPTS/task_status.py
+OK  python3 -m py_compile 11_SCRIPTS/workspace_check.py
+OK  python3 -m py_compile 11_SCRIPTS/workspace_scan.py
+OK  ./jarvis secret-scan
+OK  ./jarvis storage-health
+FALHA  ./jarvis quality-gate
+  exit code: 1
+  conteúdo ausente: QUALITY GATE PASSOU
+JARVIS — Theo Padilha AI Worker Quality Gate
+
+OK  Python compile — sem erro
+OK  Smoke script compile — sem erro
+FALHA  Git status — ?? 05_EXECUCAO/12_READONLY_RUNS/2026-05-23_11-26-25-910029_oficina-snapshot-seguro-do-run-safe-sem-deploy_readonly-run.md | ?? 05_EXECUCAO/13_LOCAL_EXEC_PLANS/2026-05-23_11-26-26-075569_oficina-snapshot-seguro-do-run-safe-sem-deploy_local-exec-plan.md | ?? 05_EXECUCAO/14_LOCAL_EXEC_READY/2026-05-23_11-26-26-343787_oficina-snapshot-seguro-do-run-safe-sem-deploy_local-exec-ready.md | ?? 05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-23_11-26-26-605191_oficina-snapshot-seguro-do-run-safe-sem-deploy/ | ?? 05_EXECUCAO/17_LOCAL_EXEC_FLOWS/2026-05-23_11-26-25-623168_oficina-snapshot-seguro-do-run-safe-sem-deploy_local-exec-flow.md | ?? 05_EXECUCAO/18_LOCAL_EXEC_SESSIONS/2026-05-23_11-26-26-614007_project-oficina-snapshot-seguro-do-run-safe-sem-deploy_local-exec-session.md | ?? 05_EXECUCAO/19_RUN_SAFE/2026-05-23_11-26-26-897377_project-oficina-snapshot-seguro-do-run-safe-sem-deploy_run-safe.md
+OK  Estrutura principal
+OK  Identidade Theo Padilha
+OK  CLI presente
+OK  Tasks abertas — 0 aberta(s)
+OK  Missões registradas — 4 brief(s)
+OK  Logs — 47 log(s)
+
+Resultado: QUALITY GATE COM PENDÊNCIAS
+Status real: validação local. Produção não alterada.
+
+Ação segura:
+- Resolver pendências antes de conectar IA externa, n8n, VPS ou APIs.
+OK  ./jarvis command-audit
+FALHA  env JARVIS_NO_REPORT=1 ./jarvis safety-gate
+  conteúdo ausente: SAFETY GATE PASSOU
+JARVIS — Theo Padilha AI Worker Safety Gate
+Status real: validação local forte. Produção não alterada.
+Modo: no-report para uso interno em smoke/release.
+
+OK  secret-scan
+OK  storage-health
+OK  command-audit
+FALHA  quality-gate
+  exit code: 1
+  conteúdo ausente: QUALITY GATE PASSOU
+JARVIS — Theo Padilha AI Worker Quality Gate
+
+OK  Python compile — sem erro
+OK  Smoke script compile — sem erro
+FALHA  Git status — ?? 05_EXECUCAO/12_READONLY_RUNS/2026-05-23_11-26-25-910029_oficina-snapshot-seguro-do-run-safe-sem-deploy_readonly-run.md | ?? 05_EXECUCAO/13_LOCAL_EXEC_PLANS/2026-05-23_11-26-26-075569_oficina-snapshot-seguro-do-run-safe-sem-deploy_local-exec-plan.md | ?? 05_EXECUCAO/14_LOCAL_EXEC_READY/2026-05-23_11-26-26-343787_oficina-snapshot-seguro-do-run-safe-sem-deploy_local-exec-ready.md | ?? 05_EXECUCAO/15_LOCAL_EXEC_HANDOFFS/2026-05-23_11-26-26-605191_oficina-snapshot-seguro-do-run-safe-sem-deploy/ | ?? 05_EXECUCAO/17_LOCAL_EXEC_FLOWS/2026-05-23_11-26-25-623168_oficina-snapshot-seguro-do-run-safe-sem-deploy_local-exec-flow.md | ?? 05_EXECUCAO/18_LOCAL_EXEC_SESSIONS/2026-05-23_11-26-26-614007_project-oficina-snapshot-seguro-do-run-safe-sem-deploy_local-exec-session.md | ?? 05_EXECUCAO/19_RUN_SAFE/2026-05-23_11-26-26-897377_project-oficina-snapshot-seguro-do-run-safe-sem-deploy_run-safe.md
+OK  Estrutura principal
+OK  Identidade Theo Padilha
+OK  CLI presente
+OK  Tasks abertas — 0 aberta(s)
+OK  Missões registradas — 4 brief(s)
+OK  Logs — 47 log(s)
+
+Resultado: QUALITY GATE COM PENDÊNCIAS
+Status real: validação local. Produção não alterada.
+
+Ação segura:
+- Resolver pendências antes de conectar IA externa, n8n, VPS ou APIs.
+
+Resultado: SAFETY GATE COM PENDÊNCIAS
+Status real: nada aplicado em projeto real, VPS, n8n ou produção.
+Relatório: desativado por JARVIS_NO_REPORT=1
+FALHA  env JARVIS_NO_REPORT=1 ./jarvis smoke-test
+  conteúdo ausente: CLI SMOKE TEST PASSOU
+údo ausente: SAFETY GATE PASSOU
+OK  ./jarvis command-audit
+OK  ./jarvis secret-scan
+OK  ./jarvis storage-health
+OK  ./jarvis pending-artifacts
+OK  ./jarvis report-policy
+OK  ./jarvis cockpit
+OK  ./jarvis commands
+OK  ./jarvis execution-modes
+OK  ./jarvis overview
+OK  ./jarvis task-status
+OK  ./jarvis self-test
+FALHA  ./jarvis quality-gate
+  exit code: 1
+OK  env JARVIS_NO_REPORT=1 ./jarvis run-safe --project oficina revisar tarefa segura sem deploy
+OK  ./jarvis future-tools-radar
+OK  ./jarvis next-step
+OK  ./jarvis next-step oficina
+OK  ./jarvis project-menu
+OK  ./jarvis project-menu oficina
+OK  ./jarvis project-resolve
+OK  ./jarvis project-resolve oficina
+OK  ./jarvis project-select corrigir bug de visitantes do GC
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-handoff corrigir bug local no projeto oficina sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-ready corrigir bug local no projeto oficina sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-plan corrigir bug local no projeto oficina sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis readonly-run investigar bug no projeto GC sem alterar produção
+OK  ./jarvis local-exec-flow-latest
+OK  ./jarvis local-exec-session-latest
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-session --project oficina corrigir bug local sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-session corrigir bug local no projeto oficina sem deploy
+OK  env JARVIS_NO_REPORT=1 ./jarvis local-exec-flow corrigir bug local no projeto oficina sem deploy
+OK  ./jarvis local-exec-review-latest
+OK  ./jarvis local-exec-review --fixtures
+OK  ./jarvis local-exec-handoff-latest
+OK  ./jarvis local-exec-ready-latest
+OK  ./jarvis local-exec-plan-latest
+OK  ./jarvis readonly-run-latest
+OK  ./jarvis task-brief-latest
+OK  ./jarvis auto-task-latest
+OK  ./jarvis review-output-index
+OK  ./jarvis review-output-latest
+OK  ./jarvis handoff-latest
+OK  ./jarvis handoff-print
+
+Resultado: CLI SMOKE TEST FALHOU
+Relatório: desativado por JARVIS_NO_REPORT=1
+
+Resultado: RELEASE CHECK FALHOU
+Relatório: desativado por JARVIS_NO_REPORT=1
