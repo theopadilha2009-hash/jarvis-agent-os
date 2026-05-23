@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import shlex
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +30,12 @@ def latest(folder, pattern):
     return str(items[0].relative_to(ROOT)) if items else "nenhum"
 
 def parse_args(argv):
+    if len(argv) == 1 and isinstance(argv[0], str):
+        try:
+            argv = shlex.split(argv[0])
+        except Exception:
+            pass
+
     project_alias = None
     task_parts = []
     i = 0

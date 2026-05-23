@@ -2557,12 +2557,13 @@ def local_exec_flow_latest_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/local_exec_flow_latest.py"], cwd=ROOT, check=False)
 
-def local_exec_session_command(text: str = ""):
+def local_exec_session_command(args=None):
     import subprocess
-    if not text.strip():
-        print('Uso: ./jarvis local-exec-session "tarefa"')
+    args = args or []
+    if not args:
+        print('Uso: ./jarvis local-exec-session --project oficina "tarefa"')
         return
-    subprocess.run(["python3", "11_SCRIPTS/local_exec_session.py", text], cwd=ROOT, check=False)
+    subprocess.run(["python3", "11_SCRIPTS/local_exec_session.py", *args], cwd=ROOT, check=False)
 
 def local_exec_session_latest_command():
     import subprocess
@@ -2819,8 +2820,7 @@ def main():
     elif cmd == "local-exec-flow-latest":
         local_exec_flow_latest_command()
     elif cmd == "local-exec-session":
-        text = " ".join(sys.argv[2:]).strip()
-        local_exec_session_command(text)
+        local_exec_session_command(sys.argv[2:])
     elif cmd == "local-exec-session-latest":
         local_exec_session_latest_command()
     elif cmd == "project-resolve":
