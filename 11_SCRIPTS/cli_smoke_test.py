@@ -78,6 +78,16 @@ CHECKS = [
         "expect": ["QUALITY GATE", "Python compile", "Git status"],
     },
     {
+        "name": "next-step",
+        "cmd": ["./jarvis", "next-step"],
+        "expect": ["Next Step", "Opções agora", "project-menu"],
+    },
+    {
+        "name": "next-step-oficina",
+        "cmd": ["./jarvis", "next-step", "oficina"],
+        "expect": ["Next Step", "Projeto selecionado: oficina", "local-exec-session --project oficina"],
+    },
+    {
         "name": "project-menu-list",
         "cmd": ["./jarvis", "project-menu"],
         "expect": ["Project Menu", "Projetos disponíveis", "Opções"],

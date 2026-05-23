@@ -310,3 +310,11 @@ Status real: prepara flow/read-only/plan/ready/handoff. Não edita projeto, não
 `./jarvis project-menu oficina` mostra o estado do projeto e comandos recomendados.
 
 Status real: menu local. Não edita projeto, não faz build, não faz push e não faz deploy.
+
+## Next Step
+
+`./jarvis next-step` mostra o estado atual e opções humanas do próximo passo.
+
+`./jarvis next-step oficina` mostra comandos seguros para o projeto escolhido.
+
+Status real: orientação local. Não edita projeto, não faz build, não faz push e não faz deploy.
