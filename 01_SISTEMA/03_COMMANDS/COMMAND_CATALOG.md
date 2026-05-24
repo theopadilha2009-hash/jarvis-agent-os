@@ -33,6 +33,32 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis task-status`
 - `./jarvis checkpoint`
 
+## Project max-machine (v1.1)
+
+Trabalhos repetidos por projeto agora têm comandos diretos. Cada um respeita: sem deploy, sem push, sem PR, sem merge, sem .env, sem migrations, sem secrets.
+
+- `./jarvis doctor --project ALIAS` — diagnóstico read-only do projeto (branch, dirty tree, package manager, scripts, tooling de test, .env warning).
+- `./jarvis qa-sprint --project ALIAS` — gera mission Claude focada em QA sprint local (inspeção + validação + patches pequenos com orçamento apertado).
+- `./jarvis goal-sprint --project ALIAS --goal "..."` — gera mission orientada a objetivo com Definition of Done mensurável e loop iterativo de patches seguros.
+- `./jarvis browser-qa --project ALIAS` — gera mission de QA de UI: usa Playwright/Cypress se já instalados; senão recomenda Vitest+RTL para componentes alterados. NÃO instala ferramentas.
+- `./jarvis final-gate --project ALIAS` — gera mission que decide safe/not-safe para push/PR/deploy a partir de checagens objetivas (git/typecheck/tests/diff). NÃO executa push/PR/deploy.
+
+Todas as missões salvam pacote em `05_EXECUCAO/21_CLAUDE_MISSIONS/<TS>_project-ALIAS_<modo>_<slug>/` e podem ser revisadas via `./jarvis claude-mission-latest`.
+
+### Exemplos
+
+```
+./jarvis doctor --project oficina
+./jarvis doctor --project jarvis-core
+./jarvis qa-sprint --project oficina
+./jarvis goal-sprint --project oficina --goal "fechar QA local com segurança antes de PR"
+./jarvis browser-qa --project oficina
+./jarvis final-gate --project oficina
+./jarvis claude-mission-latest
+```
+
+Status real: pacotes locais. Não editam projeto, não fazem build, não fazem commit, não fazem push, não fazem deploy.
+
 ## Tasks
 - `./jarvis intake "pedido"`
 - `./jarvis next`

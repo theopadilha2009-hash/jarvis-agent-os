@@ -2473,6 +2473,22 @@ def operator_workbench_command(args=None):
     args = args or []
     subprocess.run(["python3", "11_SCRIPTS/operator_workbench.py", *args], cwd=ROOT, check=False)
 
+def project_doctor_command(args=None):
+    """./jarvis doctor --project <alias> — read-only project health."""
+    import subprocess
+    args = args or []
+    subprocess.run(["python3", "11_SCRIPTS/project_doctor.py", *args], cwd=ROOT, check=False)
+
+def project_mission_pack_command(mode: str, args=None):
+    """qa-sprint | goal-sprint | browser-qa | final-gate — gera mission pack para Claude."""
+    import subprocess
+    args = args or []
+    subprocess.run(
+        ["python3", "11_SCRIPTS/project_mission_pack.py", "--mode", mode, *args],
+        cwd=ROOT,
+        check=False,
+    )
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -2657,6 +2673,11 @@ def help_msg():
   ./jarvis claude-mission-latest  imprime a missão Claude mais recente
   ./jarvis operator-workbench     mostra workbench humano do operador (geral/--jarvis-core/--project)
   ./jarvis workbench              alias de operator-workbench
+  ./jarvis doctor --project A     diagnóstico read-only do projeto registrado A
+  ./jarvis qa-sprint --project A  gera mission Claude para QA sprint do projeto A
+  ./jarvis goal-sprint --project A --goal "..."  gera mission Claude orientada a objetivo
+  ./jarvis browser-qa --project A gera mission Claude para QA de UI/browser
+  ./jarvis final-gate --project A gera mission Claude para validação final (push/PR/deploy)
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2706,7 +2727,20 @@ def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
 
     if cmd in ["doctor", "check"]:
-        doctor()
+        # ./jarvis doctor --project ALIAS → project_doctor.py (read-only health)
+        # ./jarvis doctor (sem --project)  → doctor() do lab JARVIS local
+        if "--project" in sys.argv[2:] or any(a.startswith("--project=") for a in sys.argv[2:]):
+            project_doctor_command(sys.argv[2:])
+        else:
+            doctor()
+    elif cmd == "qa-sprint":
+        project_mission_pack_command("qa-sprint", sys.argv[2:])
+    elif cmd == "goal-sprint":
+        project_mission_pack_command("goal-sprint", sys.argv[2:])
+    elif cmd == "browser-qa":
+        project_mission_pack_command("browser-qa", sys.argv[2:])
+    elif cmd == "final-gate":
+        project_mission_pack_command("final-gate", sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":

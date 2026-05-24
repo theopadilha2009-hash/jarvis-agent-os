@@ -46,6 +46,10 @@ CRITICAL_COMMANDS = [
     "review-output-index",
     "review-output-latest",
     "snapshot-prep-core",
+    "qa-sprint",
+    "goal-sprint",
+    "browser-qa",
+    "final-gate",
 ]
 
 def run(cmd):

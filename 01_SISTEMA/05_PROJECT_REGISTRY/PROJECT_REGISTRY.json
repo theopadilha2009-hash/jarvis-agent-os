@@ -4,6 +4,20 @@
   "status_real": "Registry local criado. Nenhum projeto real foi editado.",
   "projects": [
     {
+      "alias": "jarvis-core",
+      "name": "JARVIS local lab",
+      "path": "/Users/usuario1/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO",
+      "profile": "JARVIS_LAB",
+      "type": "python-cli",
+      "path_exists": true,
+      "is_git": true,
+      "branch": "feature/jarvis-max-machine",
+      "git_clean": false,
+      "package_manager": "none",
+      "allowed_for_local_exec": true,
+      "notes": "Repositório JARVIS local — read-only por padrão. Sem package.json. Sem deploy externo."
+    },
+    {
       "alias": "oficina",
       "name": "oficina",
       "path": "/Users/usuario1/VAMOO_PROJETOS/oficina",
