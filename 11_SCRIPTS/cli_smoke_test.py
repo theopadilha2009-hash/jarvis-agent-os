@@ -757,6 +757,100 @@ CHECKS = [
         ],
     },
     {
+        "name": "resume-no-session",
+        "cmd": ["./jarvis", "resume"],
+        "expect": [
+            "JARVIS — Resume",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "work-status-no-session-or-summary",
+        "cmd": ["./jarvis", "work-status"],
+        "expect": [
+            "Work Status",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "work-next-no-session-or-summary",
+        "cmd": ["./jarvis", "work-next"],
+        "expect": [
+            "Work Next",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "work-start-self-evolve-dry-run",
+        "cmd": ["./jarvis", "work-start", "evoluir o JARVIS para reduzir trabalho manual", "--dry-run"],
+        "expect": [
+            "Work Start",
+            "intent:  self_evolve",
+            "project: jarvis-core",
+            "Modo: --dry-run",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "work-start-project-fix-dry-run",
+        "cmd": ["./jarvis", "work-start", "abre oficina e prepara missão segura", "--dry-run"],
+        "expect": [
+            "Work Start",
+            "project: oficina",
+            "Modo: --dry-run",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "report-template-default",
+        "cmd": ["./jarvis", "report-template"],
+        "expect": [
+            "Report Template",
+            "/tmp/",
+            "report-check --file",
+            "report-apply --file",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "report-status-default",
+        "cmd": ["./jarvis", "report-status"],
+        "expect": [
+            "Report Status",
+            "caminho esperado:",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "report-check-good-fixture",
+        "cmd": ["./jarvis", "report-check", "--file", "10_TESTES/FIXTURES/good_claude_report_agent_os.md"],
+        "expect": [
+            "Report Check",
+            "quality: strong",
+            "READY — pode aplicar",
+            "report-apply --file",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "report-check-bad-fixture-warns",
+        "cmd": ["./jarvis", "report-check", "--file", "10_TESTES/FIXTURES/bad_claude_report_commands_only.md"],
+        "expect": [
+            "Report Check",
+            "quality: weak",
+            "WEAK",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "work-close-no-session",
+        "cmd": ["./jarvis", "work-close", "--dry-run"],
+        "expect": [
+            "Work Close",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

@@ -614,3 +614,48 @@ comandos recomendados (não executados).
 ```
 
 Status real: todas as adições deste sprint são leitura local + append-only — Sem API Anthropic/OpenAI, sem rede, sem produção.
+
+## Agent OS — Sprint 4 (resume, work lifecycle, report intake)
+
+Sprint 4 transforma comandos isolados num **lifecycle**: `resume` é o
+primeiro comando do dia/após interrupção; `work-start` inicia um ciclo
+que conecta task queue + run log + missão Claude + debrief; `report-check`
+e `report-apply` validam o relatório final do Claude e roteiam para o
+writer correto (self-debrief vs project-memory-update) sem Theo
+precisar lembrar o alias.
+
+### Resume / lifecycle
+- `./jarvis resume` — pickup: imprime work-status + work-next + último run + top task. **Primeiro comando após interrupção.**
+- `./jarvis work-start "pedido"` — classifica, cria task, cria run package, gera missão (via go), grava session em `36_WORK_SESSIONS/current.json`.
+- `./jarvis work-status` — estado atual da sessão (intent, project, status, next).
+- `./jarvis work-next` — máquina de estados determinística: imprime o ÚNICO próximo comando seguro.
+- `./jarvis work-block --reason "..."` — marca sessão como blocked.
+- `./jarvis work-close [--force]` — fecha sessão (espera `gates_passed` ou `blocked` por default).
+
+### Report intake
+- `./jarvis report-template` — imprime o `cat > /tmp/...` exato para o projeto da sessão atual.
+- `./jarvis report-status` — presença + qualidade do relatório esperado.
+- `./jarvis report-check --file PATH` — valida headings + quality. Não grava nada.
+- `./jarvis report-apply --file PATH [--force-weak]` — delega para `self-debrief --apply` (jarvis-core) ou `project-memory-update --project A --apply` (outros). Refusa weak por default.
+
+### Storage runtime (gitignored)
+- `05_EXECUCAO/36_WORK_SESSIONS/current.json` — sessão atual (mutável).
+- `05_EXECUCAO/36_WORK_SESSIONS/events.jsonl` — append-only audit trail.
+- `.gitkeep` permanece versionado.
+
+### Referência rápida (para command-audit)
+
+```
+./jarvis resume
+./jarvis work-start "pedido"
+./jarvis work-status
+./jarvis work-next
+./jarvis work-block --reason "..."
+./jarvis work-close
+./jarvis report-template
+./jarvis report-status
+./jarvis report-check --file /tmp/jarvis-claude-out.md
+./jarvis report-apply --file /tmp/jarvis-claude-out.md
+```
+
+Status real: lifecycle inteiramente local. Sem Claude em background, sem API paga, sem produção.

@@ -178,6 +178,30 @@ Storage runtime gitignored: `05_EXECUCAO/34_TASKS/tasks.jsonl`,
 `05_EXECUCAO/35_RUNS/**`, `05_EXECUCAO/40_BLUEPRINTS/2*/**`,
 `05_EXECUCAO/33_PLANS/2*.md`. Os `.gitkeep` permanecem versionados.
 
+### Loop oficial Sprint 4 (resume + work lifecycle + report intake)
+
+```
+1. ./jarvis resume                       # primeiro comando do dia / após interrupção
+2. ./jarvis work-start "pedido"          # se não há sessão ativa
+3. (Claude manual: cd PATH; claude; paste mission; Ctrl+D no /tmp)
+4. ./jarvis report-check --file /tmp/jarvis-claude-out.md
+5. ./jarvis report-apply --file /tmp/jarvis-claude-out.md
+6. env JARVIS_NO_REPORT=1 ./jarvis safety-gate
+7. env JARVIS_NO_REPORT=1 ./jarvis smoke-test
+8. ./jarvis doctrine-check
+9. ./jarvis work-close
+```
+
+`work-next` imprime o ÚNICO próximo comando seguro com base no estado:
+- sem sessão → `task-next` / `go "o que faço agora"`
+- session started/mission_generated → Claude manual + report-check
+- report_checked → report-apply
+- debrief_applied → gates
+- gates_passed → work-close
+
+Runtime gitignored adicional Sprint 4: `05_EXECUCAO/36_WORK_SESSIONS/current.json`,
+`05_EXECUCAO/36_WORK_SESSIONS/events.jsonl`.
+
 Refusal de relatórios fracos: `project-memory-update --from-file` recusa
 gravar (`--apply`) se o arquivo for só comandos / sem seções
 (STATUS REAL, VALIDATION RESULTS, FILES CHANGED, SAFE TO COMMIT, ...).

@@ -27,6 +27,8 @@ CAN_DO = [
     "imprimir plano de execução (`plan`)",
     "registrar requests não classificadas (`ask-log`) para futuras melhorias de patterns",
     "explicar suas próprias limitações (`limits`)",
+    "rodar lifecycle completo (`resume` / `work-start` / `work-status` / `work-next` / `work-close`)",
+    "validar e aplicar relatório do Claude (`report-template` / `report-status` / `report-check` / `report-apply`)",
 ]
 
 CANNOT_DO_YET = [

@@ -2819,6 +2819,46 @@ def project_intel_command(args=None):
     """./jarvis project-intel --project ALIAS — inspeção read-only do projeto."""
     _run_py_propagate("11_SCRIPTS/project_intel.py", args)
 
+def work_start_command(args=None):
+    """./jarvis work-start "pedido" [--dry-run] [--project A] [--no-task]"""
+    _run_py_propagate("11_SCRIPTS/work_session.py", ["start", *(args or [])])
+
+def work_status_command(args=None):
+    """./jarvis work-status — status da sessão de trabalho atual."""
+    _run_py_propagate("11_SCRIPTS/work_session.py", ["status", *(args or [])])
+
+def work_next_command(args=None):
+    """./jarvis work-next — próximo comando seguro do lifecycle."""
+    _run_py_propagate("11_SCRIPTS/work_session.py", ["next", *(args or [])])
+
+def work_block_command(args=None):
+    """./jarvis work-block --reason "..." — marca sessão como blocked."""
+    _run_py_propagate("11_SCRIPTS/work_session.py", ["block", *(args or [])])
+
+def work_close_command(args=None):
+    """./jarvis work-close [--dry-run] [--force]"""
+    _run_py_propagate("11_SCRIPTS/work_session.py", ["close", *(args or [])])
+
+def resume_command(args=None):
+    """./jarvis resume — pickup point: work-status + work-next + último run + top task."""
+    _run_py_propagate("11_SCRIPTS/work_session.py", ["resume", *(args or [])])
+
+def report_template_command(args=None):
+    """./jarvis report-template — imprime o `cat > PATH` exato do projeto atual."""
+    _run_py_propagate("11_SCRIPTS/report_intake.py", ["template", *(args or [])])
+
+def report_status_command(args=None):
+    """./jarvis report-status — presença / qualidade do relatório esperado."""
+    _run_py_propagate("11_SCRIPTS/report_intake.py", ["status", *(args or [])])
+
+def report_check_command(args=None):
+    """./jarvis report-check --file PATH — valida headings/quality (sem gravar)."""
+    _run_py_propagate("11_SCRIPTS/report_intake.py", ["check", *(args or [])])
+
+def report_apply_command(args=None):
+    """./jarvis report-apply --file PATH [--force-weak] — delega para writer seguro."""
+    _run_py_propagate("11_SCRIPTS/report_intake.py", ["apply", *(args or [])])
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -3046,6 +3086,16 @@ def help_msg():
   ./jarvis capability-check NAME  detalhe + safe behavior + setup
   ./jarvis capability-plan NAME   plano local para future_adapter
   ./jarvis project-intel --project A  inspeção read-only (package mgr, tests, migrations, .env presence)
+  ./jarvis resume                 pickup point: status + next + último run + top task
+  ./jarvis work-start "pedido"    inicia ciclo: task+run+session+missão (gitignored runtime)
+  ./jarvis work-status            status da sessão atual (intent/project/status/next/report)
+  ./jarvis work-next              próximo comando seguro do lifecycle
+  ./jarvis work-block --reason "..."  marca sessão como blocked
+  ./jarvis work-close [--force]   fecha sessão (espera gates_passed/blocked)
+  ./jarvis report-template        imprime o `cat > PATH` exato (project-aware)
+  ./jarvis report-status          presença + qualidade do relatório esperado
+  ./jarvis report-check --file P  valida headings/quality (sem gravar)
+  ./jarvis report-apply --file P  delega para writer seguro (self-debrief / project-memory-update)
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -3185,6 +3235,26 @@ def main():
         capability_plan_command(sys.argv[2:])
     elif cmd == "project-intel":
         project_intel_command(sys.argv[2:])
+    elif cmd == "work-start":
+        work_start_command(sys.argv[2:])
+    elif cmd == "work-status":
+        work_status_command(sys.argv[2:])
+    elif cmd == "work-next":
+        work_next_command(sys.argv[2:])
+    elif cmd == "work-block":
+        work_block_command(sys.argv[2:])
+    elif cmd == "work-close":
+        work_close_command(sys.argv[2:])
+    elif cmd == "resume":
+        resume_command(sys.argv[2:])
+    elif cmd == "report-template":
+        report_template_command(sys.argv[2:])
+    elif cmd == "report-status":
+        report_status_command(sys.argv[2:])
+    elif cmd == "report-check":
+        report_check_command(sys.argv[2:])
+    elif cmd == "report-apply":
+        report_apply_command(sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":

@@ -69,6 +69,16 @@ HELP_REQUIRED_COMMANDS = [
     "capability-check",
     "capability-plan",
     "project-intel",
+    "resume",
+    "work-start",
+    "work-status",
+    "work-next",
+    "work-block",
+    "work-close",
+    "report-template",
+    "report-status",
+    "report-check",
+    "report-apply",
 ]
 MISSION_HARD_RULE_SIGNALS = [
     "Não fazer push, PR, merge ou deploy",

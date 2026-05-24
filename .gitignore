@@ -55,3 +55,7 @@ __pycache__/
 05_EXECUCAO/40_BLUEPRINTS/2*/**
 # Plans saved with `./jarvis plan ... --save`.
 05_EXECUCAO/33_PLANS/2*.md
+
+# Sprint 4 — work session runtime state.
+05_EXECUCAO/36_WORK_SESSIONS/current.json
+05_EXECUCAO/36_WORK_SESSIONS/events.jsonl

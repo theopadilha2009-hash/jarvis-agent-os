@@ -73,23 +73,27 @@ def _suggest_next(branch: str, dirty: bool, latest_mission_dir, memory_state: st
     if latest_mission_dir is None:
         return [
             "Sem missão JARVIS registrada. Sugestão principal:",
-            '  ./jarvis go "evoluir o JARVIS para reduzir trabalho manual"',
+            "  ./jarvis resume",
+            'Ou iniciar um ciclo do zero:',
+            '  ./jarvis work-start "evoluir o JARVIS para reduzir trabalho manual"',
             "Power-user equivalente:",
-            '  ./jarvis self-evolve --goal "..." --copy',
+            '  ./jarvis go "evoluir o JARVIS para reduzir trabalho manual"',
         ]
     if memory_state in ("missing", "blank"):
         return [
             "Missão existe, memória ausente — registre debrief:",
+            "  ./jarvis resume                # primeiro: ver onde está",
             "  ./jarvis self-debrief --from-git --dry-run",
             "  ./jarvis self-debrief --from-git --apply",
         ]
     return [
         "Tree limpa + memória registrada. Sugestão principal:",
-        '  ./jarvis go "o que faço agora"',
+        "  ./jarvis resume               # retoma o ponto de continuação",
         "Outras boas opções:",
+        '  ./jarvis work-start "..."     # inicia novo ciclo com lifecycle',
+        '  ./jarvis go "o que faço agora"',
         "  env JARVIS_NO_REPORT=1 ./jarvis safety-gate",
         "  env JARVIS_NO_REPORT=1 ./jarvis smoke-test",
-        '  ./jarvis go "evoluir o JARVIS para reduzir trabalho manual"',
     ]
 
 

@@ -88,6 +88,16 @@ CRITICAL_COMMANDS = [
     "capability-check",
     "capability-plan",
     "project-intel",
+    "resume",
+    "work-start",
+    "work-status",
+    "work-next",
+    "work-block",
+    "work-close",
+    "report-template",
+    "report-status",
+    "report-check",
+    "report-apply",
 ]
 
 def run(cmd):
