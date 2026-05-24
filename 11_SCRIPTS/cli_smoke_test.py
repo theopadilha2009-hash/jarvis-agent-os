@@ -207,6 +207,20 @@ CHECKS = [
         ],
     },
     {
+        "name": "project-memory-update-from-file-fixture",
+        "cmd": ["./jarvis", "project-memory-update", "--project", "jarvis-core",
+                "--from-file", "10_TESTES/FIXTURES/claude_report_sample.md", "--dry-run"],
+        "expect": [
+            "Project Memory Update",
+            "safe to commit (parsed): yes",
+            "STATUS REAL",
+            "FILES CHANGED",
+            "VALIDATION RESULTS",
+            "Modo: --dry-run",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

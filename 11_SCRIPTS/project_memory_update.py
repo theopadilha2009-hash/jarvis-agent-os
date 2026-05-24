@@ -288,31 +288,90 @@ SECTION_HEADINGS = (
 )
 
 
+def _normalize_heading_line(line: str) -> str:
+    """Strip leading markdown noise so we can compare against a clean heading.
+    Also drops '?' anywhere (covers 'SAFE TO COMMIT? yes')."""
+    s = line.strip()
+    prev = None
+    while s != prev:
+        prev = s
+        s = re.sub(r"^#+\s*", "", s)
+        s = re.sub(r"^\d+[\.\)]\s*", "", s)
+        s = re.sub(r"^\*+\s*", "", s)
+        s = re.sub(r"\s*\*+$", "", s)
+    # Drop '?' globally — known section names never contain it legitimately,
+    # and forms like 'SAFE TO COMMIT? yes' should normalize to 'SAFE TO COMMIT yes'.
+    s = s.replace("?", "")
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def extract_section(full_text: str, heading: str, max_lines: int = MAX_FILE_EXCERPT_LINES):
-    """Extracts a section by heading. Tolerant to numbered prefixes like
-    '1. STATUS REAL' or '## STATUS REAL'."""
+    """Extract a section body. Tolerant to '## 1. STATUS REAL',
+    '**STATUS REAL**', 'STATUS REAL:', etc."""
     lines = full_text.splitlines()
-    pattern = re.compile(rf"^\s*(?:\d+\.\s*)?#{{0,6}}\s*\**\s*{re.escape(heading)}\b", re.IGNORECASE)
-    end_pattern = re.compile(r"^\s*(?:\d+\.\s*)?#{1,6}\s*\**\s*[A-Z][A-Z0-9 /]+", re.IGNORECASE)
+    heading_upper = heading.upper()
     start = None
     for i, line in enumerate(lines):
-        if pattern.match(line):
+        norm = _normalize_heading_line(line).upper()
+        # Allow either exact match or 'STATUS REAL: ...' / 'STATUS REAL ...'
+        if norm == heading_upper or norm.startswith(heading_upper + " ") or norm.startswith(heading_upper + ":"):
             start = i + 1
             break
     if start is None:
         return None
     out = []
-    for line in lines[start : start + max_lines * 3]:
-        if line.strip() and end_pattern.match(line):
-            # Next section reached
+    for line in lines[start:]:
+        norm = _normalize_heading_line(line).upper()
+        # Stop when we hit ANY other known section heading.
+        hit_next = False
+        for other in SECTION_HEADINGS:
+            if other == heading:
+                continue
+            ou = other.upper()
+            if norm == ou or norm.startswith(ou + " ") or norm.startswith(ou + ":"):
+                hit_next = True
+                break
+        if hit_next:
             break
         out.append(line)
         if len(out) >= max_lines:
             break
-    # Trim trailing empties
     while out and not out[-1].strip():
         out.pop()
     return "\n".join(out) if out else None
+
+
+def extract_safe_to_commit(full_text: str):
+    """Returns 'yes', 'no', or None based on a SAFE TO COMMIT section.
+    Handles both 'SAFE TO COMMIT?\n\nyes' and inline 'SAFE TO COMMIT? yes'."""
+    # First pass: look for the heading line itself; capture inline yes/no.
+    for line in full_text.splitlines():
+        norm = _normalize_heading_line(line).upper()
+        if norm == "SAFE TO COMMIT" or norm.startswith("SAFE TO COMMIT "):
+            tail = norm[len("SAFE TO COMMIT"):].strip()
+            if tail:
+                if re.search(r"\byes\b", tail.lower()):
+                    return "yes"
+                if re.search(r"\bno\b", tail.lower()):
+                    return "no"
+            break
+    # Second pass: examine the section body's first non-empty line.
+    body = extract_section(full_text, "SAFE TO COMMIT", max_lines=8)
+    if not body:
+        return None
+    for line in body.splitlines():
+        s = line.strip().lower()
+        if not s:
+            continue
+        # Skip code-fence delimiters.
+        if s.startswith("```"):
+            continue
+        if re.search(r"\byes\b", s) and not re.search(r"\bno\b", s):
+            return "yes"
+        if re.search(r"\bno\b", s) and not re.search(r"\byes\b", s):
+            return "no"
+        return None
+    return None
 
 
 def build_entry_from_file(alias, project, file_path: Path) -> str:
@@ -322,11 +381,18 @@ def build_entry_from_file(alias, project, file_path: Path) -> str:
     redacted = redact(raw)
     ts = datetime.now().isoformat(timespec="seconds")
 
+    # Sort by length descending so longer headings (e.g. "RISKS / NOT VALIDATED")
+    # match before their substrings (e.g. "RISKS").
     extracted = {}
-    for heading in SECTION_HEADINGS:
+    for heading in sorted(SECTION_HEADINGS, key=len, reverse=True):
         sect = extract_section(redacted, heading)
         if sect:
             extracted[heading] = sect
+    # If we already have "RISKS / NOT VALIDATED", drop the duplicate "RISKS".
+    if "RISKS / NOT VALIDATED" in extracted and "RISKS" in extracted:
+        del extracted["RISKS"]
+
+    safe_decision = extract_safe_to_commit(redacted)
 
     lines = [
         MARKER_BEGIN,
@@ -335,6 +401,7 @@ def build_entry_from_file(alias, project, file_path: Path) -> str:
         f"- alias: {alias}",
         f"- source file: {file_path}  ({len(raw)} bytes)",
         f"- parser: regex-only (no LLM)",
+        f"- safe to commit (parsed): {safe_decision or 'desconhecido'}",
         "",
     ]
     if not extracted:
