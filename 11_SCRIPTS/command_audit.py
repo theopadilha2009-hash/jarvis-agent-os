@@ -21,6 +21,7 @@ CRITICAL_COMMANDS = [
     "visual-cockpit",
     "claude-mission",
     "claude-mission-latest",
+    "operator-workbench",
     "mode-plan",
     "auto-task",
     "pending-artifacts",

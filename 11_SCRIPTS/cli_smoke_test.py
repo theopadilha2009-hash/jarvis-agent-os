@@ -78,6 +78,39 @@ CHECKS = [
         ],
     },
     {
+        "name": "operator-workbench-general",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "operator-workbench"],
+        "expect": [
+            "Operator Workbench",
+            "Action menu",
+            "Exact commands",
+            "When to use Claude",
+            "Must NOT do",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
+        "name": "operator-workbench-jarvis-core",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "operator-workbench", "--jarvis-core"],
+        "expect": [
+            "Operator Workbench",
+            "jarvis-core",
+            "Claude mission",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
+        "name": "operator-workbench-project-oficina",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "operator-workbench", "--project", "oficina"],
+        "expect": [
+            "Operator Workbench",
+            "oficina",
+            "run-safe",
+            "project-resolve",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

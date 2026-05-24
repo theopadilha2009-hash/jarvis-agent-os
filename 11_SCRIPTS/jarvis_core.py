@@ -2468,6 +2468,11 @@ def claude_mission_latest_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/claude_mission_latest.py"], cwd=ROOT, check=False)
 
+def operator_workbench_command(args=None):
+    import subprocess
+    args = args or []
+    subprocess.run(["python3", "11_SCRIPTS/operator_workbench.py", *args], cwd=ROOT, check=False)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -2650,6 +2655,8 @@ def help_msg():
   ./jarvis visual-cockpit         mostra dashboard visual de gates, lock e próximas ações
   ./jarvis claude-mission         gera mission pack pronto para Claude Code
   ./jarvis claude-mission-latest  imprime a missão Claude mais recente
+  ./jarvis operator-workbench     mostra workbench humano do operador (geral/--jarvis-core/--project)
+  ./jarvis workbench              alias de operator-workbench
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2818,6 +2825,10 @@ def main():
         claude_mission_command(sys.argv[2:])
     elif cmd == "claude-mission-latest":
         claude_mission_latest_command()
+    elif cmd == "operator-workbench":
+        operator_workbench_command(sys.argv[2:])
+    elif cmd == "workbench":
+        operator_workbench_command(sys.argv[2:])
     elif cmd == "report-policy":
         report_policy_command()
     elif cmd == "storage-health":

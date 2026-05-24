@@ -22,6 +22,10 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis claude-mission --jarvis-core --type audit "tarefa"`
 - `./jarvis claude-mission --project ALIAS --type audit "tarefa"`
 - `./jarvis claude-mission-latest`
+- `./jarvis operator-workbench`
+- `./jarvis operator-workbench --jarvis-core`
+- `./jarvis operator-workbench --project ALIAS`
+- `./jarvis workbench` (alias de operator-workbench)
 - `./jarvis execution-modes`
 - `./jarvis report`
 - `./jarvis summary`
@@ -334,3 +338,17 @@ Status real: leitura local. Não instala, não configura, não conecta API, não
 `./jarvis run-safe --project oficina "tarefa"` orquestra project-resolve, next-step, local-exec-session e handoff.
 
 Status real: preparação local guiada. Não aplica patch, não roda build/test real como decisão final, não faz commit/push/PR e não faz deploy.
+
+## Operator Workbench
+
+`./jarvis operator-workbench` mostra o painel humano do operador local. Resume status do Git, gates recentes, última Claude mission, último project lock, action menu numerado, comandos exatos, quando usar/não usar Claude, bloqueios e travas.
+
+Modos:
+- `./jarvis operator-workbench`           geral
+- `./jarvis operator-workbench --jarvis-core`  modo repositório JARVIS
+- `./jarvis operator-workbench --project ALIAS` modo projeto travado
+- `./jarvis workbench`                    alias de operator-workbench
+
+Saída local em `07_RELATORIOS/02_TECNICOS/ULTIMO_OPERATOR_WORKBENCH.md` (gitignored). Com `JARVIS_NO_REPORT=1` o relatório não é escrito.
+
+Status real: leitura local. Workbench não executa gates, não edita projeto, não commita, não faz push, não faz deploy e não toca VPS/n8n/produção.
