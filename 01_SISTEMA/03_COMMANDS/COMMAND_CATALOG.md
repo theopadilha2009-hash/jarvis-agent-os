@@ -815,3 +815,93 @@ Storage runtime gitignored Sprint 6:
 
 Status real: comandos Sprint 6 são todos local-only; sem Claude, sem API
 paga, sem deploy, sem push, sem alterar produção.
+
+## Agent OS — Sprint 7 (release candidate, golden paths, daily dashboard, first-run check, acceptance)
+
+Sprint 7 é a passada final de usabilidade antes de declarar release.
+Faz uma escolha clara: nenhum novo comportamento perigoso, apenas três
+coisas que estavam faltando:
+
+- **um lugar pra olhar de manhã** (`./jarvis daily`)
+- **um manual pra cada fluxo comum** (`./jarvis recipe-*`)
+- **um snapshot pra dizer "ok, pronto"** (`./jarvis rc-status` /
+  `./jarvis rc-freeze`)
+
+### `./jarvis daily`
+
+Dashboard de uma tela: data/branch/tree, doctor-agent quick result,
+sessão ativa, próximo comando, gates, top task, último run, comandos
+úteis. Não roda smoke pesado. Não edita nada. Se a árvore estiver suja,
+imprime aviso.
+
+### `./jarvis first-run-check [--full]`
+
+Verifica ambiente local (python3, git, pbcopy, claude, code), branch
+não-main, registries parseiam, runtime dirs existem, gitignore protege
+runtime, segredos não estão tracked, secret-scan passa. `--full` roda
+também `doctor-agent --full`. Para usar quando Theo abre Mac novo /
+terminal novo.
+
+### Golden paths (`./jarvis recipe-list` / `recipe-show NAME` / `recipe-run NAME ...`)
+
+Seis receitas determinísticas (cada uma é uma sequência de sub-comandos
+seguros existentes):
+
+| name             | propósito                                            | requer                   |
+| ---------------- | ---------------------------------------------------- | ------------------------ |
+| `n8n-workflow`   | plano + blueprint local de workflow n8n              | `--goal` (opcional)      |
+| `project-fix`    | preparar missão Claude para bug/feature              | `--project`, `--goal`    |
+| `self-evolve`    | evoluir o próprio JARVIS                             | `--goal`                 |
+| `no-claude-plan` | continuar sem Claude (pacote offline + task)         | `--goal`                 |
+| `resume-stuck`   | retomar após interrupção / sessão presa              | —                        |
+| `handoff`        | preparar handoff textual (ChatGPT, time, etc.)       | —                        |
+
+`recipe-run NAME --dry-run` (default) imprime os passos. `--live` (ou
+`--apply`) delega para os sub-comandos um a um. Receitas nunca executam
+Claude, nunca chamam API, nunca editam projeto-alvo.
+
+### `./jarvis rc-status` / `rc-freeze`
+
+**rc-status**: imprime readiness (READY / READY WITH WARNINGS / NOT
+READY) a partir de tree limpa, command-audit, doctor-agent, gate latest.
+**rc-freeze --dry-run** (default) preview. **rc-freeze --apply** grava
+snapshot textual em `05_EXECUCAO/41_RELEASE_CANDIDATES/<ts>_jarvis_rc.md`
+(gitignored). Nunca cria git tag, nunca faz push, nunca dispara upload.
+Bloqueia se NOT READY. Avisa se sem gate-run; `--skip-gates` força.
+
+### `./jarvis acceptance --dry-run|--full`
+
+Cenários locais: now, cheatsheet, no-claude n8n, project-intel
+(jarvis-core + oficina-opcional), report-check good/bad, gate-status,
+recipe-list, rc-status, state-status, handoff-self, daily,
+first-run-check. `--full` adiciona `gate-run` completo. Termina em
+`ACCEPTANCE PASSOU` ou `ACCEPTANCE COM PENDÊNCIAS`. Sem Claude. Sem API.
+
+### Referência rápida (para command-audit)
+
+```
+./jarvis daily
+./jarvis first-run-check
+./jarvis first-run-check --full
+./jarvis recipe-list
+./jarvis recipe-show n8n-workflow
+./jarvis recipe-show project-fix
+./jarvis recipe-run n8n-workflow --goal "agendamento whatsapp" --dry-run
+./jarvis recipe-run project-fix --project oficina --goal "bug agenda" --dry-run
+./jarvis recipe-run self-evolve --goal "reduzir comandos manuais" --dry-run
+./jarvis recipe-run no-claude-plan --goal "criar app simples" --dry-run
+./jarvis rc-status
+./jarvis rc-freeze --dry-run
+./jarvis rc-freeze --apply
+./jarvis acceptance --dry-run
+./jarvis acceptance --full
+```
+
+Storage runtime gitignored Sprint 7:
+- `05_EXECUCAO/41_RELEASE_CANDIDATES/**` (só `.gitkeep` versionado)
+
+(Nota: `40_BLUEPRINTS` já estava em uso desde o Sprint 2; por isso o RC
+usa `41_RELEASE_CANDIDATES`.)
+
+Status real: comandos Sprint 7 são todos local-only; sem Claude, sem
+API paga, sem deploy, sem push, sem alterar produção.

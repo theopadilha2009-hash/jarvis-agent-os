@@ -257,5 +257,41 @@ Runtime gitignored adicional Sprint 6:
 - `05_EXECUCAO/38_NO_CLAUDE/**` (só `.gitkeep`)
 - `05_EXECUCAO/39_HANDOFFS/**` (só `.gitkeep`)
 
+### Sprint 7 — release candidate + golden paths + daily dashboard
+
+JARVIS chega ao RC. Sprint 7 não adiciona comportamento novo perigoso —
+adiciona orientação:
+
+```
+./jarvis daily                              # uma tela de manhã
+./jarvis first-run-check [--full]           # ambiente local OK?
+./jarvis recipe-list                        # golden paths
+./jarvis recipe-show NAME                   # ver passos da receita
+./jarvis recipe-run NAME [--project A] [--goal "..."] [--dry-run|--live]
+./jarvis rc-status                          # readiness do release candidate
+./jarvis rc-freeze --dry-run|--apply        # snapshot RC textual local
+./jarvis acceptance --dry-run|--full        # cenários de aceitação
+```
+
+Receitas (todas dry-run por padrão; live delega para sub-comandos
+seguros):
+- `n8n-workflow` (opcional `--goal`)
+- `project-fix` (requer `--project`, `--goal`)
+- `self-evolve` (requer `--goal`)
+- `no-claude-plan` (requer `--goal`)
+- `resume-stuck`
+- `handoff`
+
+Regras Sprint 7:
+- `rc-freeze` NUNCA cria git tag, push ou upload.
+- `recipe-run --live` NUNCA executa Claude, NUNCA edita projeto-alvo.
+- `daily` / `rc-status` / `acceptance --dry-run` são read-only.
+- `acceptance --full` roda `gate-run` (safety+smoke+doctrine) — local.
+- `first-run-check` checa ambiente; ausência de `claude`/`code` CLI é
+  aviso (JARVIS não executa Claude de qualquer jeito).
+
+Runtime gitignored adicional Sprint 7:
+- `05_EXECUCAO/41_RELEASE_CANDIDATES/**` (só `.gitkeep`)
+
 ## Producão
 Nada alterado por este arquivo.

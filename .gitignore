@@ -75,3 +75,7 @@ __pycache__/
 # Sprint 6 — handoff snapshots (handoff-self --save).
 05_EXECUCAO/39_HANDOFFS/**
 !05_EXECUCAO/39_HANDOFFS/.gitkeep
+
+# Sprint 7 — release candidate snapshots (rc-freeze --apply).
+05_EXECUCAO/41_RELEASE_CANDIDATES/**
+!05_EXECUCAO/41_RELEASE_CANDIDATES/.gitkeep

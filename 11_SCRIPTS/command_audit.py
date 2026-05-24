@@ -113,6 +113,14 @@ CRITICAL_COMMANDS = [
     "finish",
     "gates",
     "health",
+    "daily",
+    "first-run-check",
+    "recipe-list",
+    "recipe-show",
+    "recipe-run",
+    "rc-status",
+    "rc-freeze",
+    "acceptance",
 ]
 
 def run(cmd):

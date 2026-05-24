@@ -2899,6 +2899,38 @@ def handoff_self_command(args=None):
     """./jarvis handoff-self [--save] — snapshot textual do JARVIS para handoff."""
     _run_py_propagate("11_SCRIPTS/handoff_self.py", args)
 
+def daily_command(args=None):
+    """./jarvis daily — dashboard de uma tela (health/work/gates/next)."""
+    _run_py_propagate("11_SCRIPTS/daily_dashboard.py", args)
+
+def first_run_check_command(args=None):
+    """./jarvis first-run-check [--full] — verifica ambiente local."""
+    _run_py_propagate("11_SCRIPTS/first_run_check.py", args)
+
+def recipe_list_command(args=None):
+    """./jarvis recipe-list — lista golden paths."""
+    _run_py_propagate("11_SCRIPTS/recipes.py", ["list", *(args or [])])
+
+def recipe_show_command(args=None):
+    """./jarvis recipe-show NAME — imprime passos da receita."""
+    _run_py_propagate("11_SCRIPTS/recipes.py", ["show", *(args or [])])
+
+def recipe_run_command(args=None):
+    """./jarvis recipe-run NAME [--project A] [--goal "..."] [--dry-run|--live]"""
+    _run_py_propagate("11_SCRIPTS/recipes.py", ["run", *(args or [])])
+
+def rc_status_command(args=None):
+    """./jarvis rc-status — readiness do release candidate."""
+    _run_py_propagate("11_SCRIPTS/release_candidate.py", ["status", *(args or [])])
+
+def rc_freeze_command(args=None):
+    """./jarvis rc-freeze --dry-run|--apply [--skip-gates] — snapshot RC."""
+    _run_py_propagate("11_SCRIPTS/release_candidate.py", ["freeze", *(args or [])])
+
+def acceptance_command(args=None):
+    """./jarvis acceptance --dry-run|--full — cenários locais sem Claude."""
+    _run_py_propagate("11_SCRIPTS/acceptance.py", args)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -3152,6 +3184,14 @@ def help_msg():
   ./jarvis no-claude "pedido"     modo offline: plano manual + comandos seguros
   ./jarvis cheatsheet             uma tela com atalhos essenciais
   ./jarvis handoff-self [--save]  snapshot textual do JARVIS (para ChatGPT/handoff)
+  ./jarvis daily                  dashboard de uma tela (health/work/gates/next)
+  ./jarvis first-run-check [--full]  verifica ambiente local (python/git/claude/code/gitignore)
+  ./jarvis recipe-list            lista golden paths (n8n-workflow/project-fix/self-evolve/...)
+  ./jarvis recipe-show NAME       imprime passos da receita
+  ./jarvis recipe-run NAME [--project A] [--goal "..."] [--dry-run|--live]   roda golden path
+  ./jarvis rc-status              readiness do release candidate
+  ./jarvis rc-freeze --dry-run    snapshot RC em 41_RELEASE_CANDIDATES/ (default dry-run)
+  ./jarvis acceptance --dry-run   cenários locais sem Claude (--full inclui gate-run)
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -3331,6 +3371,22 @@ def main():
         cheatsheet_command(sys.argv[2:])
     elif cmd == "handoff-self":
         handoff_self_command(sys.argv[2:])
+    elif cmd == "daily":
+        daily_command(sys.argv[2:])
+    elif cmd == "first-run-check":
+        first_run_check_command(sys.argv[2:])
+    elif cmd == "recipe-list":
+        recipe_list_command(sys.argv[2:])
+    elif cmd == "recipe-show":
+        recipe_show_command(sys.argv[2:])
+    elif cmd == "recipe-run":
+        recipe_run_command(sys.argv[2:])
+    elif cmd == "rc-status":
+        rc_status_command(sys.argv[2:])
+    elif cmd == "rc-freeze":
+        rc_freeze_command(sys.argv[2:])
+    elif cmd == "acceptance":
+        acceptance_command(sys.argv[2:])
     elif cmd == "now":
         resume_command(sys.argv[2:])
     elif cmd == "start":

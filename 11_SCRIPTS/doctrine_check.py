@@ -94,6 +94,14 @@ HELP_REQUIRED_COMMANDS = [
     "finish",
     "gates",
     "health",
+    "daily",
+    "first-run-check",
+    "recipe-list",
+    "recipe-show",
+    "recipe-run",
+    "rc-status",
+    "rc-freeze",
+    "acceptance",
 ]
 MISSION_HARD_RULE_SIGNALS = [
     "Não fazer push, PR, merge ou deploy",
