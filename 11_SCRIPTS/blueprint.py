@@ -112,25 +112,48 @@ def _request_md(btype, goal, ts):
 def _spec_n8n(goal):
     return (
         "# Spec — n8n workflow (LOCAL DRAFT)\n\n"
-        "## Status real\nApenas plano. Nada importado no n8n. Nada ativo.\n\n"
+        "## Status real\n"
+        "Apenas plano. Nada importado no n8n. Nada ativo. Sem credenciais reais.\n"
+        "JARVIS NÃO gera o JSON de workflow aqui — apenas a spec/checklist.\n\n"
         f"## Objetivo\n{goal}\n\n"
         "## Inputs\n- (descreva entrada esperada: webhook payload, scheduler, etc.)\n\n"
         "## Outputs\n- (descreva saída esperada: mensagem WhatsApp, registro DB, etc.)\n\n"
-        "## Nós sugeridos (camadas, não código real)\n"
-        "- Trigger (manual ou webhook desativado)\n"
-        "- Validate input (Function ou IF node)\n"
-        "- Enrich / lookup\n"
-        "- Side-effect node (active=false até validar)\n"
-        "- Log / persist\n\n"
-        "## Credenciais\n- placeholder only — NUNCA colar valores reais.\n\n"
-        "## Estado inicial obrigatório\n"
-        "- workflow inativo (active=false)\n"
-        "- sem webhook real\n"
-        "- sem credenciais reais\n"
-        "- import como JSON inativo\n"
-        "- rodar em modo dry/manual primeiro\n"
-        "- validar JSON.parse antes de tocar produção\n\n"
-        "## Riscos\n- enviar mensagem em produção sem ack humano = bloqueado.\n"
+        "## Camadas / nós recomendados (em ordem, todos inativos até validar)\n"
+        "1. **Manual Trigger** — sempre primeiro (dispara só via Theo)\n"
+        "2. **Webhook TEST only** — webhook desativado, modo *Test*; sem path em produção\n"
+        "3. **Normalize Input** — Function/Code node padronizando schema do payload\n"
+        "4. **Instance Guard** — checa que estamos no host esperado (não rodar em prod por engano)\n"
+        "5. **Anti-loop** — guarda contra reentrada (correlation_id / visited set)\n"
+        "6. **Dedupe** — chave + janela; descarta payload duplicado\n"
+        "7. **Runtime Config** — node que lê config inerte (sem secrets reais)\n"
+        "8. **Classifier** — IF/Switch para decidir branch lógica\n"
+        "9. **Agent/LLM placeholder** — node desativado; sem chave de API real\n"
+        "10. **Parser/Guardrail** — valida JSON, recusa output inseguro\n"
+        "11. **Send Mock** — envia para sandbox/log, NUNCA para usuário final\n"
+        "12. **Logs** — append em tabela/arquivo local; sem PII em texto claro\n"
+        "13. **Error path** — explícito; sem `Continue On Fail = true` cego\n\n"
+        "## Estado real (níveis até produção — só sobe um por vez)\n"
+        "1. `drafted` — spec escrita; nada no n8n ainda\n"
+        "2. `generated` — JSON gerado em arquivo local; nada importado\n"
+        "3. `JSON valid` — passa `python -c 'import json; json.load(...)'`\n"
+        "4. `imported inactive` — importado no n8n com `active=false`\n"
+        "5. `dry-run tested` — Manual Trigger + payload mock; logs corretos\n"
+        "6. `real webhook tested` — Webhook TEST only, em sandbox\n"
+        "7. `production approved` — Theo deu OK explícito por escrito\n\n"
+        "## DO NOT (regra forte)\n"
+        "- NÃO ativar o workflow (`active = true`) antes do nível 7\n"
+        "- NÃO incluir credenciais (API keys / tokens / cookies) no JSON\n"
+        "- NÃO criar webhook *Production* path\n"
+        "- NÃO ligar a um número WhatsApp / canal real até `dry-run tested`\n"
+        "- NÃO usar `Continue On Fail = true` por padrão — falha deve falhar\n"
+        "- NÃO logar payload bruto com PII em produção\n\n"
+        "## Credenciais\n"
+        "- placeholders only (`{{ $credentials.X }}`) — JARVIS NUNCA cola valor real.\n"
+        "- secrets reais ficam no UI de credenciais do n8n, criados manualmente.\n\n"
+        "## Riscos\n"
+        "- enviar mensagem em produção sem ack humano → bloqueado (regra acima).\n"
+        "- loop infinito se Anti-loop estiver ausente → exigido na camada 5.\n"
+        "- vazamento de credenciais via export → exigido placeholder na camada 7.\n"
     )
 
 
@@ -201,6 +224,15 @@ def _spec_for(btype, goal):
 
 
 def _claude_prompt(btype, goal, ts):
+    extra = ""
+    if btype == "n8n":
+        extra = (
+            "\n## Específico para n8n\n"
+            "- NÃO gere o JSON do workflow nesta iteração — só refine a spec.\n"
+            "- Marque cada camada (1-13) como presente/ausente/parcial.\n"
+            "- Declare o estado atual (drafted / generated / JSON valid / …) em 05_STATUS_REAL.md.\n"
+            "- Se for sugerir JSON depois, gerar em arquivo separado, `active=false`, sem credenciais.\n"
+        )
     return (
         f"# Claude Mission Prompt — Blueprint {btype}\n\n"
         f"## Status real\nGerado local em {ts}. Claude ainda não executou nada.\n\n"
@@ -218,6 +250,7 @@ def _claude_prompt(btype, goal, ts):
         "3. Atualizar 04_VALIDATION_CHECKLIST.md com critérios mensuráveis\n"
         "4. Atualizar 05_STATUS_REAL.md com Created/Modified/Tested/Production\n"
         "5. Retornar relatório final no formato STATUS REAL / WHAT IMPROVED / RISKS / SAFE TO COMMIT / NEXT BEST ACTION\n"
+        + extra
     )
 
 
@@ -231,10 +264,15 @@ def _checklist(btype):
     ]
     extras = {
         "n8n": [
-            "[ ] workflow gerado como JSON inativo",
-            "[ ] sem webhook ativo",
-            "[ ] sem secrets reais",
-            "[ ] testado em modo manual antes de qualquer trigger automático",
+            "[ ] camadas 1-13 presentes na spec (Manual Trigger → Error path)",
+            "[ ] estado atual declarado (drafted / generated / JSON valid / imported inactive / …)",
+            "[ ] workflow no nível ≤ `imported inactive` (active=false)",
+            "[ ] sem webhook *Production* path",
+            "[ ] sem credenciais reais no JSON (só placeholders `{{ $credentials.X }}`)",
+            "[ ] Anti-loop + Dedupe explícitos na spec",
+            "[ ] Send Mock substituível por Send Real só com OK do Theo",
+            "[ ] `Continue On Fail = true` justificado em cada node onde aparece",
+            "[ ] testado com Manual Trigger + payload mock antes de qualquer trigger automático",
         ],
         "app": [
             "[ ] repo plan validado",

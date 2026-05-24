@@ -52,6 +52,10 @@ HELP_REQUIRED_COMMANDS = [
     "agenda-add",
     "agenda",
     "blueprint",
+    "project-open",
+    "plan",
+    "limits",
+    "ask-log",
 ]
 MISSION_HARD_RULE_SIGNALS = [
     "Não fazer push, PR, merge ou deploy",

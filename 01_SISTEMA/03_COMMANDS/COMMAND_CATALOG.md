@@ -490,3 +490,56 @@ Tipos: `n8n`, `app`, `automation`, `research`.
 Sempre local — nenhum n8n real, nenhuma credencial, nenhum deploy.
 
 Status real: todo este surface é apenas roteamento e geração local — Sem API Anthropic/OpenAI, sem rede, sem produção.
+
+## Agent OS — Sprint 2 (project-open, plan, limits, ask-log)
+
+Sprint 2 adicionou a camada de **abrir projeto**, **planejar a tarefa**,
+**explicar limites do robô** e **aprender com requests não classificados**.
+Também consertou propagação de exit code dos wrappers novos: `./jarvis`
+agora falha de verdade quando o script Python recusa (ex.: `self-debrief
+--apply` em relatório fraco).
+
+### `./jarvis project-open --project ALIAS [--print-only|--copy-cd|--code]`
+Imprime o bloco seguro para abrir o projeto:
+```
+cd <PATH>
+git status --short
+git branch --show-current
+claude
+./jarvis project-cockpit --project ALIAS
+```
+Modos:
+- `--print-only` (default): só imprime.
+- `--copy-cd`: copia `cd PATH` para o clipboard (pbcopy).
+- `--code`: sugere `code PATH` se a CLI do VS Code existir (não executa).
+
+Nunca edita arquivos, nunca executa build/test, nunca roda Claude.
+`ask "abre <alias>"` roteia automaticamente para esse comando.
+
+### `./jarvis plan "pedido" [--save]`
+Gera **plano de execução local** de uma frase. Diferente de blueprint
+(que cria pacote de spec), plan responde "o que fazer JÁ sobre ISSO,
+e o que é seguro". Saída inclui intent, projeto, safety level, próximo
+comando, missão Claude sugerida, validação esperada e o que JARVIS
+**não vai** fazer. `--save` grava em `05_EXECUCAO/33_PLANS/`.
+
+### `./jarvis limits`
+Imprime a fronteira do robô em uma tela: o que JARVIS pode, o que ainda
+não faz, o que requer Claude, o que requer humano, o que é proibido.
+Substitui ter que perguntar ao ChatGPT "esse comando é seguro?".
+
+### `./jarvis ask-log`
+Mostra as últimas requests cuja intent ficou `unclear` (gravadas
+automaticamente em `05_EXECUCAO/32_ASK_LEARNING/UNCLEAR_REQUESTS.md`).
+Append-only, secret-safe (requests com aparência de segredo são
+recusadas antes de gravar). Usado para tunar os patterns em
+`11_SCRIPTS/ask_router.py` sem precisar de LLM.
+
+### Exit-code propagation
+Wrappers novos (`ask`, `go`, `capture`, `inbox`, `agenda-add`, `agenda`,
+`blueprint`, `project-open`, `plan`, `limits`, `ask-log`, `self-debrief`,
+`project-memory-update`) agora propagam o `returncode` do Python via
+`sys.exit`. Recusas (ex.: `--apply` em relatório fraco) realmente fazem
+o `./jarvis` retornar não-zero.
+
+Status real: todas essas adições são leitura/append-only locais — Sem API Anthropic/OpenAI, sem produção, sem deploy.

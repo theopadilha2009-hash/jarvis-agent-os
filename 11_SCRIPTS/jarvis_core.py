@@ -2513,10 +2513,15 @@ def project_memory_command(args=None):
     subprocess.run(["python3", "11_SCRIPTS/project_memory.py", *args], cwd=ROOT, check=False)
 
 def project_memory_update_command(args=None):
-    """./jarvis project-memory-update --project ALIAS --from-git|--from-file PATH [--dry-run|--apply]"""
+    """./jarvis project-memory-update --project ALIAS --from-git|--from-file PATH [--dry-run|--apply]
+
+    Propaga exit code para que a recusa de relatório fraco (--apply sem
+    --force-weak-report) realmente falhe `./jarvis`."""
     import subprocess
-    args = args or []
-    subprocess.run(["python3", "11_SCRIPTS/project_memory_update.py", *args], cwd=ROOT, check=False)
+    args = list(args or [])
+    result = subprocess.run(["python3", "11_SCRIPTS/project_memory_update.py", *args], cwd=ROOT)
+    if result.returncode != 0:
+        sys.exit(result.returncode)
 
 def self_cockpit_command(args=None, mode_default="cockpit"):
     """./jarvis self-status | self-cockpit | self-next — reads about JARVIS itself."""
@@ -2539,13 +2544,15 @@ def self_evolve_command(args=None):
 
 def self_debrief_command(args=None):
     """./jarvis self-debrief --from-git|--from-file PATH [--dry-run|--apply]
-       Thin wrapper around project-memory-update locked to alias jarvis-core."""
+       Thin wrapper around project-memory-update locked to alias jarvis-core.
+       Propaga exit code (recusa de relatório fraco → falha do ./jarvis)."""
     import subprocess
     args = list(args or [])
-    # If the user accidentally passed --project, respect it; otherwise force jarvis-core.
     if "--project" not in args and not any(a.startswith("--project=") for a in args):
         args = ["--project", "jarvis-core", *args]
-    subprocess.run(["python3", "11_SCRIPTS/project_memory_update.py", *args], cwd=ROOT, check=False)
+    result = subprocess.run(["python3", "11_SCRIPTS/project_memory_update.py", *args], cwd=ROOT)
+    if result.returncode != 0:
+        sys.exit(result.returncode)
 
 def claude_helper_command(sub, args=None):
     """Dispatcher for claude-copy-latest / claude-launch / claude-save-report-template."""
@@ -2558,21 +2565,33 @@ def doctrine_check_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/doctrine_check.py"], cwd=ROOT, check=False)
 
-def ask_command(args=None):
-    """./jarvis ask "pedido em linguagem natural" — router local (regex; sem LLM)."""
+def _run_py_propagate(script, args):
+    """Run a Python script and propagate its returncode through sys.exit.
+
+    Used only by NEW Agent OS wrappers (ask, go, capture, inbox, agenda,
+    blueprint, project-open, plan, limits, ask-log) and by guarded debrief
+    paths (self-debrief, project-memory-update) so a non-zero refusal in
+    Python actually fails `./jarvis`. Legacy commands keep their
+    subprocess.run(check=False) pattern to avoid regression risk."""
     import subprocess
     args = list(args or [])
-    subprocess.run(["python3", "11_SCRIPTS/ask_router.py", *args], cwd=ROOT, check=False)
+    result = subprocess.run(["python3", script, *args], cwd=ROOT)
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+
+def ask_command(args=None):
+    """./jarvis ask "pedido em linguagem natural" — router local (regex; sem LLM)."""
+    _run_py_propagate("11_SCRIPTS/ask_router.py", args)
 
 def go_command(args=None):
     """./jarvis go "pedido" — wrapper sobre ask com --copy default + launch banner.
 
     Sempre acrescenta --copy a não ser que --no-copy esteja presente, e
     imprime instruções de Claude launch / debrief depois do delegate.
+    Propaga o exit code do ask_router (após imprimir banner).
     Não executa Claude. Não toca produção."""
     import subprocess
     args = list(args or [])
-    # Default to --copy unless caller explicitly opts out.
     has_copy = "--copy" in args
     has_nocopy = "--no-copy" in args
     if not has_copy and not has_nocopy:
@@ -2593,37 +2612,44 @@ def go_command(args=None):
     print("./jarvis self-cockpit")
     print("────────────────────────────────────────────────────────────")
     print("Produção: nada alterado por JARVIS.")
-    return rc
+    if rc != 0:
+        sys.exit(rc)
 
 def capture_command(args=None):
     """./jarvis capture "texto" — inbox local append-only."""
-    import subprocess
-    args = list(args or [])
-    subprocess.run(["python3", "11_SCRIPTS/local_capture.py", "capture", *args], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/local_capture.py", ["capture", *(args or [])])
 
 def inbox_command(args=None):
     """./jarvis inbox — exibe inbox local."""
-    import subprocess
-    args = list(args or [])
-    subprocess.run(["python3", "11_SCRIPTS/local_capture.py", "inbox", *args], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/local_capture.py", ["inbox", *(args or [])])
 
 def agenda_add_command(args=None):
     """./jarvis agenda-add "texto" [--date YYYY-MM-DD] — agenda local."""
-    import subprocess
-    args = list(args or [])
-    subprocess.run(["python3", "11_SCRIPTS/local_capture.py", "agenda-add", *args], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/local_capture.py", ["agenda-add", *(args or [])])
 
 def agenda_command(args=None):
     """./jarvis agenda — exibe agenda local."""
-    import subprocess
-    args = list(args or [])
-    subprocess.run(["python3", "11_SCRIPTS/local_capture.py", "agenda", *args], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/local_capture.py", ["agenda", *(args or [])])
 
 def blueprint_command(args=None):
     """./jarvis blueprint --type <n8n|app|automation|research> --goal "..." [--dry-run]"""
-    import subprocess
-    args = list(args or [])
-    subprocess.run(["python3", "11_SCRIPTS/blueprint.py", *args], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/blueprint.py", args)
+
+def project_open_command(args=None):
+    """./jarvis project-open --project ALIAS [--print-only|--copy-cd|--code]"""
+    _run_py_propagate("11_SCRIPTS/project_open.py", args)
+
+def plan_request_command(args=None):
+    """./jarvis plan "pedido" [--save] — gera plano de execução local."""
+    _run_py_propagate("11_SCRIPTS/plan_request.py", args)
+
+def limits_command(args=None):
+    """./jarvis limits — explica fronteira do robô (o que pode/não pode/precisa Claude)."""
+    _run_py_propagate("11_SCRIPTS/limits.py", args)
+
+def ask_log_command(args=None):
+    """./jarvis ask-log — exibe pedidos cujo intent ficou unclear (para pattern tuning)."""
+    _run_py_propagate("11_SCRIPTS/ask_router.py", ["--log", *(args or [])])
 
 def report_policy_command():
     import subprocess
@@ -2835,6 +2861,10 @@ def help_msg():
   ./jarvis agenda-add "tarefa"    anexa item à agenda local (05_EXECUCAO/31_AGENDA)
   ./jarvis agenda                 exibe agenda local
   ./jarvis blueprint --type T --goal "..."  blueprint local (n8n|app|automation|research)
+  ./jarvis project-open --project A [--print-only|--copy-cd|--code]  abre projeto local com segurança
+  ./jarvis plan "pedido" [--save]  gera plano de execução local (intent+safety+next+missão+validation)
+  ./jarvis limits                 imprime fronteira do robô (pode/não pode/precisa Claude)
+  ./jarvis ask-log                exibe pedidos cujo intent ficou unclear (pattern tuning)
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2940,6 +2970,14 @@ def main():
         agenda_command(sys.argv[2:])
     elif cmd == "blueprint":
         blueprint_command(sys.argv[2:])
+    elif cmd == "project-open":
+        project_open_command(sys.argv[2:])
+    elif cmd == "plan":
+        plan_request_command(sys.argv[2:])
+    elif cmd == "limits":
+        limits_command(sys.argv[2:])
+    elif cmd == "ask-log":
+        ask_log_command(sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":

@@ -145,7 +145,16 @@ ponto onde Claude Code precisa rodar manualmente.
 ./jarvis agenda-add "tarefa"    agenda local (heurística amanhã/segunda/2026-…)
 ./jarvis agenda                 exibe agenda
 ./jarvis blueprint --type T --goal "..."   spec/prompt/checklist local
+./jarvis project-open --project A [--print-only|--copy-cd|--code]  abre projeto com segurança
+./jarvis plan "pedido" [--save]            plano de execução local (intent+safety+next+mission)
+./jarvis limits                            fronteira do robô (pode/não pode/precisa Claude)
+./jarvis ask-log                           pedidos unclear acumulados (pattern tuning)
 ```
+
+Exit code: wrappers do Agent OS propagam `sys.exit(returncode)` do
+script Python, então `./jarvis self-debrief --apply` em relatório
+fraco realmente FALHA (não-zero) — útil para scripts/CI/Theo verificar
+`$?` direto.
 
 Refusal de relatórios fracos: `project-memory-update --from-file` recusa
 gravar (`--apply`) se o arquivo for só comandos / sem seções

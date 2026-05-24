@@ -33,6 +33,22 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "01_SISTEMA" / "05_PROJECT_REGISTRY" / "PROJECT_REGISTRY.json"
+ASK_LEARNING_DIR = ROOT / "05_EXECUCAO" / "32_ASK_LEARNING"
+UNCLEAR_FILE = ASK_LEARNING_DIR / "UNCLEAR_REQUESTS.md"
+
+# Reuse SECRET_PATTERNS so we never log a secret-shaped request.
+try:
+    sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
+    from secret_scan import SECRET_PATTERNS  # type: ignore
+except Exception:
+    SECRET_PATTERNS = []
+
+
+def _looks_secret_like(text: str) -> bool:
+    for _name, pattern in SECRET_PATTERNS:
+        if pattern.search(text):
+            return True
+    return False
 
 INTENT_NEXT_ACTION = "next_action"
 INTENT_SELF_EVOLVE = "self_evolve"
@@ -74,6 +90,8 @@ def parse_args(argv):
     copy_flag = None  # tri-state: None=default, True=force, False=skip
     explain = False
     force = False
+    log_mode = False
+    no_log = False
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -103,14 +121,73 @@ def parse_args(argv):
             i += 1
             continue
         if a == "--force":
-            # reserved for go-mode override; ask-mode keeps it for symmetry
             force = True
+            i += 1
+            continue
+        if a == "--log":
+            log_mode = True
+            i += 1
+            continue
+        if a == "--no-log":
+            no_log = True
             i += 1
             continue
         text_parts.append(a)
         i += 1
     text = " ".join(text_parts).strip()
-    return text, alias, dry_run, copy_flag, explain, force
+    return text, alias, dry_run, copy_flag, explain, force, log_mode, no_log
+
+
+def _log_unclear(text: str, project: str):
+    """Append an unclear request to UNCLEAR_REQUESTS.md (secret-safe).
+
+    No-op if the request looks secret-like (token/api_key/etc). Append-only;
+    never edits past entries. This is JARVIS's way of building a pattern-tuning
+    backlog without calling an LLM."""
+    if not text.strip():
+        return
+    if _looks_secret_like(text):
+        return
+    ASK_LEARNING_DIR.mkdir(parents=True, exist_ok=True)
+    if not UNCLEAR_FILE.exists():
+        UNCLEAR_FILE.write_text(
+            "# JARVIS — unclear ask requests (append-only)\n"
+            "\n"
+            "Cada linha = request que `ask_router.detect_intent` não classificou.\n"
+            "Use para tunar os patterns em `INTENT_PATTERNS` (ask_router.py).\n"
+            "Sem segredos: requests secret-shaped são recusados antes de gravar.\n"
+            "\n",
+            encoding="utf-8",
+        )
+    ts = datetime.now().isoformat(timespec="seconds")
+    line = f"- [{ts}] project={project or '(?)'} request={text!r}  # needs pattern tuning"
+    with UNCLEAR_FILE.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
+def _show_unclear_log():
+    """Read UNCLEAR_REQUESTS.md and print the last entries."""
+    print("JARVIS — Ask Log (unclear requests)")
+    print("Status real: leitura local. Nada foi editado.")
+    print("")
+    if not UNCLEAR_FILE.exists():
+        print(f"(arquivo ausente — nada ainda classificado como unclear)")
+        print(f"alvo: {UNCLEAR_FILE.relative_to(ROOT)}")
+        print("Produção: nada alterado.")
+        return
+    body = UNCLEAR_FILE.read_text(encoding="utf-8", errors="ignore")
+    items = [l for l in body.splitlines() if l.startswith("- [")]
+    print(f"arquivo: {UNCLEAR_FILE.relative_to(ROOT)} ({len(body)} bytes)")
+    print(f"unclear acumulados: {len(items)}")
+    print("")
+    for line in items[-30:]:
+        print(line)
+    if len(items) > 30:
+        print(f"... (+{len(items) - 30} entradas anteriores)")
+    print("")
+    print("Próximo passo de manutenção:")
+    print("  - leia as entradas e ajuste INTENT_PATTERNS em 11_SCRIPTS/ask_router.py")
+    print("Produção: nada alterado.")
 
 
 # ── intent detection ──────────────────────────────────────────────────────────
@@ -320,8 +397,8 @@ def _next_command_for(intent: str, project: str, text: str, copy_flag):
     if intent == INTENT_OPEN_PROJECT:
         proj = project or "<ALIAS>"
         return (
-            ["./jarvis", "project-cockpit", "--project", proj],
-            f"./jarvis project-cockpit --project {proj}",
+            ["./jarvis", "project-open", "--project", proj, "--print-only"],
+            f"./jarvis project-open --project {proj} --print-only",
             SAFETY_READONLY,
             bool(project),
         )
@@ -412,7 +489,11 @@ def _delegate(cmd_list):
 
 def main(argv=None):
     argv = list(argv if argv is not None else sys.argv[1:])
-    text, alias_override, dry_run, copy_flag, explain, force = parse_args(argv)
+    text, alias_override, dry_run, copy_flag, explain, force, log_mode, no_log = parse_args(argv)
+
+    if log_mode and not text:
+        _show_unclear_log()
+        return
 
     if not text:
         _print_header("")
@@ -423,6 +504,12 @@ def main(argv=None):
     intent = detect_intent(text)
     project = detect_project_alias(text, alias_override)
     cmd_list, cmd_str, safety, dry_run_safe = _next_command_for(intent, project, text, copy_flag)
+
+    # If the classifier punted to UNCLEAR, log the request so future pattern
+    # tuning has real data to work from. Secret-shaped requests are skipped.
+    # `--no-log` lets smoke/CI exercise the unclear path without growing the log.
+    if intent == INTENT_UNCLEAR and not no_log:
+        _log_unclear(text, project)
 
     _print_header(text)
     _print_interpretation(intent, project, safety, cmd_str, explain)

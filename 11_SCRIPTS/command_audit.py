@@ -71,6 +71,10 @@ CRITICAL_COMMANDS = [
     "agenda-add",
     "agenda",
     "blueprint",
+    "project-open",
+    "plan",
+    "limits",
+    "ask-log",
 ]
 
 def run(cmd):
