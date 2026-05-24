@@ -55,6 +55,14 @@ CRITICAL_COMMANDS = [
     "mission-open-latest",
     "project-memory",
     "project-memory-update",
+    "self-status",
+    "self-cockpit",
+    "self-next",
+    "self-evolve",
+    "self-debrief",
+    "claude-copy-latest",
+    "claude-launch",
+    "claude-save-report-template",
 ]
 
 def run(cmd):

@@ -21,7 +21,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "05_EXECUCAO" / "21_CLAUDE_MISSIONS"
 REGISTRY = ROOT / "01_SISTEMA" / "05_PROJECT_REGISTRY" / "PROJECT_REGISTRY.json"
-VALID_MODES = ("qa-sprint", "goal-sprint", "browser-qa", "final-gate")
+VALID_MODES = ("qa-sprint", "goal-sprint", "browser-qa", "final-gate", "self-evolve")
 
 USAGE = (
     "Uso:\n"
@@ -29,6 +29,7 @@ USAGE = (
     '  ./jarvis goal-sprint --project <alias> --goal "objetivo"\n'
     "  ./jarvis browser-qa --project <alias>\n"
     "  ./jarvis final-gate --project <alias>\n"
+    '  ./jarvis self-evolve --goal "objetivo" [--copy]   (alias jarvis-core)\n'
 )
 
 HARD_RULES = [
@@ -56,6 +57,7 @@ def parse_args(argv):
     mode = None
     alias = None
     goal_parts = []
+    copy_flag = False
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -89,10 +91,14 @@ def parse_args(argv):
             goal_parts.append(a.split("=", 1)[1])
             i += 1
             continue
+        if a == "--copy":
+            copy_flag = True
+            i += 1
+            continue
         # leftover positional → join as goal text
         goal_parts.append(a)
         i += 1
-    return mode, alias, " ".join(goal_parts).strip()
+    return mode, alias, " ".join(goal_parts).strip(), copy_flag
 
 
 def load_project(alias):
@@ -394,11 +400,158 @@ def build_final_gate(project, tooling, goal):
     return "\n".join(lines) + "\n"
 
 
+def build_self_evolve(project, tooling, goal):
+    """Mission to evolve JARVIS itself (project=jarvis-core).
+    Forces the doctrine, sections 1..12, and the local Claude Code workflow."""
+    if not goal:
+        goal = "(definir objetivo antes — Theo precisa declarar o que evoluir)"
+    path = project.get("path", "")
+    branch = project.get("branch", "unknown")
+    lines = [
+        "# Claude Mission Prompt — JARVIS SELF-EVOLVE",
+        "",
+        f"## Scope\nJARVIS local lab ({path})",
+        "",
+        "## Mode\nself-evolve",
+        "",
+        f"## Goal\n{goal}",
+        "",
+        "## Branch registrada",
+        f"- {branch}",
+        "",
+        "## 1. MISSION",
+        "Evoluir o próprio JARVIS — o repositório que gera missões Claude — para",
+        "reduzir trabalho manual de Theo de forma segura e auditável.",
+        "Trabalhar apenas dentro deste repo. Não tocar projetos-alvo.",
+        "",
+        "## 2. CURRENT STATE",
+        "- Sprint 1: per-project doctor/qa-sprint/goal-sprint/browser-qa/final-gate.",
+        "- Sprint 2: cockpit diário + mission-open-latest + gitignore de packs.",
+        "- Sprint 3: project-memory + project-memory-update + parser regex de relatórios.",
+        f"- Branch atual: {branch}",
+        "- Gates esperados verdes: safety-gate, smoke-test, command-audit.",
+        "- Tree esperada limpa antes da edição.",
+        "",
+        "## 3. TRUE NORTH",
+        "JARVIS é a HARNESS de Claude Code: prepara, copia, organiza, lembra,",
+        "valida, e sugere próximo passo. NÃO é executor de Claude. NÃO chama API.",
+        "Reduz dependência de ChatGPT para escrever prompts.",
+        "Status real sempre. Branch safe sempre. Production never.",
+        "",
+        "## 4. HARD RULES",
+        *[f"- {r}" for r in HARD_RULES],
+        "- Não usar APIs pagas (Anthropic/OpenAI). Stdlib only.",
+        "- Não criar TUI/dashboard.",
+        "- Não rodar Claude em background. Não fingir autonomia.",
+        "- Não deletar comandos existentes.",
+        "- Não usar `git add .` — sempre paths explícitos.",
+        "- Não editar main/master. Se branch=main, PARE.",
+        "",
+        "## 5. WHAT TO INSPECT (read-only primeiro)",
+        "- 11_SCRIPTS/jarvis_core.py — dispatcher + help",
+        "- 11_SCRIPTS/project_mission_pack.py — gerador de missions",
+        "- 11_SCRIPTS/project_memory*.py — loop de memória",
+        "- 11_SCRIPTS/self_cockpit.py — entry point self-*",
+        "- 11_SCRIPTS/claude_helpers.py — workflow Claude Code local",
+        "- 11_SCRIPTS/command_audit.py — drift detector",
+        "- 11_SCRIPTS/cli_smoke_test.py — CHECKS list",
+        "- AGENTS.md — contrato com agentes",
+        "- 01_SISTEMA/03_COMMANDS/COMMAND_CATALOG.md",
+        "- 04_PROJETOS/JARVIS_CORE/PROJECT_STATUS.md — memória atual",
+        "",
+        "## 6. WHAT TO IMPROVE",
+        "Foco no objetivo declarado em ## Goal. Iterar em patches pequenos:",
+        "- inspecionar → escolher próximo patch mais alto valor / menor risco",
+        "- aplicar (≤ 2 arquivos por iteração)",
+        "- validar (bash -n + py_compile + command-audit + smoke + safety-gate)",
+        "- decidir continuar ou parar",
+        "Marcar critérios de Definition of Done mensuráveis.",
+        "",
+        "## 7. WHAT NOT TO BUILD",
+        "- Web dashboard / TUI rich-textual.",
+        "- Auto-execute Claude em background.",
+        "- Integração com API paga.",
+        "- Multi-agent orquestrador.",
+        "- Refactor grande de scripts existentes (operator_workbench, run_safe).",
+        "- Deduplicar 20+ pastas em 05_EXECUCAO/ (não é o gargalo).",
+        "- Auto-detectar framework no doctor (Sprint 5+).",
+        "Se cair na tentação de algo acima → PARE e proponha sem aplicar.",
+        "",
+        "## 8. IMPLEMENTATION PHASES",
+        "1. Preflight (pwd, git status, branch, safety-gate, smoke).",
+        "2. Inspect arquivos listados em ## 5.",
+        "3. Decidir 1 patch + critérios de aceite.",
+        "4. Aplicar patch (paths explícitos, sem git add .).",
+        "5. Validar (typecheck/audit/smoke/safety).",
+        "6. Commit local SE tudo verde — usar `git add <paths>`.",
+        "7. Self-audit: reduziu trabalho manual? overengineering? gates verdes?",
+        "8. Se houver outro patch de valor alto E baixo risco, repetir 3-7.",
+        "9. Senão, parar e reportar.",
+        "",
+        "## 9. VALIDATION COMMANDS",
+        "```",
+        "bash -n ./jarvis",
+        "python3 -m py_compile <arquivo alterado>",
+        "./jarvis help",
+        "./jarvis command-audit",
+        "env JARVIS_NO_REPORT=1 ./jarvis smoke-test",
+        "env JARVIS_NO_REPORT=1 ./jarvis safety-gate",
+        "./jarvis self-cockpit",
+        "git diff --stat",
+        "git diff --check",
+        "git status --short",
+        "```",
+        "",
+        "## 10. COMMIT RULES",
+        "- 1 commit por checkpoint validado.",
+        "- `git add <paths explícitos>` (nunca `git add .`).",
+        "- Mensagem padrão: `feat(jarvis): <verbo curto>` ou `fix(jarvis): ...`.",
+        "- HEREDOC para multi-line.",
+        "- Pre-commit hook deve passar (Python syntax + secret-block).",
+        "- Sem push, PR, merge, deploy.",
+        "",
+        "## 11. SELF-AUDIT (perguntas obrigatórias antes de parar)",
+        "- Reduziu trabalho manual real do Theo?",
+        "- JARVIS está mais autônomo OU é autonomia fake?",
+        "- Status real preservado em toda saída?",
+        "- Comandos existentes ainda funcionam (command-audit OK)?",
+        "- smoke-test e safety-gate verdes pós-commit?",
+        "- Algum overengineering oculto introduzido?",
+        "- Dependências adicionadas? (espera-se: NÃO).",
+        "- Production touched? (espera-se: NÃO).",
+        "",
+        "## 12. RETURN FORMAT",
+        "1. STATUS REAL (Created/Modified/Tested/Committed/Not validated/Production)",
+        "2. WHAT IMPROVED",
+        "3. COMMANDS ADDED/CHANGED",
+        "4. NEW DAILY LOOP (se mudou)",
+        "5. VALIDATION RESULTS (cada comando PASS/FAIL com números)",
+        "6. COMMITS CREATED (hash + msg)",
+        "7. FILES CHANGED (lista exata)",
+        "8. RISKS / LIMITS (honesto)",
+        "9. WHAT NOT TO BUILD NEXT",
+        "10. NEXT BEST ACTION (1 comando exato)",
+        "11. SAFE TO STOP? (yes/no)",
+        "",
+        *_tooling_block(tooling, project["path"]),
+        "",
+        "## Doctrine (não negociável)",
+        "- Status real always · Branch safe always · Read before edit",
+        "- No secrets in chat/Git/docs/logs · Production after controlled validation",
+        "- IA decide subjetivo; harness controla regras/estado/logs/validação/memória",
+        "- Tools radar ≠ permissão para instalar tudo",
+        "- created ≠ imported ≠ configured ≠ tested ≠ validated ≠ production",
+        "- Workflow pro = responde + loga + monitora + pausa + transfere + recupera + documenta",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 PROMPT_BUILDERS = {
     "qa-sprint": build_qa_sprint,
     "goal-sprint": build_goal_sprint,
     "browser-qa": build_browser_qa,
     "final-gate": build_final_gate,
+    "self-evolve": build_self_evolve,
 }
 
 
@@ -468,6 +621,17 @@ def build_checklist(mode):
             "- exigir typecheck PASS",
             "- exigir test suite PASS com números",
             "- reportar safe/not-safe — JAMAIS executar push/PR/deploy",
+        ],
+        "self-evolve": [
+            "- bash -n ./jarvis (sintaxe entrypoint)",
+            "- python3 -m py_compile em cada script alterado",
+            "- ./jarvis command-audit (drift core/help/catalog/smoke)",
+            "- env JARVIS_NO_REPORT=1 ./jarvis smoke-test",
+            "- env JARVIS_NO_REPORT=1 ./jarvis safety-gate",
+            "- ./jarvis self-cockpit (verificar saída clara)",
+            "- git diff --check (sem whitespace bugs)",
+            "- git add <paths explícitos> antes do commit (NUNCA `git add .`)",
+            "- sem push/PR/merge/deploy",
         ],
     }
     lines = [
@@ -540,6 +704,19 @@ def build_return_format(mode):
             "7. SAFE TO DEPLOY?",
             "8. NEXT EXACT ACTION",
         ],
+        "self-evolve": [
+            "1. STATUS REAL (Created/Modified/Tested/Committed/Not validated/Production)",
+            "2. WHAT IMPROVED",
+            "3. COMMANDS ADDED/CHANGED",
+            "4. NEW DAILY LOOP (se mudou)",
+            "5. VALIDATION RESULTS (PASS/FAIL com números)",
+            "6. COMMITS CREATED (hash + msg)",
+            "7. FILES CHANGED (lista exata)",
+            "8. RISKS / LIMITS",
+            "9. WHAT NOT TO BUILD NEXT",
+            "10. NEXT BEST ACTION",
+            "11. SAFE TO STOP?",
+        ],
     }
     base += sections.get(mode, ["(modo desconhecido)"])
     base += ["", "## Produção", "Nada alterado."]
@@ -548,7 +725,10 @@ def build_return_format(mode):
 
 def main():
     argv = sys.argv[1:]
-    mode, alias, goal = parse_args(argv)
+    mode, alias, goal, copy_flag = parse_args(argv)
+    # self-evolve always targets jarvis-core regardless of --project.
+    if mode == "self-evolve":
+        alias = "jarvis-core"
     no_report = os.environ.get("JARVIS_NO_REPORT") == "1"
 
     print("JARVIS — Theo Padilha AI Worker Mission Pack")
@@ -609,6 +789,21 @@ def main():
     print(f"Checklist: {(mission_dir / '02_VALIDATION_CHECKLIST.md').relative_to(ROOT)}")
     print(f"Return format: {(mission_dir / '03_RETURN_FORMAT.md').relative_to(ROOT)}")
     print("")
+    if copy_flag:
+        import shutil, subprocess  # local import — avoids hard dep at module load
+        if shutil.which("pbcopy"):
+            try:
+                p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+                p.communicate(input=prompt.encode("utf-8"), timeout=10)
+                if p.returncode == 0:
+                    print("clipboard: prompt copiado via pbcopy ✓")
+                else:
+                    print("clipboard: pbcopy retornou erro — copie manualmente.")
+            except Exception as exc:
+                print(f"clipboard: falhou ({exc}). Copie manualmente.")
+        else:
+            print("clipboard: pbcopy indisponível. Fallback:")
+            print(f"  cat \"{(mission_dir / '01_CLAUDE_PROMPT.md')}\" | pbcopy")
     print('Para ver depois: ./jarvis claude-mission-latest')
     print("Produção: nada alterado.")
 

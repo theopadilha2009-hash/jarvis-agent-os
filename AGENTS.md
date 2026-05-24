@@ -102,5 +102,21 @@ cat "$(./jarvis mission-open-latest)" | pbcopy  # copia prompt p/ clipboard
 ./jarvis project-memory-update --project ALIAS --from-file FILE --apply # grava debrief
 ```
 
+## Self-evolution (JARVIS usa Claude Code como motor — sem API paga)
+
+```
+./jarvis self-cockpit                                    # primeiro comando do dia
+./jarvis self-evolve --goal "..." --copy                 # gera mission + copia clipboard
+cd ~/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO
+claude                                                   # Theo abre Claude Code manualmente
+# (cole a missão; Claude executa)
+cat > /tmp/jarvis-claude-out.md                          # captura resposta final
+./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --dry-run
+./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --apply
+./jarvis self-cockpit                                    # confirma debrief gravado
+env JARVIS_NO_REPORT=1 ./jarvis safety-gate
+env JARVIS_NO_REPORT=1 ./jarvis smoke-test
+```
+
 ## Producão
 Nada alterado por este arquivo.

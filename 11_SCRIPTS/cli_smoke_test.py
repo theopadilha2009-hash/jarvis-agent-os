@@ -221,6 +221,71 @@ CHECKS = [
         ],
     },
     {
+        "name": "self-status",
+        "cmd": ["./jarvis", "self-status"],
+        "expect": [
+            "Self Status",
+            "branch:",
+            "Próximo passo seguro",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "self-cockpit",
+        "cmd": ["./jarvis", "self-cockpit"],
+        "expect": [
+            "Self Cockpit",
+            "Última missão JARVIS",
+            "Memória registrada",
+            "Gates sugeridos",
+            "Próximo passo seguro",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "self-next",
+        "cmd": ["./jarvis", "self-next"],
+        "expect": [
+            "Self Next",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "self-evolve-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "self-evolve",
+                "--goal", "test self-evolution mission preview"],
+        "expect": [
+            "Mission Pack",
+            "self-evolve",
+            "JARVIS SELF-EVOLVE",
+            "TRUE NORTH",
+            "HARD RULES",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
+        "name": "claude-launch-print-only-jarvis-core",
+        "cmd": ["./jarvis", "claude-launch", "--project", "jarvis-core", "--print-only"],
+        "expect": [
+            "Claude Launch",
+            "cd /Users",
+            "claude",
+            "cat > /tmp/jarvis-claude-out.md",
+            "self-debrief",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "claude-save-report-template-default",
+        "cmd": ["./jarvis", "claude-save-report-template"],
+        "expect": [
+            "Save-Report Template",
+            "cat > /tmp/jarvis-claude-out.md",
+            "self-debrief",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

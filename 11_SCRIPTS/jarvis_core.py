@@ -2518,6 +2518,41 @@ def project_memory_update_command(args=None):
     args = args or []
     subprocess.run(["python3", "11_SCRIPTS/project_memory_update.py", *args], cwd=ROOT, check=False)
 
+def self_cockpit_command(args=None, mode_default="cockpit"):
+    """./jarvis self-status | self-cockpit | self-next — reads about JARVIS itself."""
+    import subprocess
+    args = list(args or [])
+    if "--mode" not in args and not any(a.startswith("--mode=") for a in args):
+        args = ["--mode", mode_default, *args]
+    subprocess.run(["python3", "11_SCRIPTS/self_cockpit.py", *args], cwd=ROOT, check=False)
+
+def self_evolve_command(args=None):
+    """./jarvis self-evolve --goal "..." [--copy] — generates JARVIS self-evolution mission pack."""
+    import subprocess
+    args = list(args or [])
+    # Force project=jarvis-core (project_mission_pack also enforces, but be explicit here for clarity).
+    subprocess.run(
+        ["python3", "11_SCRIPTS/project_mission_pack.py",
+         "--mode", "self-evolve", "--project", "jarvis-core", *args],
+        cwd=ROOT, check=False,
+    )
+
+def self_debrief_command(args=None):
+    """./jarvis self-debrief --from-git|--from-file PATH [--dry-run|--apply]
+       Thin wrapper around project-memory-update locked to alias jarvis-core."""
+    import subprocess
+    args = list(args or [])
+    # If the user accidentally passed --project, respect it; otherwise force jarvis-core.
+    if "--project" not in args and not any(a.startswith("--project=") for a in args):
+        args = ["--project", "jarvis-core", *args]
+    subprocess.run(["python3", "11_SCRIPTS/project_memory_update.py", *args], cwd=ROOT, check=False)
+
+def claude_helper_command(sub, args=None):
+    """Dispatcher for claude-copy-latest / claude-launch / claude-save-report-template."""
+    import subprocess
+    args = list(args or [])
+    subprocess.run(["python3", "11_SCRIPTS/claude_helpers.py", sub, *args], cwd=ROOT, check=False)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -2712,6 +2747,14 @@ def help_msg():
   ./jarvis mission-open-latest    imprime path absoluto do prompt mais recente
   ./jarvis project-memory --project A   exibe memória do projeto (STATUS+NEXT+missão+commits)
   ./jarvis project-memory-update --project A --from-git [--apply]  gera/registra entrada de debrief
+  ./jarvis self-status            status compacto do próprio JARVIS
+  ./jarvis self-cockpit           cockpit do JARVIS (status + memória + próximo passo)
+  ./jarvis self-next              imprime apenas o próximo comando seguro
+  ./jarvis self-evolve --goal "…" [--copy]   gera missão Claude para evoluir JARVIS
+  ./jarvis self-debrief --from-git|--from-file PATH [--apply]   wrapper de project-memory-update p/ jarvis-core
+  ./jarvis claude-copy-latest [--project A]   copia o último prompt para o clipboard (pbcopy)
+  ./jarvis claude-launch --project A [--copy] [--print-only]   imprime bloco "cd PATH; claude" (não executa)
+  ./jarvis claude-save-report-template [--project A]   imprime template bash para capturar resposta do Claude
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2785,6 +2828,22 @@ def main():
         project_memory_command(sys.argv[2:])
     elif cmd == "project-memory-update":
         project_memory_update_command(sys.argv[2:])
+    elif cmd == "self-status":
+        self_cockpit_command(sys.argv[2:], mode_default="status")
+    elif cmd == "self-cockpit":
+        self_cockpit_command(sys.argv[2:], mode_default="cockpit")
+    elif cmd == "self-next":
+        self_cockpit_command(sys.argv[2:], mode_default="next")
+    elif cmd == "self-evolve":
+        self_evolve_command(sys.argv[2:])
+    elif cmd == "self-debrief":
+        self_debrief_command(sys.argv[2:])
+    elif cmd == "claude-copy-latest":
+        claude_helper_command("copy-latest", sys.argv[2:])
+    elif cmd == "claude-launch":
+        claude_helper_command("launch", sys.argv[2:])
+    elif cmd == "claude-save-report-template":
+        claude_helper_command("save-report-template", sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":

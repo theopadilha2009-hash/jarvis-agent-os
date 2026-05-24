@@ -78,6 +78,42 @@ Garantias:
 - Mission packs em `21_CLAUDE_MISSIONS/**` são gitignored — gerar missão não suja `safety-gate`.
 - Memory writes só atingem `04_PROJETOS/<ALIAS_UPPER>/PROJECT_STATUS.md` neste repo.
 
+## Self-evolution (v1.4 — JARVIS usa Claude Code como motor de execução)
+
+JARVIS agora prepara, organiza, lembra e valida missões Claude **para si mesmo**, sem API paga. Workflow oficial:
+
+- `./jarvis self-cockpit` — primeiro comando do dia. Mostra estado JARVIS + última missão + memória + próximo passo.
+- `./jarvis self-status` — versão compacta.
+- `./jarvis self-next` — só o próximo comando seguro.
+- `./jarvis self-evolve --goal "..." [--copy]` — gera **mission pack** com template SELF-EVOLVE (12 seções: MISSION/CURRENT STATE/TRUE NORTH/HARD RULES/INSPECT/IMPROVE/NOT BUILD/PHASES/VALIDATION/COMMIT/SELF-AUDIT/RETURN). `--copy` joga o prompt no clipboard via `pbcopy`.
+- `./jarvis claude-launch --project ALIAS [--copy] [--print-only]` — imprime o bloco exato `cd PATH; claude` + instrução de paste. **NÃO executa Claude**.
+- `./jarvis claude-copy-latest [--project ALIAS]` — copia o último prompt no clipboard.
+- `./jarvis claude-save-report-template [--project ALIAS]` — imprime template bash para capturar resposta do Claude em `/tmp/jarvis-claude-out.md` e alimentar de volta no debrief.
+- `./jarvis self-debrief --from-git|--from-file PATH [--dry-run|--apply]` — wrapper de `project-memory-update --project jarvis-core`. Append-only em `04_PROJETOS/JARVIS_CORE/PROJECT_STATUS.md`.
+
+### Daily loop (evoluir JARVIS sem API paga)
+
+```
+./jarvis self-cockpit
+./jarvis self-evolve --goal "..." --copy
+cd ~/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO
+claude
+# (cole a missão; Claude executa)
+cat > /tmp/jarvis-claude-out.md
+# (cole o relatório final; Ctrl+D)
+./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --dry-run
+./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --apply
+./jarvis self-cockpit
+env JARVIS_NO_REPORT=1 ./jarvis safety-gate
+env JARVIS_NO_REPORT=1 ./jarvis smoke-test
+```
+
+Garantias adicionais:
+- Sem API Anthropic/OpenAI paga.
+- JARVIS nunca executa `claude` em background.
+- JARVIS imprime sempre o comando exato; Theo decide quando rodar.
+- Mission packs continuam gitignored; gerar missão não suja gates.
+
 ### Exemplos
 
 ```
