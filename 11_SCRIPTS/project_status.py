@@ -16,6 +16,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "01_SISTEMA" / "05_PROJECT_REGISTRY" / "PROJECT_REGISTRY.json"
 MISSIONS_DIR = ROOT / "05_EXECUCAO" / "21_CLAUDE_MISSIONS"
+MEMORY_BASE = ROOT / "04_PROJETOS"
 
 USAGE = "Uso: ./jarvis project-status --project <alias>  (ou project-cockpit)"
 
@@ -199,6 +200,51 @@ def print_compact(project, alias):
     return path, branch, dirty, dirty_lines
 
 
+def alias_to_memory_dir(alias: str) -> Path:
+    exact = alias.upper().replace("-", "_")
+    direct = MEMORY_BASE / exact
+    if direct.exists():
+        return direct
+    if MEMORY_BASE.exists():
+        for child in MEMORY_BASE.iterdir():
+            if child.is_dir() and child.name.lower().startswith(exact.lower()):
+                return child
+    return direct
+
+
+def _is_blank_template(text: str) -> bool:
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or s == "-":
+            continue
+        return False
+    return True
+
+
+def summarize_memory(memory_dir: Path):
+    """Returns (status_state, status_excerpt, next_state, next_excerpt).
+    State is one of: 'missing', 'blank', 'entries', 'freeform'."""
+    status_md = memory_dir / "PROJECT_STATUS.md"
+    next_md = memory_dir / "NEXT_ACTIONS.md"
+
+    def _summarize(md: Path, max_lines: int):
+        if not md.exists():
+            return ("missing", None)
+        text = md.read_text(encoding="utf-8", errors="ignore")
+        if _is_blank_template(text):
+            return ("blank", None)
+        marker = "<!-- jarvis-memory-entry -->"
+        if marker in text:
+            chunks = text.split(marker)
+            last = next((c for c in reversed(chunks) if c.strip()), "")
+            return ("entries", "\n".join([l for l in last.splitlines() if l.strip()][:max_lines]))
+        return ("freeform", "\n".join([l for l in text.splitlines() if l.strip()][:max_lines]))
+
+    s_state, s_excerpt = _summarize(status_md, 10)
+    n_state, n_excerpt = _summarize(next_md, 8)
+    return s_state, s_excerpt, n_state, n_excerpt
+
+
 def print_full_extras(alias, project, path, branch, dirty, latest_mission_dir):
     print("")
     if latest_mission_dir is not None:
@@ -223,10 +269,42 @@ def print_full_extras(alias, project, path, branch, dirty, latest_mission_dir):
         print("## Última missão para este projeto")
         print("  (nenhuma — use ./jarvis qa-sprint/goal-sprint/etc para criar)")
 
+    # Memory block (from PROJECT_STATUS.md + NEXT_ACTIONS.md)
+    memory_dir = alias_to_memory_dir(alias)
+    s_state, s_excerpt, n_state, n_excerpt = summarize_memory(memory_dir)
+    print("")
+    print("## Estado registrado (PROJECT_STATUS.md)")
+    if s_state == "missing":
+        print(f"  (sem arquivo em {memory_dir.relative_to(ROOT) if memory_dir.exists() else memory_dir})")
+        print(f"  criar via: ./jarvis project-memory-update --project {alias} --from-git --apply")
+    elif s_state == "blank":
+        print("  (template vazio — JARVIS amnésico para este projeto)")
+        print(f"  preencher: ./jarvis project-memory-update --project {alias} --from-git --apply")
+    else:
+        for line in (s_excerpt or "").splitlines():
+            print(f"  {line}")
+
+    print("")
+    print("## Próximas ações (NEXT_ACTIONS.md — intenção humana)")
+    if n_state == "missing":
+        print("  (sem arquivo)")
+    elif n_state == "blank":
+        print("  (template vazio — escreva manualmente seu próximo passo)")
+    else:
+        for line in (n_excerpt or "").splitlines():
+            print(f"  {line}")
+
     print("")
     print("## Próximo passo seguro")
     for line in suggest_next_action(project, branch or "", dirty, latest_mission_dir):
         print(f"  {line}")
+    # Suggestion: after Claude executes a mission, update memory.
+    if latest_mission_dir is not None and s_state in ("blank", "missing"):
+        print("")
+        print("## Loop de memória")
+        print(f"  Depois que Claude rodar a missão, registre o resultado:")
+        print(f"  ./jarvis project-memory-update --project {alias} --from-git --dry-run")
+        print(f"  ./jarvis project-memory-update --project {alias} --from-git --apply")
 
 
 def main():

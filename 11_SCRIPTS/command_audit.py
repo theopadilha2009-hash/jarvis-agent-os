@@ -53,6 +53,8 @@ CRITICAL_COMMANDS = [
     "project-status",
     "project-cockpit",
     "mission-open-latest",
+    "project-memory",
+    "project-memory-update",
 ]
 
 def run(cmd):

@@ -97,6 +97,9 @@ Sem este formato, o output não pode ser considerado válido.
 ./jarvis claude-mission-latest                  # preview da última missão
 ./jarvis mission-open-latest                    # path da última missão (1 linha)
 cat "$(./jarvis mission-open-latest)" | pbcopy  # copia prompt p/ clipboard
+./jarvis project-memory --project ALIAS         # exibe memória do projeto
+./jarvis project-memory-update --project ALIAS --from-git --dry-run    # preview debrief
+./jarvis project-memory-update --project ALIAS --from-file FILE --apply # grava debrief
 ```
 
 ## Producão

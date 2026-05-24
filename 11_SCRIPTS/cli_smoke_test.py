@@ -171,6 +171,38 @@ CHECKS = [
         "expect": [
             "Project Status",
             "Próximo passo seguro",
+            "Estado registrado",
+            "Próximas ações",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "project-memory-jarvis-core",
+        "cmd": ["./jarvis", "project-memory", "--project", "jarvis-core"],
+        "expect": [
+            "Project Memory",
+            "alias: jarvis-core",
+            "Próxima ação sugerida",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "project-memory-oficina",
+        "cmd": ["./jarvis", "project-memory", "--project", "oficina"],
+        "expect": [
+            "Project Memory",
+            "alias: oficina",
+            "Próxima ação sugerida",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "project-memory-update-jarvis-core-dry-run",
+        "cmd": ["./jarvis", "project-memory-update", "--project", "jarvis-core", "--from-git", "--dry-run"],
+        "expect": [
+            "Project Memory Update",
+            "PREVIEW DA ENTRADA",
+            "Modo: --dry-run",
             "Produção: nada alterado",
         ],
     },

@@ -50,8 +50,33 @@ A pasta `05_EXECUCAO/21_CLAUDE_MISSIONS/` é gitignored. Mission packs são vol�
 ## Project max-machine (v1.2 — daily cockpit)
 
 - `./jarvis project-status --project ALIAS` — status compacto de 1 tela (path/branch/dirty/recent/pm/scripts/last mission/next).
-- `./jarvis project-cockpit --project ALIAS` — versão completa: status + última missão + próximo passo seguro com comandos exatos.
+- `./jarvis project-cockpit --project ALIAS` — versão completa: status + última missão + memória registrada + próximas ações + próximo passo seguro com comandos exatos.
 - `./jarvis mission-open-latest [--project ALIAS]` — imprime path absoluto do prompt mais recente em uma linha. Útil para pipe: `cat "$(./jarvis mission-open-latest)" | pbcopy`.
+
+## Project memory (v1.3 — fim da amnésia)
+
+JARVIS deixa de ser amnésico entre sessões. Memória mora em `04_PROJETOS/<ALIAS_UPPER>/PROJECT_STATUS.md` (cumulativa, append-only) e `NEXT_ACTIONS.md` (intenção humana — JARVIS **nunca** escreve aí).
+
+- `./jarvis project-memory --project ALIAS` — read-only. Imprime memória atual: estado registrado, próximas ações, última missão, recent commits, avisos. Output redatado (secret_scan patterns).
+- `./jarvis project-memory-update --project ALIAS --from-git [--dry-run|--apply]` — gera entrada de debrief a partir do estado Git do projeto-alvo. Default é preview; só grava com `--apply`. Append-only com marcador `<!-- jarvis-memory-entry -->`. Refuse de gravar se padrão de secret cru sobreviver à redação.
+- `./jarvis project-memory-update --project ALIAS --from-file PATH [--dry-run|--apply]` — parser regex-only (sem LLM) de output de Claude/agent. Extrai seções STATUS REAL / WHAT CHANGED / FILES CHANGED / VALIDATION RESULTS / RISKS / SAFE TO COMMIT. Redação antes da escrita.
+
+### Loop seguro de uso diário
+
+```
+./jarvis project-cockpit --project oficina
+./jarvis qa-sprint --project oficina           # gera missão Claude
+cat "$(./jarvis mission-open-latest)" | pbcopy # cola no Claude Code
+# (Claude executa; salva resposta final em /tmp/claude-out.md)
+./jarvis project-memory-update --project oficina --from-file /tmp/claude-out.md --dry-run
+./jarvis project-memory-update --project oficina --from-file /tmp/claude-out.md --apply
+./jarvis project-cockpit --project oficina     # cockpit agora mostra debrief
+```
+
+Garantias:
+- JARVIS **nunca** edita o projeto-alvo (Oficina/etc).
+- Mission packs em `21_CLAUDE_MISSIONS/**` são gitignored — gerar missão não suja `safety-gate`.
+- Memory writes só atingem `04_PROJETOS/<ALIAS_UPPER>/PROJECT_STATUS.md` neste repo.
 
 ### Exemplos
 

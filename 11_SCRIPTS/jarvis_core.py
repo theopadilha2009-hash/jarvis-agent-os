@@ -2506,6 +2506,18 @@ def mission_open_latest_command(args=None):
     args = args or []
     subprocess.run(["python3", "11_SCRIPTS/mission_open_latest.py", *args], cwd=ROOT, check=False)
 
+def project_memory_command(args=None):
+    """./jarvis project-memory --project ALIAS — read-only memory display."""
+    import subprocess
+    args = args or []
+    subprocess.run(["python3", "11_SCRIPTS/project_memory.py", *args], cwd=ROOT, check=False)
+
+def project_memory_update_command(args=None):
+    """./jarvis project-memory-update --project ALIAS --from-git|--from-file PATH [--dry-run|--apply]"""
+    import subprocess
+    args = args or []
+    subprocess.run(["python3", "11_SCRIPTS/project_memory_update.py", *args], cwd=ROOT, check=False)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -2698,6 +2710,8 @@ def help_msg():
   ./jarvis project-status --project A   status compacto do projeto (1 tela)
   ./jarvis project-cockpit --project A  cockpit (status + última missão + próximo passo)
   ./jarvis mission-open-latest    imprime path absoluto do prompt mais recente
+  ./jarvis project-memory --project A   exibe memória do projeto (STATUS+NEXT+missão+commits)
+  ./jarvis project-memory-update --project A --from-git [--apply]  gera/registra entrada de debrief
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2767,6 +2781,10 @@ def main():
         project_status_command(sys.argv[2:], full=True)
     elif cmd == "mission-open-latest":
         mission_open_latest_command(sys.argv[2:])
+    elif cmd == "project-memory":
+        project_memory_command(sys.argv[2:])
+    elif cmd == "project-memory-update":
+        project_memory_update_command(sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":
