@@ -2489,6 +2489,23 @@ def project_mission_pack_command(mode: str, args=None):
         check=False,
     )
 
+def project_status_command(args=None, full: bool = False):
+    """./jarvis project-status --project ALIAS  (compacto)
+       ./jarvis project-cockpit --project ALIAS (cockpit; status + última missão + next)"""
+    import subprocess
+    args = list(args or [])
+    if full and "--full" not in args:
+        args.append("--full")
+    subprocess.run(["python3", "11_SCRIPTS/project_status.py", *args], cwd=ROOT, check=False)
+
+def mission_open_latest_command(args=None):
+    """./jarvis mission-open-latest [--project ALIAS] [--print]
+       Imprime o path absoluto do prompt da última missão em uma linha.
+       Útil: cat "$(./jarvis mission-open-latest)" | pbcopy"""
+    import subprocess
+    args = args or []
+    subprocess.run(["python3", "11_SCRIPTS/mission_open_latest.py", *args], cwd=ROOT, check=False)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -2678,6 +2695,9 @@ def help_msg():
   ./jarvis goal-sprint --project A --goal "..."  gera mission Claude orientada a objetivo
   ./jarvis browser-qa --project A gera mission Claude para QA de UI/browser
   ./jarvis final-gate --project A gera mission Claude para validação final (push/PR/deploy)
+  ./jarvis project-status --project A   status compacto do projeto (1 tela)
+  ./jarvis project-cockpit --project A  cockpit (status + última missão + próximo passo)
+  ./jarvis mission-open-latest    imprime path absoluto do prompt mais recente
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2741,6 +2761,12 @@ def main():
         project_mission_pack_command("browser-qa", sys.argv[2:])
     elif cmd == "final-gate":
         project_mission_pack_command("final-gate", sys.argv[2:])
+    elif cmd == "project-status":
+        project_status_command(sys.argv[2:], full=False)
+    elif cmd == "project-cockpit":
+        project_status_command(sys.argv[2:], full=True)
+    elif cmd == "mission-open-latest":
+        mission_open_latest_command(sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":

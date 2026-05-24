@@ -111,6 +111,70 @@ CHECKS = [
         ],
     },
     {
+        "name": "doctor-project-jarvis-core",
+        "cmd": ["./jarvis", "doctor", "--project", "jarvis-core"],
+        "expect": [
+            "Project Doctor",
+            "jarvis-core",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "qa-sprint-jarvis-core-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "qa-sprint", "--project", "jarvis-core"],
+        "expect": [
+            "Mission Pack",
+            "qa-sprint",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
+        "name": "goal-sprint-jarvis-core-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "goal-sprint", "--project", "jarvis-core", "--goal", "plan next safe improvement"],
+        "expect": [
+            "Mission Pack",
+            "goal-sprint",
+            "Goal: plan next safe improvement",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
+        "name": "browser-qa-jarvis-core-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "browser-qa", "--project", "jarvis-core"],
+        "expect": [
+            "Mission Pack",
+            "browser-qa",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
+        "name": "final-gate-jarvis-core-no-report",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "final-gate", "--project", "jarvis-core"],
+        "expect": [
+            "Mission Pack",
+            "final-gate",
+            "Relatório: desativado por JARVIS_NO_REPORT=1",
+        ],
+    },
+    {
+        "name": "project-status-jarvis-core",
+        "cmd": ["./jarvis", "project-status", "--project", "jarvis-core"],
+        "expect": [
+            "Project Status",
+            "jarvis-core",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "project-cockpit-jarvis-core",
+        "cmd": ["./jarvis", "project-cockpit", "--project", "jarvis-core"],
+        "expect": [
+            "Project Status",
+            "Próximo passo seguro",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

@@ -50,6 +50,9 @@ CRITICAL_COMMANDS = [
     "goal-sprint",
     "browser-qa",
     "final-gate",
+    "project-status",
+    "project-cockpit",
+    "mission-open-latest",
 ]
 
 def run(cmd):

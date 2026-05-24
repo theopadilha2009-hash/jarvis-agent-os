@@ -45,6 +45,14 @@ Trabalhos repetidos por projeto agora têm comandos diretos. Cada um respeita: s
 
 Todas as missões salvam pacote em `05_EXECUCAO/21_CLAUDE_MISSIONS/<TS>_project-ALIAS_<modo>_<slug>/` e podem ser revisadas via `./jarvis claude-mission-latest`.
 
+A pasta `05_EXECUCAO/21_CLAUDE_MISSIONS/` é gitignored. Mission packs são voláteis por design: gerá-los não suja a árvore, então `./jarvis safety-gate` continua verde. Se quiser persistir um pack específico, use `git add -f <pack>`.
+
+## Project max-machine (v1.2 — daily cockpit)
+
+- `./jarvis project-status --project ALIAS` — status compacto de 1 tela (path/branch/dirty/recent/pm/scripts/last mission/next).
+- `./jarvis project-cockpit --project ALIAS` — versão completa: status + última missão + próximo passo seguro com comandos exatos.
+- `./jarvis mission-open-latest [--project ALIAS]` — imprime path absoluto do prompt mais recente em uma linha. Útil para pipe: `cat "$(./jarvis mission-open-latest)" | pbcopy`.
+
 ### Exemplos
 
 ```
