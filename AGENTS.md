@@ -118,5 +118,39 @@ env JARVIS_NO_REPORT=1 ./jarvis safety-gate
 env JARVIS_NO_REPORT=1 ./jarvis smoke-test
 ```
 
+## Loop oficial (Agent OS — entrada única `go`)
+
+Theo digita um pedido em linguagem natural. JARVIS faz o resto até o
+ponto onde Claude Code precisa rodar manualmente.
+
+```
+1. ./jarvis go "o que eu quero"                           # entrada única
+2. JARVIS interpreta o pedido localmente (regex + registry; sem LLM)
+3. JARVIS gera / copia a missão Claude se for útil
+4. Theo abre Claude Code manualmente (./jarvis go já imprime o cd + claude)
+5. Theo salva o RELATÓRIO FINAL em /tmp/jarvis-claude-out.md
+   (não os comandos — o relatório; project-memory-update recusa relatório fraco)
+6. ./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --apply
+7. env JARVIS_NO_REPORT=1 ./jarvis safety-gate
+8. ./jarvis self-cockpit            # sugere o próximo go
+```
+
+### Comandos do Agent OS
+
+```
+./jarvis ask  "pedido"          router puro (sem delegar; --dry-run friendly)
+./jarvis go   "pedido"          power-wrapper: ask --copy + banner Claude/debrief
+./jarvis capture   "ideia"      inbox local append-only
+./jarvis inbox                  exibe inbox
+./jarvis agenda-add "tarefa"    agenda local (heurística amanhã/segunda/2026-…)
+./jarvis agenda                 exibe agenda
+./jarvis blueprint --type T --goal "..."   spec/prompt/checklist local
+```
+
+Refusal de relatórios fracos: `project-memory-update --from-file` recusa
+gravar (`--apply`) se o arquivo for só comandos / sem seções
+(STATUS REAL, VALIDATION RESULTS, FILES CHANGED, SAFE TO COMMIT, ...).
+Override perigoso: `--force-weak-report`.
+
 ## Producão
 Nada alterado por este arquivo.

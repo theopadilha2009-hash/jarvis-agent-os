@@ -64,6 +64,13 @@ CRITICAL_COMMANDS = [
     "claude-launch",
     "claude-save-report-template",
     "doctrine-check",
+    "ask",
+    "go",
+    "capture",
+    "inbox",
+    "agenda-add",
+    "agenda",
+    "blueprint",
 ]
 
 def run(cmd):

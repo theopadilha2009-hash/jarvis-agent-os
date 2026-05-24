@@ -451,3 +451,42 @@ Modos:
 Saída local em `07_RELATORIOS/02_TECNICOS/ULTIMO_OPERATOR_WORKBENCH.md` (gitignored). Com `JARVIS_NO_REPORT=1` o relatório não é escrito.
 
 Status real: leitura local. Workbench não executa gates, não edita projeto, não commita, não faz push, não faz deploy e não toca VPS/n8n/produção.
+
+## Agent OS — natural-language interface
+
+O "Agent OS" do JARVIS deixa Theo digitar pedidos em linguagem natural
+e converte (localmente, com regex + registry — **sem LLM, sem API
+paga**) para o próximo comando seguro.
+
+### `./jarvis ask "pedido"`
+Router puro: classifica intent, detecta alias de projeto e imprime o
+próximo comando seguro. Não delega por padrão. Flags:
+`--project ALIAS`, `--dry-run`, `--copy`, `--no-copy`, `--explain`.
+
+Exemplos:
+- `./jarvis ask "o que faço agora"` → `./jarvis self-cockpit`
+- `./jarvis ask "evolui o jarvis para reduzir trabalho manual"` → `./jarvis self-evolve --goal "..."`
+- `./jarvis ask "abre oficina e corrige bug da agenda"` → `./jarvis goal-sprint --project oficina --goal "..."`
+- `./jarvis ask "coloca amanhã revisar LS na agenda"` → `./jarvis agenda-add "..."`
+- `./jarvis ask "quero criar workflow n8n de agendamento whatsapp"` → `./jarvis blueprint --type n8n --goal "..."`
+
+### `./jarvis go "pedido"`
+Power-wrapper: roda `ask --copy` (delega ao sub-comando) e imprime, em
+seguida, o bloco de instruções para Theo abrir Claude manualmente,
+salvar o relatório final em `/tmp/jarvis-claude-out.md` e rodar
+`self-debrief`. Não executa Claude.
+
+### Inbox / agenda locais (append-only)
+- `./jarvis capture "ideia"` → 05_EXECUCAO/30_INBOX/INBOX.md
+- `./jarvis inbox`
+- `./jarvis agenda-add "amanhã revisar LS"` → 05_EXECUCAO/31_AGENDA/AGENDA.md
+- `./jarvis agenda`
+
+Refusam input com padrão secret-like. Sem Google Calendar, sem reminders, sem APIs externas.
+
+### `./jarvis blueprint --type <T> --goal "..."`
+Gera blueprint local (5 arquivos) em `05_EXECUCAO/40_BLUEPRINTS/<ts>_<type>_<slug>/`.
+Tipos: `n8n`, `app`, `automation`, `research`.
+Sempre local — nenhum n8n real, nenhuma credencial, nenhum deploy.
+
+Status real: todo este surface é apenas roteamento e geração local — Sem API Anthropic/OpenAI, sem rede, sem produção.

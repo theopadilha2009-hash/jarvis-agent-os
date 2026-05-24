@@ -61,6 +61,7 @@ def parse_args(argv):
     from_file = None
     apply_changes = False
     dry_run = False
+    force_weak = False
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -96,6 +97,10 @@ def parse_args(argv):
             dry_run = True
             i += 1
             continue
+        if a == "--force-weak-report":
+            force_weak = True
+            i += 1
+            continue
         i += 1
     if not alias:
         fail(USAGE)
@@ -103,7 +108,7 @@ def parse_args(argv):
         fail("Modo obrigatório: --from-git ou --from-file PATH.")
     if from_git and from_file:
         fail("Use somente um modo: --from-git OU --from-file.")
-    return alias, from_git, from_file, apply_changes, dry_run
+    return alias, from_git, from_file, apply_changes, dry_run, force_weak
 
 
 def load_project(alias):
@@ -280,12 +285,48 @@ def build_entry_from_git(alias, project) -> str:
 SECTION_HEADINGS = (
     "STATUS REAL",
     "WHAT CHANGED",
+    "WHAT IMPROVED",
     "FILES CHANGED",
     "VALIDATION RESULTS",
+    "COMMITS CREATED",
     "RISKS / NOT VALIDATED",
     "RISKS",
     "SAFE TO COMMIT",
 )
+
+
+def report_quality(raw_text: str):
+    """Classify a --from-file content as 'strong' or 'weak'.
+
+    A strong report contains at least 2 of the known section headings AND
+    is not dominated by shell-command lines (./jarvis ..., cat > ..., etc).
+    A weak report = commands-only or near-empty. Returns
+    (label, hits_count, command_ratio, sample_hint).
+    """
+    text = raw_text or ""
+    lines = [l for l in text.splitlines() if l.strip()]
+    if not lines:
+        return "weak", 0, 0.0, "arquivo vazio"
+    hits = 0
+    matched_headings = []
+    for heading in SECTION_HEADINGS:
+        if extract_section(text, heading, max_lines=2) is not None:
+            hits += 1
+            matched_headings.append(heading)
+    command_like = 0
+    for l in lines:
+        s = l.strip()
+        if s.startswith("./jarvis ") or s.startswith("cat ") or s.startswith("cd ") \
+                or s.startswith("env JARVIS_") or s.startswith("git "):
+            command_like += 1
+    ratio = command_like / max(1, len(lines))
+    if hits >= 2 and ratio < 0.9:
+        return "strong", hits, ratio, f"{hits} heading(s): {', '.join(matched_headings[:3])}"
+    if hits >= 1 and ratio < 0.5:
+        # one heading and mostly prose — still considered strong-enough.
+        return "strong", hits, ratio, f"{hits} heading; ratio comandos={ratio:.0%}"
+    sample = "/".join(matched_headings) or "nenhuma"
+    return "weak", hits, ratio, f"headings={sample} ratio_comandos={ratio:.0%}"
 
 
 def _normalize_heading_line(line: str) -> str:
@@ -438,7 +479,7 @@ def ensure_status_file(memory_dir: Path):
 
 def main():
     argv = sys.argv[1:]
-    alias, from_git, from_file, apply_changes, dry_run = parse_args(argv)
+    alias, from_git, from_file, apply_changes, dry_run, force_weak = parse_args(argv)
     project = load_project(alias)
 
     print("JARVIS — Theo Padilha AI Worker Project Memory Update")
@@ -448,10 +489,35 @@ def main():
     memory_dir = alias_to_memory_dir(alias)
     status_md = memory_dir / "PROJECT_STATUS.md"
 
+    weak_label = None
     if from_git:
         entry = build_entry_from_git(alias, project)
     else:
-        entry = build_entry_from_file(alias, project, Path(from_file).expanduser())
+        src_path = Path(from_file).expanduser()
+        if src_path.exists():
+            try:
+                raw_src = src_path.read_text(encoding="utf-8", errors="ignore")
+                weak_label, hits, ratio, hint = report_quality(raw_src)
+                if weak_label == "weak":
+                    print("⚠ ALERTA: o arquivo informado parece NÃO ser um relatório final do Claude.")
+                    print(f"  source: {src_path}")
+                    print(f"  diagnóstico: {hint}")
+                    print('  Esperado: seções como "STATUS REAL", "VALIDATION RESULTS", "FILES CHANGED",')
+                    print('            "SAFE TO COMMIT", "COMMITS CREATED", "WHAT IMPROVED", "RISKS".')
+                    print("  Causa provável: você salvou os COMANDOS no /tmp em vez do relatório final.")
+                    print("  Lembrete: rode `cat > /tmp/jarvis-claude-out.md` e cole o RELATÓRIO,")
+                    print("            depois Ctrl+D para fechar.")
+                    print("")
+                    if apply_changes and not force_weak:
+                        print("FALHA: --apply recusado porque o relatório parece fraco/comandos-only.")
+                        print("Esse arquivo parece conter comandos, não relatório final do Claude.")
+                        print("Não gravei memória fraca.")
+                        print("Override (perigoso): adicione --force-weak-report.")
+                        print("Produção: nada alterado.")
+                        sys.exit(3)
+            except Exception:
+                pass
+        entry = build_entry_from_file(alias, project, src_path)
 
     # Safety: refuse to write if raw secret pattern remains after redaction.
     if contains_raw_secret(entry):

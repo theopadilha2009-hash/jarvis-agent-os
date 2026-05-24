@@ -52,7 +52,11 @@ def parse_args(argv):
 
 
 def _suggest_next(branch: str, dirty: bool, latest_mission_dir, memory_state: str):
-    """Pure decision tree. Returns list[str] (1+ lines)."""
+    """Pure decision tree. Returns list[str] (1+ lines).
+
+    Always recommends `./jarvis go "..."` as the primary entry point so
+    Theo only needs to remember one verb. Lower-level commands are kept
+    visible underneath for power use."""
     if branch in ("main", "master"):
         return [
             f"⚠ Branch {branch} — PARE. Crie branch dedicada.",
@@ -68,8 +72,10 @@ def _suggest_next(branch: str, dirty: bool, latest_mission_dir, memory_state: st
     # clean tree
     if latest_mission_dir is None:
         return [
-            "Sem missão JARVIS registrada. Gere uma:",
-            '  ./jarvis self-evolve --goal "..."  --copy',
+            "Sem missão JARVIS registrada. Sugestão principal:",
+            '  ./jarvis go "evoluir o JARVIS para reduzir trabalho manual"',
+            "Power-user equivalente:",
+            '  ./jarvis self-evolve --goal "..." --copy',
         ]
     if memory_state in ("missing", "blank"):
         return [
@@ -78,10 +84,12 @@ def _suggest_next(branch: str, dirty: bool, latest_mission_dir, memory_state: st
             "  ./jarvis self-debrief --from-git --apply",
         ]
     return [
-        "Tree limpa + memória registrada. Próximos passos:",
+        "Tree limpa + memória registrada. Sugestão principal:",
+        '  ./jarvis go "o que faço agora"',
+        "Outras boas opções:",
         "  env JARVIS_NO_REPORT=1 ./jarvis safety-gate",
         "  env JARVIS_NO_REPORT=1 ./jarvis smoke-test",
-        '  ./jarvis self-evolve --goal "..." --copy   (próxima evolução)',
+        '  ./jarvis go "evoluir o JARVIS para reduzir trabalho manual"',
     ]
 
 

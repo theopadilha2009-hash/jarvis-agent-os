@@ -45,6 +45,13 @@ HELP_REQUIRED_COMMANDS = [
     "project-memory",
     "project-memory-update",
     "mission-open-latest",
+    "ask",
+    "go",
+    "capture",
+    "inbox",
+    "agenda-add",
+    "agenda",
+    "blueprint",
 ]
 MISSION_HARD_RULE_SIGNALS = [
     "Não fazer push, PR, merge ou deploy",

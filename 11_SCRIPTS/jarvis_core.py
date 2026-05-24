@@ -2558,6 +2558,73 @@ def doctrine_check_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/doctrine_check.py"], cwd=ROOT, check=False)
 
+def ask_command(args=None):
+    """./jarvis ask "pedido em linguagem natural" — router local (regex; sem LLM)."""
+    import subprocess
+    args = list(args or [])
+    subprocess.run(["python3", "11_SCRIPTS/ask_router.py", *args], cwd=ROOT, check=False)
+
+def go_command(args=None):
+    """./jarvis go "pedido" — wrapper sobre ask com --copy default + launch banner.
+
+    Sempre acrescenta --copy a não ser que --no-copy esteja presente, e
+    imprime instruções de Claude launch / debrief depois do delegate.
+    Não executa Claude. Não toca produção."""
+    import subprocess
+    args = list(args or [])
+    # Default to --copy unless caller explicitly opts out.
+    has_copy = "--copy" in args
+    has_nocopy = "--no-copy" in args
+    if not has_copy and not has_nocopy:
+        args = ["--copy", *args]
+    print("JARVIS — Go (power-wrapper de ask)")
+    print("Status real: roteia pedido → ask_router → delegate; sem executar Claude.")
+    print("")
+    rc = subprocess.call(["python3", "11_SCRIPTS/ask_router.py", *args], cwd=ROOT)
+    print("")
+    print("── Próximo passo manual (Theo executa) ─────────────────────")
+    print(f"cd {ROOT}")
+    print("claude                          # abrir Claude Code manualmente")
+    print("# (cole a missão se foi gerada)")
+    print("cat > /tmp/jarvis-claude-out.md  # salvar RELATÓRIO FINAL aqui")
+    print("# (cole o relatório final; Ctrl+D para fechar)")
+    print("./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --dry-run")
+    print("./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --apply")
+    print("./jarvis self-cockpit")
+    print("────────────────────────────────────────────────────────────")
+    print("Produção: nada alterado por JARVIS.")
+    return rc
+
+def capture_command(args=None):
+    """./jarvis capture "texto" — inbox local append-only."""
+    import subprocess
+    args = list(args or [])
+    subprocess.run(["python3", "11_SCRIPTS/local_capture.py", "capture", *args], cwd=ROOT, check=False)
+
+def inbox_command(args=None):
+    """./jarvis inbox — exibe inbox local."""
+    import subprocess
+    args = list(args or [])
+    subprocess.run(["python3", "11_SCRIPTS/local_capture.py", "inbox", *args], cwd=ROOT, check=False)
+
+def agenda_add_command(args=None):
+    """./jarvis agenda-add "texto" [--date YYYY-MM-DD] — agenda local."""
+    import subprocess
+    args = list(args or [])
+    subprocess.run(["python3", "11_SCRIPTS/local_capture.py", "agenda-add", *args], cwd=ROOT, check=False)
+
+def agenda_command(args=None):
+    """./jarvis agenda — exibe agenda local."""
+    import subprocess
+    args = list(args or [])
+    subprocess.run(["python3", "11_SCRIPTS/local_capture.py", "agenda", *args], cwd=ROOT, check=False)
+
+def blueprint_command(args=None):
+    """./jarvis blueprint --type <n8n|app|automation|research> --goal "..." [--dry-run]"""
+    import subprocess
+    args = list(args or [])
+    subprocess.run(["python3", "11_SCRIPTS/blueprint.py", *args], cwd=ROOT, check=False)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -2761,6 +2828,13 @@ def help_msg():
   ./jarvis claude-launch --project A [--copy] [--print-only]   imprime bloco "cd PATH; claude" (não executa)
   ./jarvis claude-save-report-template [--project A]   imprime template bash para capturar resposta do Claude
   ./jarvis doctrine-check         verifica drift entre AGENTS/CATALOG/help/registry/mission templates
+  ./jarvis ask "pedido"           router local: classifica intent + sugere comando seguro
+  ./jarvis go  "pedido"           power-wrapper: ask --copy + banner de launch/debrief
+  ./jarvis capture "ideia"        anexa ideia ao inbox local (05_EXECUCAO/30_INBOX)
+  ./jarvis inbox                  exibe inbox local
+  ./jarvis agenda-add "tarefa"    anexa item à agenda local (05_EXECUCAO/31_AGENDA)
+  ./jarvis agenda                 exibe agenda local
+  ./jarvis blueprint --type T --goal "..."  blueprint local (n8n|app|automation|research)
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2852,6 +2926,20 @@ def main():
         claude_helper_command("save-report-template", sys.argv[2:])
     elif cmd == "doctrine-check":
         doctrine_check_command()
+    elif cmd == "ask":
+        ask_command(sys.argv[2:])
+    elif cmd == "go":
+        go_command(sys.argv[2:])
+    elif cmd == "capture":
+        capture_command(sys.argv[2:])
+    elif cmd == "inbox":
+        inbox_command(sys.argv[2:])
+    elif cmd == "agenda-add":
+        agenda_add_command(sys.argv[2:])
+    elif cmd == "agenda":
+        agenda_command(sys.argv[2:])
+    elif cmd == "blueprint":
+        blueprint_command(sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":
