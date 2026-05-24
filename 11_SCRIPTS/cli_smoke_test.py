@@ -177,6 +177,23 @@ CHECKS = [
         ],
     },
     {
+        "name": "mission-open-latest-default",
+        "cmd": ["./jarvis", "mission-open-latest"],
+        "expect": [
+            "05_EXECUCAO/21_CLAUDE_MISSIONS/",
+            "01_CLAUDE_PROMPT.md",
+        ],
+    },
+    {
+        "name": "mission-open-latest-jarvis-core",
+        "cmd": ["./jarvis", "mission-open-latest", "--project", "jarvis-core"],
+        "expect": [
+            "05_EXECUCAO/21_CLAUDE_MISSIONS/",
+            "_project-jarvis-core_",
+            "01_CLAUDE_PROMPT.md",
+        ],
+    },
+    {
         "name": "project-memory-jarvis-core",
         "cmd": ["./jarvis", "project-memory", "--project", "jarvis-core"],
         "expect": [
