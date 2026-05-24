@@ -2932,8 +2932,20 @@ def acceptance_command(args=None):
     _run_py_propagate("11_SCRIPTS/acceptance.py", args)
 
 def do_command(args=None):
-    """./jarvis do "pedido" [--project A] [--mode safe|no-claude] [--dry-run]"""
+    """./jarvis do "pedido" [--project A] [--mode safe|no-claude] [--dry-run] [--copy] [--reuse-last]"""
     _run_py_propagate("11_SCRIPTS/worker_engine.py", args or [])
+
+def do_history_command(args=None):
+    """./jarvis do-history [--limit N] [--route NAME] [--project ALIAS]"""
+    _run_py_propagate("11_SCRIPTS/do_history.py", ["history", *(args or [])])
+
+def do_show_command(args=None):
+    """./jarvis do-show {latest|ID}"""
+    _run_py_propagate("11_SCRIPTS/do_history.py", ["show", *(args or [])])
+
+def do_learn_command(args=None):
+    """./jarvis do-learn [--dry-run|--apply]"""
+    _run_py_propagate("11_SCRIPTS/do_history.py", ["learn", *(args or [])])
 
 def report_policy_command():
     import subprocess
@@ -3073,8 +3085,64 @@ def run_safe_command(args=None):
     args = args or []
     subprocess.run(["python3", "11_SCRIPTS/run_safe.py", *args], cwd=ROOT, check=False)
 
+_HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ver tudo)
+
+## Interface única
+  ./jarvis do                                smart resume (sem argumento)
+  ./jarvis do "pedido"                       worker engine: rota + executa + grava
+  ./jarvis do "pedido" --copy                + joga mission no clipboard
+  ./jarvis do "pedido" --project ALIAS       força projeto
+  ./jarvis do "pedido" --mode no-claude      rota offline (pacote real)
+  ./jarvis do "pedido" --dry-run             preview, sem executar
+  ./jarvis do "melhor a última missão"       regenera baseado no último run
+  ./jarvis do --reuse-last "novo ajuste"     idem, explícito
+
+## Memória de worker runs
+  ./jarvis do-history [--limit N] [--route X] [--project A]
+  ./jarvis do-show {latest|ID}
+  ./jarvis do-learn [--dry-run|--apply]      sugere INTENT_PATTERNS
+
+## Diário / saúde
+  ./jarvis daily                             dashboard de uma tela
+  ./jarvis cheatsheet                        atalhos essenciais
+  ./jarvis health                            doctor-agent
+  ./jarvis first-run-check                   ambiente local OK?
+
+## Lifecycle longo (quando `do` não basta)
+  ./jarvis start "pedido"                    inicia sessão
+  ./jarvis next                              próximo passo seguro
+  ./jarvis report-template                   cat > /tmp/... para colar
+  ./jarvis report-check --file PATH          valida relatório
+  ./jarvis report-apply --file PATH          aplica debrief
+  ./jarvis gates                             safety + smoke + doctrine
+  ./jarvis finish                            fecha sessão
+
+## Recuperação
+  ./jarvis state-status                      ver runtime travado
+  ./jarvis state-reset --dry-run             remove current.json (preview)
+  ./jarvis no-claude "pedido"                pacote offline manual
+
+## Catálogo completo
+  ./jarvis help --all                        lista TODOS os comandos
+  ./jarvis commands                          catálogo profissional
+  ./jarvis limits                            fronteira do robô
+  ./jarvis doctrine-check                    drift de docs/help/catalog
+  ./jarvis command-audit                     auditoria de comandos
+
+Produção: nada alterado por este help.
+"""
+
+
 def help_msg():
-    print("""Comandos:
+    args = sys.argv[2:] if len(sys.argv) > 2 else []
+    if any(a == "--all" for a in args):
+        _help_full()
+        return
+    print(_HELP_TOP, end="")
+
+
+def _help_full():
+    print("""Comandos (full):
   ./jarvis doctor                 full health check
   ./jarvis scan-inbox             lista arquivos em 00_COLE_AQUI
   ./jarvis intake "pedido"        cria task a partir de um pedido
@@ -3196,7 +3264,10 @@ def help_msg():
   ./jarvis rc-status              readiness do release candidate
   ./jarvis rc-freeze --dry-run    snapshot RC em 41_RELEASE_CANDIDATES/ (default dry-run)
   ./jarvis acceptance --dry-run   cenários locais sem Claude (--full inclui gate-run)
-  ./jarvis do "pedido" [--project A] [--mode safe|no-claude] [--dry-run]   worker engine (observe-act loop)
+  ./jarvis do "pedido" [--project A] [--mode safe|no-claude] [--dry-run] [--copy] [--reuse-last]   worker engine (observe-act loop)
+  ./jarvis do-history [--limit N] [--route NAME] [--project ALIAS]   lista worker runs recentes
+  ./jarvis do-show {latest|ID}    abre um worker run em detalhe
+  ./jarvis do-learn [--dry-run|--apply]   sugere INTENT_PATTERNS a partir de unclear runs
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -3394,6 +3465,12 @@ def main():
         acceptance_command(sys.argv[2:])
     elif cmd == "do":
         do_command(sys.argv[2:])
+    elif cmd == "do-history":
+        do_history_command(sys.argv[2:])
+    elif cmd == "do-show":
+        do_show_command(sys.argv[2:])
+    elif cmd == "do-learn":
+        do_learn_command(sys.argv[2:])
     elif cmd == "now":
         resume_command(sys.argv[2:])
     elif cmd == "start":

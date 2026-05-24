@@ -992,3 +992,38 @@ Status real: o worker é o primeiro passo real para JARVIS "fazer
 coisas" sozinho — mas só dentro do allowlist e sempre dentro do JARVIS
 repo. Sem Claude, sem API paga, sem produção, sem edição de
 projetos-alvo.
+
+## Agent OS — Sprint 8.2 (do-history, do-show, do-learn, --reuse-last, dirty-tree resume, help split)
+
+Sprint 8.2 fecha o loop de memória do worker e baixa a barreira de uso:
+
+- **`./jarvis do` sem argumento** agora detecta árvore suja e PARA com
+  STOP/ATENÇÃO + lista de arquivos + comandos seguros sugeridos. Não
+  tenta rodar `daily` em cima de tree dirty.
+- **`./jarvis do --reuse-last "tweak"`** regenera a última missão de
+  projeto/self-evolve com um ajuste novo, sem sobrescrever a anterior.
+  Também aciona com frases naturais ("melhora a última missão",
+  "regenera", "faz dnv").
+- **Worker run agora inclui `07_FULL_MISSION.md`** para rotas de projeto:
+  combina project-intel + goal-sprint + return-format obrigatório com
+  "NÃO pergunte ao Theo; faça best-effort e reporte". É esse o arquivo
+  que `--copy` joga no clipboard — não mais o prompt cru do
+  goal-sprint.
+- **`./jarvis do-history [--limit N] [--route NAME] [--project ALIAS]`**
+  lista worker runs recentes (rota, projeto, request, status). Read-only.
+- **`./jarvis do-show {latest|ID}`** abre um worker run em detalhe
+  (pedido, plano, ações, próximo, mission excerpt). Read-only.
+- **`./jarvis do-learn [--dry-run|--apply]`** analisa runs `unclear` +
+  ask-log e sugere onde adicionar pattern em
+  `11_SCRIPTS/ask_router.py:INTENT_PATTERNS` ou em
+  `_HANDOFF_HINT/_NO_CLAUDE_HINT`. `--apply` nesta versão **não** edita
+  ask_router automaticamente (risco alto) — só confirma o relatório.
+- **`./jarvis help` virou slim view** (interface única + lifecycle +
+  recuperação). `./jarvis help --all` mantém o catálogo completo.
+  `doctrine-check` e `command-audit` lêem `help --all` para auditar.
+
+Runtime gitignored adicional Sprint 8.2:
+- (mesmo dir do Sprint 8) `05_EXECUCAO/42_WORKER_RUNS/**`
+
+Status real: tudo local-only; sem Claude, sem API paga, sem produção,
+sem edição de projeto-alvo.

@@ -122,6 +122,9 @@ CRITICAL_COMMANDS = [
     "rc-freeze",
     "acceptance",
     "do",
+    "do-history",
+    "do-show",
+    "do-learn",
 ]
 
 def run(cmd):
@@ -139,7 +142,8 @@ def main():
     smoke = (ROOT / "11_SCRIPTS" / "cli_smoke_test.py").read_text(encoding="utf-8", errors="ignore")
     catalog = (ROOT / "01_SISTEMA" / "03_COMMANDS" / "COMMAND_CATALOG.md").read_text(encoding="utf-8", errors="ignore")
 
-    code, help_out = run(["./jarvis", "help"])
+    # Sprint 8.2 — `./jarvis help` is the slim view; audit reads `--all`.
+    code, help_out = run(["./jarvis", "help", "--all"])
 
     failures = []
 

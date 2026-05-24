@@ -103,6 +103,9 @@ HELP_REQUIRED_COMMANDS = [
     "rc-freeze",
     "acceptance",
     "do",
+    "do-history",
+    "do-show",
+    "do-learn",
 ]
 MISSION_HARD_RULE_SIGNALS = [
     "Não fazer push, PR, merge ou deploy",
@@ -133,11 +136,13 @@ def check_file_contains(path: Path, needles, label):
 
 
 def check_help():
-    code, out = run(["./jarvis", "help"])
+    # Sprint 8.2 — `./jarvis help` is the slim view; use `--all` for the full
+    # catalog that doctrine guards against drift.
+    code, out = run(["./jarvis", "help", "--all"])
     if code != 0:
-        return [f"FALHA: ./jarvis help retornou {code}"]
+        return [f"FALHA: ./jarvis help --all retornou {code}"]
     missing = [c for c in HELP_REQUIRED_COMMANDS if c not in out]
-    return [f"FALHA: ./jarvis help sem '{m}'" for m in missing]
+    return [f"FALHA: ./jarvis help --all sem '{m}'" for m in missing]
 
 
 def check_registry_jarvis_core():

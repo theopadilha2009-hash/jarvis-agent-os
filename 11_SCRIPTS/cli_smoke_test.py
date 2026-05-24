@@ -10,7 +10,7 @@ CHECKS = [
     {
         "name": "help",
         "cmd": ["./jarvis", "help"],
-        "expect": ["Comandos:", "./jarvis help"],
+        "expect": ["interface principal", "./jarvis do", "./jarvis help --all"],
     },
     {
         "name": "safety-gate",
@@ -1194,7 +1194,7 @@ CHECKS = [
             "resume",
             "--dry-run: nenhum comando foi executado",
             "Claude não executado",
-            "Próximo comando",
+            "## Próximo",
         ],
     },
     {
@@ -1249,6 +1249,67 @@ CHECKS = [
             "project: oficina",
             "goal-sprint",
             "--dry-run: nenhum comando foi executado",
+        ],
+    },
+    {
+        "name": "do-history",
+        "cmd": ["./jarvis", "do-history", "--limit", "5"],
+        "expect": [
+            "Do History",
+            "Status real",
+            "## Runs",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "do-show-latest",
+        "cmd": ["./jarvis", "do-show", "latest"],
+        "expect": [
+            "Do Show",
+            "## Run",
+            "## Pedido",
+            "## Plano",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "do-learn-dry-run",
+        "cmd": ["./jarvis", "do-learn", "--dry-run"],
+        "expect": [
+            "Do Learn",
+            "Status real",
+            "Fontes",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "do-reuse-last-dry-run",
+        "cmd": ["./jarvis", "do", "tweak: foco em testes locais", "--reuse-last", "--dry-run"],
+        "expect": [
+            "Worker Engine",
+            "## Pedido",
+            "Claude não executado",
+        ],
+    },
+    {
+        "name": "help-default-slim",
+        "cmd": ["./jarvis", "help"],
+        "expect": [
+            "interface principal",
+            "./jarvis do",
+            "./jarvis help --all",
+            "Memória de worker runs",
+        ],
+    },
+    {
+        "name": "help-all-full",
+        "cmd": ["./jarvis", "help", "--all"],
+        "expect": [
+            "doctor",
+            "scan-inbox",
+            "do-history",
+            "do-show",
+            "do-learn",
         ],
     },
     {
