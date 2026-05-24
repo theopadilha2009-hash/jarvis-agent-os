@@ -3077,7 +3077,7 @@ def help_msg():
   ./jarvis process-inbox          cria tasks de arquivos .txt/.md do inbox
   ./jarvis report                 mostra projetos, tasks e logs
   ./jarvis status                 alias de report
-  ./jarvis next                   mostra a próxima task ativa
+  ./jarvis next-legacy            mostra a próxima task ativa (legado 02_TAREFAS)
   ./jarvis close-task             fecha a próxima task ativa
   ./jarvis close-task "texto"     fecha task que contenha o texto
   ./jarvis check                  alias de doctor
