@@ -2856,8 +2856,20 @@ def report_check_command(args=None):
     _run_py_propagate("11_SCRIPTS/report_intake.py", ["check", *(args or [])])
 
 def report_apply_command(args=None):
-    """./jarvis report-apply --file PATH [--force-weak] — delega para writer seguro."""
+    """./jarvis report-apply --file PATH [--force-weak] [--project ALIAS]"""
     _run_py_propagate("11_SCRIPTS/report_intake.py", ["apply", *(args or [])])
+
+def gate_run_command(args=None):
+    """./jarvis gate-run — roda safety+smoke+doctrine, atualiza work session."""
+    _run_py_propagate("11_SCRIPTS/gate_runner.py", ["run", *(args or [])])
+
+def gate_status_command(args=None):
+    """./jarvis gate-status — último gate-run + work session ativa."""
+    _run_py_propagate("11_SCRIPTS/gate_runner.py", ["status", *(args or [])])
+
+def run_prune_command(args=None):
+    """./jarvis run-prune --keep N [--dry-run|--apply]"""
+    _run_py_propagate("11_SCRIPTS/run_log.py", ["prune", *(args or [])])
 
 def report_policy_command():
     import subprocess
@@ -3095,7 +3107,10 @@ def help_msg():
   ./jarvis report-template        imprime o `cat > PATH` exato (project-aware)
   ./jarvis report-status          presença + qualidade do relatório esperado
   ./jarvis report-check --file P  valida headings/quality (sem gravar)
-  ./jarvis report-apply --file P  delega para writer seguro (self-debrief / project-memory-update)
+  ./jarvis report-apply --file P [--project A] [--force-weak]  delega para writer seguro
+  ./jarvis gate-run               roda safety+smoke+doctrine; atualiza work session
+  ./jarvis gate-status            último gate-run registrado
+  ./jarvis run-prune --keep N [--apply]  remove run packages antigos (default --dry-run)
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -3255,6 +3270,12 @@ def main():
         report_check_command(sys.argv[2:])
     elif cmd == "report-apply":
         report_apply_command(sys.argv[2:])
+    elif cmd == "gate-run":
+        gate_run_command(sys.argv[2:])
+    elif cmd == "gate-status":
+        gate_status_command(sys.argv[2:])
+    elif cmd == "run-prune":
+        run_prune_command(sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":

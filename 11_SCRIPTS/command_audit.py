@@ -98,6 +98,9 @@ CRITICAL_COMMANDS = [
     "report-status",
     "report-check",
     "report-apply",
+    "gate-run",
+    "gate-status",
+    "run-prune",
 ]
 
 def run(cmd):

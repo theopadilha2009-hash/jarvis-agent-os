@@ -122,11 +122,16 @@ def _parse_common(argv):
     project = None
     intent = None
     safety = None
+    print_id = False
     i = 0
     while i < len(argv):
         a = argv[i]
         if a == "--dry-run":
             dry_run = True
+            i += 1
+            continue
+        if a == "--print-id":
+            print_id = True
             i += 1
             continue
         if a == "--note":
@@ -161,13 +166,13 @@ def _parse_common(argv):
                 continue
         text_parts.append(a)
         i += 1
-    return " ".join(text_parts).strip(), dry_run, note, reason, source, project, intent, safety
+    return " ".join(text_parts).strip(), dry_run, note, reason, source, project, intent, safety, print_id
 
 
 # ── add ───────────────────────────────────────────────────────────────────────
 
 def cmd_add(argv):
-    text, dry_run, _note, _reason, source, project, intent, safety = _parse_common(argv)
+    text, dry_run, _note, _reason, source, project, intent, safety, print_id = _parse_common(argv)
     print("JARVIS — Task Add")
     print("Status real: append-only local. Nada em produção foi alterado.")
     print("")
@@ -203,14 +208,21 @@ def cmd_add(argv):
     if safety:
         print(f"safety: {safety}")
     print(f"alvo:   {TASKS_FILE.relative_to(ROOT)} (append, gitignored)")
+    # Machine-readable id line — kept stable so callers (work-start) can parse it.
+    print(f"task_id: {tid}")
     print("")
     if dry_run:
         print("Modo: --dry-run (nada gravado).")
+        if print_id:
+            print(f"TASK_ID={tid}")
         print("Produção: nada alterado.")
         return
     _append_event(ev)
     print(f"OK — task criada.")
     print(f"Próximo: ./jarvis task-next")
+    if print_id:
+        # Last line under a stable prefix for shell capture (`... | tail -1`).
+        print(f"TASK_ID={tid}")
     print("Produção: nada alterado.")
 
 
@@ -324,7 +336,7 @@ def cmd_show(argv):
 # ── done / block ──────────────────────────────────────────────────────────────
 
 def cmd_done(argv):
-    text, dry_run, note, _reason, _src, _proj, _intent, _safety = _parse_common(argv)
+    text, dry_run, note, _reason, _src, _proj, _intent, _safety, _print_id = _parse_common(argv)
     print("JARVIS — Task Done")
     print("Status real: append-only local. Nada em produção foi alterado.")
     print("")
@@ -354,7 +366,7 @@ def cmd_done(argv):
 
 
 def cmd_block(argv):
-    text, dry_run, _note, reason, _src, _proj, _intent, _safety = _parse_common(argv)
+    text, dry_run, _note, reason, _src, _proj, _intent, _safety, _print_id = _parse_common(argv)
     print("JARVIS — Task Block")
     print("Status real: append-only local. Nada em produção foi alterado.")
     print("")

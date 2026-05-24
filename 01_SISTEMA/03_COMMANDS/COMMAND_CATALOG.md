@@ -659,3 +659,47 @@ precisar lembrar o alias.
 ```
 
 Status real: lifecycle inteiramente local. Sem Claude em background, sem API paga, sem produção.
+
+## Agent OS — Sprint 5 (lifecycle reliability, gate capture, cleanup, project override)
+
+Sprint 5 fecha as lacunas confiabilidade do Sprint 4:
+
+- **--project override** em `report-check` e `report-apply` (valida contra
+  PROJECT_REGISTRY). Resolve a ambiguidade de "qual projeto vai receber o
+  debrief?" sem depender só da sessão atual.
+- **task-add --print-id** + work-start captura o **TASK_ID real** (não
+  mais string simbólica). Falha clara em `latest_task_id=null` se a
+  criação da task falhar.
+- **gate-run / gate-status** roda safety+smoke+doctrine em sequência,
+  captura exit code e linha "Resultado:" de cada gate, grava em
+  `05_EXECUCAO/37_GATES/latest.json` (gitignored), e **avança a work
+  session** para `gates_passed` (ou `gates_pending` se falhar). Não é
+  fake autonomy: são os mesmos gates que Theo rodaria à mão.
+- **work-next** agora aponta para `./jarvis gate-run` depois de
+  `debrief_applied` — um único comando em vez de três.
+- **report-apply** define `next_command = ./jarvis gate-run` após
+  sucesso, fechando o loop.
+- **run-prune --keep N --dry-run/--apply** limpa run packages antigos.
+  Default dry-run. Safety check: nunca toca nada fora de `35_RUNS`.
+  Nunca remove `.gitkeep`.
+- **resume** mais conciso: 5 seções (Active Work / Latest Run / Top
+  Task / Last Gates / Next Command) com indentação consistente.
+  "produção: nada alterado" + "Claude não executado" no rodapé.
+
+### Referência rápida (para command-audit)
+
+```
+./jarvis gate-run
+./jarvis gate-status
+./jarvis run-prune --keep 20 --dry-run
+./jarvis run-prune --keep 20 --apply
+./jarvis report-check --file PATH --project ALIAS
+./jarvis report-apply --file PATH --project ALIAS [--force-weak]
+./jarvis task-add "texto" --print-id
+```
+
+Storage runtime gitignored Sprint 5:
+- `05_EXECUCAO/37_GATES/latest.json`
+- `05_EXECUCAO/37_GATES/events.jsonl`
+
+Status real: gate-run é local-only; nenhum push/PR/merge/deploy; sem produção.

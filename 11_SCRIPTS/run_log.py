@@ -253,6 +253,105 @@ def cmd_latest(argv):
     cmd_show(["latest"])
 
 
+# ── prune ─────────────────────────────────────────────────────────────────────
+
+def _parse_prune_args(argv):
+    keep = 20
+    apply_changes = False
+    dry_run = True
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--keep" and i + 1 < len(argv):
+            try:
+                keep = max(0, int(argv[i + 1]))
+            except Exception:
+                pass
+            i += 2
+            continue
+        if a.startswith("--keep="):
+            try:
+                keep = max(0, int(a.split("=", 1)[1]))
+            except Exception:
+                pass
+            i += 1
+            continue
+        if a == "--apply":
+            apply_changes = True
+            dry_run = False
+            i += 1
+            continue
+        if a == "--dry-run":
+            dry_run = True
+            apply_changes = False
+            i += 1
+            continue
+        i += 1
+    return keep, apply_changes, dry_run
+
+
+def _safe_under_runs(p: Path) -> bool:
+    """Hard safety: refuse to touch anything outside RUNS_DIR."""
+    try:
+        # resolve() collapses symlinks so /runs/foo/../../etc isn't 'inside'.
+        return RUNS_DIR.resolve() in p.resolve().parents or p.resolve().parent == RUNS_DIR.resolve()
+    except Exception:
+        return False
+
+
+def cmd_prune(argv):
+    keep, apply_changes, dry_run = _parse_prune_args(argv)
+    print("JARVIS — Run Prune")
+    print("Status real: limpeza local de run packages. Nada em produção.")
+    print("")
+    if not RUNS_DIR.exists():
+        print(f"(diretório ausente: {RUNS_DIR.relative_to(ROOT)})")
+        print("Produção: nada alterado.")
+        return
+    runs = _all_runs()
+    print(f"diretório: {RUNS_DIR.relative_to(ROOT)}")
+    print(f"runs totais: {len(runs)}")
+    print(f"--keep: {keep}")
+    to_delete = runs[:-keep] if keep > 0 else list(runs)
+    to_keep = runs[-keep:] if keep > 0 else []
+    print(f"a manter: {len(to_keep)} mais novos")
+    print(f"a remover: {len(to_delete)} mais antigos")
+    print("")
+    if not to_delete:
+        print("(nada a remover — total ≤ keep)")
+        print("Produção: nada alterado.")
+        return
+
+    print("## Candidatos a remoção")
+    for d in to_delete[-30:]:
+        print(f"  - {d.relative_to(ROOT)}")
+    if len(to_delete) > 30:
+        print(f"  ... (+{len(to_delete) - 30} pastas mais antigas)")
+    print("")
+
+    if dry_run or not apply_changes:
+        print("Modo: --dry-run (nada removido).")
+        print("Para remover de verdade: ./jarvis run-prune --keep N --apply")
+        print("Produção: nada alterado.")
+        return
+
+    import shutil
+    removed = 0
+    for d in to_delete:
+        if d.name == ".gitkeep":
+            continue
+        if not _safe_under_runs(d):
+            print(f"AVISO: caminho suspeito, pulando: {d}")
+            continue
+        try:
+            shutil.rmtree(d)
+            removed += 1
+        except Exception as e:
+            print(f"AVISO: falha removendo {d.name}: {e}")
+    print(f"OK — removidas {removed} pasta(s).")
+    print("Produção: nada alterado.")
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main():
@@ -270,6 +369,8 @@ def main():
         cmd_show(rest)
     elif sub == "latest":
         cmd_latest(rest)
+    elif sub == "prune":
+        cmd_prune(rest)
     else:
         print(f"FALHA: subcomando desconhecido: {sub}")
         sys.exit(1)

@@ -79,6 +79,9 @@ HELP_REQUIRED_COMMANDS = [
     "report-status",
     "report-check",
     "report-apply",
+    "gate-run",
+    "gate-status",
+    "run-prune",
 ]
 MISSION_HARD_RULE_SIGNALS = [
     "Não fazer push, PR, merge ou deploy",

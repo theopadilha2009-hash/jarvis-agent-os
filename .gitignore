@@ -59,3 +59,7 @@ __pycache__/
 # Sprint 4 — work session runtime state.
 05_EXECUCAO/36_WORK_SESSIONS/current.json
 05_EXECUCAO/36_WORK_SESSIONS/events.jsonl
+
+# Sprint 5 — gate runner runtime state.
+05_EXECUCAO/37_GATES/latest.json
+05_EXECUCAO/37_GATES/events.jsonl

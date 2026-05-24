@@ -180,21 +180,14 @@ def _next_action_for(state: dict) -> str:
         if Path(expected).exists():
             return f"./jarvis report-check --file {expected}"
         return (
-            f"# abrir Claude, colar a missão, gerar relatório, salvar:\n"
-            f"#   cat > {expected}\n"
-            f"#   (cole o RELATÓRIO FINAL; Ctrl+D)\n"
-            f"# depois:\n"
+            f"./jarvis report-template   # mostra o `cat > PATH` exato\n"
+            f"# depois cole o RELATÓRIO no /tmp e rode:\n"
             f"./jarvis report-check --file {expected}"
         )
     if status == "report_checked":
         return f"./jarvis report-apply --file {expected}"
-    if status == "debrief_applied" or status == "gates_pending":
-        return (
-            "env JARVIS_NO_REPORT=1 ./jarvis safety-gate\n"
-            "env JARVIS_NO_REPORT=1 ./jarvis smoke-test\n"
-            "./jarvis doctrine-check\n"
-            "# se tudo verde: ./jarvis work-close"
-        )
+    if status in ("debrief_applied", "gates_pending"):
+        return "./jarvis gate-run"
     if status == "gates_passed":
         return "./jarvis work-close"
     return "./jarvis self-cockpit"
@@ -262,23 +255,29 @@ def cmd_start(argv):
         print("Produção: nada alterado.")
         return
 
-    # Optionally create a task entry so backlog stays connected.
+    # Optionally create a task entry so backlog stays connected. Capture the
+    # real id via task_queue's --print-id `TASK_ID=...` line on stdout.
     task_id = ""
     if not no_task:
         try:
             args = ["python3", "11_SCRIPTS/task_queue.py", "add", text,
-                    "--source", "work-start"]
+                    "--source", "work-start", "--print-id"]
             if project:
                 args += ["--project", project]
             if intent:
                 args += ["--intent", intent]
-            # We don't capture the task id back from task_queue right now;
-            # the link is by created_at proximity. Keep this lightweight.
-            subprocess.call(args, cwd=ROOT, stdout=subprocess.DEVNULL)
-            task_id = "(linked task created via task-add)"
+            out = subprocess.check_output(args, cwd=ROOT, text=True, timeout=10)
+            for line in reversed(out.splitlines()):
+                line = line.strip()
+                if line.startswith("TASK_ID="):
+                    task_id = line.split("=", 1)[1].strip()
+                    break
+            if not task_id:
+                print("AVISO: task-add não devolveu TASK_ID; latest_task_id = null.")
         except Exception as e:
-            print(f"AVISO: não consegui criar task: {e}")
-    state["latest_task_id"] = task_id
+            print(f"FALHA: task-add falhou: {e}  -> latest_task_id = null")
+    # `None` carries clearer semantics than empty string in current.json.
+    state["latest_task_id"] = task_id or None
 
     # Try to create a run package via run_log so debrief instructions exist on disk.
     run_path = ""
@@ -444,38 +443,83 @@ def cmd_close(argv):
 
 # ── resume ────────────────────────────────────────────────────────────────────
 
+def _last_gates_summary():
+    """Return (label, lines, next_hint) for the Last Gates section.
+    label is 'ok' / 'fail' / 'none'."""
+    latest = ROOT / "05_EXECUCAO" / "37_GATES" / "latest.json"
+    if not latest.exists():
+        return "none", ["(nenhum gate-run registrado)"], "./jarvis gate-run"
+    try:
+        data = json.loads(latest.read_text(encoding="utf-8"))
+    except Exception:
+        return "none", ["(gates/latest.json inválido)"], "./jarvis gate-run"
+    ok = bool(data.get("all_ok"))
+    ts = data.get("ts", "?")
+    lines = [f"timestamp: {ts}", f"all_ok: {ok}"]
+    for r in data.get("results", []):
+        flag = "OK   " if r.get("ok") else "FALHA"
+        lines.append(f"  {flag}  {r.get('name')}  exit={r.get('exit_code')}")
+    nh = "./jarvis work-close" if ok else "./jarvis gate-run   # corrija e rode de novo"
+    return ("ok" if ok else "fail"), lines, nh
+
+
 def cmd_resume(argv):
-    """Read-only: prints work-status + work-next + small summary so Theo
-    can pick back up after interruption."""
+    """Read-only: concise pickup point — Active Work / Latest Run /
+    Top Task / Last Gates / Next Command."""
     print("JARVIS — Resume")
-    print("Status real: retomada read-only. Nada editado.")
+    print("Status real: retomada read-only. Nada editado. Claude não executado.")
     print("")
     state = _load_current()
+
+    # 1. Active Work
+    print("## Active Work")
     if not state:
-        print("(nenhuma work session ativa)")
-        print("")
-        # Try to surface latest run + top task so resume is still useful.
-        _print_latest_run()
-        _print_top_task()
-        print("Sugestão principal:")
-        print('  ./jarvis work-start "pedido"   # inicia ciclo com lifecycle')
-        print('  ./jarvis go "o que faço agora" --dry-run  # apenas explorar')
-        print("")
-        print("Produção: nada alterado.")
-        return
-    cmd_status([])
+        print("  (nenhuma sessão ativa)")
+    else:
+        print(f"  id:      {state.get('work_id')}")
+        print(f"  request: {state.get('request')}")
+        print(f"  intent:  {state.get('intent')}")
+        print(f"  project: {state.get('project') or '(?)'}")
+        print(f"  status:  {state.get('status')}")
     print("")
-    _print_latest_run()
-    _print_top_task()
+
+    # 2. Latest Run
+    print("## Latest Run")
+    _print_latest_run(indent="  ")
+
+    # 3. Top Task
+    print("## Top Task")
+    _print_top_task(indent="  ")
+
+    # 4. Last Gates
+    print("## Last Gates")
+    label, lines, gate_hint = _last_gates_summary()
+    for ln in lines:
+        print(f"  {ln}")
+    print("")
+
+    # 5. Next Command
+    print("## Next Command")
+    if not state:
+        print('  ./jarvis work-start "pedido"   # inicia ciclo com lifecycle')
+        print('  ./jarvis go "o que faço agora" --dry-run  # alternativa exploratória')
+    else:
+        print(f"  {_next_action_for(state)}")
+    print("")
+    print("Produção: nada alterado. Nenhuma execução de Claude.")
 
 
-def _print_latest_run():
+def _print_latest_run(indent: str = ""):
     runs_dir = ROOT / "05_EXECUCAO" / "35_RUNS"
     if not runs_dir.exists():
+        print(f"{indent}(nenhum run package)")
+        print("")
         return
     runs = sorted([d for d in runs_dir.iterdir() if d.is_dir() and d.name != ".gitkeep"],
                   key=lambda d: d.stat().st_mtime)
     if not runs:
+        print(f"{indent}(nenhum run package)")
+        print("")
         return
     latest = runs[-1]
     req_file = latest / "01_REQUEST.md"
@@ -486,20 +530,20 @@ def _print_latest_run():
             if s and not s.startswith("#"):
                 first = s
                 break
-    print("## Último run package")
-    print(f"  {latest.relative_to(ROOT)}")
+    print(f"{indent}{latest.relative_to(ROOT)}")
     if first:
-        print(f"  {first}")
+        print(f"{indent}{first}")
     print("")
 
 
-def _print_top_task():
+def _print_top_task(indent: str = ""):
     tasks_file = ROOT / "05_EXECUCAO" / "34_TASKS" / "tasks.jsonl"
     if not tasks_file.exists():
+        print(f"{indent}(nenhuma task)")
+        print("")
         return
     pending = []
     seen_done_or_blocked = set()
-    # naive replay
     for line in tasks_file.read_text(encoding="utf-8", errors="ignore").splitlines():
         if not line.strip():
             continue
@@ -513,12 +557,13 @@ def _print_top_task():
             if ev.get("id") not in seen_done_or_blocked:
                 pending.append(ev)
     if not pending:
+        print(f"{indent}(nenhuma task pendente)")
+        print("")
         return
     top = pending[0]
-    print("## Top task pendente")
-    print(f"  id: {top.get('id')}")
-    print(f"  text: {top.get('text','')}")
-    print(f"  hint: ./jarvis task-next   # ver detalhes + comando sugerido")
+    print(f"{indent}id:   {top.get('id')}")
+    print(f"{indent}text: {top.get('text','')}")
+    print(f"{indent}hint: ./jarvis task-next")
     print("")
 
 

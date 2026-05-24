@@ -202,6 +202,24 @@ Storage runtime gitignored: `05_EXECUCAO/34_TASKS/tasks.jsonl`,
 Runtime gitignored adicional Sprint 4: `05_EXECUCAO/36_WORK_SESSIONS/current.json`,
 `05_EXECUCAO/36_WORK_SESSIONS/events.jsonl`.
 
+### Sprint 5 — comandos e mudanças
+
+```
+./jarvis gate-run                                        # safety+smoke+doctrine + update work session
+./jarvis gate-status                                     # último gate-run + work session
+./jarvis run-prune --keep 20 --dry-run|--apply           # limpa run packages antigos
+./jarvis report-check --file PATH --project ALIAS        # override de projeto
+./jarvis report-apply --file PATH --project ALIAS        # override de projeto
+./jarvis task-add "texto" --print-id                     # TASK_ID=t-... no stdout p/ captura
+```
+
+Lifecycle: `debrief_applied` agora aponta direto para `./jarvis gate-run`
+(um comando em vez de três). `gate-run` avança a sessão para
+`gates_passed` (ok) ou `gates_pending` (falha).
+
+Runtime gitignored adicional Sprint 5:
+`05_EXECUCAO/37_GATES/latest.json`, `05_EXECUCAO/37_GATES/events.jsonl`.
+
 Refusal de relatórios fracos: `project-memory-update --from-file` recusa
 gravar (`--apply`) se o arquivo for só comandos / sem seções
 (STATUS REAL, VALIDATION RESULTS, FILES CHANGED, SAFE TO COMMIT, ...).

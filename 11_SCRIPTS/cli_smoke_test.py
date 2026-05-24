@@ -851,6 +851,63 @@ CHECKS = [
         ],
     },
     {
+        "name": "report-check-good-fixture-with-project-jarvis-core",
+        "cmd": ["./jarvis", "report-check",
+                "--file", "10_TESTES/FIXTURES/good_claude_report_agent_os.md",
+                "--project", "jarvis-core"],
+        "expect": [
+            "Report Check",
+            "quality: strong",
+            "project alvo: jarvis-core",
+            "project source: explicit --project",
+            "READY",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "report-check-good-fixture-with-project-oficina",
+        "cmd": ["./jarvis", "report-check",
+                "--file", "10_TESTES/FIXTURES/good_claude_report_agent_os.md",
+                "--project", "oficina"],
+        "expect": [
+            "Report Check",
+            "quality: strong",
+            "project alvo: oficina",
+            "project source: explicit --project",
+            "project-memory-update --project oficina",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "task-add-print-id-dry-run",
+        "cmd": ["./jarvis", "task-add", "teste id real", "--dry-run", "--print-id"],
+        "expect": [
+            "Task Add",
+            "task_id: t-",
+            "Modo: --dry-run",
+            "TASK_ID=t-",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "gate-status-no-run-or-summary",
+        "cmd": ["./jarvis", "gate-status"],
+        "expect": [
+            "Gate Status",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "run-prune-dry-run",
+        "cmd": ["./jarvis", "run-prune", "--keep", "20", "--dry-run"],
+        "expect": [
+            "Run Prune",
+            "35_RUNS",
+            "--keep: 20",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

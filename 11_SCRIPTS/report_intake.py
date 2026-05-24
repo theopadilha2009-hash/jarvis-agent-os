@@ -17,11 +17,28 @@ Hard rules:
   - never touches the target project itself (delegates to existing safe paths)
 """
 from pathlib import Path
+from datetime import datetime
+import json
 import re
 import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _now_iso():
+    return datetime.now().isoformat(timespec="seconds")
+REGISTRY = ROOT / "01_SISTEMA" / "05_PROJECT_REGISTRY" / "PROJECT_REGISTRY.json"
+
+
+def _registered_aliases():
+    if not REGISTRY.exists():
+        return []
+    try:
+        data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+        return [p["alias"] for p in data.get("projects", [])]
+    except Exception:
+        return []
 
 # Reuse the weak-report classifier from project_memory_update so we have a
 # single source of truth.
@@ -62,6 +79,7 @@ def _looks_secret_like(text: str) -> bool:
 def _parse_common(argv):
     file_path = None
     force_weak = False
+    project_override = None
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -78,8 +96,17 @@ def _parse_common(argv):
             force_weak = True
             i += 1
             continue
+        if a == "--project":
+            if i + 1 < len(argv):
+                project_override = argv[i + 1].strip().lower()
+                i += 2
+                continue
+        if a.startswith("--project="):
+            project_override = a.split("=", 1)[1].strip().lower()
+            i += 1
+            continue
         i += 1
-    return file_path, force_weak
+    return file_path, force_weak, project_override
 
 
 def _detected_headings(text: str):
@@ -91,14 +118,24 @@ def _detected_headings(text: str):
     return found
 
 
-def _resolve_project(default_from_arg: str = None) -> str:
-    """Project precedence: --project arg > current work session > jarvis-core."""
+def _resolve_project(default_from_arg: str = None):
+    """Project precedence: --project arg > current work session > jarvis-core.
+    Returns (project_alias, source_label, warn_message_or_None)."""
+    aliases = _registered_aliases()
     if default_from_arg:
-        return default_from_arg
+        if aliases and default_from_arg not in aliases:
+            return None, "explicit", (
+                f"FALHA: alias '{default_from_arg}' não registrado. "
+                f"Aliases válidos: {', '.join(aliases) or '(nenhum)'}"
+            )
+        return default_from_arg, "explicit --project", None
     state = _load_current()
     if state and state.get("project"):
-        return state["project"]
-    return "jarvis-core"
+        return state["project"], "current work session", None
+    return "jarvis-core", "fallback", (
+        "AVISO: sem sessão ativa e sem --project; usando fallback jarvis-core. "
+        "Use --project ALIAS para outro projeto."
+    )
 
 
 def _expected_path_for(project: str) -> str:
@@ -181,7 +218,7 @@ def cmd_status(argv):
 # ── check ─────────────────────────────────────────────────────────────────────
 
 def cmd_check(argv):
-    file_path, _fw = _parse_common(argv)
+    file_path, _fw, project_override = _parse_common(argv)
     print("JARVIS — Report Check")
     print("Status real: leitura local. Nada gravado.")
     print("")
@@ -203,10 +240,15 @@ def cmd_check(argv):
 
     label, hits, ratio, hint = report_quality(raw)
     headings = _detected_headings(raw)
-    project = _resolve_project()
-    apply_cmd = (
-        f"./jarvis report-apply --file {file_path}"
-    )
+    project, project_source, warn = _resolve_project(project_override)
+    if project is None:
+        # Invalid explicit alias.
+        print(warn)
+        sys.exit(5)
+    apply_cmd_parts = ["./jarvis", "report-apply", "--file", file_path]
+    if project_override:
+        apply_cmd_parts += ["--project", project_override]
+    apply_cmd = " ".join(apply_cmd_parts)
     direct_apply = (
         f"./jarvis self-debrief --from-file {file_path} --apply"
         if project == "jarvis-core"
@@ -217,7 +259,10 @@ def cmd_check(argv):
     print(f"size: {len(raw)} bytes")
     print(f"detected headings: {', '.join(headings) if headings else '(nenhuma)'}")
     print(f"quality: {label}  ({hint})")
-    print(f"guessed project alvo: {project}")
+    print(f"project alvo: {project}")
+    print(f"project source: {project_source}")
+    if warn:
+        print(warn)
     print("")
     if label == "strong":
         print("Resultado: READY — pode aplicar.")
@@ -242,7 +287,7 @@ def cmd_check(argv):
 # ── apply ─────────────────────────────────────────────────────────────────────
 
 def cmd_apply(argv):
-    file_path, force_weak = _parse_common(argv)
+    file_path, force_weak, project_override = _parse_common(argv)
     print("JARVIS — Report Apply")
     print("Status real: roteia para self-debrief / project-memory-update.")
     print("")
@@ -261,32 +306,30 @@ def cmd_apply(argv):
         print("FALHA: arquivo parece conter segredo. NÃO aplicamos.")
         sys.exit(3)
     label, hits, ratio, hint = report_quality(raw)
-    project = _resolve_project()
+    project, project_source, warn = _resolve_project(project_override)
+    if project is None:
+        print(warn)
+        sys.exit(5)
 
     print(f"file: {file_path}")
     print(f"quality: {label}  ({hint})")
     print(f"project alvo: {project}")
+    print(f"project source: {project_source}")
+    if warn:
+        print(warn)
     print("")
     if label != "strong" and not force_weak:
         print("FALHA: relatório fraco/comandos-only. Recuso aplicar.")
         print(f"Use --force-weak se for intencional (perigoso).")
         sys.exit(4)
 
-    # Delegate to the existing safe writer.
-    if project == "jarvis-core":
-        delegate = ["python3", "11_SCRIPTS/project_memory_update.py",
-                    "--project", "jarvis-core",
-                    "--from-file", str(p), "--apply"]
-        if force_weak:
-            delegate.append("--force-weak-report")
-        # self-debrief is a wrapper over project-memory-update; calling
-        # project-memory-update directly avoids an extra subprocess hop.
-    else:
-        delegate = ["python3", "11_SCRIPTS/project_memory_update.py",
-                    "--project", project,
-                    "--from-file", str(p), "--apply"]
-        if force_weak:
-            delegate.append("--force-weak-report")
+    # Delegate to the existing safe writer. Always go through
+    # project_memory_update.py — self-debrief is just a wrapper over it.
+    delegate = ["python3", "11_SCRIPTS/project_memory_update.py",
+                "--project", project,
+                "--from-file", str(p), "--apply"]
+    if force_weak:
+        delegate.append("--force-weak-report")
 
     print("Delegando para writer seguro:")
     print("  " + " ".join(delegate[1:]))
@@ -298,14 +341,17 @@ def cmd_apply(argv):
         sys.exit(result.returncode)
 
     # Advance the work session lifecycle if there is one.
-    updated = update_status("debrief_applied", debrief_at=None)
+    updated = update_status(
+        "debrief_applied",
+        next_command="./jarvis gate-run",
+        debrief_applied_at=_now_iso(),
+    )
     print("")
     if updated:
         print("OK — work session avançou para status=debrief_applied.")
-    print("Próximos gates (Theo executa):")
-    print("  env JARVIS_NO_REPORT=1 ./jarvis safety-gate")
-    print("  env JARVIS_NO_REPORT=1 ./jarvis smoke-test")
-    print("  ./jarvis doctrine-check")
+        print("    next_command: ./jarvis gate-run")
+    print("Próximo passo único:")
+    print("  ./jarvis gate-run")
     print("Depois: ./jarvis work-close")
     print("")
     print("Produção: nada alterado em VPS / n8n / produção.")
