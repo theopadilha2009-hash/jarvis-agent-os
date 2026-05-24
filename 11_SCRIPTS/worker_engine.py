@@ -1,38 +1,54 @@
 """
-worker_engine.py — JARVIS Sprint 8 real worker engine.
+worker_engine.py — JARVIS worker engine (Sprint 8 + Sprint 8.1 reinforced).
 
-`./jarvis do "pedido"` é a interface principal do worker.
+`./jarvis do "pedido"` é a interface principal. Sem argumento, faz smart
+resume baseado no estado real (work session / gates / top task).
 
-O que faz:
-  1. classifica o pedido (ask_router, regex local — sem LLM, sem API)
-  2. resolve projeto (PROJECT_REGISTRY)
-  3. classifica risco e escolhe rota segura
-  4. roda um pequeno loop observe-act executando apenas comandos do
-     ALLOWLIST. Tudo que estiver fora vira "bloqueado" e é só impresso.
-  5. registra um worker run em 05_EXECUCAO/42_WORKER_RUNS/<ts>_<slug>/
-     (gitignored). Suprimível com --dry-run ou JARVIS_NO_REPORT=1.
+O que mudou em 8.1 vs 8.0:
+  - sem argumento → smart resume (decide via state, não mais erro).
+  - allowlist inclui geradores de mission pack (goal-sprint, qa-sprint,
+    self-evolve, blueprint, claude-launch --print-only) — todos
+    escrevem em pastas gitignored.
+  - rotas produzem ARTEFATOS REAIS, não previews:
+      project_fix       → project-intel + goal-sprint (mission pack pronto)
+      self_evolve       → health + self-evolve (mission pack pronto)
+      n8n_blueprint     → blueprint --type n8n (pacote local pronto)
+      no_claude         → pacote no-claude + task local
+      capability_check  → capability-check + capability-plan (se aplicável)
+      handoff           → handoff-self --save (arquivo persistido)
+      resume / unclear  → orientação estado-aware
+  - --copy joga o prompt principal do último artefato no clipboard.
+  - worker log inclui trecho da mission e o path exato para `cat | pbcopy`.
 
-Hard rules:
+Mantém todas as garantias de segurança:
   - nunca executa Claude
   - nunca chama API paga
-  - nunca toca produção / VPS / n8n real
+  - nunca toca produção / VPS / n8n real / Supabase prod
   - nunca edita projetos-alvo
-  - nunca lê .env
-  - nunca usa --apply em sub-comandos a menos que explicitamente seguro
-  - nunca faz push / PR / merge / deploy / migrations
+  - nunca lê .env nem imprime segredos
+  - nunca usa --apply / --live / --force em sub-comandos
+  - nunca push / PR / merge / deploy / migrations / tag
 """
 from __future__ import annotations
 from pathlib import Path
 from datetime import datetime
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER_DIR = ROOT / "05_EXECUCAO" / "42_WORKER_RUNS"
+CURRENT_SESSION = ROOT / "05_EXECUCAO" / "36_WORK_SESSIONS" / "current.json"
+GATES_LATEST = ROOT / "05_EXECUCAO" / "37_GATES" / "latest.json"
+TASKS_JSONL = ROOT / "05_EXECUCAO" / "34_TASKS" / "tasks.jsonl"
+ASK_UNCLEAR = ROOT / "05_EXECUCAO" / "32_ASK_LEARNING" / "UNCLEAR_REQUESTS.md"
+MISSIONS_DIR = ROOT / "05_EXECUCAO" / "21_CLAUDE_MISSIONS"
+BLUEPRINTS_DIR = ROOT / "05_EXECUCAO" / "40_BLUEPRINTS"
 
-# Reuse ask_router + secret_scan (stdlib-style internal modules).
+# Reuse intents + secret detection from existing internal modules.
 sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
 try:
     from ask_router import (  # type: ignore
@@ -86,11 +102,10 @@ except Exception:
 
 
 # ── Safety: allowlist ─────────────────────────────────────────────────────────
-
-# A command is allowed if its (cmd[0:2]) matches one of these prefixes AND no
-# blocked token appears anywhere in cmd[1:]. The allowlist is intentionally
-# narrow: read-only or dry-run / non-destructive write to gitignored runtime.
-ALLOWED_PREFIXES = [
+# `do` may auto-execute only these prefixes. Each ALSO must contain no blocked
+# token anywhere in argv. The allowlist now includes mission-pack generators
+# because they write to gitignored runtime — they are the "real artifact" path.
+ALLOWED_PREFIXES = {
     ("./jarvis", "daily"),
     ("./jarvis", "now"),
     ("./jarvis", "state-status"),
@@ -101,6 +116,7 @@ ALLOWED_PREFIXES = [
     ("./jarvis", "blueprint"),
     ("./jarvis", "project-intel"),
     ("./jarvis", "project-memory"),
+    ("./jarvis", "project-cockpit"),
     ("./jarvis", "capability-check"),
     ("./jarvis", "capability-plan"),
     ("./jarvis", "capabilities"),
@@ -114,15 +130,21 @@ ALLOWED_PREFIXES = [
     ("./jarvis", "ask"),
     ("./jarvis", "plan"),
     ("./jarvis", "limits"),
-]
+    # Sprint 8.1 — mission pack generators (write to gitignored 21_CLAUDE_MISSIONS).
+    ("./jarvis", "goal-sprint"),
+    ("./jarvis", "qa-sprint"),
+    ("./jarvis", "browser-qa"),
+    ("./jarvis", "self-evolve"),
+    ("./jarvis", "claude-launch"),
+}
 
-# Tokens that, if found anywhere in a candidate command, immediately mark it as
-# blocked — even if the prefix is allowed.
+# Tokens that, if found anywhere in candidate command, immediately mark it as
+# blocked — even if the prefix is allowed. Conservative on purpose.
 BLOCKED_TOKENS = {
-    "--apply",          # never auto-apply anything (reports, debriefs, freezes)
+    "--apply",
     "--force",
     "--force-weak",
-    "--live",           # recipe-run --live actually executes sub-commands
+    "--live",
     "report-apply",
     "rc-freeze",
     "state-reset",
@@ -138,16 +160,14 @@ BLOCKED_TOKENS = {
     "tag",
     "pull-request",
     "pr-create",
-    "claude",           # do not exec the claude CLI
+    "claude",        # never exec the claude CLI
 }
 
 
 def _is_allowed(cmd):
-    """Return True iff cmd matches an allowed prefix AND has no blocked token."""
     if not cmd or len(cmd) < 2:
         return False
-    prefix = (cmd[0], cmd[1])
-    if prefix not in ALLOWED_PREFIXES:
+    if (cmd[0], cmd[1]) not in ALLOWED_PREFIXES:
         return False
     for token in cmd[1:]:
         if token in BLOCKED_TOKENS:
@@ -171,8 +191,32 @@ def _slugify(text: str, max_len: int = 60) -> str:
     return s or "worker-run"
 
 
-def _run(cmd, timeout=60):
-    """Run cmd in ROOT, capture combined output. Returns (rc, out, summary)."""
+def _safe_load_json(path: Path):
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _has_cmd(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
+def _pbcopy(text: str) -> bool:
+    """Copy text to clipboard via pbcopy. Returns True on success."""
+    if not _has_cmd("pbcopy"):
+        return False
+    try:
+        p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+        p.communicate(text.encode("utf-8"))
+        return p.returncode == 0
+    except Exception:
+        return False
+
+
+def _run(cmd, timeout=120):
     try:
         out = subprocess.check_output(
             cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT, timeout=timeout
@@ -185,34 +229,141 @@ def _run(cmd, timeout=60):
         return (124, "<timeout>", "timeout")
     except Exception as e:
         return (1, f"<erro: {e}>", f"erro: {e}")
-    summary = _one_line_summary(out)
-    return (rc, out, summary)
+    return (rc, out, _one_line_summary(out))
 
 
 def _one_line_summary(out: str) -> str:
-    """Extract a representative single line from a sub-command output."""
     if not out:
         return "(sem saída)"
     interesting = []
     for raw in out.splitlines():
         line = raw.strip()
-        if not line:
-            continue
-        if line.startswith("##"):
+        if not line or line.startswith("##"):
             continue
         interesting.append(line)
     if not interesting:
         return "(sem linha legível)"
-    # Prefer a "Resultado:" / "PASSOU" / "DRY-RUN" line if present.
     for line in interesting:
-        if line.startswith("Resultado:") or "PASSOU" in line or "DRY-RUN" in line:
+        if (
+            line.startswith("Resultado:")
+            or "PASSOU" in line
+            or "DRY-RUN" in line
+            or line.startswith("Mission pack:")
+            or line.startswith("Prompt:")
+            or line.startswith("Próximo:")
+        ):
             return line[:160]
-    # Otherwise return the last non-trivial line (usually the conclusion).
     for line in reversed(interesting):
         if "Produção:" in line:
             continue
         return line[:160]
     return interesting[-1][:160]
+
+
+def _latest_dir(parent: Path, prefix: str | None = None) -> Path | None:
+    if not parent.exists():
+        return None
+    cands = [
+        p for p in parent.iterdir()
+        if p.is_dir() and not p.name.startswith(".")
+        and (prefix is None or p.name.startswith(prefix) or prefix in p.name)
+    ]
+    return sorted(cands, key=lambda p: p.name, reverse=True)[0] if cands else None
+
+
+def _latest_subtree_after(parent: Path, since: float) -> Path | None:
+    """Most recent immediate subdir created after `since` (epoch seconds)."""
+    if not parent.exists():
+        return None
+    cands = [
+        p for p in parent.iterdir()
+        if p.is_dir() and not p.name.startswith(".") and p.stat().st_mtime >= since
+    ]
+    return sorted(cands, key=lambda p: p.stat().st_mtime, reverse=True)[0] if cands else None
+
+
+def _read_text_capped(path: Path, max_chars: int = 4000) -> str:
+    try:
+        t = path.read_text(encoding="utf-8")
+    except Exception as e:
+        return f"<erro lendo {path}: {e}>"
+    if len(t) <= max_chars:
+        return t
+    return t[:max_chars] + f"\n\n…(truncado em {max_chars} chars)…"
+
+
+# ── State inspection (smart resume) ──────────────────────────────────────────
+
+def _top_pending_task():
+    if not TASKS_JSONL.exists():
+        return None
+    try:
+        seen = {}
+        with TASKS_JSONL.open(encoding="utf-8") as f:
+            for raw in f:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    ev = json.loads(raw)
+                except Exception:
+                    continue
+                tid = ev.get("task_id") or ev.get("id")
+                if not tid:
+                    continue
+                if tid not in seen:
+                    seen[tid] = ev
+                else:
+                    seen[tid].update(ev)
+        for _tid, ev in seen.items():
+            if ev.get("status") in ("pending", None):
+                return ev
+        return None
+    except Exception:
+        return None
+
+
+def _smart_resume_decision():
+    """Look at JARVIS state, return (next_command, reason)."""
+    session = _safe_load_json(CURRENT_SESSION)
+    gates = _safe_load_json(GATES_LATEST)
+    top = _top_pending_task()
+
+    if session:
+        st = session.get("status")
+        nc = session.get("next_command")
+        if st == "blocked":
+            return ("./jarvis state-status",
+                    "sessão atual está blocked — revise antes de continuar")
+        if nc:
+            return (nc, f"sessão ativa diz next_command={nc!r} (status={st})")
+        if st in ("started", "mission_generated"):
+            return ("./jarvis next",
+                    "sessão ativa aguarda colar missão no Claude")
+        if st == "report_pending":
+            return ("./jarvis report-template",
+                    "sessão aguarda relatório do Claude — gere o template `cat > /tmp/...`")
+        if st in ("report_checked", "debrief_applied"):
+            return ("./jarvis gates",
+                    "debrief aplicado — rode os gates para fechar a sessão")
+        if st == "gates_passed":
+            return ("./jarvis finish",
+                    "gates passaram — feche a sessão")
+        return ("./jarvis work-status",
+                f"sessão ativa com status={st!r} — inspecione antes de agir")
+
+    if gates and gates.get("all_ok") is False:
+        return ("./jarvis gates",
+                "último gate-run não está all_ok — investigue / re-rode")
+
+    if top:
+        text = (top.get("text") or top.get("request") or "").strip()
+        snippet = text.replace('"', "'")[:80]
+        return (f'./jarvis do "{snippet}"',
+                f"top task pendente: {snippet}")
+
+    return ('./jarvis do "o que você quer fazer agora"',
+            "nenhuma sessão / nenhum gate falho / nenhuma task — descreva o pedido")
 
 
 # ── Arg parsing ───────────────────────────────────────────────────────────────
@@ -222,6 +373,7 @@ def parse_args(argv):
     project_override = None
     dry_run = False
     mode = "safe"
+    copy_flag = False
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -245,15 +397,23 @@ def parse_args(argv):
             dry_run = True
             i += 1
             continue
+        if a == "--copy":
+            copy_flag = True
+            i += 1
+            continue
+        if a == "--no-copy":
+            copy_flag = False
+            i += 1
+            continue
         text_parts.append(a)
         i += 1
     text = " ".join(text_parts).strip()
     if mode not in ("safe", "no-claude"):
         mode = "safe"
-    return text, project_override, dry_run, mode
+    return text, project_override, dry_run, mode, copy_flag
 
 
-# ── Route selection ───────────────────────────────────────────────────────────
+# ── Route names ───────────────────────────────────────────────────────────────
 
 ROUTE_RESUME = "resume"
 ROUTE_N8N = "n8n_blueprint"
@@ -264,168 +424,268 @@ ROUTE_CAPABILITY = "capability_check"
 ROUTE_HANDOFF = "handoff"
 ROUTE_UNCLEAR = "unclear"
 
-# Risk classification of the route (informational; not a gate).
 RISK_READ_ONLY = "read_only"
 RISK_JARVIS_WRITE = "jarvis_write"
 RISK_RUNTIME_WRITE = "runtime_write"
 RISK_NEEDS_CLAUDE = "needs_claude"
 RISK_BLOCKED = "blocked"
 
-_NO_CLAUDE_HINT = re.compile(r"(?i)\b(sem claude|acabou (?:o )?claude|claude (?:fora|indisponível|indisponivel|caiu)|offline)\b")
-_HANDOFF_HINT = re.compile(r"(?i)\b(handoff|hand[- ]off|passar (?:para|pra) chatgpt|cole no chatgpt)\b")
+_NO_CLAUDE_HINT = re.compile(
+    r"(?i)\b(sem claude|acabou (?:o )?claude|claude (?:fora|indispon[íi]vel|caiu)|offline)\b"
+)
+_HANDOFF_HINT = re.compile(
+    r"(?i)\b(handoff|hand[- ]off|passar (?:para|pra) chatgpt|cole no chatgpt)\b"
+)
 
 
-def choose_route(text, intent, project, capability_hint, mode):
-    """Return (route, risk)."""
-    # Explicit --mode no-claude overrides everything except secret-like inputs.
+def choose_route(text, intent, project, capability_hint, mode, project_override=False):
+    if not text.strip():
+        return (ROUTE_RESUME, RISK_READ_ONLY)
     if mode == "no-claude":
         return (ROUTE_NO_CLAUDE, RISK_RUNTIME_WRITE)
-
-    if _NO_CLAUDE_HINT.search(text or ""):
+    if _NO_CLAUDE_HINT.search(text):
         return (ROUTE_NO_CLAUDE, RISK_RUNTIME_WRITE)
-
-    if _HANDOFF_HINT.search(text or ""):
+    if _HANDOFF_HINT.search(text):
         return (ROUTE_HANDOFF, RISK_RUNTIME_WRITE)
-
     if capability_hint:
         return (ROUTE_CAPABILITY, RISK_READ_ONLY)
-
     if intent == INTENT_NEXT_ACTION:
         return (ROUTE_RESUME, RISK_READ_ONLY)
-
     if intent == INTENT_SELF_EVOLVE:
         return (ROUTE_SELF_EVOLVE, RISK_NEEDS_CLAUDE)
-
     if intent == INTENT_N8N_BLUEPRINT:
         return (ROUTE_N8N, RISK_RUNTIME_WRITE)
-
     if intent == INTENT_CAPABILITY_CHECK:
         return (ROUTE_CAPABILITY, RISK_READ_ONLY)
-
-    if intent in (
-        INTENT_PROJECT_FIX,
-        INTENT_PROJECT_QA,
-        INTENT_BROWSER_QA,
-        INTENT_FINAL_GATE,
-        INTENT_OPEN_PROJECT,
-    ):
-        return (ROUTE_PROJECT, RISK_READ_ONLY if not project else RISK_NEEDS_CLAUDE)
-
+    if intent in (INTENT_PROJECT_FIX, INTENT_PROJECT_QA,
+                  INTENT_BROWSER_QA, INTENT_FINAL_GATE, INTENT_OPEN_PROJECT):
+        return (ROUTE_PROJECT, RISK_NEEDS_CLAUDE if project else RISK_READ_ONLY)
+    # Strong bias: if user supplied --project ALIAS explicitly, treat as project route
+    # even if the intent classifier was confused. This is the common "do something
+    # in <project>" flow.
+    if project_override and project:
+        return (ROUTE_PROJECT, RISK_NEEDS_CLAUDE)
+    # Weaker bias: project alias detected from text plus action-y verb → project route.
+    if project and _ACTION_HINT.search(text):
+        return (ROUTE_PROJECT, RISK_NEEDS_CLAUDE)
     return (ROUTE_UNCLEAR, RISK_READ_ONLY)
 
 
-# ── Route action plans ────────────────────────────────────────────────────────
-# Each entry: (label, command_list, blocked_reason_or_None)
-# blocked_reason_or_None — if non-None, this step is printed but NOT executed.
+# Action-y verbs that, combined with a detected project alias, justify routing
+# to project_fix_or_inspect even if the intent classifier returned something else.
+_ACTION_HINT = re.compile(
+    r"(?i)\b(bug|fix|consert|corrig|arrum|resolv|implement|"
+    r"feature|funcionalidade|atualiz|update|melhor|tunin|"
+    r"qa|test|valid|revisar|review|"
+    r"refator|refact|limpar|cleanup|organiz|"
+    r"docum|docs|readme)\b"
+)
 
-def plan_resume(text, project):
-    return [
-        ("Dashboard de uma tela", ["./jarvis", "daily"], None),
-        ("Estado runtime", ["./jarvis", "state-status"], None),
-    ], './jarvis next', None
 
+# ── Plan builders ─────────────────────────────────────────────────────────────
+# Each plan returns (actions, next_cmd, error). Each action is
+# (label, cmd_list, blocked_reason_or_None).
 
-def plan_n8n(text, project, mode):
+def plan_resume(text, project, dry_run):
+    next_cmd, reason = _smart_resume_decision()
     actions = [
-        ("Recipe dry-run n8n-workflow",
-         ["./jarvis", "recipe-run", "n8n-workflow", "--goal", text, "--dry-run"],
+        ("Dashboard (read-only)", ["./jarvis", "daily"], None),
+    ]
+    return actions, next_cmd, None, {"reason": reason}
+
+
+def plan_n8n(text, project, mode, dry_run):
+    goal = text or "workflow n8n"
+    actions = [
+        ("Blueprint local (n8n)",
+         ["./jarvis", "blueprint", "--type", "n8n", "--goal", goal] +
+         (["--dry-run"] if dry_run else []),
          None),
     ]
     if mode == "no-claude":
         actions.append((
             "Pacote no-claude (n8n)",
-            ["./jarvis", "no-claude", f"workflow n8n: {text}"],
+            ["./jarvis", "no-claude", f"workflow n8n: {goal}"] +
+            (["--dry-run"] if dry_run else []),
             None,
         ))
-    return actions, f'./jarvis start "criar workflow n8n: {text}"', None
+    next_cmd = f'./jarvis start "criar workflow n8n: {goal}"'
+    extras = {"artifact_dir": BLUEPRINTS_DIR, "artifact_hint": "n8n"}
+    return actions, next_cmd, None, extras
 
 
-def plan_project(text, project):
+def plan_project(text, project, dry_run):
     if not project:
-        return [], None, "Sem project alias detectado — peça com --project ALIAS."
+        return ([], None,
+                "Sem project alias detectado — peça com --project ALIAS "
+                "(ex.: oficina, jarvis-core, ls, gc).", {})
     actions = [
-        ("Inspeção read-only", ["./jarvis", "project-intel", "--project", project], None),
-        ("Plano local (texto-only, sem --save)",
-         ["./jarvis", "plan", f"{text} no projeto {project} sem produção"],
+        ("Inspeção read-only do projeto",
+         ["./jarvis", "project-intel", "--project", project], None),
+        ("Mission pack Claude (goal-sprint)",
+         ["./jarvis", "goal-sprint", "--project", project, "--goal", text] +
+         (["--dry-run"] if dry_run else []),
+         None),
+        ("Bloco para abrir Claude (print-only)",
+         ["./jarvis", "claude-launch", "--project", project, "--print-only"],
          None),
     ]
-    return actions, f'./jarvis start "{project}: {text}"', None
+    next_cmd = (f'./jarvis start "{project}: {text}"  '
+                "# ou cole o prompt da mission no Claude já aberto")
+    extras = {"artifact_dir": MISSIONS_DIR, "artifact_hint": f"project-{project}_goal-sprint"}
+    return actions, next_cmd, None, extras
 
 
-def plan_self_evolve(text, project):
+def plan_self_evolve(text, project, dry_run):
+    goal = text or "reduzir trabalho manual"
     actions = [
-        ("Health do JARVIS", ["./jarvis", "health"], None),
-        ("Recipe dry-run self-evolve",
-         ["./jarvis", "recipe-run", "self-evolve", "--goal", text, "--dry-run"],
+        ("Health quick", ["./jarvis", "health"], None),
+        ("Mission pack self-evolve",
+         ["./jarvis", "self-evolve", "--goal", goal] +
+         (["--dry-run"] if dry_run else []),
+         None),
+        ("Bloco para abrir Claude (jarvis-core)",
+         ["./jarvis", "claude-launch", "--project", "jarvis-core", "--print-only"],
          None),
     ]
-    return actions, f'./jarvis start "evoluir o JARVIS: {text}"', None
+    next_cmd = f'./jarvis start "evoluir o JARVIS: {goal}"'
+    extras = {"artifact_dir": MISSIONS_DIR, "artifact_hint": "jarvis-core_self-evolve"}
+    return actions, next_cmd, None, extras
 
 
 def plan_no_claude(text, project, dry_run):
-    no_claude_cmd = ["./jarvis", "no-claude", text]
-    task_cmd = ["./jarvis", "task-add", f"no-claude: {text}"]
+    base = text or "pedido sem texto"
+    no_claude_cmd = ["./jarvis", "no-claude", base]
+    task_cmd = ["./jarvis", "task-add", f"no-claude: {base}"]
     if dry_run:
         no_claude_cmd.append("--dry-run")
         task_cmd.append("--dry-run")
     actions = [
-        ("Pacote no-claude", no_claude_cmd, None),
+        ("Pacote no-claude completo", no_claude_cmd, None),
         ("Enfileirar task local", task_cmd, None),
     ]
-    return actions, './jarvis state-status', None
+    next_cmd = './jarvis state-status   # ver pacote + task gerados'
+    extras = {"artifact_dir": ROOT / "05_EXECUCAO" / "38_NO_CLAUDE",
+              "artifact_hint": _slugify(base)}
+    return actions, next_cmd, None, extras
 
 
-def plan_capability(text, project, capability_hint):
+def plan_capability(text, project, capability_hint, dry_run):
     name = capability_hint or "google_calendar"
     actions = [
         ("Detalhe da capability", ["./jarvis", "capability-check", name], None),
+        ("Plano local (future_adapter)", ["./jarvis", "capability-plan", name], None),
     ]
-    return actions, f'./jarvis capability-plan {name}', None
+    next_cmd = './jarvis limits   # ver fronteira completa do robô'
+    return actions, next_cmd, None, {}
 
 
-def plan_handoff(text, project):
+def plan_handoff(text, project, dry_run):
+    cmd = ["./jarvis", "handoff-self"]
+    if not dry_run:
+        cmd.append("--save")
     actions = [
-        ("Snapshot do JARVIS (terminal-only)", ["./jarvis", "handoff-self"], None),
+        ("Snapshot do JARVIS (persistido em 39_HANDOFFS/)", cmd, None),
     ]
-    return actions, './jarvis handoff-self --save', None
+    next_cmd = 'open 05_EXECUCAO/39_HANDOFFS/   # último handoff'
+    extras = {"artifact_dir": ROOT / "05_EXECUCAO" / "39_HANDOFFS",
+              "artifact_hint": "jarvis_handoff"}
+    return actions, next_cmd, None, extras
+
+
+_UNCLEAR_PATTERN_HINTS = [
+    (re.compile(r"(?i)\b(deploy|push|merge|tag|prod(?:u(?:ção|cao))?)\b"),
+     "parece pedido de ação restrita — JARVIS bloqueia. Veja ./jarvis limits."),
+    (re.compile(r"(?i)\b(test|teste|qa|quality)\b"),
+     'soa como QA — tente: ./jarvis do "qa sprint no projeto <alias>"'),
+    (re.compile(r"(?i)\b(refator|refact|limpar|cleanup|organizar)\b"),
+     'soa como refator — tente: ./jarvis do "refator no projeto <alias>: <objetivo>"'),
+    (re.compile(r"(?i)\b(criar|montar|build|scaffold|novo)\b"),
+     'parece scaffold — tente: ./jarvis blueprint --type app --goal "..."'),
+    (re.compile(r"(?i)\b(documenta(?:r|ção|cao)|docs|readme)\b"),
+     'parece docs — tente: ./jarvis do "docs do projeto <alias>: <o que documentar>"'),
+]
 
 
 def plan_unclear(text, project, dry_run):
-    ask_cmd = ["./jarvis", "ask", text, "--dry-run"]
-    task_cmd = ["./jarvis", "task-add", f"revisar request unclear: {text}", "--dry-run"]
     actions = [
-        ("Router local em modo explicação", ask_cmd, None),
-        ("Marcar revisão (dry-run)", task_cmd, None),
+        ("Router local em modo explicação",
+         ["./jarvis", "ask", text, "--dry-run"], None),
+        ("Marcar revisão (dry-run)",
+         ["./jarvis", "task-add", f"revisar request unclear: {text}", "--dry-run"], None),
     ]
-    return actions, f'./jarvis no-claude "{text}" --dry-run', None
+    hints = []
+    for pat, msg in _UNCLEAR_PATTERN_HINTS:
+        if pat.search(text or ""):
+            hints.append(msg)
+    next_cmd = f'./jarvis no-claude "{text}" --dry-run   # ver plano manual + comandos seguros'
+    extras = {"hints": hints}
+    return actions, next_cmd, None, extras
 
 
 def build_plan(route, text, project, mode, dry_run, capability_hint):
-    """Return (actions, next_cmd, error). error != None => abort with message."""
     if route == ROUTE_RESUME:
-        return plan_resume(text, project)
+        return plan_resume(text, project, dry_run)
     if route == ROUTE_N8N:
-        return plan_n8n(text, project, mode)
+        return plan_n8n(text, project, mode, dry_run)
     if route == ROUTE_PROJECT:
-        return plan_project(text, project)
+        return plan_project(text, project, dry_run)
     if route == ROUTE_SELF_EVOLVE:
-        return plan_self_evolve(text, project)
+        return plan_self_evolve(text, project, dry_run)
     if route == ROUTE_NO_CLAUDE:
         return plan_no_claude(text, project, dry_run)
     if route == ROUTE_CAPABILITY:
-        return plan_capability(text, project, capability_hint)
+        return plan_capability(text, project, capability_hint, dry_run)
     if route == ROUTE_HANDOFF:
-        return plan_handoff(text, project)
+        return plan_handoff(text, project, dry_run)
     return plan_unclear(text, project, dry_run)
+
+
+# ── Artifact detection (after live execution) ────────────────────────────────
+
+def _find_recent_artifact(extras, started_at) -> Path | None:
+    """If the route produced a real artifact (mission pack, blueprint, etc.),
+    return its directory path. Looks under extras['artifact_dir'] for the most
+    recent subdir created after started_at, optionally matching artifact_hint."""
+    art_dir = extras.get("artifact_dir") if extras else None
+    if not art_dir:
+        return None
+    candidate = _latest_subtree_after(art_dir, started_at - 1)
+    if not candidate:
+        return None
+    hint = (extras or {}).get("artifact_hint")
+    if hint and hint not in candidate.name:
+        # take it anyway — most recent matters
+        pass
+    return candidate
+
+
+def _prompt_file_in(artifact: Path) -> Path | None:
+    """Return the most likely prompt file inside an artifact dir."""
+    if not artifact or not artifact.exists():
+        return None
+    # mission pack format
+    candidates = [
+        "01_CLAUDE_PROMPT.md",
+        "01_REQUEST.md",
+        "PROMPT.md",
+        "01_SPEC.md",
+    ]
+    for name in candidates:
+        p = artifact / name
+        if p.exists():
+            return p
+    mds = sorted(artifact.glob("*.md"))
+    return mds[0] if mds else None
 
 
 # ── Worker log ────────────────────────────────────────────────────────────────
 
 def _write_worker_log(text, route, risk, mode, project, intent, actions_recorded,
-                      next_cmd, capability_hint):
-    """Write 6 markdown files to 42_WORKER_RUNS/<ts>_<slug>/."""
+                      next_cmd, capability_hint, extras, artifact_dir, prompt_file,
+                      reason):
     ts_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
-    slug = _slugify(text)
+    slug = _slugify(text or route)
     pkg = WORKER_DIR / f"{ts_dir}_{slug}"
     try:
         pkg.mkdir(parents=True, exist_ok=True)
@@ -435,48 +695,78 @@ def _write_worker_log(text, route, risk, mode, project, intent, actions_recorded
     ts = datetime.now().isoformat(timespec="seconds")
 
     (pkg / "01_REQUEST.md").write_text(
-        f"# Worker Request\n\n## Timestamp\n{ts}\n\n## Texto original\n{text}\n",
+        f"# Worker Request\n\n## Timestamp\n{ts}\n\n## Texto original\n{text or '(vazio — smart resume)'}\n",
         encoding="utf-8",
     )
-    (pkg / "02_ROUTE.md").write_text(
-        "# Worker Route\n\n"
-        f"- route: `{route}`\n"
-        f"- risk: `{risk}`\n"
-        f"- mode: `{mode}`\n"
-        f"- intent: `{intent}`\n"
-        f"- project: `{project or '(nenhum)'}`\n"
+
+    plan_md = [
+        "# Worker Plan\n\n",
+        f"- route: `{route}`\n",
+        f"- risk: `{risk}`\n",
+        f"- mode: `{mode}`\n",
+        f"- intent: `{intent}`\n",
+        f"- project: `{project or '(nenhum)'}`\n",
         f"- capability: `{capability_hint or '(n/a)'}`\n",
-        encoding="utf-8",
-    )
+    ]
+    if reason:
+        plan_md.append(f"\n## Reasoning\n{reason}\n")
+    if extras and extras.get("hints"):
+        plan_md.append("\n## Heurísticas para pedido unclear\n")
+        for h in extras["hints"]:
+            plan_md.append(f"- {h}\n")
+    (pkg / "02_PLAN.md").write_text("".join(plan_md), encoding="utf-8")
+
     actions_md = ["# Actions\n"]
-    for i, (label, cmd, status, _summary) in enumerate(actions_recorded, 1):
+    for i, (label, cmd, status, summary) in enumerate(actions_recorded, 1):
         actions_md.append(f"\n## {i}. {label}\n")
         actions_md.append(f"- command: `{' '.join(cmd)}`\n")
         actions_md.append(f"- status: {status}\n")
+        actions_md.append(f"- summary: {summary}\n")
     (pkg / "03_ACTIONS.md").write_text("".join(actions_md), encoding="utf-8")
 
-    obs_md = ["# Observations (one-line summary por step)\n"]
-    for i, (label, cmd, status, summary) in enumerate(actions_recorded, 1):
-        obs_md.append(f"\n## {i}. {label}\n")
-        obs_md.append(f"- summary: {summary}\n")
-    (pkg / "04_OBSERVATIONS.md").write_text("".join(obs_md), encoding="utf-8")
+    next_md = [
+        "# Próximo comando\n\n",
+        "```\n",
+        f"{next_cmd or '(nenhum)'}\n",
+        "```\n",
+    ]
+    if artifact_dir:
+        next_md.append(f"\n## Artefato gerado\n- pasta: `{artifact_dir.relative_to(ROOT)}`\n")
+        if prompt_file:
+            rel = prompt_file.relative_to(ROOT)
+            next_md.append(f"- prompt: `{rel}`\n")
+            next_md.append("\n## Copiar para o clipboard\n")
+            next_md.append("```\n")
+            next_md.append(f"cat {rel} | pbcopy\n")
+            next_md.append("```\n")
+    (pkg / "04_NEXT.md").write_text("".join(next_md), encoding="utf-8")
 
-    (pkg / "05_NEXT_COMMAND.md").write_text(
-        f"# Próximo comando sugerido\n\n```\n{next_cmd or '(nenhum)'}\n```\n",
-        encoding="utf-8",
-    )
+    mission_md = ["# Mission excerpt\n\n"]
+    if prompt_file and prompt_file.exists():
+        excerpt = _read_text_capped(prompt_file, max_chars=3500)
+        mission_md.append(f"_File: `{prompt_file.relative_to(ROOT)}`_\n\n")
+        mission_md.append("```\n")
+        mission_md.append(excerpt)
+        if not excerpt.endswith("\n"):
+            mission_md.append("\n")
+        mission_md.append("```\n")
+    else:
+        mission_md.append("(sem mission pack para esta rota)\n")
+    (pkg / "05_MISSION.md").write_text("".join(mission_md), encoding="utf-8")
 
+    n_exec = len([a for a in actions_recorded if a[2] == "EXECUTADO"])
     (pkg / "06_STATUS_REAL.md").write_text(
         "# Status real\n\n"
         "## O que JARVIS fez (loop observe-act)\n"
-        f"- {len([a for a in actions_recorded if a[2] == 'EXECUTADO'])} comando(s) seguros do allowlist\n\n"
+        f"- {n_exec} comando(s) seguros do allowlist executados\n"
+        f"- worker run gravado em `{pkg.relative_to(ROOT)}/`\n\n"
         "## O que JARVIS NÃO fez\n"
         "- não executou Claude\n"
         "- não chamou API paga (Anthropic/OpenAI)\n"
-        "- não tocou produção / VPS / n8n real\n"
+        "- não tocou produção / VPS / n8n real / Supabase prod\n"
         "- não editou projetos-alvo\n"
         "- não leu .env nem imprimiu segredos\n"
-        "- não fez push / PR / merge / deploy / migrations\n",
+        "- não fez push / PR / merge / deploy / migrations / tag\n",
         encoding="utf-8",
     )
     return pkg, None
@@ -485,24 +775,28 @@ def _write_worker_log(text, route, risk, mode, project, intent, actions_recorded
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    text, project_override, dry_run, mode = parse_args(sys.argv[1:])
-    if not text:
-        print('Uso: ./jarvis do "pedido" [--project ALIAS] [--mode safe|no-claude] [--dry-run]')
-        sys.exit(1)
-    if _looks_secret_like(text):
+    text, project_override, dry_run, mode, copy_flag = parse_args(sys.argv[1:])
+
+    if text and _looks_secret_like(text):
         print("FALHA: pedido parece conter segredo. JARVIS recusa registrar.")
         sys.exit(1)
 
-    intent = _di(text)
-    project = _dp(text, project_override)
-    capability_hint = _dc(text) if intent == INTENT_CAPABILITY_CHECK or not intent else _dc(text)
-    route, risk = choose_route(text, intent, project, capability_hint, mode)
+    intent = _di(text) if text else INTENT_NEXT_ACTION
+    project = _dp(text, project_override) if text else (project_override or None)
+    capability_hint = _dc(text) if text else None
+    route, risk = choose_route(
+        text, intent, project, capability_hint, mode,
+        project_override=bool(project_override),
+    )
 
     print("JARVIS — Worker Engine")
     print("Status real: loop observe-act local. Sem Claude. Sem API. Sem produção.")
     print("")
     print("## Pedido")
-    print(f'  "{text}"')
+    if text:
+        print(f'  "{text}"')
+    else:
+        print("  (vazio — smart resume)")
     print("")
     print("## Interpretação")
     print(f"  route:   {route}")
@@ -514,18 +808,30 @@ def main():
         print(f"  capability: {capability_hint}")
     print("")
 
-    actions, next_cmd, error = build_plan(
+    actions, next_cmd, error, extras = build_plan(
         route, text, project, mode, dry_run, capability_hint
     )
+    extras = extras or {}
 
     if error:
         print("## Erro de plano")
         print(f"  {error}")
         print("")
         print("## Próximo comando sugerido")
-        print('  ./jarvis ask "{text}" --dry-run')
+        print(f'  ./jarvis ask "{text or "?"}" --dry-run')
         print("Produção: nada alterado.")
         sys.exit(1)
+
+    if extras.get("reason"):
+        print("## Smart resume reasoning")
+        print(f"  {extras['reason']}")
+        print("")
+
+    if extras.get("hints"):
+        print("## Heurísticas — talvez você quis dizer")
+        for h in extras["hints"]:
+            print(f"  - {h}")
+        print("")
 
     print("## Ações planejadas")
     if not actions:
@@ -541,8 +847,8 @@ def main():
             print(f"     $ {cmd_str}")
     print("")
 
-    # Execute the actions that are allowed; dry-run skips execution.
     actions_recorded = []
+    started_at = datetime.now().timestamp()
     if dry_run:
         print("## Loop observe-act")
         print("  --dry-run: nenhum comando foi executado.")
@@ -566,20 +872,39 @@ def main():
                 continue
             print(f"  {i}. {label}")
             print(f"     $ {' '.join(cmd)}")
-            rc, _out, summary = _run(cmd, timeout=90)
+            rc, _out, summary = _run(cmd, timeout=120)
             tag = "PASS" if rc == 0 else f"FAIL(rc={rc})"
             print(f"     → {tag}  {summary}")
             actions_recorded.append((label, cmd, "EXECUTADO", f"{tag}: {summary}"))
     print("")
 
-    # Always print what JARVIS did NOT do.
+    # Artifact detection (post-execution).
+    artifact_dir = None
+    prompt_file = None
+    if not dry_run and extras.get("artifact_dir"):
+        artifact_dir = _find_recent_artifact(extras, started_at)
+        if artifact_dir:
+            prompt_file = _prompt_file_in(artifact_dir)
+
+    if artifact_dir:
+        print("## Artefato gerado")
+        print(f"  pasta:  {artifact_dir.relative_to(ROOT)}/")
+        if prompt_file:
+            rel = prompt_file.relative_to(ROOT)
+            print(f"  prompt: {rel}")
+            print(f"  copiar: cat {rel} | pbcopy")
+            if copy_flag and prompt_file.exists():
+                ok = _pbcopy(prompt_file.read_text(encoding="utf-8", errors="ignore"))
+                print(f"  --copy: {'clipboard OK' if ok else 'pbcopy indisponível'}")
+        print("")
+
     print("## Bloqueado / não executado")
     print("  - Claude não executado")
     print("  - produção / VPS / n8n real / Supabase prod não tocados")
     print("  - projeto-alvo não editado")
     print("  - APIs pagas (Anthropic/OpenAI) não chamadas")
     print("  - .env não lido; segredos não impressos")
-    print("  - sem push / PR / merge / deploy / migrations")
+    print("  - sem push / PR / merge / deploy / migrations / tag")
     print("")
 
     pkg_rel = None
@@ -593,6 +918,8 @@ def main():
         pkg, err = _write_worker_log(
             text, route, risk, mode, project, intent,
             actions_recorded, next_cmd, capability_hint,
+            extras, artifact_dir, prompt_file,
+            extras.get("reason"),
         )
         if err:
             log_skipped_reason = err
@@ -608,6 +935,9 @@ def main():
 
     print("## Próximo comando")
     print(f"  {next_cmd or '(nenhum)'}")
+    print("")
+    print('Dica: ./jarvis do                 # (sem argumento) faz smart resume')
+    print('Dica: ./jarvis do "pedido" --copy # joga o prompt da mission no clipboard')
     print("")
     print("Produção: nada alterado. Claude não executado.")
 

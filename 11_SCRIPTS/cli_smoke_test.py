@@ -1203,7 +1203,7 @@ CHECKS = [
         "expect": [
             "Worker Engine",
             "n8n_blueprint",
-            "recipe-run",
+            "blueprint --type n8n",
             "--dry-run: nenhum comando foi executado",
             "Claude não executado",
         ],
@@ -1215,6 +1215,7 @@ CHECKS = [
             "Worker Engine",
             "project_fix_or_inspect",
             "project-intel",
+            "goal-sprint",
             "--dry-run: nenhum comando foi executado",
         ],
     },
@@ -1224,7 +1225,29 @@ CHECKS = [
         "expect": [
             "Worker Engine",
             "self_evolve",
-            "recipe-run",
+            "self-evolve --goal",
+            "--dry-run: nenhum comando foi executado",
+        ],
+    },
+    {
+        "name": "do-no-arg-smart-resume",
+        "cmd": ["./jarvis", "do", "--dry-run"],
+        "expect": [
+            "Worker Engine",
+            "(vazio — smart resume)",
+            "route:   resume",
+            "Smart resume reasoning",
+            "Claude não executado",
+        ],
+    },
+    {
+        "name": "do-project-override-bias",
+        "cmd": ["./jarvis", "do", "bug na agenda", "--project", "oficina", "--dry-run"],
+        "expect": [
+            "Worker Engine",
+            "project_fix_or_inspect",
+            "project: oficina",
+            "goal-sprint",
             "--dry-run: nenhum comando foi executado",
         ],
     },

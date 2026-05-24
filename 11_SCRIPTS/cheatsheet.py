@@ -15,10 +15,18 @@ CHEATSHEET = """\
 JARVIS — Cheatsheet (uma tela)
 Status real: leitura local. Nada foi editado.
 
-## Comece por aqui
-  ./jarvis now                          # retomar (status + último run + próximo passo)
+## Interface principal (uma coisa só)
+  ./jarvis do                           # smart resume — decide pelo estado
+  ./jarvis do "pedido"                  # classifica, escolhe rota, executa, grava
+  ./jarvis do "pedido" --copy           # joga a mission no clipboard
+  ./jarvis do "pedido" --mode no-claude # rota offline (sem Claude)
+  ./jarvis do "pedido" --dry-run        # preview sem executar nem gravar
 
-## Lifecycle (com Claude disponível)
+  Rotas: resume, n8n_blueprint, project_fix_or_inspect, self_evolve,
+         no_claude, capability_check, handoff, unclear.
+
+## Lifecycle longo (quando "do" não basta)
+  ./jarvis now                          # retomar (mesmo que ./jarvis do sem argumento)
   ./jarvis start "pedido"               # inicia sessão (task+run+missão)
   ./jarvis next                         # próximo passo seguro
   ./jarvis report-template              # cat > /tmp/... para colar relatório
@@ -28,6 +36,7 @@ Status real: leitura local. Nada foi editado.
   ./jarvis finish                       # fecha sessão (após gates_passed)
 
 ## Sem Claude (quota acabou, sem internet, etc.)
+  ./jarvis do "pedido" --mode no-claude # forma curta via worker
   ./jarvis no-claude "pedido"           # plano manual + comandos seguros
   ./jarvis no-claude "pedido" --dry-run # sem gravar pacote
 
