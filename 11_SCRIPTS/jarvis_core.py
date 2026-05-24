@@ -2871,6 +2871,34 @@ def run_prune_command(args=None):
     """./jarvis run-prune --keep N [--dry-run|--apply]"""
     _run_py_propagate("11_SCRIPTS/run_log.py", ["prune", *(args or [])])
 
+def doctor_agent_command(args=None):
+    """./jarvis doctor-agent [--full] — diagnóstico do próprio JARVIS."""
+    _run_py_propagate("11_SCRIPTS/agent_doctor.py", args)
+
+def state_status_command(args=None):
+    """./jarvis state-status — leitura runtime do JARVIS (sessões, tasks, gates)."""
+    _run_py_propagate("11_SCRIPTS/state_tools.py", ["status", *(args or [])])
+
+def state_reset_command(args=None):
+    """./jarvis state-reset --dry-run|--apply — remove current.json travada."""
+    _run_py_propagate("11_SCRIPTS/state_tools.py", ["reset", *(args or [])])
+
+def state_archive_command(args=None):
+    """./jarvis state-archive --dry-run|--apply — copia current.json para archive/."""
+    _run_py_propagate("11_SCRIPTS/state_tools.py", ["archive", *(args or [])])
+
+def no_claude_command(args=None):
+    """./jarvis no-claude "pedido" [--project A] [--dry-run] [--no-task] — modo offline."""
+    _run_py_propagate("11_SCRIPTS/no_claude.py", args)
+
+def cheatsheet_command(args=None):
+    """./jarvis cheatsheet — uma tela com os comandos essenciais."""
+    _run_py_propagate("11_SCRIPTS/cheatsheet.py", args)
+
+def handoff_self_command(args=None):
+    """./jarvis handoff-self [--save] — snapshot textual do JARVIS para handoff."""
+    _run_py_propagate("11_SCRIPTS/handoff_self.py", args)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -3111,6 +3139,19 @@ def help_msg():
   ./jarvis gate-run               roda safety+smoke+doctrine; atualiza work session
   ./jarvis gate-status            último gate-run registrado
   ./jarvis run-prune --keep N [--apply]  remove run packages antigos (default --dry-run)
+  ./jarvis now                    alias de resume (primeiro comando do dia)
+  ./jarvis start "pedido"         alias de work-start (inicia lifecycle)
+  ./jarvis next                   alias de work-next (próximo passo seguro)
+  ./jarvis finish                 alias de work-close (fecha sessão)
+  ./jarvis gates                  alias de gate-run (safety+smoke+doctrine)
+  ./jarvis health                 alias de doctor-agent (diagnóstico local)
+  ./jarvis doctor-agent [--full]  diagnóstico do próprio JARVIS (read-only)
+  ./jarvis state-status           leitura runtime (sessões, tasks, gates)
+  ./jarvis state-reset --dry-run  remove current.json travada (events.jsonl preservado)
+  ./jarvis state-archive --dry-run  copia current.json para archive/<ts>_current.json
+  ./jarvis no-claude "pedido"     modo offline: plano manual + comandos seguros
+  ./jarvis cheatsheet             uma tela com atalhos essenciais
+  ./jarvis handoff-self [--save]  snapshot textual do JARVIS (para ChatGPT/handoff)
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -3276,6 +3317,30 @@ def main():
         gate_status_command(sys.argv[2:])
     elif cmd == "run-prune":
         run_prune_command(sys.argv[2:])
+    elif cmd == "doctor-agent":
+        doctor_agent_command(sys.argv[2:])
+    elif cmd == "state-status":
+        state_status_command(sys.argv[2:])
+    elif cmd == "state-reset":
+        state_reset_command(sys.argv[2:])
+    elif cmd == "state-archive":
+        state_archive_command(sys.argv[2:])
+    elif cmd == "no-claude":
+        no_claude_command(sys.argv[2:])
+    elif cmd == "cheatsheet":
+        cheatsheet_command(sys.argv[2:])
+    elif cmd == "handoff-self":
+        handoff_self_command(sys.argv[2:])
+    elif cmd == "now":
+        resume_command(sys.argv[2:])
+    elif cmd == "start":
+        work_start_command(sys.argv[2:])
+    elif cmd == "finish":
+        work_close_command(sys.argv[2:])
+    elif cmd == "gates":
+        gate_run_command(sys.argv[2:])
+    elif cmd == "health":
+        doctor_agent_command(sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":
@@ -3289,6 +3354,10 @@ def main():
     elif cmd in ["report", "status"]:
         report()
     elif cmd == "next":
+        # Alias Sprint 6: ./jarvis next → ./jarvis work-next
+        # Legado: next_task() (02_TAREFAS/00_NOVAS) movido para `next-legacy`.
+        work_next_command(sys.argv[2:])
+    elif cmd == "next-legacy":
         next_task()
     elif cmd == "close-task":
         query = " ".join(sys.argv[2:]).strip()

@@ -225,5 +225,37 @@ gravar (`--apply`) se o arquivo for só comandos / sem seções
 (STATUS REAL, VALIDATION RESULTS, FILES CHANGED, SAFE TO COMMIT, ...).
 Override perigoso: `--force-weak-report`.
 
+### Sprint 6 — no-claude mode, system doctor, state repair, shortcuts
+
+JARVIS precisa ser útil mesmo sem Claude. Sprint 6 adiciona:
+
+```
+./jarvis now                        # alias de resume (primeiro comando do dia)
+./jarvis start "pedido"             # alias de work-start
+./jarvis next                       # alias de work-next (legacy → next-legacy)
+./jarvis finish                     # alias de work-close
+./jarvis gates                      # alias de gate-run
+./jarvis health                     # alias de doctor-agent
+./jarvis doctor-agent [--full]      # diagnóstico do próprio JARVIS
+./jarvis state-status               # leitura runtime
+./jarvis state-reset --dry-run      # remove current.json travada (events preservados)
+./jarvis state-archive --dry-run    # copia current.json para archive/
+./jarvis no-claude "pedido"         # plano manual + comandos seguros offline
+./jarvis cheatsheet                 # uma tela
+./jarvis handoff-self [--save]      # snapshot para ChatGPT/handoff humano
+```
+
+Regras Sprint 6:
+- `state-reset` só toca `05_EXECUCAO/36_WORK_SESSIONS/current.json`.
+  Nunca remove `events.jsonl`, tasks, runs, gates, blueprints, plans.
+- `no-claude` NUNCA executa Claude / chama API / edita projeto-alvo.
+- `handoff-self` é read-only e nunca imprime segredos.
+- `doctor-agent` é read-only; `--full` apenas adiciona smoke-test.
+
+Runtime gitignored adicional Sprint 6:
+- `05_EXECUCAO/36_WORK_SESSIONS/archive/**` (só `.gitkeep`)
+- `05_EXECUCAO/38_NO_CLAUDE/**` (só `.gitkeep`)
+- `05_EXECUCAO/39_HANDOFFS/**` (só `.gitkeep`)
+
 ## Producão
 Nada alterado por este arquivo.

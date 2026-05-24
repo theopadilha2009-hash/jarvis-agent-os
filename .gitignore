@@ -63,3 +63,15 @@ __pycache__/
 # Sprint 5 — gate runner runtime state.
 05_EXECUCAO/37_GATES/latest.json
 05_EXECUCAO/37_GATES/events.jsonl
+
+# Sprint 6 — work session archive (state-archive --apply).
+05_EXECUCAO/36_WORK_SESSIONS/archive/**
+!05_EXECUCAO/36_WORK_SESSIONS/archive/.gitkeep
+
+# Sprint 6 — no-claude offline packages.
+05_EXECUCAO/38_NO_CLAUDE/**
+!05_EXECUCAO/38_NO_CLAUDE/.gitkeep
+
+# Sprint 6 — handoff snapshots (handoff-self --save).
+05_EXECUCAO/39_HANDOFFS/**
+!05_EXECUCAO/39_HANDOFFS/.gitkeep

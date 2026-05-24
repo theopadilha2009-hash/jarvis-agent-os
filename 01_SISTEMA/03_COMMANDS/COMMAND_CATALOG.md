@@ -703,3 +703,115 @@ Storage runtime gitignored Sprint 5:
 - `05_EXECUCAO/37_GATES/events.jsonl`
 
 Status real: gate-run é local-only; nenhum push/PR/merge/deploy; sem produção.
+
+## Agent OS — Sprint 6 (no-claude mode, system doctor, state repair, command shortcuts)
+
+Sprint 6 fecha a lacuna "JARVIS depois do Claude": Theo precisa retomar
+trabalho sem ChatGPT/Claude. Adiciona atalhos curtos, diagnóstico do
+próprio JARVIS, reparo seguro de estado preso, modo offline, cheatsheet
+e snapshot de handoff.
+
+### Atalhos diários (não mudam comportamento — só sintaxe)
+
+```
+./jarvis now                # alias de resume — primeiro comando do dia
+./jarvis start "pedido"     # alias de work-start
+./jarvis next               # alias de work-next (substituiu o legado next_task)
+./jarvis finish             # alias de work-close
+./jarvis gates              # alias de gate-run
+./jarvis health             # alias de doctor-agent
+```
+
+O comando legado `next_task()` (lê `02_TAREFAS/00_NOVAS`) continua
+acessível por `./jarvis next-legacy` para manter retrocompatibilidade.
+
+### `./jarvis doctor-agent [--full]`
+
+Diagnóstico do próprio JARVIS (não dos projetos-alvo). Checa branch,
+tree, arquivos core, runtime dirs, gitignore, registries, projetos,
+gates, sessão atual, task queue, run logs, fixtures, command-audit e
+doctrine-check. `--full` adiciona smoke-test completo.
+
+Output em seções: Git / Files / Runtime State / Registries / Projects /
+Gates / Commands / Result. Termina em `AGENT DOCTOR PASSOU` (exit 0) ou
+`AGENT DOCTOR COM PENDÊNCIAS` (exit 1).
+
+### `./jarvis state-status` / `state-reset` / `state-archive`
+
+Inspeção e reparo seguro do runtime state:
+
+```
+./jarvis state-status              # leitura: sessão / tasks / gates / pacotes
+./jarvis state-reset --dry-run     # mostra o que seria removido
+./jarvis state-reset --apply       # remove apenas current.json
+./jarvis state-archive --dry-run   # mostra cópia para archive/
+./jarvis state-archive --apply     # cria cópia em 36_WORK_SESSIONS/archive/<ts>_current.json
+```
+
+Regras: default sempre `--dry-run`. `state-reset` só toca
+`05_EXECUCAO/36_WORK_SESSIONS/current.json`. `events.jsonl`, tasks, runs,
+gates, blueprints e plans NUNCA são removidos.
+
+### `./jarvis no-claude "pedido"`
+
+Modo offline: Claude indisponível, mas JARVIS ainda ajuda. Classifica o
+pedido via `ask_router` (regex), detecta projeto, sugere blueprint type
+(n8n/app/automation/research), enfileira task local (opcional) e gera
+pacote em `05_EXECUCAO/38_NO_CLAUDE/<ts>_<slug>/`:
+
+```
+01_REQUEST.md
+02_INTERPRETATION.md
+03_MANUAL_PLAN.md
+04_SAFE_COMMANDS.md
+05_STATUS_REAL.md
+```
+
+Flags: `--dry-run` (só imprime, não grava), `--no-task` (não enfileira),
+`--project ALIAS` (override de projeto). Hard rules iguais ao resto do
+sistema: sem Claude, sem API paga, sem produção, sem ler .env.
+
+### `./jarvis cheatsheet`
+
+Uma tela com os comandos essenciais — `now`, `start`, `next`, `gates`,
+`finish`, `no-claude`, `health`, `state-*`, `handoff-self`. Read-only.
+Sem flags.
+
+### `./jarvis handoff-self [--save]`
+
+Snapshot textual do JARVIS para handoff humano (ChatGPT, time, etc.).
+Inclui: branch, recent commits, work session atual, gates, top task,
+último run, capabilities, comandos importantes, próximo comando
+sugerido, hard rules. `--save` grava em
+`05_EXECUCAO/39_HANDOFFS/<ts>_jarvis_handoff.md` (gitignored).
+
+### Referência rápida (para command-audit)
+
+```
+./jarvis now
+./jarvis start "evoluir o jarvis"
+./jarvis next
+./jarvis finish
+./jarvis gates
+./jarvis health
+./jarvis doctor-agent
+./jarvis doctor-agent --full
+./jarvis state-status
+./jarvis state-reset --dry-run
+./jarvis state-reset --apply
+./jarvis state-archive --dry-run
+./jarvis state-archive --apply
+./jarvis no-claude "workflow n8n de agendamento"
+./jarvis no-claude "abre oficina" --dry-run
+./jarvis cheatsheet
+./jarvis handoff-self
+./jarvis handoff-self --save
+```
+
+Storage runtime gitignored Sprint 6:
+- `05_EXECUCAO/36_WORK_SESSIONS/archive/**` (só `.gitkeep` versionado)
+- `05_EXECUCAO/38_NO_CLAUDE/**` (só `.gitkeep` versionado)
+- `05_EXECUCAO/39_HANDOFFS/**` (só `.gitkeep` versionado)
+
+Status real: comandos Sprint 6 são todos local-only; sem Claude, sem API
+paga, sem deploy, sem push, sem alterar produção.

@@ -101,6 +101,18 @@ CRITICAL_COMMANDS = [
     "gate-run",
     "gate-status",
     "run-prune",
+    "doctor-agent",
+    "state-status",
+    "state-reset",
+    "state-archive",
+    "no-claude",
+    "cheatsheet",
+    "handoff-self",
+    "now",
+    "start",
+    "finish",
+    "gates",
+    "health",
 ]
 
 def run(cmd):

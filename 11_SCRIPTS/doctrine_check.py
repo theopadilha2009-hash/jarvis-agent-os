@@ -82,6 +82,18 @@ HELP_REQUIRED_COMMANDS = [
     "gate-run",
     "gate-status",
     "run-prune",
+    "doctor-agent",
+    "state-status",
+    "state-reset",
+    "state-archive",
+    "no-claude",
+    "cheatsheet",
+    "handoff-self",
+    "now",
+    "start",
+    "finish",
+    "gates",
+    "health",
 ]
 MISSION_HARD_RULE_SIGNALS = [
     "Não fazer push, PR, merge ou deploy",
