@@ -1186,6 +1186,69 @@ CHECKS = [
         ],
     },
     {
+        "name": "do-now-dry-run",
+        "cmd": ["./jarvis", "do", "o que faço agora", "--dry-run"],
+        "expect": [
+            "Worker Engine",
+            "route:",
+            "resume",
+            "--dry-run: nenhum comando foi executado",
+            "Claude não executado",
+            "Próximo comando",
+        ],
+    },
+    {
+        "name": "do-n8n-dry-run",
+        "cmd": ["./jarvis", "do", "workflow n8n de agendamento whatsapp", "--dry-run"],
+        "expect": [
+            "Worker Engine",
+            "n8n_blueprint",
+            "recipe-run",
+            "--dry-run: nenhum comando foi executado",
+            "Claude não executado",
+        ],
+    },
+    {
+        "name": "do-project-dry-run",
+        "cmd": ["./jarvis", "do", "abre oficina e vê bug agenda", "--dry-run"],
+        "expect": [
+            "Worker Engine",
+            "project_fix_or_inspect",
+            "project-intel",
+            "--dry-run: nenhum comando foi executado",
+        ],
+    },
+    {
+        "name": "do-self-evolve-dry-run",
+        "cmd": ["./jarvis", "do", "evolui o jarvis para reduzir comandos", "--dry-run"],
+        "expect": [
+            "Worker Engine",
+            "self_evolve",
+            "recipe-run",
+            "--dry-run: nenhum comando foi executado",
+        ],
+    },
+    {
+        "name": "do-capability-dry-run",
+        "cmd": ["./jarvis", "do", "agenda real google calendar", "--dry-run"],
+        "expect": [
+            "Worker Engine",
+            "capability_check",
+            "google_calendar",
+            "--dry-run: nenhum comando foi executado",
+        ],
+    },
+    {
+        "name": "do-unclear-dry-run",
+        "cmd": ["./jarvis", "do", "pedido estranho xyz", "--dry-run"],
+        "expect": [
+            "Worker Engine",
+            "unclear",
+            "--dry-run: nenhum comando foi executado",
+            "Claude não executado",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

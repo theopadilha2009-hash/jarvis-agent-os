@@ -293,5 +293,37 @@ Regras Sprint 7:
 Runtime gitignored adicional Sprint 7:
 - `05_EXECUCAO/41_RELEASE_CANDIDATES/**` (só `.gitkeep`)
 
+### Sprint 8 — primeiro worker engine real (`./jarvis do`)
+
+JARVIS deixa de ser apenas cockpit. `./jarvis do "pedido"` classifica o
+texto, escolhe uma rota, **executa** um pequeno loop observe-act com
+comandos do allowlist, observa a saída de cada passo e imprime o próximo
+comando exato.
+
+```
+./jarvis do "pedido"                       # default: --mode safe
+./jarvis do "pedido" --dry-run             # imprime plano sem executar
+./jarvis do "pedido" --project oficina     # força alias de projeto
+./jarvis do "pedido" --mode no-claude      # rota offline (gera pacote real)
+```
+
+Rotas: `resume`, `n8n_blueprint`, `project_fix_or_inspect`,
+`self_evolve`, `no_claude`, `capability_check`, `handoff`, `unclear`.
+
+Regras Sprint 8:
+- worker NUNCA executa Claude.
+- worker NUNCA usa `--apply`/`--live`/`--force` em sub-comandos.
+- allowlist é estreito: `daily`, `now`, `state-status`, `task-add`,
+  `no-claude`, `blueprint`, `project-intel`, `project-memory`,
+  `capability-check`, `capability-plan`, `recipe-show`, `recipe-run`,
+  `handoff-self`, `rc-status`, `health`, `doctor-agent`, `ask`, `plan`,
+  `limits`.
+- tudo fora do allowlist é impresso como "BLOQUEADO" — nunca executado.
+- worker run gravado em `05_EXECUCAO/42_WORKER_RUNS/<ts>_<slug>/` (gitignored).
+  Suprimível com `--dry-run` ou `JARVIS_NO_REPORT=1`.
+
+Runtime gitignored adicional Sprint 8:
+- `05_EXECUCAO/42_WORKER_RUNS/**` (só `.gitkeep`)
+
 ## Producão
 Nada alterado por este arquivo.

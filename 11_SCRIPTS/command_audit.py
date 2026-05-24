@@ -121,6 +121,7 @@ CRITICAL_COMMANDS = [
     "rc-status",
     "rc-freeze",
     "acceptance",
+    "do",
 ]
 
 def run(cmd):

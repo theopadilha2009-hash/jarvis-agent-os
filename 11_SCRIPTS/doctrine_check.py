@@ -102,6 +102,7 @@ HELP_REQUIRED_COMMANDS = [
     "rc-status",
     "rc-freeze",
     "acceptance",
+    "do",
 ]
 MISSION_HARD_RULE_SIGNALS = [
     "Não fazer push, PR, merge ou deploy",

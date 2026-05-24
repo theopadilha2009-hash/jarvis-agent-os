@@ -905,3 +905,90 @@ usa `41_RELEASE_CANDIDATES`.)
 
 Status real: comandos Sprint 7 são todos local-only; sem Claude, sem
 API paga, sem deploy, sem push, sem alterar produção.
+
+## Agent OS — Sprint 8 (real worker engine, `./jarvis do`)
+
+Sprint 8 dá ao JARVIS o primeiro **worker engine real**. Antes ele era
+um cockpit que sugeria comandos; agora `./jarvis do "pedido"` classifica
+o pedido, escolhe uma rota segura, **executa** um pequeno loop
+observe-act com comandos do allowlist, observa o resultado de cada
+passo e imprime o próximo comando exato.
+
+Continua sem fake autonomy: o allowlist é estreitíssimo, nenhum
+`--apply`/`--live` é disparado automaticamente, Claude **nunca** roda,
+APIs pagas **nunca** são chamadas, projetos-alvo **nunca** são editados,
+produção **nunca** é tocada.
+
+### `./jarvis do "pedido"`
+
+Flags:
+- `--project ALIAS` — força projeto (override do alias detectado pelo texto).
+- `--mode safe` (default) — só comandos read-only / dry-run / runtime gitignored.
+- `--mode no-claude` — força a rota offline (gera pacote real + task real).
+- `--dry-run` — imprime ações planejadas mas não executa nem grava worker run.
+
+### Rotas implementadas
+
+| route                        | trigger                                          | ações principais                                                              |
+| ---------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `resume`                     | "o que faço agora", "continuar"                  | `./jarvis daily` + `./jarvis state-status`                                    |
+| `n8n_blueprint`              | "workflow n8n …"                                 | `recipe-run n8n-workflow --dry-run` (+ `no-claude` se `--mode no-claude`)     |
+| `project_fix_or_inspect`     | "abre <alias> …", "bug em <alias>", QA, browser  | `project-intel --project A` + `plan "…"`                                      |
+| `self_evolve`                | "evolui o jarvis …"                              | `health` + `recipe-run self-evolve --dry-run`                                 |
+| `no_claude`                  | "sem claude", "claude caiu" ou `--mode no-claude`| `no-claude "pedido"` + `task-add "no-claude: pedido"`                         |
+| `capability_check`           | "google calendar", "web research", etc.          | `capability-check NAME`                                                       |
+| `handoff`                    | "handoff", "passar pra chatgpt"                  | `handoff-self` (terminal-only)                                                |
+| `unclear`                    | qualquer outro pedido                            | `ask "pedido" --dry-run` + `task-add "revisar request unclear" --dry-run`     |
+
+### Safety allowlist (commands o worker pode executar)
+
+`./jarvis daily`, `now`, `state-status`, `task-add`, `task-list`,
+`task-next`, `no-claude`, `blueprint`, `project-intel`, `project-memory`,
+`capability-check`, `capability-plan`, `capabilities`, `recipe-show`,
+`recipe-run`, `recipe-list`, `handoff-self`, `rc-status`, `health`,
+`doctor-agent`, `ask`, `plan`, `limits`.
+
+Tokens proibidos em qualquer posição: `--apply`, `--force`,
+`--force-weak`, `--live`, `report-apply`, `rc-freeze`, `state-reset`,
+`state-archive`, `run-prune`, `self-debrief`, `project-memory-update`,
+`gate-run`, `gates`, `push`, `deploy`, `merge`, `tag`, `pull-request`,
+`pr-create`, `claude`.
+
+Qualquer comando fora do allowlist (ou que carregue token proibido) é
+**impresso como bloqueado**, nunca executado.
+
+### Worker logs
+
+Cada execução não-dry-run grava em
+`05_EXECUCAO/42_WORKER_RUNS/<ts>_<slug>/` (gitignored) os arquivos:
+
+```
+01_REQUEST.md
+02_ROUTE.md
+03_ACTIONS.md
+04_OBSERVATIONS.md
+05_NEXT_COMMAND.md
+06_STATUS_REAL.md
+```
+
+Suprimível com `--dry-run` ou `JARVIS_NO_REPORT=1`.
+
+### Referência rápida (para command-audit)
+
+```
+./jarvis do "o que faço agora" --dry-run
+./jarvis do "workflow n8n de agendamento whatsapp" --dry-run
+./jarvis do "abre oficina e vê bug agenda" --dry-run
+./jarvis do "evolui o jarvis para reduzir comandos" --dry-run
+./jarvis do "agenda real google calendar" --dry-run
+./jarvis do "pedido estranho xyz" --dry-run
+./jarvis do "criar workflow n8n simples" --mode no-claude --dry-run
+```
+
+Storage runtime gitignored Sprint 8:
+- `05_EXECUCAO/42_WORKER_RUNS/**` (só `.gitkeep` versionado)
+
+Status real: o worker é o primeiro passo real para JARVIS "fazer
+coisas" sozinho — mas só dentro do allowlist e sempre dentro do JARVIS
+repo. Sem Claude, sem API paga, sem produção, sem edição de
+projetos-alvo.

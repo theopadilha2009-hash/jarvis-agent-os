@@ -2931,6 +2931,10 @@ def acceptance_command(args=None):
     """./jarvis acceptance --dry-run|--full — cenários locais sem Claude."""
     _run_py_propagate("11_SCRIPTS/acceptance.py", args)
 
+def do_command(args=None):
+    """./jarvis do "pedido" [--project A] [--mode safe|no-claude] [--dry-run]"""
+    _run_py_propagate("11_SCRIPTS/worker_engine.py", args or [])
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -3192,6 +3196,7 @@ def help_msg():
   ./jarvis rc-status              readiness do release candidate
   ./jarvis rc-freeze --dry-run    snapshot RC em 41_RELEASE_CANDIDATES/ (default dry-run)
   ./jarvis acceptance --dry-run   cenários locais sem Claude (--full inclui gate-run)
+  ./jarvis do "pedido" [--project A] [--mode safe|no-claude] [--dry-run]   worker engine (observe-act loop)
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -3387,6 +3392,8 @@ def main():
         rc_freeze_command(sys.argv[2:])
     elif cmd == "acceptance":
         acceptance_command(sys.argv[2:])
+    elif cmd == "do":
+        do_command(sys.argv[2:])
     elif cmd == "now":
         resume_command(sys.argv[2:])
     elif cmd == "start":

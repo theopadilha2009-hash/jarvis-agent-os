@@ -79,3 +79,7 @@ __pycache__/
 # Sprint 7 — release candidate snapshots (rc-freeze --apply).
 05_EXECUCAO/41_RELEASE_CANDIDATES/**
 !05_EXECUCAO/41_RELEASE_CANDIDATES/.gitkeep
+
+# Sprint 8 — worker engine runs (`./jarvis do`).
+05_EXECUCAO/42_WORKER_RUNS/**
+!05_EXECUCAO/42_WORKER_RUNS/.gitkeep
