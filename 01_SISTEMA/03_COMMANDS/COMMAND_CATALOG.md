@@ -114,6 +114,10 @@ Garantias adicionais:
 - JARVIS imprime sempre o comando exato; Theo decide quando rodar.
 - Mission packs continuam gitignored; gerar missão não suja gates.
 
+## Doctrine check (v1.4.1)
+
+- `./jarvis doctrine-check` — verifica drift entre AGENTS.md, COMMAND_CATALOG, `./jarvis help`, PROJECT_REGISTRY e os HARD_RULES dos mission templates. Falha (exit 1) se algum slot crítico estiver fora de sync. Read-only, nada editado.
+
 ### Exemplos
 
 ```

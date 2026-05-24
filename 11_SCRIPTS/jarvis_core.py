@@ -2553,6 +2553,11 @@ def claude_helper_command(sub, args=None):
     args = list(args or [])
     subprocess.run(["python3", "11_SCRIPTS/claude_helpers.py", sub, *args], cwd=ROOT, check=False)
 
+def doctrine_check_command():
+    """./jarvis doctrine-check — verifies AGENTS/CATALOG/help/registry/mission templates sync."""
+    import subprocess
+    subprocess.run(["python3", "11_SCRIPTS/doctrine_check.py"], cwd=ROOT, check=False)
+
 def report_policy_command():
     import subprocess
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
@@ -2755,6 +2760,7 @@ def help_msg():
   ./jarvis claude-copy-latest [--project A]   copia o último prompt para o clipboard (pbcopy)
   ./jarvis claude-launch --project A [--copy] [--print-only]   imprime bloco "cd PATH; claude" (não executa)
   ./jarvis claude-save-report-template [--project A]   imprime template bash para capturar resposta do Claude
+  ./jarvis doctrine-check         verifica drift entre AGENTS/CATALOG/help/registry/mission templates
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2844,6 +2850,8 @@ def main():
         claude_helper_command("launch", sys.argv[2:])
     elif cmd == "claude-save-report-template":
         claude_helper_command("save-report-template", sys.argv[2:])
+    elif cmd == "doctrine-check":
+        doctrine_check_command()
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":

@@ -286,6 +286,18 @@ CHECKS = [
         ],
     },
     {
+        "name": "doctrine-check",
+        "cmd": ["./jarvis", "doctrine-check"],
+        "expect": [
+            "Doctrine Check",
+            "AGENTS.md: OK",
+            "COMMAND_CATALOG.md: OK",
+            "./jarvis help: OK",
+            "PROJECT_REGISTRY.json: OK",
+            "DOCTRINE CHECK PASSOU",
+        ],
+    },
+    {
         "name": "commands",
         "cmd": ["./jarvis", "commands"],
         "expect": ["Command Catalog", "auto-task", "quality-gate"],

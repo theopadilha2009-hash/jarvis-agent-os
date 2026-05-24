@@ -63,6 +63,7 @@ CRITICAL_COMMANDS = [
     "claude-copy-latest",
     "claude-launch",
     "claude-save-report-template",
+    "doctrine-check",
 ]
 
 def run(cmd):
