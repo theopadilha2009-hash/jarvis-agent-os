@@ -1,0 +1,79 @@
+{
+  "schema": "jarvis-capability-registry-v0.1",
+  "updated_at": "2026-05-24",
+  "status_real": "Registry local. Sem produção, sem API paga, sem rede.",
+
+  "groups": {
+    "available": {
+      "summary": "JARVIS faz isto sozinho, agora, com segurança local.",
+      "capabilities": [
+        {
+          "name": "local_files_read",
+          "what": "Ler arquivos locais do repositório JARVIS (read-only).",
+          "safe_now": "Comandos: project-memory, project-cockpit, self-cockpit, mission-open-latest, run-show, task-show.",
+          "notes": "Nunca lê .env nem imprime segredos."
+        },
+        {
+          "name": "local_files_write_in_jarvis",
+          "what": "Escrever/append em arquivos LOCAIS do próprio repo JARVIS.",
+          "safe_now": "Inbox/agenda/plans/blueprints/run logs/task queue — sempre append-only e secret-aware.",
+          "notes": "Não escreve fora deste repo."
+        },
+        {"name": "git_status", "what": "Ler git status/branch/log do repo JARVIS e de projetos registrados.", "safe_now": "project-cockpit, self-cockpit, project-intel.", "notes": "Nunca commita, nunca faz push."},
+        {"name": "git_log", "what": "Ler git log local.", "safe_now": "project-memory-update --from-git.", "notes": "Nunca altera histórico."},
+        {"name": "project_registry", "what": "Resolver alias para path via PROJECT_REGISTRY.json.", "safe_now": "project-open, project-cockpit, ask, plan.", "notes": "Read-only do registry."},
+        {"name": "claude_prompt_generation", "what": "Gerar arquivos de missão Claude (markdown).", "safe_now": "self-evolve, goal-sprint, qa-sprint, browser-qa, final-gate, claude-mission, blueprint.", "notes": "Apenas gera o markdown — Claude executa manualmente."},
+        {"name": "clipboard_pbcopy", "what": "Copiar texto para o clipboard via pbcopy (macOS).", "safe_now": "claude-copy-latest, claude-launch --copy, project-open --copy-cd, go (--copy).", "notes": "Falha silenciosamente em sistemas sem pbcopy."},
+        {"name": "local_inbox", "what": "Inbox append-only em 05_EXECUCAO/30_INBOX/INBOX.md.", "safe_now": "capture, inbox.", "notes": "Recusa secret-shaped."},
+        {"name": "local_agenda", "what": "Agenda local append-only em 05_EXECUCAO/31_AGENDA/AGENDA.md.", "safe_now": "agenda-add, agenda.", "notes": "Heurística PT (amanhã/segunda/2026-…). Sem Google Calendar."},
+        {"name": "local_blueprint", "what": "Blueprints locais (n8n/app/automation/research).", "safe_now": "blueprint --type T --goal '...'.", "notes": "Nunca cria workflow real."},
+        {"name": "local_task_queue", "what": "Task queue append-only JSONL (05_EXECUCAO/34_TASKS/tasks.jsonl).", "safe_now": "task-add/list/next/show/done/block.", "notes": "Arquivo gitignored."},
+        {"name": "local_run_logs", "what": "Run packages por go em 05_EXECUCAO/35_RUNS/.", "safe_now": "run-list/show/latest. go cria automaticamente (exceto --dry-run / JARVIS_NO_REPORT / --no-run-log).", "notes": "Diretório gitignored."},
+        {"name": "safety_gate", "what": "Roda secret-scan + storage-health + command-audit + quality-gate.", "safe_now": "./jarvis safety-gate (env JARVIS_NO_REPORT=1).", "notes": "Local-only."},
+        {"name": "smoke_test", "what": "Bateria de smoke checks dos comandos críticos.", "safe_now": "./jarvis smoke-test.", "notes": "Local-only."},
+        {"name": "doctrine_check", "what": "Drift detector entre AGENTS/CATALOG/help/registry/mission.", "safe_now": "./jarvis doctrine-check.", "notes": "Local-only."}
+      ]
+    },
+
+    "manual": {
+      "summary": "JARVIS PREPARA, mas Theo executa o passo final.",
+      "capabilities": [
+        {"name": "claude_code_manual", "what": "Executar a missão gerada no Claude Code.", "safe_now": "Theo abre `claude`, cola o prompt, valida o relatório.", "notes": "JARVIS NUNCA executa Claude em background."},
+        {"name": "git_commit_local", "what": "Criar commit local.", "safe_now": "Theo roda `git commit` após revisar `git diff`.", "notes": "JARVIS nunca commita sem autorização explícita."},
+        {"name": "project_code_edit_via_claude", "what": "Editar código de projeto-alvo.", "safe_now": "Claude edita no projeto após Theo abrir.", "notes": "JARVIS nunca edita arquivos de Oficina/GC/LS."},
+        {"name": "browser_manual_test", "what": "Validar UI no browser real.", "safe_now": "Theo abre o browser e clica.", "notes": "JARVIS não controla browser."},
+        {"name": "n8n_import_inactive", "what": "Importar workflow no n8n com active=false.", "safe_now": "Theo cola o JSON manualmente após validação.", "notes": "Sem ativação automática."},
+        {"name": "github_pr_manual", "what": "Criar PR no GitHub.", "safe_now": "Theo abre o PR após `git push` consciente.", "notes": "JARVIS nunca cria PRs sozinho."}
+      ]
+    },
+
+    "blocked": {
+      "summary": "Hard rule. JARVIS NUNCA faz isto, mesmo se pedido.",
+      "capabilities": [
+        {"name": "production_deploy", "what": "Deploy em produção.", "why_blocked": "Risco alto; sempre humano + auditável."},
+        {"name": "push_to_remote", "what": "git push (em qualquer branch).", "why_blocked": "Empurrar mudança é decisão humana."},
+        {"name": "merge_to_main", "what": "Merge em main/master.", "why_blocked": "Branch protegida por convenção."},
+        {"name": "real_n8n_activation", "what": "Ativar workflow n8n (active=true) em produção.", "why_blocked": "Pode disparar mensagem a usuário final."},
+        {"name": "real_webhook_production", "what": "Criar webhook *Production* path.", "why_blocked": "Endpoint público sem aprovação humana."},
+        {"name": "read_env_contents", "what": "Ler conteúdo de arquivos .env.", "why_blocked": "Segredos. JARVIS só checa presença, nunca valores."},
+        {"name": "print_secrets", "what": "Imprimir tokens / cookies / API keys / QR codes.", "why_blocked": "Vazamento. Recusa em ask-log, capture, agenda, task-add, project-memory-update."},
+        {"name": "paid_llm_api", "what": "Chamar Anthropic / OpenAI / qualquer API LLM paga.", "why_blocked": "Custo + dependência externa. JARVIS é regex-only."},
+        {"name": "background_claude_execution", "what": "Rodar Claude em background sem Theo ver.", "why_blocked": "Fake autonomy. Theo precisa controlar cada execução."}
+      ]
+    },
+
+    "future_adapter": {
+      "summary": "Possível um dia, mas exige adapter + aprovação + credenciais. JARVIS hoje só roteia para alternativa local.",
+      "capabilities": [
+        {"name": "google_calendar", "what": "Integrar com Google Calendar real.", "local_alternative": "./jarvis agenda-add (markdown local).", "setup_needed": ["OAuth consent", "client_id/secret armazenados fora de .env do projeto-alvo", "scopes mínimos", "modo read-only inicial", "ack humano por evento criado"]},
+        {"name": "web_research", "what": "Buscar conteúdo na web.", "local_alternative": "./jarvis blueprint --type research (template estruturado).", "setup_needed": ["adapter HTTP com timeout curto", "lista de domínios permitidos", "cache local", "sem PII em queries", "sem JS execution"]},
+        {"name": "gmail", "what": "Ler/enviar email.", "local_alternative": "(nenhuma — manter manual no Gmail).", "setup_needed": ["OAuth Gmail", "scope read-only primeiro", "ack humano por envio"]},
+        {"name": "github_api", "what": "Interagir com GitHub via API (issues/PRs/comments).", "local_alternative": "./jarvis project-open + gh CLI manual.", "setup_needed": ["fine-grained token com scope mínimo", "lista de repos permitidos", "modo dry-run primeiro"]},
+        {"name": "chatwoot", "what": "Postar/ler em Chatwoot.", "local_alternative": "(nenhuma — manter manual).", "setup_needed": ["API key Chatwoot", "ack humano por mensagem"]},
+        {"name": "uazapi", "what": "Enviar mensagem WhatsApp via Uazapi.", "local_alternative": "(nenhuma — usar n8n manual)", "setup_needed": ["API key + instância", "número de teste", "rate limit", "ack humano por envio"]},
+        {"name": "supabase_prod", "what": "Ler/escrever em Supabase de produção.", "local_alternative": "(nenhuma — usar console Supabase).", "setup_needed": ["service_role apenas leitura inicial", "RLS auditado", "sem migrations via JARVIS"]},
+        {"name": "vercel_deploy", "what": "Disparar deploy na Vercel.", "local_alternative": "(nenhuma — usar Vercel CLI manual)", "setup_needed": ["token", "lista de projetos permitidos", "modo preview-only primeiro"]}
+      ]
+    }
+  }
+}

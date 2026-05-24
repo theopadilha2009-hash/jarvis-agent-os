@@ -156,6 +156,28 @@ script Python, então `./jarvis self-debrief --apply` em relatório
 fraco realmente FALHA (não-zero) — útil para scripts/CI/Theo verificar
 `$?` direto.
 
+### Comandos Sprint 3 — task queue, run logs, capabilities, project intel
+
+```
+./jarvis task-add "tarefa" [--dry-run]   adiciona tarefa local (JSONL gitignored)
+./jarvis task-list                       pending + blocked + done
+./jarvis task-next                       top pending + comando seguro sugerido
+./jarvis task-show ID                    events da task
+./jarvis task-done ID                    marca done
+./jarvis task-block ID --reason "..."    marca blocked
+./jarvis run-list                        lista run packages (gerados por go)
+./jarvis run-show latest|ID              imprime arquivos de um run package
+./jarvis run-latest                      alias de run-show latest
+./jarvis capabilities                    grupos available/manual/blocked/future_adapter
+./jarvis capability-check NAME           detalhe + safe behavior
+./jarvis capability-plan NAME            plano para future_adapter
+./jarvis project-intel --project A       inspeção read-only (pkg manager, tests, .env presence)
+```
+
+Storage runtime gitignored: `05_EXECUCAO/34_TASKS/tasks.jsonl`,
+`05_EXECUCAO/35_RUNS/**`, `05_EXECUCAO/40_BLUEPRINTS/2*/**`,
+`05_EXECUCAO/33_PLANS/2*.md`. Os `.gitkeep` permanecem versionados.
+
 Refusal de relatórios fracos: `project-memory-update --from-file` recusa
 gravar (`--apply`) se o arquivo for só comandos / sem seções
 (STATUS REAL, VALIDATION RESULTS, FILES CHANGED, SAFE TO COMMIT, ...).

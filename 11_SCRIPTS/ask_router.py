@@ -63,6 +63,10 @@ INTENT_RESEARCH_PLAN = "research_plan"
 INTENT_AGENDA_NOTE = "agenda_note"
 INTENT_CAPTURE_NOTE = "capture_note"
 INTENT_OPEN_PROJECT = "open_project"
+INTENT_CAPABILITY_CHECK = "capability_check"
+INTENT_LIMITS = "limits"
+INTENT_TASK_ADD = "task_add"
+INTENT_TASK_LIST = "task_list"
 INTENT_UNCLEAR = "unclear"
 
 SAFETY_READONLY = "readonly"
@@ -199,6 +203,31 @@ def _show_unclear_log():
 # "agenda" inside "bug da agenda" does NOT trigger calendar intent), then
 # generic fallbacks (open_project, unclear).
 INTENT_PATTERNS = [
+    # limits / what JARVIS can do — checked very early so phrases like
+    # "quais limites" / "o que pode fazer" don't get mis-routed.
+    (INTENT_LIMITS, re.compile(
+        r"(?i)\b(limit(?:e|es)|o que (?:você|voce|jarvis|pode|consegue) faz(?:er)?|"
+        r"quais limites|fronteira do robô|fronteira do robo)\b"
+    )),
+    # capability check — "capacidade X" / "consigo usar X" / "agenda real" /
+    # "pesquisa web" / etc. We route to capability-check with a name hint
+    # detected later in _next_command_for.
+    (INTENT_CAPABILITY_CHECK, re.compile(
+        r"(?i)\b(capacidade|capability|consigo (?:usar|chamar)|posso (?:usar|chamar)|"
+        r"agenda real|google calendar|pesquisa(?:r)? web|web research|"
+        r"gmail real|github api|chatwoot|uazapi|supabase prod|deploy vercel)\b"
+    )),
+    # task add / list — phrases like "cria tarefa" / "adiciona tarefa" /
+    # "lista tarefas" / "minhas pendências"
+    (INTENT_TASK_LIST, re.compile(
+        r"(?i)\b(lista(?:r)? tarefas?|minhas pendências?|minhas tarefas?|task list|"
+        r"o que est(?:á|a) na (?:fila|lista|backlog))\b"
+    )),
+    (INTENT_TASK_ADD, re.compile(
+        r"(?i)\b(cria(?:r)? tarefa|adiciona(?:r)? tarefa|nova tarefa|"
+        r"adiciona(?:r)? pendência|registra(?:r)? tarefa|task add|"
+        r"anota(?:r)? como tarefa|coloca(?:r)? na fila)\b"
+    )),
     # next action / what should I do now
     (INTENT_NEXT_ACTION, re.compile(
         r"(?i)\b(o que faço agora|o que fazer agora|próx(?:imo|imo passo|imo)|"
@@ -310,6 +339,31 @@ def _slugify(text: str, max_len: int = 60) -> str:
     return s or "request"
 
 
+# Map common request fragments to a capability name in CAPABILITY_REGISTRY.json.
+# Conservative: only the obvious aliases. Anything ambiguous falls through.
+_CAPABILITY_HINT_MAP = [
+    (re.compile(r"(?i)\b(google calendar|agenda real|calendario real|calendário real)\b"), "google_calendar"),
+    (re.compile(r"(?i)\b(pesquisa(?:r)? web|web research|busca(?:r)? na web)\b"), "web_research"),
+    (re.compile(r"(?i)\bgmail\b"), "gmail"),
+    (re.compile(r"(?i)\bgithub api\b"), "github_api"),
+    (re.compile(r"(?i)\bchatwoot\b"), "chatwoot"),
+    (re.compile(r"(?i)\buazapi\b"), "uazapi"),
+    (re.compile(r"(?i)\bsupabase prod\b"), "supabase_prod"),
+    (re.compile(r"(?i)\bdeploy (?:vercel|na vercel)\b"), "vercel_deploy"),
+    (re.compile(r"(?i)\bbackground claude|claude (?:em )?background\b"), "background_claude_execution"),
+    (re.compile(r"(?i)\b(api paga|llm paga|anthropic api|openai api)\b"), "paid_llm_api"),
+    (re.compile(r"(?i)\b(push (?:no|para o) remote|git push)\b"), "push_to_remote"),
+    (re.compile(r"(?i)\b(production deploy|deploy em produ(?:ção|cao))\b"), "production_deploy"),
+]
+
+
+def _detect_capability_hint(text: str):
+    for pattern, name in _CAPABILITY_HINT_MAP:
+        if pattern.search(text):
+            return name
+    return None
+
+
 def _next_command_for(intent: str, project: str, text: str, copy_flag):
     """Return (command_list, human_string, safety, dry_run_safe)."""
     want_copy = " --copy" if copy_flag else ""
@@ -409,6 +463,42 @@ def _next_command_for(intent: str, project: str, text: str, copy_flag):
             SAFETY_READONLY,
             True,
         )
+    if intent == INTENT_LIMITS:
+        return (
+            ["./jarvis", "limits"],
+            "./jarvis limits",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_CAPABILITY_CHECK:
+        cap = _detect_capability_hint(text)
+        if cap:
+            return (
+                ["./jarvis", "capability-check", cap],
+                f"./jarvis capability-check {cap}",
+                SAFETY_READONLY,
+                True,
+            )
+        return (
+            ["./jarvis", "capabilities"],
+            "./jarvis capabilities",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_TASK_ADD:
+        return (
+            ["./jarvis", "task-add", text],
+            f'./jarvis task-add "{text}"',
+            SAFETY_LOCAL_WRITE,
+            True,
+        )
+    if intent == INTENT_TASK_LIST:
+        return (
+            ["./jarvis", "task-list"],
+            "./jarvis task-list",
+            SAFETY_READONLY,
+            True,
+        )
     # unclear
     return (
         ["./jarvis", "self-cockpit"],
@@ -443,8 +533,12 @@ def _explain_intent(intent: str) -> str:
         INTENT_RESEARCH_PLAN: "pesquisa + plano (blueprint research)",
         INTENT_AGENDA_NOTE: "item de agenda local (append-only em 05_EXECUCAO/31_AGENDA)",
         INTENT_CAPTURE_NOTE: "captura no inbox local (append-only em 05_EXECUCAO/30_INBOX)",
-        INTENT_OPEN_PROJECT: "abrir projeto — roda project-cockpit",
-        INTENT_UNCLEAR: "intent não classificada — caindo em self-cockpit como fallback",
+        INTENT_OPEN_PROJECT: "abrir projeto — roda project-open --print-only",
+        INTENT_CAPABILITY_CHECK: "checar capability no CAPABILITY_REGISTRY (rota para capability-check / capabilities)",
+        INTENT_LIMITS: "explicar fronteira do robô — roda limits",
+        INTENT_TASK_ADD: "adicionar tarefa à fila local — roda task-add",
+        INTENT_TASK_LIST: "listar tarefas locais — roda task-list",
+        INTENT_UNCLEAR: "intent não classificada — caindo em self-cockpit como fallback (auto-logged)",
     }.get(intent, intent)
 
 

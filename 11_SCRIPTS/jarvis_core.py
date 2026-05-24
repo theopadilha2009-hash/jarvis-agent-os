@@ -2584,22 +2584,119 @@ def ask_command(args=None):
     _run_py_propagate("11_SCRIPTS/ask_router.py", args)
 
 def go_command(args=None):
-    """./jarvis go "pedido" — wrapper sobre ask com --copy default + launch banner.
+    """./jarvis go "pedido" — power-wrapper sobre ask: classify + delegate +
+    run package + Claude launch banner + project-aware debrief block + gates.
 
-    Sempre acrescenta --copy a não ser que --no-copy esteja presente, e
-    imprime instruções de Claude launch / debrief depois do delegate.
-    Propaga o exit code do ask_router (após imprimir banner).
-    Não executa Claude. Não toca produção."""
+    Adicionalmente:
+      - Cria run package em 05_EXECUCAO/35_RUNS/<ts>_<slug>/ (gitignored)
+        a não ser que --dry-run, JARVIS_NO_REPORT=1 ou --no-run-log.
+      - Imprime project-intel sugerido se um alias foi detectado.
+      - Emite o bloco de debrief CORRETO (self-debrief vs project-memory-update).
+      - Imprime o que JARVIS fez/não fez. Nunca executa Claude. Nunca toca produção."""
+    import os
     import subprocess
     args = list(args or [])
     has_copy = "--copy" in args
     has_nocopy = "--no-copy" in args
     if not has_copy and not has_nocopy:
         args = ["--copy", *args]
+    is_dry = "--dry-run" in args
+    no_run = "--no-run-log" in args
+    if no_run:
+        args = [a for a in args if a != "--no-run-log"]
+    suppress_run = is_dry or no_run or os.environ.get("JARVIS_NO_REPORT") == "1"
+
+    # Extract the free-text request and optional project (mirrors ask_router parsing).
+    text_parts = []
+    alias_override = None
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--project" and i + 1 < len(args):
+            alias_override = args[i + 1].strip().lower()
+            i += 2
+            continue
+        if a.startswith("--project="):
+            alias_override = a.split("=", 1)[1].strip().lower()
+            i += 1
+            continue
+        if a in ("--dry-run", "--copy", "--no-copy", "--explain", "--force", "--log", "--no-log"):
+            i += 1
+            continue
+        text_parts.append(a)
+        i += 1
+    request_text = " ".join(text_parts).strip()
+
     print("JARVIS — Go (power-wrapper de ask)")
     print("Status real: roteia pedido → ask_router → delegate; sem executar Claude.")
     print("")
     rc = subprocess.call(["python3", "11_SCRIPTS/ask_router.py", *args], cwd=ROOT)
+
+    # Best-effort detection of intent/project/safety/next-command for the run
+    # log: reuse ask_router functions directly (no second subprocess).
+    intent = "?"
+    project = ""
+    safety = "?"
+    next_cmd = "?"
+    try:
+        sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
+        from ask_router import (
+            detect_intent as _di,
+            detect_project_alias as _dp,
+            _next_command_for as _ncf,
+        )
+        intent = _di(request_text) if request_text else "?"
+        project = _dp(request_text, alias_override) or ""
+        _cl, next_cmd, safety, _safe = _ncf(intent, project, request_text, None) if request_text else ([], "?", "?", True)
+    except Exception:
+        pass
+
+    run_path = ""
+    if request_text and not suppress_run:
+        try:
+            out = subprocess.check_output(
+                ["python3", "11_SCRIPTS/run_log.py", "create",
+                 "--request", request_text,
+                 "--project", project or "",
+                 "--intent", intent or "",
+                 "--safety", safety or "",
+                 "--next-command", next_cmd or "",
+                 "--print-path"],
+                cwd=ROOT, text=True, stderr=subprocess.STDOUT, timeout=10,
+            ).strip()
+            run_path = out.splitlines()[-1] if out else ""
+        except Exception as e:
+            print(f"AVISO: não consegui criar run package: {e}")
+
+    print("")
+    print("── Run package ─────────────────────────────────────────────")
+    if suppress_run:
+        print("(suprimido: --dry-run / --no-run-log / JARVIS_NO_REPORT=1)")
+    elif run_path:
+        print(f"Run log: {run_path}")
+        print(f"Ver:     ./jarvis run-show latest")
+    else:
+        print("(não criado — pedido vazio ou erro acima)")
+
+    # Project-intel hint for project-scoped intents
+    if project and project != "jarvis-core":
+        print("")
+        print("── Project intel sugerido ──────────────────────────────────")
+        print(f"  ./jarvis project-intel --project {project}")
+        print(f"  ./jarvis project-open  --project {project} --print-only")
+
+    # Debrief block — pick the right command depending on the project
+    if project == "jarvis-core" or not project:
+        debrief = (
+            "./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --dry-run\n"
+            "./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --apply"
+        )
+    else:
+        debrief = (
+            f"./jarvis project-memory-update --project {project} --from-file /tmp/claude-out.md --dry-run\n"
+            f"./jarvis project-memory-update --project {project} --from-file /tmp/claude-out.md --apply"
+        )
+
     print("")
     print("── Próximo passo manual (Theo executa) ─────────────────────")
     print(f"cd {ROOT}")
@@ -2607,10 +2704,29 @@ def go_command(args=None):
     print("# (cole a missão se foi gerada)")
     print("cat > /tmp/jarvis-claude-out.md  # salvar RELATÓRIO FINAL aqui")
     print("# (cole o relatório final; Ctrl+D para fechar)")
-    print("./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --dry-run")
-    print("./jarvis self-debrief --from-file /tmp/jarvis-claude-out.md --apply")
+    for line in debrief.splitlines():
+        print(line)
     print("./jarvis self-cockpit")
-    print("────────────────────────────────────────────────────────────")
+    print("")
+    print("── Gates de saúde ──────────────────────────────────────────")
+    print("env JARVIS_NO_REPORT=1 ./jarvis safety-gate")
+    print("env JARVIS_NO_REPORT=1 ./jarvis smoke-test")
+    print("./jarvis doctrine-check")
+
+    print("")
+    print("── O que JARVIS fez ────────────────────────────────────────")
+    print("- interpretou o pedido localmente (regex + registry)")
+    print("- delegou para o sub-comando seguro acima")
+    if not suppress_run and run_path:
+        print(f"- gravou run package em {run_path}")
+    print("")
+    print("── O que JARVIS NÃO fez ────────────────────────────────────")
+    print("- não executou Claude")
+    print("- não tocou produção / VPS / n8n real")
+    print("- não fez push / PR / merge / deploy")
+    print("- não leu .env nem imprimiu segredos")
+    print("- não editou arquivos de projeto-alvo")
+    print("")
     print("Produção: nada alterado por JARVIS.")
     if rc != 0:
         sys.exit(rc)
@@ -2650,6 +2766,58 @@ def limits_command(args=None):
 def ask_log_command(args=None):
     """./jarvis ask-log — exibe pedidos cujo intent ficou unclear (para pattern tuning)."""
     _run_py_propagate("11_SCRIPTS/ask_router.py", ["--log", *(args or [])])
+
+def task_add_command(args=None):
+    """./jarvis task-add "texto" [--dry-run] [--source X] [--project A] [--intent I]"""
+    _run_py_propagate("11_SCRIPTS/task_queue.py", ["add", *(args or [])])
+
+def task_list_command(args=None):
+    """./jarvis task-list — lista tarefas locais (pending/blocked/done)."""
+    _run_py_propagate("11_SCRIPTS/task_queue.py", ["list", *(args or [])])
+
+def task_next_command(args=None):
+    """./jarvis task-next — top pending + comando seguro sugerido."""
+    _run_py_propagate("11_SCRIPTS/task_queue.py", ["next", *(args or [])])
+
+def task_show_command(args=None):
+    """./jarvis task-show ID — events da task."""
+    _run_py_propagate("11_SCRIPTS/task_queue.py", ["show", *(args or [])])
+
+def task_done_command(args=None):
+    """./jarvis task-done ID [--note '...'] — marca task como done (append-only)."""
+    _run_py_propagate("11_SCRIPTS/task_queue.py", ["done", *(args or [])])
+
+def task_block_command(args=None):
+    """./jarvis task-block ID --reason '...' — marca task como blocked."""
+    _run_py_propagate("11_SCRIPTS/task_queue.py", ["block", *(args or [])])
+
+def run_list_command(args=None):
+    """./jarvis run-list — lista run packages gerados por `go`."""
+    _run_py_propagate("11_SCRIPTS/run_log.py", ["list", *(args or [])])
+
+def run_show_command(args=None):
+    """./jarvis run-show latest|ID — imprime arquivos de um run package."""
+    _run_py_propagate("11_SCRIPTS/run_log.py", ["show", *(args or [])])
+
+def run_latest_command(args=None):
+    """./jarvis run-latest — alias de run-show latest."""
+    _run_py_propagate("11_SCRIPTS/run_log.py", ["latest", *(args or [])])
+
+def capabilities_command(args=None):
+    """./jarvis capabilities — lista capability registry por grupo."""
+    _run_py_propagate("11_SCRIPTS/capabilities.py", ["list", *(args or [])])
+
+def capability_check_command(args=None):
+    """./jarvis capability-check NAME — detalhe + safe behavior."""
+    _run_py_propagate("11_SCRIPTS/capabilities.py", ["check", *(args or [])])
+
+def capability_plan_command(args=None):
+    """./jarvis capability-plan NAME — plano local para future_adapter."""
+    _run_py_propagate("11_SCRIPTS/capabilities.py", ["plan", *(args or [])])
+
+def project_intel_command(args=None):
+    """./jarvis project-intel --project ALIAS — inspeção read-only do projeto."""
+    _run_py_propagate("11_SCRIPTS/project_intel.py", args)
 
 def report_policy_command():
     import subprocess
@@ -2865,6 +3033,19 @@ def help_msg():
   ./jarvis plan "pedido" [--save]  gera plano de execução local (intent+safety+next+missão+validation)
   ./jarvis limits                 imprime fronteira do robô (pode/não pode/precisa Claude)
   ./jarvis ask-log                exibe pedidos cujo intent ficou unclear (pattern tuning)
+  ./jarvis task-add "texto" [--dry-run]  adiciona tarefa à fila local (JSONL append-only)
+  ./jarvis task-list              lista tarefas locais (pending/blocked/done)
+  ./jarvis task-next              top pending + comando seguro sugerido
+  ./jarvis task-show ID           events da task
+  ./jarvis task-done ID           marca task done (append-only)
+  ./jarvis task-block ID --reason "..."  marca task blocked
+  ./jarvis run-list               lista run packages (gerados por go)
+  ./jarvis run-show latest|ID     imprime arquivos de um run package
+  ./jarvis run-latest             alias de run-show latest
+  ./jarvis capabilities           lista CAPABILITY_REGISTRY por grupo
+  ./jarvis capability-check NAME  detalhe + safe behavior + setup
+  ./jarvis capability-plan NAME   plano local para future_adapter
+  ./jarvis project-intel --project A  inspeção read-only (package mgr, tests, migrations, .env presence)
   ./jarvis review-output-index    indexa revisões de outputs externos
   ./jarvis review-output-latest   imprime última revisão de output externo
   ./jarvis execution-modes        mostra modos de execução forte
@@ -2978,6 +3159,32 @@ def main():
         limits_command(sys.argv[2:])
     elif cmd == "ask-log":
         ask_log_command(sys.argv[2:])
+    elif cmd == "task-add":
+        task_add_command(sys.argv[2:])
+    elif cmd == "task-list":
+        task_list_command(sys.argv[2:])
+    elif cmd == "task-next":
+        task_next_command(sys.argv[2:])
+    elif cmd == "task-show":
+        task_show_command(sys.argv[2:])
+    elif cmd == "task-done":
+        task_done_command(sys.argv[2:])
+    elif cmd == "task-block":
+        task_block_command(sys.argv[2:])
+    elif cmd == "run-list":
+        run_list_command(sys.argv[2:])
+    elif cmd == "run-show":
+        run_show_command(sys.argv[2:])
+    elif cmd == "run-latest":
+        run_latest_command(sys.argv[2:])
+    elif cmd == "capabilities":
+        capabilities_command(sys.argv[2:])
+    elif cmd == "capability-check":
+        capability_check_command(sys.argv[2:])
+    elif cmd == "capability-plan":
+        capability_plan_command(sys.argv[2:])
+    elif cmd == "project-intel":
+        project_intel_command(sys.argv[2:])
     elif cmd == "scan-inbox":
         scan_inbox()
     elif cmd == "intake":

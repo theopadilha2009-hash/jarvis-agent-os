@@ -42,3 +42,16 @@ __pycache__/
 # Use `git add -f` to persist a specific mission pack intentionally.
 05_EXECUCAO/21_CLAUDE_MISSIONS/**
 !05_EXECUCAO/21_CLAUDE_MISSIONS/.gitkeep
+
+# Agent OS Sprint 3 — runtime data (NEVER committed during normal use).
+# Task queue JSONL — append-only local task state.
+05_EXECUCAO/34_TASKS/tasks.jsonl
+# Run packages — created by `./jarvis go` each invocation; suprimível com
+# --dry-run / --no-run-log / JARVIS_NO_REPORT=1.
+05_EXECUCAO/35_RUNS/**
+!05_EXECUCAO/35_RUNS/.gitkeep
+# Blueprint outputs (local spec packages). Each blueprint is a timestamped
+# folder under 40_BLUEPRINTS/; not committed unless intentional via `git add -f`.
+05_EXECUCAO/40_BLUEPRINTS/2*/**
+# Plans saved with `./jarvis plan ... --save`.
+05_EXECUCAO/33_PLANS/2*.md

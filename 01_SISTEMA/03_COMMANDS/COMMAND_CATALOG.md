@@ -543,3 +543,74 @@ Wrappers novos (`ask`, `go`, `capture`, `inbox`, `agenda-add`, `agenda`,
 o `./jarvis` retornar não-zero.
 
 Status real: todas essas adições são leitura/append-only locais — Sem API Anthropic/OpenAI, sem produção, sem deploy.
+
+## Agent OS — Sprint 3 (task queue, run logs, capabilities, project intel)
+
+Sprint 3 adicionou **memória operacional** (tarefas + logs de execução),
+**fronteira explícita** (capabilities) e **inteligência de projeto**
+(project-intel). `go` ficou mais forte: cria run package gitignored,
+sugere project-intel, escolhe o debrief correto (self vs project) e
+imprime gates.
+
+### Task queue (`task-add`, `task-list`, `task-next`, `task-show`, `task-done`, `task-block`)
+JSONL append-only em `05_EXECUCAO/34_TASKS/tasks.jsonl` (gitignored).
+Cada comando é um evento; o estado é reconstruído lendo a lista.
+- `task-add "texto" [--dry-run]` — cria tarefa pending. Refuse secret-shaped.
+- `task-list` — pending + blocked + done.
+- `task-next` — top pending + sugestão de `./jarvis go "..."`.
+- `task-show ID` — todos eventos.
+- `task-done ID [--note]` — append done.
+- `task-block ID --reason "..."` — append blocked.
+
+Não tem banco, não tem web UI, não tem cron, não tem reminders.
+
+### Run logs (`run-list`, `run-show latest|ID`, `run-latest`)
+Cada `./jarvis go` cria pasta `05_EXECUCAO/35_RUNS/<ts>_<slug>/`
+(gitignored) com 6 markdowns: REQUEST / INTERPRETATION / NEXT_COMMAND
+/ CLAUDE_LAUNCH / DEBRIEF_INSTRUCTIONS / STATUS_REAL. Suprimível com
+`--dry-run`, `--no-run-log` ou `JARVIS_NO_REPORT=1`.
+
+### Capabilities (`capabilities`, `capability-check NAME`, `capability-plan NAME`)
+Registry em `01_SISTEMA/06_CAPABILITIES/CAPABILITY_REGISTRY.json` com
+quatro grupos: **available** (JARVIS faz agora), **manual** (Theo
+executa o passo final), **blocked** (hard rule, nunca), **future_adapter**
+(possível um dia, hoje só alternativa local + plano).
+
+`./jarvis ask "capacidade google calendar"` roteia para
+`./jarvis capability-check google_calendar` automaticamente.
+`./jarvis ask "quais limites"` roteia para `./jarvis limits`.
+
+### Project intel (`project-intel --project ALIAS`)
+Inspeção read-only do projeto: branch + dirty + package manager
+(bun/pnpm/yarn/npm) + scripts (dev/build/test/lint/typecheck) +
+framework hints (next/vite/react/n8n) + test tools + migrations
+(supabase/prisma/drizzle) + .env presence (NUNCA valores) +
+comandos recomendados (não executados).
+
+### `go` mais forte (Sprint 3)
+- cria run package por default (suprimível com `--dry-run` / `--no-run-log` / `JARVIS_NO_REPORT=1`)
+- sugere `./jarvis project-intel --project A` quando detecta projeto
+- escolhe `self-debrief` (jarvis-core) ou `project-memory-update --project A` (outros)
+- imprime bloco de gates (safety-gate / smoke-test / doctrine-check)
+- termina com "O que JARVIS fez / NÃO fez"
+
+### Referência rápida (para command-audit)
+
+```
+./jarvis task-add "tarefa" [--dry-run]
+./jarvis task-list
+./jarvis task-next
+./jarvis task-show ID
+./jarvis task-done ID [--note "..."]
+./jarvis task-block ID --reason "..."
+./jarvis run-list
+./jarvis run-show latest
+./jarvis run-show <ID>
+./jarvis run-latest
+./jarvis capabilities
+./jarvis capability-check NAME
+./jarvis capability-plan NAME
+./jarvis project-intel --project ALIAS
+```
+
+Status real: todas as adições deste sprint são leitura local + append-only — Sem API Anthropic/OpenAI, sem rede, sem produção.

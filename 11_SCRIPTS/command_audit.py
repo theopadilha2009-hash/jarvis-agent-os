@@ -75,6 +75,19 @@ CRITICAL_COMMANDS = [
     "plan",
     "limits",
     "ask-log",
+    "task-add",
+    "task-list",
+    "task-next",
+    "task-show",
+    "task-done",
+    "task-block",
+    "run-list",
+    "run-show",
+    "run-latest",
+    "capabilities",
+    "capability-check",
+    "capability-plan",
+    "project-intel",
 ]
 
 def run(cmd):

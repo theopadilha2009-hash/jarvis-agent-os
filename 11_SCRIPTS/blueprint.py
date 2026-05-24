@@ -160,32 +160,94 @@ def _spec_n8n(goal):
 def _spec_app(goal):
     return (
         "# Spec — App / repo plan (LOCAL DRAFT)\n\n"
-        "## Status real\nApenas plano. Nada criado em produção. Nenhum repositório remoto criado por JARVIS.\n\n"
+        "## Status real\n"
+        "Apenas plano. Nada criado em produção. Nenhum repositório remoto criado por JARVIS.\n"
+        "JARVIS NÃO faz `npm init`, `bun create`, `git init` automaticamente.\n\n"
         f"## Objetivo\n{goal}\n\n"
-        "## Repo plan\n"
-        "- nome sugerido: (preencher)\n"
-        "- local: ~/VAMOO_PROJETOS/<nome>\n"
-        "- visibility: private por padrão\n"
-        "- branch base: main (somente local até autorização)\n\n"
-        "## Branch rule\n- toda alteração em branch dedicada `feature/<topic>` ou `fix/<topic>`.\n\n"
-        "## Package manager detection\n- detectar package.json / pyproject.toml / Cargo.toml antes de assumir.\n\n"
-        "## Testes / build / lint\n- adicionar primeiro `npm test` / `pytest` / similar antes de qualquer integração.\n\n"
-        "## Não fazer\n- não publicar em registry público.\n- não fazer deploy.\n- não criar workflow CI sem revisão humana.\n"
+        "## Branch rule\n"
+        "- toda alteração em branch dedicada `feature/<topic>` ou `fix/<topic>`.\n"
+        "- nunca editar `main`/`master` diretamente.\n"
+        "- proteção: se branch atual = main, PARE.\n\n"
+        "## Repo initialization checklist (manual)\n"
+        "- [ ] nome sugerido: (preencher)\n"
+        "- [ ] path local: ~/VAMOO_PROJETOS/<nome>\n"
+        "- [ ] visibility: private por padrão\n"
+        "- [ ] branch base: main local; remoto só com autorização\n"
+        "- [ ] LICENSE definida (MIT/Apache-2.0/proprietário)\n"
+        "- [ ] README inicial com seção 'Status real'\n"
+        "- [ ] .gitignore antes do primeiro commit\n"
+        "- [ ] .env.example presente (NUNCA .env)\n\n"
+        "## Package manager choice\n"
+        "- detectar/escolher entre: `bun` / `pnpm` / `yarn` / `npm` / `pip+venv` / `cargo`\n"
+        "- commit do lockfile correspondente desde o primeiro commit\n"
+        "- documentar versão exigida (engines / pyproject)\n\n"
+        "## Testes / build / lint\n"
+        "- adicionar `test` antes de qualquer integração\n"
+        "- adicionar `lint` + `typecheck` cedo (não no fim)\n"
+        "- adicionar `build` reprodutível antes de pensar em deploy\n"
+        "- CI local (script `./scripts/check.sh`) replicando a sequência\n\n"
+        "## Status real (níveis até deploy real)\n"
+        "1. `drafted` — spec escrita; sem repo\n"
+        "2. `repo created local` — pasta + git init, sem remoto\n"
+        "3. `dependencies installed local` — install rodou; lockfile commitado\n"
+        "4. `tests green local` — pelo menos 1 test passa\n"
+        "5. `linted` — lint + typecheck verdes\n"
+        "6. `build green local` — build reprodutível\n"
+        "7. `remoto criado` — repo no GitHub (privado), sem deploy\n"
+        "8. `deploy preview` — env staging com flags\n"
+        "9. `production approved` — Theo dá OK por escrito\n\n"
+        "## Não fazer (hard)\n"
+        "- não publicar em registry público sem revisão\n"
+        "- não fazer deploy sem nível ≥ 8\n"
+        "- não criar workflow CI sem revisão humana do YAML\n"
+        "- não armazenar secret no repo (nem em `.env.example`)\n"
     )
 
 
 def _spec_automation(goal):
     return (
         "# Spec — Automation (LOCAL DRAFT)\n\n"
-        "## Status real\nApenas plano. Nada agendado em produção.\n\n"
+        "## Status real\n"
+        "Apenas plano. Nada agendado em produção. JARVIS não dispara nada.\n\n"
         f"## Objetivo\n{goal}\n\n"
-        "## Trigger\n- (manual / cron / webhook / file watcher)\n\n"
-        "## Estado\n- onde persistir (sqlite local, jsonl, markdown)\n\n"
-        "## Logs\n- caminho local\n- rotacão simples (manual)\n\n"
-        "## Aprovação humana\n- toda ação irreversível exige confirmação Theo.\n\n"
-        "## Fallback\n- o que fazer se etapa N falhar?\n- como reverter parcialmente?\n\n"
-        "## Error handling\n- estados de erro nomeados, não silenciar exceções.\n\n"
+        "## Trigger\n"
+        "- (escolher um) manual / cron / webhook / file watcher / event bus\n"
+        "- início obrigatoriamente manual nos níveis 1-4 (ver status levels)\n\n"
+        "## Input normalization\n"
+        "- schema esperado (tipos + campos obrigatórios)\n"
+        "- validação fail-fast antes de qualquer side-effect\n"
+        "- rejeitar payload sem ack humano nos primeiros runs\n\n"
+        "## Estado / memória\n"
+        "- onde persistir (sqlite local / jsonl / markdown)\n"
+        "- chave de correlation_id por evento\n"
+        "- TTL claro para entradas antigas\n\n"
+        "## Logs\n"
+        "- caminho local (não /var/log de produção)\n"
+        "- rotação simples (manual ou logrotate config)\n"
+        "- sem PII em texto claro\n\n"
+        "## Aprovação humana\n"
+        "- toda ação irreversível exige confirmação explícita do Theo\n"
+        "- ack registrado em arquivo + timestamp + assinatura textual\n\n"
+        "## Idempotência / dedupe\n"
+        "- chave única por job; reprocessamento não causa efeito duplicado\n"
+        "- janela de dedupe documentada (ex: 24h)\n\n"
+        "## Fallback / reversão\n"
+        "- o que fazer se etapa N falhar?\n"
+        "- como reverter parcialmente?\n"
+        "- existe modo `--dry-run` que simula sem efeito real?\n\n"
+        "## Error handling\n"
+        "- estados de erro nomeados (não `except Exception: pass`)\n"
+        "- error_trigger separado (alerta humano, não retry cego)\n"
+        "- circuit breaker para evitar tempestade de falhas\n\n"
         "## Status real levels\n"
+        "1. `drafted` — spec escrita\n"
+        "2. `dry-run local` — código roda sem efeito real\n"
+        "3. `manual trigger` — ack humano por execução\n"
+        "4. `scheduled local` — cron/watcher em máquina do Theo\n"
+        "5. `staging` — efeitos só em sandbox\n"
+        "6. `prod read-only` — efeito de leitura em produção\n"
+        "7. `prod write-with-ack` — escrita em produção com ack por execução\n"
+        "8. `prod autônomo` — apenas após Theo dar OK por escrito\n"
         "- created ≠ imported ≠ configured ≠ tested ≠ validated ≠ production\n"
     )
 
@@ -193,24 +255,42 @@ def _spec_automation(goal):
 def _spec_research(goal):
     return (
         "# Spec — Research plan (LOCAL DRAFT)\n\n"
-        "## Status real\nApenas plano de leitura/análise. Nada decidido.\n\n"
+        "## Status real\n"
+        "Apenas plano de leitura/análise. Nada decidido. JARVIS não busca na web (ver capability `web_research`).\n\n"
         f"## Tema\n{goal}\n\n"
-        "## Research questions\n"
+        "## Research questions (perguntas explícitas)\n"
         "1. O que exatamente quero responder?\n"
         "2. Qual a decisão que esta pesquisa habilita?\n"
-        "3. Qual é o critério de parada?\n\n"
-        "## Sources to inspect\n"
-        "- código local relacionado (lista)\n"
-        "- docs internas (lista)\n"
-        "- repositórios públicos (lista)\n"
-        "- artigos / RFCs (lista)\n\n"
+        "3. Qual é o critério de parada?\n"
+        "4. Quanto tempo Theo aceita investir antes de decidir?\n\n"
+        "## Source plan\n"
+        "- código local relacionado (lista de paths)\n"
+        "- docs internas (lista de arquivos / Notion / wiki)\n"
+        "- repositórios públicos (lista de URLs)\n"
+        "- artigos / RFCs / vídeos (lista)\n"
+        "- conversas / mensagens já trocadas\n\n"
+        "## Assumptions (escrever antes de pesquisar — para evitar viés)\n"
+        "- A1: ...\n"
+        "- A2: ...\n\n"
         "## Decision matrix\n"
-        "| Opção | Esforço | Risco | Reversibilidade | Nota |\n"
-        "|-------|---------|-------|------------------|------|\n"
-        "| A     |         |       |                  |      |\n"
-        "| B     |         |       |                  |      |\n\n"
-        "## What not to build\n- evitar refactors grandes só porque é pesquisa.\n\n"
-        "## Final output format\n- 1 página markdown com: contexto / opções / decisão / próximo passo seguro.\n"
+        "| Opção | Esforço | Risco | Reversibilidade | Compatível com hard rules? | Nota |\n"
+        "|-------|---------|-------|------------------|----------------------------|------|\n"
+        "| A     |         |       |                  |                            |      |\n"
+        "| B     |         |       |                  |                            |      |\n"
+        "| C (não fazer) |  |     |                  |                            |      |\n\n"
+        "## Risks\n"
+        "- escopo crescer durante a pesquisa (parar quando atingir critério)\n"
+        "- pesquisar virar implementação (não escrever código aqui)\n"
+        "- ler conteúdo enviesado sem verificar com 2ª fonte\n\n"
+        "## What not to build\n"
+        "- evitar refactors grandes só porque é pesquisa\n"
+        "- evitar 'só uma POC rápida' que vira deploy\n\n"
+        "## Final recommendation format (1 página markdown)\n"
+        "1. Contexto (≤ 3 linhas)\n"
+        "2. Opções consideradas (matriz acima)\n"
+        "3. Recomendação + razão (≤ 5 linhas)\n"
+        "4. Próximo passo seguro (1 comando)\n"
+        "5. O que NÃO fazer agora (lista)\n"
     )
 
 
@@ -275,19 +355,31 @@ def _checklist(btype):
             "[ ] testado com Manual Trigger + payload mock antes de qualquer trigger automático",
         ],
         "app": [
-            "[ ] repo plan validado",
-            "[ ] branch rule respeitada",
-            "[ ] sem deploy",
+            "[ ] branch rule explícita (nunca editar main)",
+            "[ ] package manager escolhido + lockfile commitado",
+            "[ ] LICENSE definida",
+            "[ ] .gitignore antes do 1º commit",
+            "[ ] .env.example (NUNCA .env real)",
+            "[ ] test/lint/typecheck/build configurados antes de deploy",
+            "[ ] status real declarado em README (nível 1-9)",
+            "[ ] sem deploy até nível 8+",
         ],
         "automation": [
-            "[ ] trigger só em modo manual no início",
-            "[ ] aprovação humana documentada nas etapas irreversíveis",
-            "[ ] logs com rotação",
+            "[ ] trigger inicial = manual",
+            "[ ] input validado fail-fast",
+            "[ ] idempotência/dedupe explícitos",
+            "[ ] dry-run disponível",
+            "[ ] aprovação humana em ações irreversíveis",
+            "[ ] error_trigger separado do happy path",
+            "[ ] logs sem PII em texto claro",
+            "[ ] status real declarado (nível 1-8)",
         ],
         "research": [
             "[ ] perguntas de pesquisa explícitas",
-            "[ ] decision matrix preenchido",
-            "[ ] decisão registrada",
+            "[ ] assumptions escritas ANTES de pesquisar",
+            "[ ] decision matrix preenchido (com 'não fazer' como opção)",
+            "[ ] critério de parada definido",
+            "[ ] recomendação final em 1 página seguindo o template",
         ],
     }[btype]
     return "# Validation checklist\n\n" + "\n".join(f"- {l}" for l in base + extras) + "\n"
