@@ -3096,6 +3096,8 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
   ./jarvis do "pedido" --dry-run             preview, sem executar
   ./jarvis do "melhor a última missão"       regenera baseado no último run
   ./jarvis do --reuse-last "novo ajuste"     idem, explícito
+  ./jarvis do --report /tmp/x.md             fecha o loop: check + apply + gates
+  ./jarvis do --report /tmp/x.md --auto-finish  + fecha a sessão
 
 ## Memória de worker runs
   ./jarvis do-history [--limit N] [--route X] [--project A]
@@ -3265,6 +3267,7 @@ def _help_full():
   ./jarvis rc-freeze --dry-run    snapshot RC em 41_RELEASE_CANDIDATES/ (default dry-run)
   ./jarvis acceptance --dry-run   cenários locais sem Claude (--full inclui gate-run)
   ./jarvis do "pedido" [--project A] [--mode safe|no-claude] [--dry-run] [--copy] [--reuse-last]   worker engine (observe-act loop)
+  ./jarvis do --report PATH [--project A] [--auto-finish] [--dry-run]   fecha loop pós-Claude (check+apply+gates)
   ./jarvis do-history [--limit N] [--route NAME] [--project ALIAS]   lista worker runs recentes
   ./jarvis do-show {latest|ID}    abre um worker run em detalhe
   ./jarvis do-learn [--dry-run|--apply]   sugere INTENT_PATTERNS a partir de unclear runs

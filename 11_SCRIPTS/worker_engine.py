@@ -100,6 +100,12 @@ except Exception:
     def _dp(text, override=None): return override
     def _dc(text): return None
 
+# Project deep intel (Sprint 8.3) — optional, soft import.
+try:
+    import project_deep_intel as _pdi  # type: ignore
+except Exception:
+    _pdi = None
+
 
 # ── Safety: allowlist ─────────────────────────────────────────────────────────
 # `do` may auto-execute only these prefixes. Each ALSO must contain no blocked
@@ -411,6 +417,8 @@ def parse_args(argv):
     mode = "safe"
     copy_flag = False
     reuse_last = False
+    report_path = None
+    auto_finish = False
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -446,6 +454,18 @@ def parse_args(argv):
             reuse_last = True
             i += 1
             continue
+        if a == "--report" and i + 1 < len(argv):
+            report_path = argv[i + 1]
+            i += 2
+            continue
+        if a.startswith("--report="):
+            report_path = a.split("=", 1)[1]
+            i += 1
+            continue
+        if a == "--auto-finish":
+            auto_finish = True
+            i += 1
+            continue
         text_parts.append(a)
         i += 1
     text = " ".join(text_parts).strip()
@@ -453,7 +473,16 @@ def parse_args(argv):
         mode = "safe"
     if text and _REUSE_HINT.search(text):
         reuse_last = True
-    return text, project_override, dry_run, mode, copy_flag, reuse_last
+    return {
+        "text": text,
+        "project_override": project_override,
+        "dry_run": dry_run,
+        "mode": mode,
+        "copy_flag": copy_flag,
+        "reuse_last": reuse_last,
+        "report_path": report_path,
+        "auto_finish": auto_finish,
+    }
 
 
 # ── Reuse-last helpers ────────────────────────────────────────────────────────
@@ -844,13 +873,18 @@ e sem executar Claude. Produção: nada alterado por JARVIS.
 
 def _assemble_full_mission(worker_pkg: Path, intel_summary: str,
                            goal_sprint_prompt: str, project: str, goal: str,
-                           reused_from_dir: Path | None = None) -> Path:
+                           reused_from_dir: Path | None = None,
+                           deep_intel_md: str = "") -> Path:
     """Write FULL_MISSION.md inside the worker run package and return path."""
     lines = [_FULL_MISSION_HEADER]
     lines.append(f"## Projeto\n- alias: `{project}`\n- objetivo: {goal}\n\n")
     if reused_from_dir:
         rel = reused_from_dir.relative_to(ROOT) if reused_from_dir.is_absolute() else reused_from_dir
         lines.append(f"## Reuso\n- base anterior: `{rel}`\n\n")
+    if deep_intel_md:
+        lines.append("## Project deep context (read-only — git + grep + ls-files)\n\n")
+        lines.append(deep_intel_md.rstrip())
+        lines.append("\n\n")
     if intel_summary:
         lines.append("## Contexto do projeto (project-intel, read-only)\n")
         lines.append("```\n")
@@ -964,8 +998,145 @@ def _write_worker_log(text, route, risk, mode, project, intent, actions_recorded
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def _session_project() -> str | None:
+    """Get project alias from active work session, if any."""
+    s = _safe_load_json(CURRENT_SESSION)
+    if not s:
+        return None
+    p = s.get("project")
+    if p and p not in ("(nenhum)", "null", "None"):
+        return p
+    return None
+
+
+def _run_report_close(report_path: str, project_override: str | None,
+                      dry_run: bool, auto_finish: bool) -> int:
+    """The "close the Claude loop" flow: report-check + report-apply + gate-run
+    [+ work-close]. Bypasses the worker's allowlist because the user explicitly
+    asked for this via --report PATH. Each sub-command is invoked via the same
+    ./jarvis dispatcher Theo would otherwise run by hand."""
+    print("JARVIS — Worker Engine: Close the Loop (--report)")
+    print("Status real: roda report-check + report-apply + gate-run em sequência.")
+    print("")
+
+    path = Path(report_path).expanduser()
+    print("## Pedido")
+    print(f"  --report {report_path}")
+    print(f"  --auto-finish: {'sim' if auto_finish else 'não'}")
+    print(f"  --dry-run:     {'sim' if dry_run else 'não'}")
+    print("")
+
+    if not path.exists():
+        if dry_run:
+            print(f"AVISO (--dry-run): arquivo não existe: {path}")
+            print("  Live: report-template gera o `cat > PATH` antes desta etapa.")
+            print("  Próximo: ./jarvis report-template   # gerar `cat > /tmp/...`")
+            return 0
+        print(f"FALHA: arquivo não existe: {path}")
+        print("Próximo: ./jarvis report-template   # gerar `cat > /tmp/...`")
+        return 2
+
+    project = project_override or _session_project()
+    print("## Projeto")
+    if project:
+        print(f"  {project}")
+    else:
+        print("  (não detectado — vai usar fallback do report_intake)")
+    print("")
+
+    steps = [
+        ("Validar (report-check)",
+         ["./jarvis", "report-check", "--file", str(path)]
+         + (["--project", project] if project else [])),
+        ("Aplicar (report-apply)",
+         ["./jarvis", "report-apply", "--file", str(path)]
+         + (["--project", project] if project else [])),
+        ("Rodar gates (safety+smoke+doctrine)",
+         ["./jarvis", "gate-run"]),
+    ]
+    if auto_finish:
+        steps.append(("Fechar sessão (work-close)",
+                      ["./jarvis", "work-close"]))
+
+    print("## Sequência")
+    for i, (label, cmd) in enumerate(steps, 1):
+        print(f"  {i}. {label}")
+        print(f"     $ {' '.join(cmd)}")
+    print("")
+
+    if dry_run:
+        print("--dry-run: nenhuma das ações foi executada.")
+        print("## Garantias")
+        print("  Claude não executado · sem push/PR/merge/deploy/migrations/tag")
+        return 0
+
+    print("## Execução")
+    summaries = []
+    failed_at = None
+    for i, (label, cmd) in enumerate(steps, 1):
+        print(f"\n  → Step {i}/{len(steps)}: {label}")
+        print(f"     $ {' '.join(cmd)}")
+        rc, out, summary = _run(cmd, timeout=600)
+        tag = "PASS" if rc == 0 else f"FAIL(rc={rc})"
+        print(f"     {tag}  {summary}")
+        summaries.append((label, rc, summary, out))
+        if rc != 0:
+            failed_at = (i, label, summary, out)
+            break
+
+    print("")
+    print("## Garantias")
+    print("  Claude não executado · projeto-alvo intacto · sem push/PR/merge/deploy/migrations/tag")
+    print("")
+
+    if failed_at:
+        i, label, summary, out = failed_at
+        print(f"## Resultado")
+        print(f"  PARADO no step {i}: {label}")
+        print(f"  motivo: {summary}")
+        # Tail of failing command's output for context.
+        tail = (out or "").strip().splitlines()[-15:]
+        if tail:
+            print("  últimas linhas:")
+            for line in tail:
+                print(f"    {line}")
+        print("")
+        print("## Próximo")
+        if "report-check" in label.lower():
+            print(f"  ./jarvis report-template   # revisar o template e re-colar")
+        elif "report-apply" in label.lower():
+            print(f"  ./jarvis report-status     # ver porque apply falhou")
+        elif "gate" in label.lower():
+            print(f"  ./jarvis gate-status       # detalhar gates que falharam")
+        else:
+            print(f"  ./jarvis state-status")
+        return 1
+
+    print("## Resultado")
+    print(f"  LOOP FECHADO: {len(steps)} step(s) PASS")
+    print("")
+    print("## Próximo")
+    if auto_finish:
+        print("  ./jarvis daily       # sessão fechada — começar nova")
+    else:
+        print("  ./jarvis finish      # fecha a sessão (gates já passaram)")
+    return 0
+
+
 def main():
-    text, project_override, dry_run, mode, copy_flag, reuse_last = parse_args(sys.argv[1:])
+    opts = parse_args(sys.argv[1:])
+    text = opts["text"]
+    project_override = opts["project_override"]
+    dry_run = opts["dry_run"]
+    mode = opts["mode"]
+    copy_flag = opts["copy_flag"]
+    reuse_last = opts["reuse_last"]
+    report_path = opts["report_path"]
+    auto_finish = opts["auto_finish"]
+
+    if report_path:
+        # Special path: close the Claude loop. Doesn't go through worker routing.
+        sys.exit(_run_report_close(report_path, project_override, dry_run, auto_finish))
 
     if text and _looks_secret_like(text):
         print("FALHA: pedido parece conter segredo. JARVIS recusa registrar.")
@@ -1186,10 +1357,21 @@ def main():
                     goal_sprint_prompt = prompt_file.read_text(encoding="utf-8")
                 except Exception:
                     pass
+                # Sprint 8.3: deep project intel — git history, candidate files,
+                # hot files, likely tests. Injected into FULL_MISSION so Claude
+                # gets concrete file pointers without Theo typing them.
+                deep_md = ""
+                if _pdi is not None:
+                    try:
+                        deep_data = _pdi.gather(project, text)
+                        deep_md = _pdi.render_markdown(deep_data)
+                    except Exception as e:
+                        deep_md = f"_(deep intel falhou: {e})_\n"
                 full_mission_path = _assemble_full_mission(
                     worker_pkg, intel_summary, goal_sprint_prompt,
                     project, text,
                     reused_from.get("run") if reused_from else None,
+                    deep_intel_md=deep_md,
                 )
 
     if full_mission_path:

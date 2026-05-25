@@ -1313,6 +1313,25 @@ CHECKS = [
         ],
     },
     {
+        "name": "do-report-nonexistent-dry-run",
+        "cmd": ["./jarvis", "do", "--report", "/tmp/jarvis-doesnotexist-xyz.md", "--dry-run"],
+        "expect": [
+            "Close the Loop",
+            "AVISO (--dry-run): arquivo não existe",
+            "report-template",
+        ],
+    },
+    {
+        "name": "project-deep-intel-cli",
+        "cmd": ["python3", "11_SCRIPTS/project_deep_intel.py", "--project", "oficina", "bug agenda"],
+        "expect": [
+            "Project Deep Intel",
+            "alias: `oficina`",
+            "keywords inferidas",
+            "Commits recentes",
+        ],
+    },
+    {
         "name": "do-capability-dry-run",
         "cmd": ["./jarvis", "do", "agenda real google calendar", "--dry-run"],
         "expect": [

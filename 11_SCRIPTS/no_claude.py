@@ -123,6 +123,74 @@ BLUEPRINT_INTENTS = {
 }
 
 
+def _summary_md(text, project, intent, btype, task_id):
+    """One-page summary — first file Theo opens when Claude is down."""
+    parts = [
+        "# No-Claude — uma página\n\n",
+        f"## O pedido\n{text}\n\n",
+        "## Como JARVIS leu\n",
+        f"- intent:    `{intent}`\n",
+        f"- project:   `{project or '(não detectado)'}`\n",
+        f"- blueprint: `{btype or '(n/a)'}`\n",
+        f"- task local: `{task_id or '(não criada)'}`\n\n",
+    ]
+    parts.append("## Top 3 ações que VOCÊ pode fazer agora (sem Claude)\n")
+    if intent == INTENT_SELF_EVOLVE:
+        parts += [
+            "1. `./jarvis self-cockpit` — ver onde JARVIS está.\n",
+            "2. `./jarvis limits` — lembrar fronteira do robô.\n",
+            "3. `./jarvis self-evolve --goal \"…\"` quando Claude voltar.\n",
+        ]
+    elif intent in (INTENT_PROJECT_FIX, INTENT_PROJECT_QA, INTENT_BROWSER_QA,
+                    INTENT_FINAL_GATE, INTENT_OPEN_PROJECT):
+        p = project or "<ALIAS>"
+        parts += [
+            f"1. `./jarvis project-intel --project {p}` — inspeção atual.\n",
+            "2. Olhar `06_DEEP_INTEL.md` aqui no pacote — arquivos candidatos e hot files.\n",
+            f"3. `./jarvis do \"{text}\" --project {p}` quando Claude voltar.\n",
+        ]
+    elif btype == "n8n":
+        parts += [
+            f"1. `./jarvis blueprint --type n8n --goal \"{text}\"`\n",
+            "2. Desenhar nós/edges no papel.\n",
+            "3. Quando Claude voltar: cole o blueprint no Claude para gerar JSON.\n",
+        ]
+    elif btype == "app":
+        parts += [
+            f"1. `./jarvis blueprint --type app --goal \"{text}\"`\n",
+            "2. Esboçar telas + modelo de dados no papel.\n",
+            "3. Quando Claude voltar: usar o blueprint como missão de scaffold.\n",
+        ]
+    else:
+        parts += [
+            "1. Ler `03_MANUAL_PLAN.md` aqui e seguir o roteiro.\n",
+            "2. Anotar dúvidas com `./jarvis capture \"...\"`.\n",
+            "3. Quando Claude voltar: rodar `./jarvis do \"<refinado>\"`.\n",
+        ]
+    parts.append("\n## Risco principal\n")
+    parts.append(
+        "Sem Claude, mudanças complexas viram especulação. Foque em inspecionar,\n"
+        "documentar dúvidas e preparar um pedido melhor. NÃO faça refactor grande.\n"
+    )
+    parts.append("\n## O que aguarda Claude\n")
+    parts.append(
+        "- escrever código complexo (edits multi-arquivo)\n"
+        "- montar workflow n8n real (JSON)\n"
+        "- gerar relatório STATUS REAL do projeto\n"
+        "- propor PR\n"
+    )
+    parts.append("\n## O que NÃO aguarda Claude (você pode fazer agora)\n")
+    parts.append(
+        "- ler código, entender contexto, rodar testes existentes\n"
+        "- desenhar no papel, listar fontes\n"
+        "- ajustar `./jarvis ask` patterns via `./jarvis do-learn`\n"
+        "- planejar e capturar ideias\n"
+    )
+    parts.append("\n_Status real: pacote gerado offline. Claude não executado. "
+                 "API paga não chamada. Produção intacta._\n")
+    return "".join(parts)
+
+
 def _request_md(text, project, intent, safety, ts):
     return (
         f"# No-Claude Request\n\n"
@@ -363,15 +431,33 @@ def main():
         print("  task local: pulada (--dry-run)")
     print("")
 
+    # Sprint 8.3 — Deep project intel for no-claude when a project is detected.
+    # Theo working without Claude needs concrete file pointers, not vague advice.
+    deep_intel_md = ""
+    if project:
+        try:
+            import project_deep_intel as _pdi  # type: ignore
+            deep_data = _pdi.gather(project, text)
+            deep_intel_md = _pdi.render_markdown(deep_data)
+        except Exception:
+            pass
+
     # Files in package
     pkg = OUT_DIR / f"{ts_dir}_{slug}"
     files = {
+        "00_SUMMARY.md": _summary_md(text, project, intent, btype, task_id),
         "01_REQUEST.md": _request_md(text, project, intent, safety, ts),
         "02_INTERPRETATION.md": _interpretation_md(text, project, intent, btype),
         "03_MANUAL_PLAN.md": _manual_plan_md(text, project, intent, btype),
         "04_SAFE_COMMANDS.md": _safe_commands_md(text, project, btype),
         "05_STATUS_REAL.md": _status_real_md(text, project, intent, btype, task_id, dry_run),
     }
+    if deep_intel_md:
+        files["06_DEEP_INTEL.md"] = (
+            "# Project deep intel (read-only — git + grep + ls-files)\n\n"
+            + deep_intel_md
+            + "\n\n_Status real: leitura local do projeto. Nada foi editado._\n"
+        )
 
     if dry_run:
         print("## Modo: --dry-run")

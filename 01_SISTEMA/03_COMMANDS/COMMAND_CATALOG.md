@@ -1027,3 +1027,48 @@ Runtime gitignored adicional Sprint 8.2:
 
 Status real: tudo local-only; sem Claude, sem API paga, sem produção,
 sem edição de projeto-alvo.
+
+## Agent OS — Sprint 8.3 (deep project context + close-the-loop --report)
+
+Sprint 8.3 fecha o ciclo Claude-handoff e injeta contexto real do
+projeto na missão. Dois ganhos:
+
+### `./jarvis do --report PATH [--project A] [--auto-finish]`
+Fecha o loop em UM comando:
+1. `./jarvis report-check --file PATH [--project A]`
+2. `./jarvis report-apply --file PATH [--project A]`
+3. `./jarvis gate-run` (safety + smoke + doctrine)
+4. (com `--auto-finish`) `./jarvis work-close`
+
+Para em qualquer falha com a razão exata e o próximo comando para
+investigar. Substitui 4 comandos manuais por 1 com handoff fluido.
+Bypassa o allowlist do worker porque Theo explicitamente pediu o
+fechamento.
+
+### Deep project intel em FULL_MISSION
+Para rotas `project_fix_or_inspect`, JARVIS agora roda
+`project_deep_intel.gather(alias, request)` e injeta no
+`07_FULL_MISSION.md`:
+- commits recentes (`git log --oneline -8`)
+- arquivos candidatos (keywords do pedido vs `git ls-files`)
+- hot files (mudaram nas últimas 2 semanas)
+- testes prováveis (keywords + `*.test.*`/`*.spec.*`)
+- branch + dirty count + presença de `.env` (sem conteúdo)
+
+Claude recebe ponteiros de arquivo concretos sem Theo precisar digitar
+caminhos.
+
+### no-claude agora tem `00_SUMMARY.md` + `06_DEEP_INTEL.md`
+Quando o no-claude detecta projeto, gera dois arquivos novos:
+- `00_SUMMARY.md` — uma página: pedido / leitura / top 3 ações / risco
+  principal / o-que-aguarda-Claude / o-que-não-aguarda.
+- `06_DEEP_INTEL.md` — mesma deep intel das missões.
+
+Hard rules:
+- `project_deep_intel.py` **nunca** lê conteúdo de `.env` (apenas conta
+  arquivos por nome).
+- `--report` **não** entra no allowlist genérico; só Theo pode disparar.
+- Sem push/PR/merge/deploy/migrations/tag em nenhum step.
+
+Status real: tudo local-only; sem Claude, sem API paga, sem produção,
+sem edição de projeto-alvo.
