@@ -203,6 +203,19 @@ def _show_unclear_log():
 # "agenda" inside "bug da agenda" does NOT trigger calendar intent), then
 # generic fallbacks (open_project, unclear).
 INTENT_PATTERNS = [
+    # JARVIS foundation/docs/research routing.
+    # Keeps requests about identity, modes, sources and architecture out of unclear.
+    (INTENT_RESEARCH_PLAN, re.compile(
+        r"(?i)\b("
+        r"identidade(?: pessoal)? do jarvis|"
+        r"modos? (?:personal|work assist|future company)|"
+        r"personal[_\s-]?mode|work[_\s-]?assist[_\s-]?mode|future[_\s-]?company[_\s-]?mode|"
+        r"jarvis foundation|foundation docs?|"
+        r"research lessons?|deep research|sources?|fontes?|"
+        r"documenta(?:r|ção)|docs?|readme|"
+        r"arquitetura do jarvis|base do jarvis"
+        r")\b"
+    )),
     # limits / what JARVIS can do — checked very early so phrases like
     # "quais limites" / "o que pode fazer" don't get mis-routed.
     (INTENT_LIMITS, re.compile(
