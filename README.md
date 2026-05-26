@@ -1,5 +1,27 @@
 # JARVIS — Theo Padilha AI Worker
 
+<!-- JARVIS_FOUNDATION_START -->
+## JARVIS Foundation
+
+JARVIS is Theo's personal local AI worker and terminal cockpit.
+
+Main foundation docs:
+
+- `00_IDENTITY/JARVIS_IDENTITY.md`
+- `00_IDENTITY/MODES.md`
+- `00_IDENTITY/JARVIS_RESEARCH_LESSONS.md`
+- `02_SOURCES/DEEP_RESEARCH/README.md`
+
+Operating modes:
+
+- `PERSONAL_MODE`: Theo's own projects.
+- `WORK_ASSIST_MODE`: sanitized support for VAMOO AI/company work.
+- `FUTURE_COMPANY_MODE`: placeholder for a possible official company version later.
+
+Private GitHub is sync, not a secret vault.
+<!-- JARVIS_FOUNDATION_END -->
+
+
 Creator / Owner: Theo Padilha  
 Status real: laboratório local em construção  
 Produção: não  
