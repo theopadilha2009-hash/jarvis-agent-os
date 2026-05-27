@@ -177,13 +177,8 @@ Não deve existir auto-evolução com escrita real sem aprovação humana.
 Objetivo: ler fontes locais e gerar decisão prática.
 Entrega:
 - `./jarvis research-digest`
-- arquivos markdown com índice, digest, plano, n8n position e status real
-- outputsmap recomendado
-
-### v0 — Digest local profissional
-Objetivo: ler fontes locais e gerar decisão prática.
-Entrega:
-- `./jarvis ignorados pelo Git, mantendo só `.gitkeep`
+- arquivos markdown com índice, digest, plano, posição n8n, status real e backlog técnico
+- outputs gerados ignorados pelo Git, mantendo só `.gitkeep`
 
 Teste:
 - `./jarvis research-digest --dry-run`
