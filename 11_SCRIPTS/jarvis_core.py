@@ -2751,6 +2751,11 @@ def blueprint_command(args=None):
     """./jarvis blueprint --type <n8n|app|automation|research> --goal "..." [--dry-run]"""
     _run_py_propagate("11_SCRIPTS/blueprint.py", args)
 
+
+def research_digest_command(args=None):
+    """./jarvis research-digest [--goal "..."] [--dry-run] — digest local dos deep research."""
+    _run_py_propagate("11_SCRIPTS/research_digest.py", args)
+
 def project_open_command(args=None):
     """./jarvis project-open --project ALIAS [--print-only|--copy-cd|--code]"""
     _run_py_propagate("11_SCRIPTS/project_open.py", args)
@@ -3123,6 +3128,7 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
   ./jarvis state-status                      ver runtime travado
   ./jarvis state-reset --dry-run             remove current.json (preview)
   ./jarvis no-claude "pedido"                pacote offline manual
+  ./jarvis research-digest                   digest local dos deep research + plano JARVIS
 
 ## Catálogo completo
   ./jarvis help --all                        lista TODOS os comandos
@@ -3215,6 +3221,7 @@ def _help_full():
   ./jarvis agenda-add "tarefa"    anexa item à agenda local (05_EXECUCAO/31_AGENDA)
   ./jarvis agenda                 exibe agenda local
   ./jarvis blueprint --type T --goal "..."  blueprint local (n8n|app|automation|research)
+  ./jarvis research-digest [--goal "..."]  digest local dos deep research + plano de evolução
   ./jarvis project-open --project A [--print-only|--copy-cd|--code]  abre projeto local com segurança
   ./jarvis plan "pedido" [--save]  gera plano de execução local (intent+safety+next+missão+validation)
   ./jarvis limits                 imprime fronteira do robô (pode/não pode/precisa Claude)
@@ -3376,6 +3383,8 @@ def main():
         agenda_command(sys.argv[2:])
     elif cmd == "blueprint":
         blueprint_command(sys.argv[2:])
+    elif cmd == "research-digest":
+        research_digest_command(sys.argv[2:])
     elif cmd == "project-open":
         project_open_command(sys.argv[2:])
     elif cmd == "plan":
