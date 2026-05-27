@@ -5,11 +5,19 @@ JARVIS COMMANDS
 GERAR TUDO:
 ./jarvis-full "Cliente" "ideia/serviço"
 
+OPERAÇÃO:
+./jarvis-doctor
+./jarvis-open-latest
+./jarvis-copy-msg
+./jarvis-report
+./jarvis-save "mensagem do commit"
+./jarvis-clean-pattern "texto-do-teste"
+
 USAR ÚLTIMO:
 ./jarvis-latest
 ./jarvis-use-latest
 ./jarvis-export-latest
-./jarvis-proposal-latest
+./jarvis-proposal-pro
 
 GERAR PARTES:
 ./jarvis-produce "ideia"
@@ -22,7 +30,4 @@ GERAR PARTES:
 
 ABRIR PAINEL:
 ./jarvis-index
-
-STATUS:
-git status --short
 TXT

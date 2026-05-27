@@ -19,7 +19,7 @@ echo
 ./jarvis-client-produce "$client" "$idea"
 echo
 
-./jarvis-proposal-latest
+./jarvis-proposal-pro
 echo
 
 ./jarvis-export-latest

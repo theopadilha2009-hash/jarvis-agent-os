@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+python3 11_SCRIPTS/proposal_page.py
+open "$(find 05_EXECUCAO/53_PROPOSAL_PAGES -mindepth 1 -maxdepth 1 -type d | sort | tail -1)/index.html"
