@@ -14,6 +14,8 @@ OUTPUTS = [
     "05_EXECUCAO/50_CLIENT_KITS",
     "05_EXECUCAO/52_EXPORTS",
     "05_EXECUCAO/53_PROPOSAL_PAGES",
+    "05_EXECUCAO/55_IDEA_RADAR",
+    "05_EXECUCAO/56_CLIENT_HUNT",
 ]
 
 COMMANDS = [
@@ -21,6 +23,8 @@ COMMANDS = [
     "jarvis-client", "jarvis-demo", "jarvis-n8n", "jarvis-sell",
     "jarvis-index", "jarvis-latest", "jarvis-use-latest",
     "jarvis-export-latest", "jarvis-proposal-pro",
+    "jarvis-ideas",
+    "jarvis-client-hunt",
 ]
 
 def sh(cmd, capture=False, check=True):
