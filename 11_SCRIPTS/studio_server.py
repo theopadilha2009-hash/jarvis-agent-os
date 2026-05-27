@@ -74,6 +74,7 @@ HTML = r'''<!doctype html>
           <button onclick="runAction('full')" class="green">Gerar Pacote Completo</button>
           <button onclick="runAction('opportunity')" class="secondary">Gerar Oportunidade</button>
           <button onclick="runAction('save_request')" class="dark">Salvar Pedido</button>
+          <button onclick="runAction('apply_landing_edit')" class="green">Aplicar Pedido na Landing</button>
         </div>
       </div>
 
@@ -235,6 +236,15 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json({"ok": False, "output": "Preenche a ideia ou o nicho primeiro."})
                     return
             code, out = run_cmd(["./jarvis-full", client, idea])
+            self.send_json({"ok": code == 0, "output": out})
+            return
+
+        if action == "apply_landing_edit":
+            request = data.get("request", "").strip()
+            if not request:
+                self.send_json({"ok": False, "output": "Escreve um pedido livre primeiro."})
+                return
+            code, out = run_cmd(["python3", "11_SCRIPTS/landing_edit.py", client, idea, request])
             self.send_json({"ok": code == 0, "output": out})
             return
 
