@@ -16,6 +16,7 @@ OUTPUTS = [
     "05_EXECUCAO/53_PROPOSAL_PAGES",
     "05_EXECUCAO/55_IDEA_RADAR",
     "05_EXECUCAO/56_CLIENT_HUNT",
+    "05_EXECUCAO/57_MARKET_MAP",
 ]
 
 COMMANDS = [
@@ -25,6 +26,7 @@ COMMANDS = [
     "jarvis-export-latest", "jarvis-proposal-pro",
     "jarvis-ideas",
     "jarvis-client-hunt",
+    "jarvis-market",
 ]
 
 def sh(cmd, capture=False, check=True):
@@ -82,6 +84,8 @@ def doctor():
         item = latest_dir(base)
         if not item and base.endswith("52_EXPORTS"):
             item = latest_file(base, "*.zip")
+        if not item:
+            item = latest_file(base, "*.md")
         print("-", base + ":", item.relative_to(ROOT) if item else "nenhum")
 
     print("\ngit_status:")
@@ -130,6 +134,8 @@ def report():
         item = latest_dir(base)
         if not item and base.endswith("52_EXPORTS"):
             item = latest_file(base, "*.zip")
+        if not item:
+            item = latest_file(base, "*.md")
         lines.append(f"- `{base}`: `{item.relative_to(ROOT) if item else 'nenhum'}`")
     lines += ["", "## Git status", "```", status() or "clean", "```"]
     file.write_text("\n".join(lines), encoding="utf-8")
