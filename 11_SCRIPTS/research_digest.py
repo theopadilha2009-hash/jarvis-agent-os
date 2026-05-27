@@ -29,7 +29,20 @@ def write_file(path: Path, content: str) -> None:
 def read_sources(source_dir: Path) -> list[Path]:
     if not source_dir.exists():
         return []
-    return sorted([p for p in source_dir.rglob("*.md") if p.is_file()])
+
+    allowed = {".md", ".txt", ".json", ".yml", ".yaml"}
+    ignored_dirs = {".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build"}
+
+    files = []
+    for p in source_dir.rglob("*"):
+        if not p.is_file():
+            continue
+        if any(part in ignored_dirs for part in p.parts):
+            continue
+        if p.suffix.lower() in allowed:
+            files.append(p)
+
+    return sorted(files)
 
 
 def extract_headings(text: str, limit: int = 30) -> list[str]:
@@ -340,7 +353,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not files:
         print("JARVIS — Research Digest")
-        print("ERRO: nenhum arquivo .md encontrado na source.")
+        print("ERRO: nenhum arquivo de fonte encontrado na source.")
         print(f"Source: {source_dir}")
         print("Produção: nada alterado.")
         return 2
