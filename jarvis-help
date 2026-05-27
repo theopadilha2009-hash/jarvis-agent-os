@@ -30,6 +30,7 @@ GERAR PARTES:
 ./jarvis-client "Cliente" "ideia"
 ./jarvis-sell "ideia"
 ./jarvis-demo "ideia"
+./jarvis-landing-pro "Cliente" "ideia" "nicho"
 ./jarvis-n8n "ideia"
 ./jarvis-lead "nome" "telefone" "dor/interesse"
 

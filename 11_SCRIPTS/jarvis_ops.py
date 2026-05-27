@@ -20,6 +20,7 @@ OUTPUTS = [
     "05_EXECUCAO/58_OPPORTUNITY",
     "05_EXECUCAO/59_LAUNCH",
     "05_EXECUCAO/60_STUDIO",
+    "05_EXECUCAO/61_LANDING_PRO",
 ]
 
 COMMANDS = [
@@ -33,6 +34,7 @@ COMMANDS = [
     "jarvis-opportunity",
     "jarvis-launch",
     "jarvis-studio",
+    "jarvis-landing-pro",
 ]
 
 def sh(cmd, capture=False, check=True):

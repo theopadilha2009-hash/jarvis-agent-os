@@ -73,6 +73,7 @@ HTML = r'''<!doctype html>
           <button onclick="runAction('launch')">Gerar Launch</button>
           <button onclick="runAction('full')" class="green">Gerar Pacote Completo</button>
           <button onclick="runAction('opportunity')" class="secondary">Gerar Oportunidade</button>
+          <button onclick="runAction('landing_pro')" class="secondary">Gerar Landing PRO</button>
           <button onclick="runAction('save_request')" class="dark">Salvar Pedido</button>
           <button onclick="runAction('apply_landing_edit')" class="green">Aplicar Pedido na Landing</button>
         </div>
@@ -204,6 +205,17 @@ class Handler(BaseHTTPRequestHandler):
         niche = data.get("niche", "").strip()
         client = data.get("client", "").strip()
         idea = data.get("idea", "").strip()
+
+        if action == "landing_pro":
+            if not client:
+                client = "Cliente Teste"
+            if not idea:
+                idea = "Landing page premium com WhatsApp rastreável"
+            if not niche:
+                niche = "negócios locais"
+            code, out = run_cmd(["./jarvis-landing-pro", client, idea, niche])
+            self.send_json({"ok": code == 0, "output": out})
+            return
 
         if action == "save_request":
             file = write_request(data)
