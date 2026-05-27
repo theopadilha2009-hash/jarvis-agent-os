@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+client="$1"
+shift || true
+idea="$*"
+
+if [ -z "$client" ] || [ -z "$idea" ]; then
+  echo 'uso: ./jarvis-client "Cliente" "ideia/serviço"'
+  exit 2
+fi
+
+slug=$(echo "$client-$idea" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | cut -c1-90)
+ts=$(date +"%Y-%m-%d_%H-%M-%S")
+dir="05_EXECUCAO/50_CLIENT_KITS/${ts}_${slug}"
+mkdir -p "$dir"
+
+cat > "$dir/01_PROPOSTA.md" <<EOF
+# Proposta
+
+Cliente: $client
+
+Solução: $idea
+
+Entrega:
+- demo funcional
+- automação inicial
+- explicação de uso
+- ajustes pequenos
+- próximo plano de evolução
+EOF
+
+cat > "$dir/02_IMPLANTACAO.md" <<EOF
+# Implantação
+
+1. Entender entrada atual.
+2. Criar fluxo simples.
+3. Testar com dado fake.
+4. Testar com dado real controlado.
+5. Ajustar resposta/saída.
+6. Entregar uso inicial.
+EOF
+
+cat > "$dir/03_MENSAGEM_CLIENTE.md" <<EOF
+Oi, tudo bem?
+
+Montei uma proposta simples para o caso de vocês:
+
+$idea
+
+A ideia é começar com uma demo funcional, sem complicar, e validar se isso realmente economiza tempo na operação.
+
+Posso te mostrar a primeira versão?
+EOF
+
+cat > "$dir/04_ENTREGA.md" <<EOF
+# Entrega inicial
+
+Status:
+- criado localmente
+- pendente demo real
+- pendente validação com cliente
+
+Próximo:
+- gerar demo
+- mostrar para cliente
+- anotar ajustes
+EOF
+
+echo "CLIENT_KIT_OK"
+echo "pasta: $dir"

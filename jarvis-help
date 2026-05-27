@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+cat <<'TXT'
+JARVIS COMMANDS
+
+GERAR TUDO:
+./jarvis-full "Cliente" "ideia/serviço"
+
+USAR ÚLTIMO:
+./jarvis-latest
+./jarvis-use-latest
+./jarvis-export-latest
+./jarvis-proposal-latest
+
+GERAR PARTES:
+./jarvis-produce "ideia"
+./jarvis-client-produce "Cliente" "ideia"
+./jarvis-client "Cliente" "ideia"
+./jarvis-sell "ideia"
+./jarvis-demo "ideia"
+./jarvis-n8n "ideia"
+./jarvis-lead "nome" "telefone" "dor/interesse"
+
+ABRIR PAINEL:
+./jarvis-index
+
+STATUS:
+git status --short
+TXT

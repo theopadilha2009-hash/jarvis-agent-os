@@ -1,0 +1,124 @@
+{
+  "name": "JARVIS Starter - capturar contatos do WhatsApp resumir intenção e gerar próxi",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "82dd6a43-af77-4767-b8d0-cabcab61a140",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "goal",
+              "value": "capturar contatos do WhatsApp resumir intenção e gerar próxima ação comercial"
+            },
+            {
+              "name": "status_real",
+              "value": "rascunho_local"
+            },
+            {
+              "name": "source",
+              "value": "jarvis-n8n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3dc6be92-a621-4002-beaa-05830539f36e",
+      "name": "Set - Entrada",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => ({ json: { ...item.json, ok: true, message: 'starter gerado pelo JARVIS', processed_at: new Date().toISOString() } }));"
+      },
+      "id": "a78f081e-4794-4b83-824b-59d6fef23972",
+      "name": "Code - Processar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "resultado",
+              "value": "starter_ok"
+            },
+            {
+              "name": "proximo_passo",
+              "value": "adaptar nodes reais no n8n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "73e7d1fc-7fe4-4aca-922d-7d05fa3ef5d7",
+      "name": "Set - Resultado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        780,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set - Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Entrada": {
+      "main": [
+        [
+          {
+            "node": "Code - Processar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Processar": {
+      "main": [
+        [
+          {
+            "node": "Set - Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "5de86ee2-4d26-4699-9322-93fc295e253e",
+  "meta": {
+    "generated_by": "JARVIS local"
+  }
+}

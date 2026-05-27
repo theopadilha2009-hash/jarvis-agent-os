@@ -543,6 +543,7 @@ def _latest_project_worker_run() -> dict | None:
 
 ROUTE_RESUME = "resume"
 ROUTE_N8N = "n8n_blueprint"
+ROUTE_RESEARCH = "research_plan"
 ROUTE_PROJECT = "project_fix_or_inspect"
 ROUTE_SELF_EVOLVE = "self_evolve"
 ROUTE_NO_CLAUDE = "no_claude"
@@ -575,6 +576,8 @@ def choose_route(text, intent, project, capability_hint, mode, project_override=
         return (ROUTE_HANDOFF, RISK_RUNTIME_WRITE)
     if capability_hint:
         return (ROUTE_CAPABILITY, RISK_READ_ONLY)
+    if intent == INTENT_RESEARCH_PLAN:
+        return (ROUTE_RESEARCH, RISK_RUNTIME_WRITE)
     if intent == INTENT_NEXT_ACTION:
         return (ROUTE_RESUME, RISK_READ_ONLY)
     if intent == INTENT_SELF_EVOLVE:
@@ -625,6 +628,19 @@ def plan_resume(text, project, dry_run):
         actions = [
             ("Dashboard (read-only)", ["./jarvis", "daily"], None),
         ]
+    return actions, next_cmd, None, extras
+
+
+def plan_research(text, project, dry_run):
+    goal = text or "research plan"
+    cmd = ["./jarvis", "blueprint", "--type", "research", "--goal", goal]
+    if dry_run:
+        cmd.append("--dry-run")
+    actions = [
+        ("Blueprint local (research)", cmd, None),
+    ]
+    next_cmd = f'./jarvis blueprint --type research --goal "{goal}"'
+    extras = {"artifact_dir": BLUEPRINTS_DIR, "artifact_hint": "research"}
     return actions, next_cmd, None, extras
 
 
@@ -760,6 +776,8 @@ def plan_unclear(text, project, dry_run):
 def build_plan(route, text, project, mode, dry_run, capability_hint):
     if route == ROUTE_RESUME:
         return plan_resume(text, project, dry_run)
+    if route == ROUTE_RESEARCH:
+        return plan_research(text, project, dry_run)
     if route == ROUTE_N8N:
         return plan_n8n(text, project, mode, dry_run)
     if route == ROUTE_PROJECT:

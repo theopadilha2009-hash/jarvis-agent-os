@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+OUT="05_EXECUCAO/47_INDEX"
+mkdir -p "$OUT"
+
+HTML="$OUT/index.html"
+
+cat > "$HTML" <<'HTML'
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>JARVIS Output Index</title>
+<style>
+body{font-family:Arial;background:#0f172a;color:#f8fafc;padding:30px}
+h1{font-size:38px}
+.card{background:#111827;border:1px solid #334155;border-radius:14px;padding:18px;margin:14px 0}
+a{color:#38bdf8;text-decoration:none}
+small{color:#94a3b8}
+</style>
+</head>
+<body>
+<h1>JARVIS Output Index</h1>
+<p>Arquivos gerados localmente.</p>
+HTML
+
+for dir in 05_EXECUCAO/43_PRODUCT_PACKS 05_EXECUCAO/44_QUICK_FACTORY 05_EXECUCAO/45_DEMO_PAGES 05_EXECUCAO/46_N8N_STARTERS 05_EXECUCAO/48_SELL_KITS 05_EXECUCAO/49_LEAD_INBOX 05_EXECUCAO/50_CLIENT_KITS 05_EXECUCAO/52_EXPORTS 05_EXECUCAO/53_PROPOSAL_PAGES; do
+  echo "<div class='card'><h2>$dir</h2>" >> "$HTML"
+  if [ -d "$dir" ]; then
+    find "$dir" -maxdepth 2 -type f | sort | tail -40 | while read f; do
+      echo "<p><a href='../../$f'>$f</a></p>" >> "$HTML"
+    done
+  else
+    echo "<p><small>vazio</small></p>" >> "$HTML"
+  fi
+  echo "</div>" >> "$HTML"
+done
+
+cat >> "$HTML" <<'HTML'
+</body>
+</html>
+HTML
+
+echo "JARVIS_INDEX_OK"
+echo "abrir: open 05_EXECUCAO/47_INDEX/index.html"
+open 05_EXECUCAO/47_INDEX/index.html

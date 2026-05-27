@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+goal="$*"
+
+if [ -z "$goal" ]; then
+  echo "uso: ./jarvis-produce ideia do produto"
+  exit 2
+fi
+
+echo "JARVIS_PRODUCE_START"
+echo "goal: $goal"
+echo
+
+python3 11_SCRIPTS/product_pack.py "$goal"
+echo
+
+./jarvis-fast n8n "$goal"
+echo
+
+./jarvis-fast app "$goal"
+echo
+
+./jarvis-fast sales "$goal"
+echo
+
+./jarvis-demo "$goal"
+echo
+
+./jarvis-n8n "$goal"
+echo
+
+echo "JARVIS_PRODUCE_OK"

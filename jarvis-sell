@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+idea="$*"
+if [ -z "$idea" ]; then
+  echo "uso: ./jarvis-sell ideia do produto"
+  exit 2
+fi
+
+slug=$(echo "$idea" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | cut -c1-80)
+ts=$(date +"%Y-%m-%d_%H-%M-%S")
+dir="05_EXECUCAO/48_SELL_KITS/${ts}_${slug}"
+mkdir -p "$dir"
+
+cat > "$dir/01_OFERTA.md" <<EOF
+# Oferta
+
+## Ideia
+$idea
+
+## Promessa
+Eu monto uma automação simples que reduz trabalho manual e entrega um resultado visível rápido.
+
+## Para quem
+Negócios locais, prestadores de serviço, equipes pequenas e empresas que recebem leads/manual no WhatsApp.
+
+## Entrega inicial
+- diagnóstico rápido
+- demo funcional
+- automação simples
+- página/explicação
+- ajuste básico
+EOF
+
+cat > "$dir/02_MENSAGEM_WHATSAPP.md" <<EOF
+Oi, tudo bem?
+
+Estou montando uma automação simples para isso aqui:
+
+$idea
+
+A ideia é reduzir trabalho manual e deixar o atendimento/organização mais rápido.
+
+Posso te mostrar uma demo curta quando estiver rodando?
+EOF
+
+cat > "$dir/03_PRECO.md" <<EOF
+# Preço inicial
+
+## Piloto
+R$ 297 a R$ 497
+
+## Setup simples
+R$ 700 a R$ 1.500
+
+## Mensalidade
+R$ 150 a R$ 500/mês
+
+## Regra
+Começar barato para validar, depois subir quando tiver prova e caso real.
+EOF
+
+cat > "$dir/04_ESCOPO.md" <<EOF
+# Escopo
+
+Inclui:
+- uma automação principal
+- um fluxo simples
+- um teste com dados fake ou controlados
+- explicação de uso
+
+Não inclui:
+- campanha paga
+- suporte infinito
+- integração complexa sem orçamento
+- garantia de venda
+EOF
+
+echo "SELL_KIT_OK"
+echo "pasta: $dir"

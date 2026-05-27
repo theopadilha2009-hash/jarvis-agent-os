@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+client="$1"
+shift || true
+idea="$*"
+
+if [ -z "$client" ] || [ -z "$idea" ]; then
+  echo 'uso: ./jarvis-full "Cliente" "ideia/serviço"'
+  exit 2
+fi
+
+echo "JARVIS_FULL_START"
+echo "cliente: $client"
+echo "ideia: $idea"
+echo
+
+./jarvis-client-produce "$client" "$idea"
+echo
+
+./jarvis-proposal-latest
+echo
+
+./jarvis-export-latest
+echo
+
+./jarvis-latest
+echo
+
+echo "JARVIS_FULL_OK"

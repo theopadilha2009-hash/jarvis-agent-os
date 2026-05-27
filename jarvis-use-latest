@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+latest() {
+  find "$1" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -1
+}
+
+demo=$(latest "05_EXECUCAO/45_DEMO_PAGES")
+n8n=$(latest "05_EXECUCAO/46_N8N_STARTERS")
+client=$(latest "05_EXECUCAO/50_CLIENT_KITS")
+sell=$(latest "05_EXECUCAO/48_SELL_KITS")
+
+echo "JARVIS_USE_LATEST"
+echo
+
+echo "Demo:"
+echo "$demo/index.html"
+echo
+
+echo "n8n JSON:"
+echo "$n8n/workflow.json"
+echo
+
+echo "Mensagem cliente:"
+echo "$client/03_MENSAGEM_CLIENTE.md"
+echo
+
+if [ -f "$client/03_MENSAGEM_CLIENTE.md" ]; then
+  cat "$client/03_MENSAGEM_CLIENTE.md" | pbcopy
+  echo "OK mensagem copiada"
+fi
+
+if [ -f "$n8n/workflow.json" ]; then
+  printf "$n8n/workflow.json" | pbcopy
+  echo "OK caminho do workflow n8n copiado"
+fi
+
+if [ -f "$demo/index.html" ]; then
+  open "$demo/index.html"
+  echo "OK demo aberta"
+fi
+
+echo
+echo "SELL KIT:"
+echo "$sell"

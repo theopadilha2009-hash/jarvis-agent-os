@@ -1,0 +1,124 @@
+{
+  "name": "JARVIS Starter - capturar lead do WhatsApp qualificar salvar log e gerar próx",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a9d8aab6-8e42-4cc7-a03c-423058bbe5d0",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "goal",
+              "value": "capturar lead do WhatsApp qualificar salvar log e gerar próxima ação"
+            },
+            {
+              "name": "status_real",
+              "value": "rascunho_local"
+            },
+            {
+              "name": "source",
+              "value": "jarvis-n8n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3ecc3bbc-ddd5-4ad2-b366-5050298a6d43",
+      "name": "Set - Entrada",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => ({ json: { ...item.json, ok: true, message: 'starter gerado pelo JARVIS', processed_at: new Date().toISOString() } }));"
+      },
+      "id": "88380205-1257-4529-a788-04269e6d0faa",
+      "name": "Code - Processar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "resultado",
+              "value": "starter_ok"
+            },
+            {
+              "name": "proximo_passo",
+              "value": "adaptar nodes reais no n8n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cfa0bf8c-eaff-4842-bedb-cf4ed4182a2b",
+      "name": "Set - Resultado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        780,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set - Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Entrada": {
+      "main": [
+        [
+          {
+            "node": "Code - Processar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Processar": {
+      "main": [
+        [
+          {
+            "node": "Set - Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "cd3375bf-bf7e-47c0-9ad0-196c28fb44a3",
+  "meta": {
+    "generated_by": "JARVIS local"
+  }
+}

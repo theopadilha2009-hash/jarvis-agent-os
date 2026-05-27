@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+OUT="05_EXECUCAO/51_LATEST"
+mkdir -p "$OUT"
+REPORT="$OUT/latest.md"
+
+latest() {
+  if [ -d "$1" ]; then
+    find "$1" -mindepth 1 -maxdepth 1 -type d | sort | tail -1
+  fi
+}
+
+product=$(latest "05_EXECUCAO/43_PRODUCT_PACKS")
+quick=$(latest "05_EXECUCAO/44_QUICK_FACTORY")
+demo=$(latest "05_EXECUCAO/45_DEMO_PAGES")
+n8n=$(latest "05_EXECUCAO/46_N8N_STARTERS")
+sell=$(latest "05_EXECUCAO/48_SELL_KITS")
+client=$(latest "05_EXECUCAO/50_CLIENT_KITS")
+
+cat > "$REPORT" <<EOF
+# JARVIS Latest
+
+## Últimos artefatos
+
+Product Pack:
+$product
+
+Quick Factory:
+$quick
+
+Demo Page:
+$demo
+
+n8n Starter:
+$n8n
+
+Sell Kit:
+$sell
+
+Client Kit:
+$client
+
+## Comandos úteis
+
+Abrir demo:
+open "$demo/index.html"
+
+Importar n8n:
+$n8n/workflow.json
+
+Abrir index:
+open 05_EXECUCAO/47_INDEX/index.html
+EOF
+
+if [ -f "$client/03_MENSAGEM_CLIENTE.md" ]; then
+  cat "$client/03_MENSAGEM_CLIENTE.md" | pbcopy
+  echo "mensagem_cliente: copiada para clipboard"
+fi
+
+echo "JARVIS_LATEST_OK"
+echo "report: $REPORT"
+cat "$REPORT"

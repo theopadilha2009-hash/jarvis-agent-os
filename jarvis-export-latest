@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+latest() {
+  find "$1" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -1
+}
+
+demo=$(latest "05_EXECUCAO/45_DEMO_PAGES")
+n8n=$(latest "05_EXECUCAO/46_N8N_STARTERS")
+sell=$(latest "05_EXECUCAO/48_SELL_KITS")
+client=$(latest "05_EXECUCAO/50_CLIENT_KITS")
+
+OUT="05_EXECUCAO/52_EXPORTS"
+mkdir -p "$OUT"
+
+ts=$(date +"%Y-%m-%d_%H-%M-%S")
+zipfile="$OUT/${ts}_jarvis_cliente_latest.zip"
+
+tmp="$OUT/${ts}_package"
+rm -rf "$tmp"
+mkdir -p "$tmp"
+
+[ -d "$demo" ] && cp -R "$demo" "$tmp/01_DEMO_PAGE"
+[ -d "$n8n" ] && cp -R "$n8n" "$tmp/02_N8N_WORKFLOW"
+[ -d "$sell" ] && cp -R "$sell" "$tmp/03_SELL_KIT"
+[ -d "$client" ] && cp -R "$client" "$tmp/04_CLIENT_KIT"
+
+cat > "$tmp/README.md" <<EOF
+# JARVIS Client Package
+
+Conteúdo:
+- 01_DEMO_PAGE: página de demonstração
+- 02_N8N_WORKFLOW: workflow JSON para importar no n8n
+- 03_SELL_KIT: oferta, preço e escopo
+- 04_CLIENT_KIT: proposta e mensagem para cliente
+EOF
+
+(cd "$tmp" && zip -qr "../$(basename "$zipfile")" .)
+
+rm -rf "$tmp"
+
+echo "EXPORT_LATEST_OK"
+echo "zip: $zipfile"
+open "$OUT"
