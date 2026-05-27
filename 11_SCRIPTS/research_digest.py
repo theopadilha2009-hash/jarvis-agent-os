@@ -7,150 +7,128 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = ROOT / "02_SOURCES" / "DEEP_RESEARCH"
-OUT_ROOT = ROOT / "05_EXECUCAO" / "62_RESEARCH_DIGEST"
 
-KEYWORDS = [
-    "n8n", "workflow", "agent", "ai agent", "subworkflow", "postgres",
-    "pgvector", "redis", "chatwoot", "error trigger", "monitoring",
-    "uptime", "grafana", "prometheus", "api", "webhook", "security",
-    "credentials", "production", "staging", "logs", "human approval",
-]
 
-def slug(s: str) -> str:
-    s = s.lower()
-    s = re.sub(r"[^a-z0-9]+", "-", s)
-    return s.strip("-")[:80] or "research-digest"
+def slugify(text: str, max_len: int = 80) -> str:
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9áàâãéêíóôõúç]+", "-", text, flags=re.I)
+    text = re.sub(r"-+", "-", text).strip("-")
+    return (text[:max_len].strip("-") or "research-digest")
 
-def read_sources():
-    files = sorted(SRC_DIR.glob("*.md"))
-    docs = []
-    for p in files:
-        text = p.read_text(encoding="utf-8", errors="replace")
-        docs.append((p, text))
-    return docs
 
-def headings(text: str, limit: int = 40):
-    found = []
+def resolve_path(value: str) -> Path:
+    p = Path(value).expanduser()
+    return p if p.is_absolute() else ROOT / p
+
+
+def write_file(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content.rstrip() + "\n", encoding="utf-8")
+
+
+def read_sources(source_dir: Path) -> list[Path]:
+    if not source_dir.exists():
+        return []
+    return sorted([p for p in source_dir.rglob("*.md") if p.is_file()])
+
+
+def extract_headings(text: str, limit: int = 30) -> list[str]:
+    headings = []
     for line in text.splitlines():
-        if line.startswith("#"):
-            clean = line.strip()
-            if clean:
-                found.append(clean)
+        if line.strip().startswith("#"):
+            headings.append(line.strip())
+        if len(headings) >= limit:
+            break
+    return headings
+
+
+def extract_important_lines(text: str, limit: int = 30) -> list[str]:
+    keys = [
+        "n8n", "workflow", "agent", "produção", "production", "api", "mcp",
+        "safety", "gate", "memória", "memory", "redis", "supabase",
+        "postgres", "cron", "schedule", "webhook", "erro", "risco",
+        "security", "credencial", "token", "automação", "automation",
+    ]
+    found = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        low = line.lower()
+        if not line or len(line) > 260:
+            continue
+        if any(k in low for k in keys):
+            found.append(line)
         if len(found) >= limit:
             break
     return found
 
-def keyword_hits(text: str):
-    low = text.lower()
-    hits = []
-    for kw in KEYWORDS:
-        count = low.count(kw.lower())
-        if count:
-            hits.append((kw, count))
-    return sorted(hits, key=lambda x: (-x[1], x[0]))
 
-def important_lines(text: str, limit: int = 28):
-    lines = []
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or len(line) < 20:
-            continue
-        low = line.lower()
-        if any(k in low for k in KEYWORDS):
-            line = re.sub(r"\s+", " ", line)
-            if len(line) > 220:
-                line = line[:217] + "..."
-            if line not in lines:
-                lines.append(line)
-        if len(lines) >= limit:
-            break
-    return lines
+def keyword_counts(all_text: str) -> dict[str, int]:
+    terms = [
+        "n8n", "workflow", "agent", "api", "webhook", "schedule",
+        "safety", "gate", "memory", "memória", "supabase", "postgres",
+        "redis", "produção", "production", "mcp", "credentials",
+        "token", "automation", "automação",
+    ]
+    low = all_text.lower()
+    return {t: low.count(t.lower()) for t in terms if low.count(t.lower())}
 
-def write_file(path: Path, content: str):
-    path.write_text(content.rstrip() + "\n", encoding="utf-8")
 
-def main():
-    ap = argparse.ArgumentParser(description="Generate local digest from 02_SOURCES/DEEP_RESEARCH.")
-    ap.add_argument("--goal", default="evolução do JARVIS usando deep research locais")
-    ap.add_argument("--dry-run", action="store_true")
-    args = ap.parse_args()
+def build_outputs(goal: str, source_dir: Path, files: list[Path]) -> dict[str, str]:
+    chunks = []
+    for f in files:
+        txt = f.read_text(encoding="utf-8", errors="ignore")
+        chunks.append((f, txt))
 
-    docs = read_sources()
-    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    out = OUT_ROOT / f"{ts}_{slug(args.goal)}"
+    all_text = "\n\n".join(txt for _, txt in chunks)
+    counts = keyword_counts(all_text)
 
-    print("JARVIS — Research Digest")
-    print("Status real: leitura local. Sem Claude. Sem API. Sem produção.")
-    print(f"Goal: {args.goal}")
-    print(f"Sources: {len(docs)} arquivo(s) em {SRC_DIR.relative_to(ROOT)}")
-
-    if not docs:
-        print("FALHA: nenhum .md encontrado em 02_SOURCES/DEEP_RESEARCH")
-        raise SystemExit(1)
-
-    if args.dry_run:
-        print(f"DRY-RUN: criaria pasta {out.relative_to(ROOT)}/")
-        return
-
-    out.mkdir(parents=True, exist_ok=False)
-
-    source_index = [
-        "# Research Digest — Source Index",
+    source_index_lines = [
+        "# Research Source Index",
         "",
-        "## Status real",
-        "Gerado localmente. Nenhuma API externa usada. Nenhuma produção alterada.",
+        f"Goal: {goal}",
+        f"Source dir: `{source_dir.relative_to(ROOT) if source_dir.is_relative_to(ROOT) else source_dir}`",
+        f"Files: {len(files)}",
         "",
-        "## Fontes lidas",
     ]
 
-    digest = [
-        "# Research Digest — Deep Research para evolução do JARVIS",
+    for f, txt in chunks:
+        rel = f.relative_to(ROOT) if f.is_relative_to(ROOT) else f
+        source_index_lines += [
+            f"## {rel}",
+            f"- Linhas: {len(txt.splitlines())}",
+            f"- Caracteres: {len(txt)}",
+            "",
+            "Headings principais:",
+        ]
+        hs = extract_headings(txt, limit=12)
+        source_index_lines += [f"- {h}" for h in hs] if hs else ["- Sem headings detectados."]
+        source_index_lines.append("")
+
+    digest_lines = [
+        "# Research Digest",
         "",
         "## Status real",
-        "Leitura local determinística dos arquivos em `02_SOURCES/DEEP_RESEARCH/`.",
-        "Sem Claude, sem OpenAI, sem web, sem n8n real, sem produção.",
+        "Leitura local. Sem Claude. Sem API. Sem produção.",
         "",
-        "## Objetivo",
-        args.goal,
-        "",
-        "## Sinais técnicos encontrados",
+        "## Sinais encontrados",
     ]
 
-    for p, text in docs:
-        rel = p.relative_to(ROOT)
-        hs = headings(text)
-        hits = keyword_hits(text)
-        lines = important_lines(text)
+    if counts:
+        for k, v in sorted(counts.items(), key=lambda x: (-x[1], x[0])):
+            digest_lines.append(f"- {k}: {v}")
+    else:
+        digest_lines.append("- Nenhum termo técnico relevante encontrado.")
 
-        source_index += [
-            "",
-            f"### {rel}",
-            f"- tamanho: {len(text)} caracteres",
-            f"- headings capturados: {len(hs)}",
-            "- top keywords: " + (", ".join(f"{k}({c})" for k, c in hits[:12]) if hits else "nenhuma"),
-        ]
+    digest_lines += ["", "## Linhas importantes por fonte", ""]
 
-        if hs:
-            source_index.append("- headings principais:")
-            for h in hs[:18]:
-                source_index.append(f"  - {h}")
+    for f, txt in chunks:
+        rel = f.relative_to(ROOT) if f.is_relative_to(ROOT) else f
+        digest_lines += [f"### {rel}", ""]
+        lines = extract_important_lines(txt, limit=18)
+        digest_lines += [f"- {line}" for line in lines] if lines else ["- Nenhuma linha técnica destacada."]
+        digest_lines.append("")
 
-        digest += [
-            "",
-            f"### {rel}",
-            "",
-            "**Keywords fortes:** " + (", ".join(f"{k}({c})" for k, c in hits[:12]) if hits else "nenhuma"),
-            "",
-            "**Trechos/sinais úteis:**",
-        ]
-        if lines:
-            for line in lines[:18]:
-                digest.append(f"- {line}")
-        else:
-            digest.append("- Sem linha relevante detectada por keyword; revisar manualmente se a fonte for importante.")
-
-    evolution = f"""# JARVIS Evolution Plan — Professional Digest
+    evolution = """# JARVIS Evolution Plan — Professional Digest
 
 ## Status real
 Gerado por `./jarvis research-digest`.
@@ -175,6 +153,7 @@ Não deve existir auto-evolução com escrita real sem aprovação humana.
 
 ### v0 — Digest local profissional
 Objetivo: ler fontes locais e gerar decisão prática.
+
 Entrega:
 - `./jarvis research-digest`
 - arquivos markdown com índice, digest, plano, posição n8n, status real e backlog técnico
@@ -189,7 +168,8 @@ Critério de pronto:
 - gera plano útil sem Claude, sem API e sem produção.
 
 ### v1 — Digest por projeto/pasta
-Objetivo: usar o mesmo mecanismo para SWLTEC, VERITAS, Factory, Oficina etc.
+Objetivo: usar o mesmo mecanismo para SWLTEC, VERITAS, Factory, Oficina e outros projetos.
+
 Entrega futura:
 - `./jarvis research-digest --source PATH --goal "..."`
 - geração de plano por projeto
@@ -200,6 +180,7 @@ Critério de pronto:
 
 ### v2 — Jarvis API local
 Objetivo: expor apenas comandos seguros para ferramentas externas.
+
 Endpoints permitidos:
 - `GET /status`
 - `GET /next`
@@ -218,6 +199,7 @@ Bloqueios obrigatórios:
 
 ### v3 — n8n loop controlado
 Objetivo: criar rotina automatizada sem perder controle.
+
 Fluxo:
 1. Schedule Trigger no n8n
 2. HTTP Request para Jarvis API local
@@ -242,7 +224,7 @@ Critério de pronto:
 | n8n mexer em produção | não | baixo | alto | bloqueado |
 
 ## Próximo passo seguro
-Melhorar o `research-digest` para gerar backlog técnico local e critérios de pronto por fase.
+Usar `./jarvis research-digest --source PATH --goal "..."` em uma pasta real de projeto e validar se o output ajuda.
 
 ## O que NÃO fazer agora
 - Não criar workflow n8n ainda.
@@ -251,6 +233,7 @@ Melhorar o `research-digest` para gerar backlog técnico local e critérios de p
 - Não automatizar commit/push.
 - Não usar API paga.
 """
+
     n8n_position = """# Onde o n8n entra no JARVIS
 
 ## Veredito
@@ -284,7 +267,21 @@ Só depois que:
 4. nenhum endpoint permitir commit/push/produção.
 """
 
-    backlog = f"""# JARVIS Technical Backlog — próximo ciclo
+    status = f"""# Status Real — Research Digest
+
+## Execução
+- Goal: {goal}
+- Source dir: `{source_dir}`
+- Sources lidas: {len(files)}
+- Produção alterada: não
+- Claude/API usado: não
+- Commit/push automático: não
+
+## Próximo passo seguro
+Ler `03_JARVIS_EVOLUTION_PLAN.md` e decidir se o próximo ciclo é CLI local, digest por projeto ou API local.
+"""
+
+    backlog = """# JARVIS Technical Backlog — próximo ciclo
 
 ## P0 — Agora
 - Garantir `./jarvis research-digest` estável.
@@ -293,11 +290,10 @@ Só depois que:
 - Rodar safety-gate antes de commit/push.
 
 ## P1 — Próximo
-- Aceitar `--source PATH` para digest por projeto.
-- Aceitar `--out DIR` para escolher saída.
-- Criar `06_BACKLOG.md` automático.
-- Criar `07_DECISION_MATRIX.md` automático.
+- Validar `--source PATH` em uma pasta real de projeto.
+- Validar `--out DIR` em uma pasta temporária.
 - Fazer o `./jarvis do "..."` sugerir `research-digest` quando detectar fonte/research.
+- Criar decisão automática: digest simples vs blueprint vs handoff.
 
 ## P2 — Depois
 - Criar Jarvis API local com allowlist.
@@ -311,44 +307,58 @@ Só depois que:
 - Nada de ler `.env`.
 """
 
-    status = f"""# Status Real — Research Digest
+    return {
+        "01_SOURCE_INDEX.md": "\n".join(source_index_lines),
+        "02_DIGEST.md": "\n".join(digest_lines),
+        "03_JARVIS_EVOLUTION_PLAN.md": evolution,
+        "04_N8N_LOOP_POSITION.md": n8n_position,
+        "05_STATUS_REAL.md": status,
+        "06_TECHNICAL_BACKLOG.md": backlog,
+    }
 
-created_at: {ts}
-goal: {args.goal}
-source_dir: 02_SOURCES/DEEP_RESEARCH
-source_count: {len(docs)}
-created: true
-tested: local_generation
-claude_used: false
-paid_api_used: false
-production_changed: false
-n8n_changed: false
-next_action: revisar 03_JARVIS_EVOLUTION_PLAN.md
-"""
 
-    write_file(out / "01_SOURCE_INDEX.md", "\n".join(source_index))
-    write_file(out / "02_DIGEST.md", "\n".join(digest))
-    write_file(out / "03_JARVIS_EVOLUTION_PLAN.md", evolution)
-    write_file(out / "04_N8N_LOOP_POSITION.md", n8n_position)
-    write_file(out / "05_STATUS_REAL.md", status)
-    write_file(out / "06_TECHNICAL_BACKLOG.md", backlog)
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Digest local de research sources do JARVIS.")
+    parser.add_argument("--goal", default="evolução do JARVIS usando deep research locais")
+    parser.add_argument("--source", default="02_SOURCES/DEEP_RESEARCH", help="pasta de fontes markdown para ler")
+    parser.add_argument("--out", default="05_EXECUCAO/62_RESEARCH_DIGEST", help="pasta base de saída")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args(argv)
+
+    source_dir = resolve_path(args.source)
+    out_base = resolve_path(args.out)
+    files = read_sources(source_dir)
+
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    out = out_base / f"{ts}_{slugify(args.goal)}"
+
+    print("JARVIS — Research Digest")
+    print("Status real: leitura local. Sem Claude. Sem API. Sem produção.")
+    print(f"Goal: {args.goal}")
+    print(f"Sources: {len(files)} arquivo(s) em {source_dir.relative_to(ROOT) if source_dir.is_relative_to(ROOT) else source_dir}")
+
+    if args.dry_run:
+        print(f"DRY-RUN: criaria pasta {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}/")
+        return 0
+
+    outputs = build_outputs(args.goal, source_dir, files)
+    for name, content in outputs.items():
+        write_file(out / name, content)
 
     print("")
-    print(f"OK — digest criado em {out.relative_to(ROOT)}/")
+    print(f"OK — digest criado em {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}/")
     print("")
     print("Arquivos:")
-    for name in [
-        "01_SOURCE_INDEX.md",
-        "02_DIGEST.md",
-        "03_JARVIS_EVOLUTION_PLAN.md",
-        "04_N8N_LOOP_POSITION.md",
-        "05_STATUS_REAL.md",
-    ]:
-        print(f"  - {out.relative_to(ROOT) / name}")
+    for name in outputs:
+        path = out / name
+        print(f"  - {path.relative_to(ROOT) if path.is_relative_to(ROOT) else path}")
     print("")
     print("Próximo passo seguro:")
-    print(f"  sed -n '1,220p' {out.relative_to(ROOT)}/03_JARVIS_EVOLUTION_PLAN.md")
+    plan = out / "03_JARVIS_EVOLUTION_PLAN.md"
+    print(f"  sed -n '1,220p' {plan.relative_to(ROOT) if plan.is_relative_to(ROOT) else plan}")
     print("Produção: nada alterado.")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
