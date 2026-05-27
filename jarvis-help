@@ -4,6 +4,7 @@ JARVIS COMMANDS
 
 GERAR TUDO:
 ./jarvis-full "Cliente" "ideia/serviço"
+./jarvis-ideas "nicho"
 
 OPERAÇÃO:
 ./jarvis-doctor
