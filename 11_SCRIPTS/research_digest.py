@@ -150,88 +150,112 @@ def main():
         else:
             digest.append("- Sem linha relevante detectada por keyword; revisar manualmente se a fonte for importante.")
 
-    evolution = f"""# JARVIS Evolution Plan — digest local
+    evolution = f"""# JARVIS Evolution Plan — Professional Digest
 
 ## Status real
 Gerado por `./jarvis research-digest`.
 Nada executado em produção. Nenhum código alterado por este digest.
+Este arquivo é plano técnico local, não automação autônoma.
 
-## Leitura prática
-Os deep research apontam que o JARVIS deve evoluir como cockpit local primeiro, com gates, arquivos, histórico e comandos auditáveis.
-n8n entra depois como orquestrador/scheduler, não como cérebro que altera código sozinho.
+## Veredito técnico
+O JARVIS deve evoluir primeiro como cockpit local auditável.
+A camada n8n entra depois como orquestrador de rotina, alerta e agendamento.
+Não deve existir auto-evolução com escrita real sem aprovação humana.
 
-## Plano recomendado
+## Princípio de arquitetura
+- JARVIS CLI = execução local segura.
+- Research Digest = transformar fontes em decisão.
+- Blueprint = transformar decisão em plano.
+- Safety Gate = bloquear risco.
+- Jarvis API futura = ponte controlada.
+- n8n futuro = agenda/loop/notificação.
+- Theo = aprovação final para commit, push, deploy e produção.
 
-### v0 — Base local forte
-Objetivo: melhorar comandos locais que reduzem retrabalho.
-Entregas:
+## Roadmap recomendado
+
+### v0 — Digest local profissional
+Objetivo: ler fontes locais e gerar decisão prática.
+Entrega:
 - `./jarvis research-digest`
-- blueprints melhores
-- status real claro
-- safety-gate antes de commit/push
+- arquivos markdown com índice, digest, plano, n8n position e status real
+- outputsmap recomendado
+
+### v0 — Digest local profissional
+Objetivo: ler fontes locais e gerar decisão prática.
+Entrega:
+- `./jarvis ignorados pelo Git, mantendo só `.gitkeep`
 
 Teste:
-- `python3 -m py_compile 11_SCRIPTS/*.py`
 - `./jarvis research-digest --dry-run`
+- `./jarvis research-digest`
 - `env JARVIS_NO_REPORT=1 ./jarvis safety-gate`
 
 Critério de pronto:
-- gera artefato local útil sem API e sem Claude.
+- gera plano útil sem Claude, sem API e sem produção.
 
-### v1 — Uso real das sources
-Objetivo: transformar fontes locais em decisões práticas.
-Entregas:
-- digest por pasta/projeto
-- plano v0/v1/v2 automático
-- checklist de validação por tipo de projeto
+### v1 — Digest por projeto/pasta
+Objetivo: usar o mesmo mecanismo para SWLTEC, VERITAS, Factory, Oficina etc.
+Entrega futura:
+- `./jarvis research-digest --source PATH --goal "..."`
+- geração de plano por projeto
+- checklist específico por tipo: n8n, app, suporte, workflow, produto
 
-Risco:
-- virar resumo genérico.
-
-Controle:
-- obrigar próximo comando seguro + arquivos prováveis + o que não fazer.
+Critério de pronto:
+- consegue ler uma pasta de fontes e gerar plano sem inventar execução.
 
 ### v2 — Jarvis API local
-Objetivo: expor só ações seguras para automação.
-Endpoints futuros permitidos:
+Objetivo: expor apenas comandos seguros para ferramentas externas.
+Endpoints permitidos:
+- `GET /status`
+- `GET /next`
 - `POST /digest`
 - `POST /blueprint`
-- `GET /status`
 - `POST /safety-gate`
-- `GET /next`
 
-Bloqueado:
-- commit automático
-- push automático
-- editar produção
-- ler `.env`
-- executar n8n/VPS real
+Bloqueios obrigatórios:
+- sem commit automático
+- sem push automático
+- sem deploy
+- sem ler `.env`
+- sem comando shell arbitrário
+- sem produção
+- allowlist rígida de comandos
 
 ### v3 — n8n loop controlado
-Objetivo: n8n agenda e avisa, mas não decide sozinho.
-Fluxo ideal:
+Objetivo: criar rotina automatizada sem perder controle.
+Fluxo:
 1. Schedule Trigger no n8n
 2. HTTP Request para Jarvis API local
-3. Jarvis gera digest/blueprint/status
-4. n8n envia aviso para Theo
-5. Theo aprova ação real manualmente
+3. JARVIS gera digest/blueprint/status
+4. n8n registra resultado
+5. n8n avisa Theo
+6. Theo decide a ação real
 
-Regra:
-n8n = agenda, alerta e painel.
-JARVIS = análise local e comandos seguros.
-Theo = aprovação de commit/push/produção.
+Critério de pronto:
+- n8n apenas chama endpoint permitido e avisa.
+- nenhuma escrita real ocorre sem aprovação.
+
+## Matriz de decisão
+
+| Opção | Fazer agora? | Valor | Risco | Decisão |
+|------|--------------|-------|-------|---------|
+| Melhorar CLI local | sim | alto | baixo | prioridade |
+| Melhorar digest | sim | alto | baixo | prioridade |
+| Criar Jarvis API | depois | alto | médio | aguardar CLI forte |
+| Criar n8n loop | depois da API | médio/alto | médio | não agora |
+| Auto-commit/push | não | baixo | alto | bloqueado |
+| n8n mexer em produção | não | baixo | alto | bloqueado |
 
 ## Próximo passo seguro
-Criar e validar o comando local `./jarvis research-digest` antes de qualquer Jarvis API ou workflow n8n.
+Melhorar o `research-digest` para gerar backlog técnico local e critérios de pronto por fase.
 
 ## O que NÃO fazer agora
 - Não criar workflow n8n ainda.
-- Não criar API antes do comando local estar bom.
-- Não deixar n8n alterar código.
+- Não criar Jarvis API antes do CLI ficar confiável.
+- Não deixar n8n editar código.
 - Não automatizar commit/push.
 - Não usar API paga.
 """
-
     n8n_position = """# Onde o n8n entra no JARVIS
 
 ## Veredito
@@ -265,6 +289,33 @@ Só depois que:
 4. nenhum endpoint permitir commit/push/produção.
 """
 
+    backlog = f"""# JARVIS Technical Backlog — próximo ciclo
+
+## P0 — Agora
+- Garantir `./jarvis research-digest` estável.
+- Manter outputs em `05_EXECUCAO/62_RESEARCH_DIGEST/` ignorados no Git.
+- Gerar plano local sem Claude/API.
+- Rodar safety-gate antes de commit/push.
+
+## P1 — Próximo
+- Aceitar `--source PATH` para digest por projeto.
+- Aceitar `--out DIR` para escolher saída.
+- Criar `06_BACKLOG.md` automático.
+- Criar `07_DECISION_MATRIX.md` automático.
+- Fazer o `./jarvis do "..."` sugerir `research-digest` quando detectar fonte/research.
+
+## P2 — Depois
+- Criar Jarvis API local com allowlist.
+- Criar workflow n8n de schedule + aviso.
+- Criar painel local de últimos digests.
+
+## Bloqueios
+- Nada de produção autônoma.
+- Nada de push automático.
+- Nada de n8n executando shell livre.
+- Nada de ler `.env`.
+"""
+
     status = f"""# Status Real — Research Digest
 
 created_at: {ts}
@@ -285,6 +336,7 @@ next_action: revisar 03_JARVIS_EVOLUTION_PLAN.md
     write_file(out / "03_JARVIS_EVOLUTION_PLAN.md", evolution)
     write_file(out / "04_N8N_LOOP_POSITION.md", n8n_position)
     write_file(out / "05_STATUS_REAL.md", status)
+    write_file(out / "06_TECHNICAL_BACKLOG.md", backlog)
 
     print("")
     print(f"OK — digest criado em {out.relative_to(ROOT)}/")
