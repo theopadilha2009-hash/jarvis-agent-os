@@ -1,0 +1,75 @@
+# JARVIS — Theo Padilha AI Worker
+
+## Criador / dono
+Theo Padilha
+
+## Status real
+Laboratório local funcionando. Não é produção. Não executa ações perigosas sem aprovação humana.
+
+## Git
+Commit atual: a476458
+Status: M 07_RELATORIOS/02_TECNICOS/ULTIMO_RESUMO_EXECUTIVO_JARVIS.md
+ M 07_RELATORIOS/02_TECNICOS/ULTIMO_TASK_STATUS.md
+?? 07_RELATORIOS/03_RELEASES/v0.4-stable/
+?? 09_LOGS/2026-05-20_19-38-05-313127_checkpoint-created.md
+?? 10_TESTES/CHECKPOINTS/2026-05-20_19-38-05_checkpoint.md
+?? 10_TESTES/RELEASE_CHECKS/2026-05-20_19-38-06-861055_release-check.md
+?? 10_TESTES/SMOKE_TESTS/2026-05-20_19-38-06-854069_cli-smoke-test.md
+
+## O que já existe
+- CLI local `./jarvis`
+- sistema de tasks
+- processamento de inbox
+- arquivamento de entradas processadas
+- criação de projetos
+- fechamento de tasks
+- memória a partir de task
+- self-test
+- tool registry
+- checkpoint
+- Git versionado localmente
+
+## Projetos registrados
+- FACTORY_ROBLOX
+- JARVIS_CORE
+- LS_CLINICA
+- OFICINA
+- PORTFOLIO_ESCOLA
+- SITEHUNTER
+- SWLTEC
+- WORKFLOW_MASTER
+- _INDEX
+- _TEMPLATE
+
+## Tasks novas
+- nenhuma
+
+## Último checkpoint
+- 2026-05-20_19-38-05_checkpoint.md
+
+## Logs registrados
+39 log(s)
+
+## Comandos disponíveis
+- `./jarvis doctor`
+- `./jarvis report`
+- `./jarvis intake`
+- `./jarvis scan-inbox`
+- `./jarvis process-inbox`
+- `./jarvis next`
+- `./jarvis close-task`
+- `./jarvis create-project`
+- `./jarvis memory-from-task`
+- `./jarvis self-test`
+- `./jarvis tools`
+- `./jarvis checkpoint`
+- `./jarvis summary`
+
+## Ferramentas mapeadas
+ChatGPT, Claude manual/futuro, Gemini manual/futuro, Ollama, Groq, DeepSeek, Flow, n8n, Playwright e Ruflo estão registrados como ferramentas possíveis, mas nem todas estão conectadas.
+
+## Próximo passo seguro
+Continuar evoluindo localmente antes de conectar Claude, Gemini, n8n, VPS, APIs ou qualquer produção.
+
+## Frase simples
+JARVIS é um worker local criado por Theo Padilha para organizar projetos, tarefas, memória, logs, ferramentas e próximos passos com segurança.

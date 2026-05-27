@@ -1,0 +1,25 @@
+{
+  "schema": "jarvis-gates-v0.1",
+  "ts": "2026-05-24T18:46:02",
+  "all_ok": true,
+  "results": [
+    {
+      "name": "safety-gate",
+      "ok": true,
+      "exit_code": 0,
+      "summary": "Resultado: SAFETY GATE PASSOU"
+    },
+    {
+      "name": "smoke-test",
+      "ok": true,
+      "exit_code": 0,
+      "summary": "Resultado: CLI SMOKE TEST PASSOU"
+    },
+    {
+      "name": "doctrine-check",
+      "ok": true,
+      "exit_code": 0,
+      "summary": "Resultado: DOCTRINE CHECK PASSOU"
+    }
+  ]
+}
