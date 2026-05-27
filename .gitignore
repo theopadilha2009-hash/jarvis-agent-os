@@ -59,3 +59,6 @@ __pycache__/
 11_SCRIPTS/*.bak*
 01_SISTEMA/**/*.bak*
 99_ARQUIVO_MORTO/
+
+05_EXECUCAO/60_STUDIO/*
+!05_EXECUCAO/60_STUDIO/.gitkeep
