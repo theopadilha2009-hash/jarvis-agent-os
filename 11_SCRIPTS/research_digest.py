@@ -327,7 +327,23 @@ def main(argv: list[str] | None = None) -> int:
 
     source_dir = resolve_path(args.source)
     out_base = resolve_path(args.out)
+
+    if not source_dir.exists():
+        print("JARVIS — Research Digest")
+        print("ERRO: source não existe.")
+        print(f"Source informado: {args.source}")
+        print(f"Path resolvido: {source_dir}")
+        print("Produção: nada alterado.")
+        return 2
+
     files = read_sources(source_dir)
+
+    if not files:
+        print("JARVIS — Research Digest")
+        print("ERRO: nenhum arquivo .md encontrado na source.")
+        print(f"Source: {source_dir}")
+        print("Produção: nada alterado.")
+        return 2
 
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out = out_base / f"{ts}_{slugify(args.goal)}"
