@@ -8,6 +8,7 @@ GERAR TUDO:
 ./jarvis-client-hunt "ideia/solução"
 ./jarvis-market "nicho"
 ./jarvis-opportunity "nicho"
+./jarvis-launch "nicho"
 
 OPERAÇÃO:
 ./jarvis-doctor
