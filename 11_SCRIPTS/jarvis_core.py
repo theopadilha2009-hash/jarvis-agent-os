@@ -2760,6 +2760,10 @@ def research_digest_latest_command(args=None):
     """./jarvis research-digest-latest [--file plan|backlog|n8n|digest|status|index]""" 
     _run_py_propagate("11_SCRIPTS/research_digest_latest.py", args)
 
+def research_digest_validate_command(args=None):
+    """./jarvis research-digest-validate [--path PATH] — valida último digest."""
+    _run_py_propagate("11_SCRIPTS/research_digest_validate.py", args)
+
 def project_open_command(args=None):
     """./jarvis project-open --project ALIAS [--print-only|--copy-cd|--code]"""
     _run_py_propagate("11_SCRIPTS/project_open.py", args)
@@ -3440,6 +3444,8 @@ def main():
         research_digest_command(sys.argv[2:])
     elif cmd == "research-digest-latest":
         research_digest_latest_command(sys.argv[2:])
+    elif cmd == "research-digest-validate":
+        research_digest_validate_command(sys.argv[2:])
     elif cmd == "project-open":
         project_open_command(sys.argv[2:])
     elif cmd == "plan":
