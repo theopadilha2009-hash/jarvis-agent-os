@@ -1646,7 +1646,7 @@ def quality_gate():
         status = "OK" if ok else "FALHA"
         print(f"{status}  {name}" + (f" — {detail}" if detail else ""))
 
-    py_compile = run(["python3", "-m", "py_compile", "11_SCRIPTS/jarvis_core.py"])
+    py_compile = run(["python3", "11_SCRIPTS/python_syntax_gate.py"])
     check("Python compile", not py_compile.startswith("ERRO"), py_compile if py_compile else "sem erro")
 
     smoke_py = ROOT / "11_SCRIPTS" / "cli_smoke_test.py"
