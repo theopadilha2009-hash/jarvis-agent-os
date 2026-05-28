@@ -2937,8 +2937,57 @@ def acceptance_command(args=None):
     _run_py_propagate("11_SCRIPTS/acceptance.py", args)
 
 def do_command(args=None):
-    """./jarvis do "pedido" [--project A] [--mode safe|no-claude] [--dry-run] [--copy] [--reuse-last]"""
-    _run_py_propagate("11_SCRIPTS/worker_engine.py", args or [])
+    args = list(args or [])
+    raw = " ".join(args).strip()
+    lowered = raw.lower()
+
+    is_report_flow = "--report" in args or any(a.startswith("--report=") for a in args)
+
+    digest_triggers = [
+        "deep research",
+        "research digest",
+        "research-digest",
+        "sources",
+        "source",
+        "fontes",
+        "referências",
+        "referencias",
+        "plano de evolução",
+        "plano de evolucao",
+        "evolução do jarvis",
+        "evolucao do jarvis",
+    ]
+
+    if raw and not is_report_flow and any(t in lowered for t in digest_triggers):
+        cleaned = []
+        skip_next = False
+
+        for a in args:
+            if skip_next:
+                skip_next = False
+                continue
+
+            if a in ["--project", "--mode"]:
+                skip_next = True
+                continue
+
+            if a.startswith("--project=") or a.startswith("--mode="):
+                continue
+
+            if a in ["--copy", "--reuse-last", "--dry-run"]:
+                continue
+
+            cleaned.append(a)
+
+        goal = " ".join(cleaned).strip() or "evolução do JARVIS usando deep research locais"
+        digest_args = ["--goal", goal]
+
+        if "--dry-run" in args:
+            digest_args.append("--dry-run")
+
+        return research_digest_command(digest_args)
+
+    return _run_py_propagate("11_SCRIPTS/worker_engine.py", args)
 
 def do_history_command(args=None):
     """./jarvis do-history [--limit N] [--route NAME] [--project ALIAS]"""
