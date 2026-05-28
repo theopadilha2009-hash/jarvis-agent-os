@@ -2756,6 +2756,10 @@ def research_digest_command(args=None):
     """./jarvis research-digest [--goal "..."] [--dry-run] — digest local dos deep research."""
     _run_py_propagate("11_SCRIPTS/research_digest.py", args)
 
+def research_digest_latest_command(args=None):
+    """./jarvis research-digest-latest [--file plan|backlog|n8n|digest|status|index]""" 
+    _run_py_propagate("11_SCRIPTS/research_digest_latest.py", args)
+
 def project_open_command(args=None):
     """./jarvis project-open --project ALIAS [--print-only|--copy-cd|--code]"""
     _run_py_propagate("11_SCRIPTS/project_open.py", args)
@@ -3434,6 +3438,8 @@ def main():
         blueprint_command(sys.argv[2:])
     elif cmd == "research-digest":
         research_digest_command(sys.argv[2:])
+    elif cmd == "research-digest-latest":
+        research_digest_latest_command(sys.argv[2:])
     elif cmd == "project-open":
         project_open_command(sys.argv[2:])
     elif cmd == "plan":
