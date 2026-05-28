@@ -53,6 +53,7 @@ def main():
             continue
 
         text = f.read_text(encoding="utf-8", errors="replace")
+
         if not text.strip():
             bad_hits.append(f"{name}: arquivo vazio")
 
@@ -79,12 +80,7 @@ def main():
 
     print("OK — digest válido.")
     print("Arquivos obrigatórios presentes.")
-    print("Nenhum texto quebrado conhecido encontrado:
-        return 1
-
-    print("OK — digest válido.")
-    print("Arquivos obrigatórios presentes.")
-    print("Nen.")
+    print("Nenhum texto quebrado conhecido encontrado.")
     return 0
 
 if __name__ == "__main__":
