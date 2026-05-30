@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 import argparse
 import json
 import os
@@ -497,8 +497,33 @@ def read_json(handler):
 
     return json.loads(raw)
 
+UI_ASSET_DIR = Path(__file__).resolve().parent / "jarvis_ui_assets"
+UI_ASSET = UI_ASSET_DIR / "cockpit.html"
+
+# Read-only static assets for the cockpit (3D model, textures). Sandboxed to
+# UI_ASSET_DIR with a strict extension whitelist. Never serves code or .env.
+UI_ASSET_TYPES = {
+    ".glb": "model/gltf-binary",
+    ".gltf": "model/gltf+json",
+    ".bin": "application/octet-stream",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".hdr": "image/vnd.radiance",
+}
+
 def dashboard_html():
-    return """<!doctype html>
+    try:
+        text = UI_ASSET.read_text(encoding="utf-8")
+        if text.strip():
+            return text
+    except Exception:
+        pass
+
+    return _FALLBACK_DASHBOARD_HTML
+
+_FALLBACK_DASHBOARD_HTML = """<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
@@ -580,6 +605,28 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def serve_ui_asset(self, rel):
+        try:
+            rel = unquote(rel).lstrip("/")
+            base = UI_ASSET_DIR.resolve()
+            target = (base / rel).resolve()
+            if base != target and base not in target.parents:
+                self.send_json(403, {"ok": False, "error": "asset path not allowed"})
+                return
+            suffix = target.suffix.lower()
+            if suffix not in UI_ASSET_TYPES or not target.is_file():
+                self.send_json(404, {"ok": False, "error": "asset not found"})
+                return
+            data = target.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", UI_ASSET_TYPES[suffix])
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as e:
+            self.send_json(500, {"ok": False, "error": str(e)})
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -587,6 +634,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/":
             self.send_html(200, dashboard_html())
+            return
+
+        if path.startswith("/asset/"):
+            self.serve_ui_asset(path[len("/asset/"):])
             return
 
         if path == "/status":
