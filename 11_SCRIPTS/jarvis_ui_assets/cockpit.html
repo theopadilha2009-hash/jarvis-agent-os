@@ -4,16 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>JARVIS Agent OS</title>
-<!-- CDN dependency: Three.js (ES modules via import-map). Used ONLY to load the
-     real .glb, override its materials and light it premium — no build, no
-     node_modules, no app framework. If Three / WebGL / the model fail to load,
-     the SVG bust is shown automatically as a fallback — the cockpit never breaks. -->
+<!-- CDN dependency: Three.js (ES modules via import-map). Used ONLY to render a
+     fully procedural obsidian-crystal AI core (no model file, no humanoid) — no
+     build, no node_modules, no app framework. If Three / WebGL fail to load, the
+     abstract crystal SVG is shown automatically as a fallback — never breaks. -->
 <script type="importmap">
 { "imports": {
   "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
   "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
 } }
 </script>
+<!-- Typography: premium display + body faces via Fontshare CDN (same no-build,
+     graceful-degradation pattern as Three.js). If the CDN is blocked/offline the
+     native macOS stack (Futura/Avenir/Didot/SF Mono) takes over — never breaks. -->
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600&f[]=satoshi@400,500,700&display=swap">
 <style>
 /* ============================================================
    JARVIS Agent OS · local cockpit
@@ -22,27 +28,32 @@
    Cinematic, dark, editorial, discreet violet. No external deps.
    ============================================================ */
 :root{
-  --void:#040406; --bg:#08070d; --bg2:#0c0a14; --bg3:#100d1c;
-  --ice:#e9ecff; --text:#c7cadf; --muted:#7a7e96; --faint:#43455c;
-  --violet:#7c5cff; --violet-soft:#a98bff; --violet-deep:#2c2150;
-  --line:rgba(168,178,255,.10); --line-2:rgba(168,178,255,.20);
-  --glass:rgba(16,14,26,.62); --glass-2:rgba(20,18,32,.5);
-  --ok:#9fa6ff; --bad:#ff6f8a;
+  /* deep black → graphite spine */
+  --void:#050509; --bg:#0a0913; --bg2:#0f0d1a; --bg3:#151221;
+  --graphite:#16131f; --graphite-2:#1c1830;
+  /* text tiers — lifted for legibility on dark glass (was the main pain point) */
+  --ice:#f4f5ff; --text:#d9dcf2; --muted:#a2a6c8; --faint:#6a6e8c;
+  /* elegant violet, not neon */
+  --violet:#8a6cff; --violet-soft:#b8a2ff; --violet-deep:#2e2356; --violet-ink:#5a3fd6;
+  --line:rgba(180,190,255,.14); --line-2:rgba(180,190,255,.26);
+  --glass:rgba(22,19,33,.68); --glass-2:rgba(28,24,44,.56);
+  --ok:#aab1ff; --bad:#ff708d;
   --accent:var(--violet);
-  --font-display:"Futura","Avenir Next","Helvetica Neue",system-ui,sans-serif;
-  --font-editorial:"Didot","Bodoni 72","Playfair Display",Georgia,"Times New Roman",serif;
+  --font-display:"Clash Display","Futura","Avenir Next","Helvetica Neue",system-ui,sans-serif;
+  --font-editorial:"Clash Display","Didot","Bodoni 72",Georgia,"Times New Roman",serif;
   --font-mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Monaco,monospace;
-  --font-body:"Avenir Next","SF Pro Text",system-ui,"Segoe UI",sans-serif;
+  --font-body:"Satoshi","Avenir Next","SF Pro Text",system-ui,"Segoe UI",sans-serif;
 }
 *{box-sizing:border-box;}
 html,body{height:100%;}
 body{
   margin:0; color:var(--text); font-family:var(--font-body); overflow:hidden;
+  font-size:15px; letter-spacing:.005em;
   background:
-    radial-gradient(1100px 720px at 50% 26%, rgba(124,92,255,.14), transparent 58%),
-    radial-gradient(900px 520px at 86% 6%, rgba(124,92,255,.06), transparent 60%),
-    radial-gradient(1200px 760px at 10% 98%, rgba(56,52,86,.20), transparent 62%),
-    linear-gradient(180deg,var(--bg2) 0%, var(--bg) 48%, var(--void) 100%);
+    radial-gradient(1150px 740px at 50% 22%, rgba(138,108,255,.18), transparent 58%),
+    radial-gradient(900px 520px at 87% 3%, rgba(138,108,255,.08), transparent 60%),
+    radial-gradient(1200px 780px at 6% 100%, rgba(74,68,112,.24), transparent 62%),
+    linear-gradient(180deg,#110e1d 0%, var(--bg) 44%, var(--void) 100%);
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
 }
 #dust{position:fixed; inset:0; z-index:0; pointer-events:none;}
@@ -66,8 +77,12 @@ body::before{content:""; position:fixed; inset:0; z-index:1; pointer-events:none
 /* ============================================================ APP SHELL */
 .app{position:relative; z-index:2; height:100vh; display:flex; flex-direction:column;}
 .topbar{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
-  height:56px; padding:0 clamp(16px,2vw,30px); border-bottom:1px solid var(--line); flex:0 0 auto;}
-.tb-left{display:flex; align-items:center; gap:13px; font-family:var(--font-display); font-size:13px; letter-spacing:.34em;
+  height:58px; padding:0 clamp(16px,2vw,30px); flex:0 0 auto; position:relative;
+  background:linear-gradient(180deg, rgba(20,17,32,.55), transparent); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);}
+.topbar::after{content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--violet) 40%,transparent),transparent);}
+.tb-left{display:flex; align-items:center; gap:13px; font-family:var(--font-display); font-size:14px; letter-spacing:.30em;
   text-transform:uppercase; color:var(--ice); font-weight:600; min-width:0;}
 .tb-left i{font-style:normal; font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; color:var(--muted); text-transform:none;}
 .logo{width:26px; height:26px; flex:0 0 auto; border-radius:8px; position:relative;
@@ -82,22 +97,41 @@ body::before{content:""; position:fixed; inset:0; z-index:1; pointer-events:none
 .by{font-family:var(--font-display); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--text);}
 .by b{color:var(--ice); font-weight:600;}
 
-.grid{flex:1 1 auto; display:grid; grid-template-columns:250px minmax(0,1fr) 300px; gap:14px; min-height:0;
+:root{ --col-left:250px; --col-right:300px; --hero-h:clamp(372px,55vh,72vh); }
+.grid{flex:1 1 auto; display:grid; position:relative; grid-template-columns:var(--col-left) minmax(0,1fr) var(--col-right); gap:14px; min-height:0;
   padding:14px clamp(14px,2vw,26px) 16px;}
+/* ---- draggable splitters: discreet hairline that lights up on hover/drag ---- */
+.vsplit{ position:absolute; top:14px; bottom:16px; width:14px; z-index:6; cursor:col-resize;
+  display:flex; align-items:center; justify-content:center; touch-action:none; }
+.vsplit.left{ left:calc(clamp(14px,2vw,26px) + var(--col-left)); }
+.vsplit.right{ right:calc(clamp(14px,2vw,26px) + var(--col-right)); }
+.vsplit::before{ content:""; width:2px; height:52px; border-radius:2px;
+  background:linear-gradient(180deg,transparent,rgba(150,130,255,.20),transparent);
+  transition:background .2s, box-shadow .2s, height .2s; }
+.vsplit:hover::before{ height:86px; background:linear-gradient(180deg,transparent,rgba(176,150,255,.78),transparent); box-shadow:0 0 12px rgba(140,110,255,.5); }
+.vsplit.dragging::before{ height:120px; background:rgba(186,162,255,.92); box-shadow:0 0 18px rgba(150,120,255,.7); }
+.hsplit{ position:absolute; left:9%; right:9%; height:14px; top:var(--hero-h); z-index:6; cursor:row-resize;
+  display:flex; align-items:center; justify-content:center; touch-action:none; }
+.hsplit::before{ content:""; height:2px; width:58px; border-radius:2px;
+  background:linear-gradient(90deg,transparent,rgba(150,130,255,.20),transparent);
+  transition:background .2s, box-shadow .2s, width .2s; }
+.hsplit:hover::before{ width:108px; background:linear-gradient(90deg,transparent,rgba(176,150,255,.78),transparent); box-shadow:0 0 12px rgba(140,110,255,.5); }
+.hsplit.dragging::before{ width:148px; background:rgba(186,162,255,.92); box-shadow:0 0 18px rgba(150,120,255,.7); }
 
 /* ============================================================ SIDEBAR */
 .sidebar{display:flex; flex-direction:column; gap:5px; min-height:0; overflow-y:auto; padding-right:4px;}
 .sidebar::-webkit-scrollbar,.rightp::-webkit-scrollbar,.vbody::-webkit-scrollbar{width:8px;}
 .sidebar::-webkit-scrollbar-thumb,.rightp::-webkit-scrollbar-thumb,.vbody::-webkit-scrollbar-thumb{background:rgba(124,92,255,.2); border-radius:8px; border:2px solid transparent; background-clip:padding-box;}
-.sgroup{font-family:var(--font-mono); font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); margin:12px 4px 4px;}
+.sgroup{font-family:var(--font-mono); font-size:9.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--faint); margin:14px 4px 5px;}
 .sgroup:first-child{margin-top:0;}
 .tool{display:flex; align-items:center; gap:11px; width:100%; text-align:left; cursor:pointer;
-  border:1px solid var(--line); border-radius:11px; padding:11px 13px; color:var(--text);
-  background:var(--glass-2); backdrop-filter:blur(7px); font-family:var(--font-body); font-size:13px; letter-spacing:.01em;
+  border:1px solid var(--line); border-radius:12px; padding:11px 13px; color:var(--text);
+  background:linear-gradient(180deg, var(--graphite-2), var(--glass-2)); backdrop-filter:blur(7px);
+  font-family:var(--font-body); font-size:13.5px; letter-spacing:.005em; font-weight:500;
   transition:transform .15s, border-color .18s, background .18s, color .18s, box-shadow .2s;}
 .tool .i{flex:0 0 auto; width:18px; text-align:center; color:var(--violet-soft); font-size:13px;}
-.tool:hover{transform:translateX(3px); color:var(--ice); border-color:color-mix(in srgb,var(--violet) 55%,transparent);
-  background:rgba(124,92,255,.10); box-shadow:-3px 0 0 0 var(--violet);}
+.tool:hover{transform:translateX(3px); color:var(--ice); border-color:color-mix(in srgb,var(--violet) 60%,transparent);
+  background:rgba(138,108,255,.12); box-shadow:-3px 0 0 0 var(--violet), 0 6px 20px rgba(0,0,0,.3);}
 .tool:active{transform:translateX(3px) scale(.99);}
 .tool:focus-visible{outline:2px solid var(--violet-soft); outline-offset:2px;}
 .tool.prime{justify-content:center; gap:8px; border-color:color-mix(in srgb,var(--violet) 55%,transparent);
@@ -111,15 +145,17 @@ body::before{content:""; position:fixed; inset:0; z-index:1; pointer-events:none
   border:1px solid rgba(255,111,138,.3); border-radius:6px; padding:2px 6px;}
 
 /* ============================================================ CENTER */
-.center{display:grid; grid-template-rows:minmax(330px,48vh) minmax(200px,1fr) auto; gap:14px; min-height:0;}
-.hero{position:relative; overflow:hidden; border:1px solid var(--line-2); border-radius:20px;
+.center{position:relative; display:grid; grid-template-rows:var(--hero-h) minmax(160px,1fr) auto; gap:14px; min-height:0;}
+.hero{position:relative; overflow:hidden; border:1px solid var(--line-2); border-radius:22px;
   background:
-    radial-gradient(78% 92% at 50% 30%, rgba(124,92,255,.16), transparent 60%),
-    radial-gradient(120% 120% at 50% 116%, rgba(124,92,255,.10), transparent 56%),
-    linear-gradient(180deg, rgba(14,12,24,.7), rgba(6,5,11,.92));
-  box-shadow:inset 0 1px 0 rgba(233,236,255,.05), inset 0 -90px 120px rgba(3,2,9,.7), 0 30px 80px rgba(0,0,0,.5);
+    radial-gradient(58% 70% at 50% 46%, rgba(150,116,255,.26), transparent 62%),
+    radial-gradient(120% 90% at 50% 50%, rgba(20,12,46,.6), transparent 70%),
+    radial-gradient(120% 130% at 50% 122%, rgba(120,92,255,.12), transparent 58%),
+    radial-gradient(40% 50% at 50% 50%, rgba(2,1,8,.0), rgba(2,1,7,.62) 120%),
+    linear-gradient(180deg, rgba(15,12,26,.82), rgba(5,4,11,.96));
+  box-shadow:inset 0 1px 0 rgba(233,236,255,.06), inset 0 -90px 130px rgba(2,1,8,.74), 0 34px 90px rgba(0,0,0,.55);
   backdrop-filter:blur(7px); display:flex; flex-direction:column; align-items:center; justify-content:center;
-  perspective:1500px; perspective-origin:50% 42%;}
+  perspective:1500px; perspective-origin:50% 50%;}
 /* top sheen + bottom vignette for depth */
 .hero::before{content:""; position:absolute; inset:0; pointer-events:none; z-index:4;
   background:radial-gradient(60% 50% at 50% -10%, rgba(233,236,255,.06), transparent 60%),
@@ -134,17 +170,41 @@ body::before{content:""; position:fixed; inset:0; z-index:1; pointer-events:none
   display:flex; align-items:center; gap:9px;}
 .hero .tagtop::before,.hero .tagtop::after{content:""; width:26px; height:1px; background:linear-gradient(90deg,transparent,var(--line-2));}
 .hero .tagtop::after{transform:scaleX(-1);}
-.giant{position:absolute; left:50%; top:50%; transform:translate(-50%,-52%); margin:0; pointer-events:none; user-select:none; z-index:1;
-  font-family:var(--font-editorial); font-weight:600; font-size:clamp(92px,18vw,236px); letter-spacing:.01em; line-height:.78;
-  color:transparent; background:linear-gradient(180deg, rgba(233,236,255,.26), rgba(150,124,255,.14) 64%, rgba(124,92,255,.03));
-  -webkit-background-clip:text; background-clip:text; text-shadow:0 0 90px rgba(124,92,255,.14); white-space:nowrap;}
-.giant::after{content:"JARVIS"; position:absolute; left:0; top:0; -webkit-text-stroke:1px rgba(168,178,255,.10); color:transparent; -webkit-background-clip:initial; background:none;}
+/* ---- editorial wordmark stack — a giant etched monument the entity rises out of.
+   Three stacked layers (faint oversized echo · blurred violet ghost · hairline engraving)
+   + horizontal fracture cuts → reads as a premium experimental-site cover, not a label.
+   The core sits in front (z-index 3), so the mid letters dissolve behind the entity. */
+.giant{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); margin:0; pointer-events:none; user-select:none; z-index:1;
+  font-family:var(--font-editorial); font-weight:500; font-size:clamp(98px,19vw,300px); letter-spacing:.10em; line-height:.74; text-indent:.10em;
+  color:transparent; background:linear-gradient(172deg, rgba(240,242,255,.40) 0%, rgba(178,154,255,.18) 50%, rgba(120,98,230,.015) 88%);
+  -webkit-background-clip:text; background-clip:text; text-shadow:0 0 130px rgba(138,108,255,.20); white-space:nowrap; mix-blend-mode:screen;
+  -webkit-mask:linear-gradient(180deg,#000 0%,#000 62%,rgba(0,0,0,.12) 100%); mask:linear-gradient(180deg,#000 0%,#000 62%,rgba(0,0,0,.12) 100%);}
+.giant::before{content:"JARVIS"; position:absolute; left:0; top:0; z-index:-1; text-indent:inherit;
+  color:transparent; background:linear-gradient(180deg, rgba(186,168,255,.6), rgba(124,92,255,.05));
+  -webkit-background-clip:text; background-clip:text; filter:blur(30px); opacity:.5; animation:wordglow 8s ease-in-out infinite;}
+.giant::after{content:"JARVIS"; position:absolute; left:0; top:0; text-indent:inherit; -webkit-text-stroke:1px rgba(196,178,255,.18); color:transparent; -webkit-background-clip:initial; background:none;}
+/* oversized faint echo behind everything — depth + scale */
+.wordEcho{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%) scale(1.16); margin:0; z-index:0; pointer-events:none; user-select:none;
+  font-family:var(--font-editorial); font-weight:500; font-size:clamp(98px,19vw,300px); letter-spacing:.10em; line-height:.74; text-indent:.10em; white-space:nowrap;
+  color:transparent; -webkit-text-stroke:1px rgba(150,134,230,.06); filter:blur(1px); opacity:.5;}
+/* thin horizontal fracture cuts crossing the wordmark — the editorial "slice" detail */
+.heroCuts{position:absolute; inset:0; z-index:1; pointer-events:none; opacity:.5;
+  background:repeating-linear-gradient(0deg, transparent 0, transparent 76px, rgba(190,200,255,.05) 76px, rgba(190,200,255,.05) 77px);
+  -webkit-mask:radial-gradient(70% 64% at 50% 50%, #000 30%, transparent 82%); mask:radial-gradient(70% 64% at 50% 50%, #000 30%, transparent 82%);}
+/* slow horizontal scan band — drifts across the hero, crossing the wordmark, passing behind the entity */
+.hero::after{content:""; position:absolute; left:7%; right:7%; height:1px; top:30%; z-index:2; pointer-events:none;
+  background:linear-gradient(90deg, transparent, rgba(198,206,255,.5) 26%, rgba(236,238,255,.82) 50%, rgba(198,206,255,.5) 74%, transparent);
+  box-shadow:0 0 20px 2px rgba(138,108,255,.4); opacity:0; animation:heroScan 11s ease-in-out infinite;}
+/* processing → wordmark gains a brighter, faster scan band + lifts the cuts */
+.hero.thinking::after{animation-duration:4.4s; background:linear-gradient(90deg, transparent, rgba(208,200,255,.7) 24%, #fff 50%, rgba(208,200,255,.7) 76%, transparent);}
+.hero.thinking .heroCuts{opacity:.85; animation:cutsLift 3.2s ease-in-out infinite;}
+.hero.thinking .giant{text-shadow:0 0 150px rgba(150,118,255,.34);}
 .herometa{position:absolute; bottom:17px; left:50%; transform:translateX(-50%); z-index:5; font-family:var(--font-mono);
   font-size:10.5px; letter-spacing:.16em; color:var(--muted); text-align:center; white-space:nowrap;}
 .herometa b{color:var(--violet-soft); font-weight:400;}
 
 /* ---- 3D figure (real GLB, dominant + integrated) ---- */
-.figure{position:relative; height:102%; aspect-ratio:440/620; z-index:3; transform-style:preserve-3d;
+.figure{position:relative; height:98%; aspect-ratio:1/1; z-index:3; transform-style:preserve-3d;
   animation:float 9s ease-in-out infinite; will-change:transform;}
 .tilt{position:absolute; inset:0; transform-style:preserve-3d; transition:transform .25s cubic-bezier(.2,.8,.2,1);}
 .figure .haze{position:absolute; inset:-18% -40%; transform:translateZ(-90px); border-radius:50%;
@@ -165,6 +225,55 @@ body::before{content:""; position:fixed; inset:0; z-index:1; pointer-events:none
 .figure .shadow{position:absolute; left:50%; bottom:1%; width:62%; height:8%; transform:translate(-50%,0); z-index:-1;
   border-radius:50%; background:radial-gradient(closest-side, rgba(2,1,6,.82), rgba(2,1,6,.3) 58%, transparent 78%); filter:blur(13px);}
 
+/* ---- "awakening" layer: twin eye-glow + head halo over the face ----
+   Idle → eyes closed/asleep (off). Working → eyes bloom + halo + pulse.
+   Forgiving by design: soft blooms read as glowing eyes even if the GLB's
+   real sockets sit a few px off, and it rides the model's float/parallax. */
+.awaken{position:absolute; left:0; right:0; top:50%; height:0; z-index:4; pointer-events:none; transform:translateZ(72px);}
+/* abstract AI core has no face → the twin "eye" blooms are retired; the sensor visor is the only gaze */
+.awaken .eye{display:none !important;}
+.awaken .halo{position:absolute; left:50%; top:0; width:38%; aspect-ratio:1; transform:translate(-50%,-44%); border-radius:50%;
+  background:radial-gradient(closest-side, color-mix(in srgb,var(--accent) 50%,transparent), transparent 70%);
+  filter:blur(17px); mix-blend-mode:screen; opacity:0; transition:opacity .8s ease, background .6s;}
+.awaken .eye{position:absolute; top:0; width:5.6%; height:1.9%; min-width:9px; min-height:4px; border-radius:50%;
+  background:radial-gradient(closest-side, #fbf8ff, var(--violet-soft) 44%, transparent 80%);
+  box-shadow:0 0 15px 3px color-mix(in srgb,var(--accent) 85%,transparent), 0 0 34px 9px color-mix(in srgb,var(--accent) 42%,transparent);
+  mix-blend-mode:screen; opacity:0; transform:translate(-50%,-50%) scaleY(.12); transform-origin:center;
+  transition:opacity .55s ease, transform .55s cubic-bezier(.2,.85,.2,1), box-shadow .5s, background .5s;}
+.awaken .eye.l{left:43.4%;} .awaken .eye.r{left:56.6%;}
+/* iconic sensor visor — a thin luminous gaze-line replaces the "two human eyes" read.
+   Faint at idle (a sleeping machine), blooms when JARVIS is thinking. */
+.awaken .visor{position:absolute; left:50%; top:0; width:30%; height:2px; transform:translate(-50%,-50%);
+  border-radius:2px; background:linear-gradient(90deg,transparent,var(--violet-soft) 30%,#eef0ff 50%,var(--violet-soft) 70%,transparent);
+  box-shadow:0 0 12px 1px color-mix(in srgb,var(--accent) 70%,transparent); mix-blend-mode:screen;
+  opacity:.15; transition:opacity .6s ease, width .6s ease, background .5s;}
+.figure[data-state="working"] .awaken .visor{opacity:.85; width:40%; animation:eyepulse 1.7s ease-in-out infinite;}
+.figure[data-state="offline"] .awaken .visor{opacity:0;}
+.figure[data-state="ok"] .awaken .visor{opacity:.55;}
+.figure[data-state="error"] .awaken .visor{opacity:.7; background:linear-gradient(90deg,transparent,var(--bad) 40%,#fff 50%,var(--bad) 60%,transparent);}
+/* idle / offline → asleep */
+.figure[data-state="idle"] .aura{opacity:.46;}
+.figure[data-state="offline"] .aura{opacity:.16;}
+.figure[data-state="offline"] .awaken .eye{opacity:0;}
+/* working → alive */
+.figure[data-state="working"] .awaken .eye{opacity:1; transform:translate(-50%,-50%) scaleY(1); animation:eyepulse 1.7s ease-in-out infinite;}
+.figure[data-state="working"] .awaken .halo{opacity:.92; animation:halopulse 2.4s ease-in-out infinite;}
+.figure[data-state="working"] .aura{opacity:.95; filter:blur(18px); animation-duration:2.6s;}
+.figure[data-state="working"] .ring{opacity:.42;}
+.figure[data-state="working"] .ring.b{opacity:.24;}
+/* result flashes (held ~1.8s by setFig, then back to idle) */
+.figure[data-state="ok"] .awaken .eye{opacity:.92; transform:translate(-50%,-50%) scaleY(.92);}
+.figure[data-state="ok"] .awaken .halo{opacity:.7;}
+.figure[data-state="error"] .awaken .eye{opacity:.95; transform:translate(-50%,-50%) scaleY(.85);
+  background:radial-gradient(closest-side,#fff, var(--bad) 46%, transparent 82%);
+  box-shadow:0 0 15px 3px var(--bad), 0 0 34px 9px color-mix(in srgb,var(--bad) 40%,transparent);}
+.figure[data-state="error"] .awaken .halo{opacity:.78; background:radial-gradient(closest-side, rgba(255,112,141,.5), transparent 70%);}
+/* SVG fallback core glow follows the same idle/working logic */
+.figure[data-state="working"] .bust .coreglow{opacity:1; animation:eyepulse 1.7s ease-in-out infinite;}
+.figure[data-state="working"] .bust .visorline{opacity:1; animation:eyepulse 1.7s ease-in-out infinite;}
+.figure[data-state="offline"] .bust .coreglow{opacity:.12;}
+.figure[data-state="offline"] .bust .visorline{opacity:.1;}
+
 /* ---- real 3D model (GLB rendered with Three.js; materials + lights set in JS).
    Three handles the dark-violet obsidian look; CSS only adds a soft floor bloom
    and a violet glow so the model integrates with the hero atmosphere. */
@@ -181,18 +290,17 @@ body::before{content:""; position:fixed; inset:0; z-index:1; pointer-events:none
 .figure[data-fallback] .bust3d{display:none;}
 .bust{position:relative; display:none; width:100%; height:100%; overflow:visible; filter:drop-shadow(0 24px 28px rgba(2,2,8,.55));}
 .figure[data-fallback] .bust{display:block;}
-.bust .glow{fill:none; stroke:var(--accent); stroke-width:6; opacity:.5; filter:url(#soft); transition:stroke .6s;}
-.bust .edge{fill:none; stroke:rgba(233,236,255,.3); stroke-width:1.2;}
-.bust .mesh{fill:none; stroke:color-mix(in srgb,var(--accent) 52%,#cdd2ff); stroke-width:.55; opacity:.13; transition:stroke .6s;
+/* abstract crystal-core fallback (no face): geodesic shell · obsidian facets · shard burst · sensor line */
+.bust .glow{fill:none; stroke:var(--accent); stroke-width:5; opacity:.42; filter:url(#soft); transition:stroke .6s;}
+.bust .shell{fill:none; stroke:color-mix(in srgb,var(--accent) 60%,#cdd2ff); stroke-width:1; opacity:.42;}
+.bust .shell.b{stroke:rgba(233,236,255,.22); stroke-width:.7; opacity:.3;}
+.bust .facet{stroke:rgba(214,220,255,.34); stroke-width:.9; stroke-linejoin:round;}
+.bust .mesh{fill:none; stroke:color-mix(in srgb,var(--accent) 52%,#cdd2ff); stroke-width:.55; opacity:.16; transition:stroke .6s;
   animation:shimmer 7s ease-in-out infinite;}
-.bust .rock{mix-blend-mode:overlay; opacity:.5;}
-.bust .lit{opacity:.8;}
-.bust .brow{fill:none; stroke:rgba(233,236,255,.3); stroke-width:2.2; stroke-linecap:round;}
-.bust .lipline{fill:none; stroke:rgba(5,5,12,.5); stroke-width:3; stroke-linecap:round;}
-.bust .nostril{fill:rgba(5,5,12,.5);}
-.bust .eye{fill:#05050c;}
-.bust .eyeglow{fill:var(--accent); opacity:.9; filter:url(#soft); transition:fill .6s; animation:gaze 4.8s ease-in-out infinite;}
-.bust .pupil{fill:#f4f2ff; animation:gaze 4.8s ease-in-out infinite;}
+.bust .shard{stroke:rgba(196,204,255,.26); stroke-width:.7; stroke-linejoin:round; opacity:.85;}
+.bust .coreglow,.bust .eyeglow{fill:var(--accent); opacity:.9; filter:url(#soft); transition:fill .6s; animation:breathe 3.4s ease-in-out infinite;}
+.bust .visorline{stroke:#eef0ff; stroke-width:2.4; stroke-linecap:round; filter:url(#soft); opacity:.7;}
+.bust .spark{fill:#f4f2ff;}
 
 /* ============================================================ VIEWER */
 .viewer{min-height:0; display:flex; flex-direction:column; border:1px solid var(--line-2); border-radius:18px;
@@ -243,7 +351,7 @@ body::before{content:""; position:fixed; inset:0; z-index:1; pointer-events:none
   mask:linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);}
 /* premium empty / standby state */
 .empty{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
-  min-height:100%; text-align:center; color:var(--faint); font-family:var(--font-mono); font-size:11.5px; line-height:1.9; padding:24px;}
+  min-height:100%; text-align:center; color:var(--muted); font-family:var(--font-mono); font-size:11.5px; line-height:1.9; padding:24px;}
 .empty .orb{width:54px; height:54px; border-radius:50%; position:relative; flex:0 0 auto;
   background:radial-gradient(circle at 40% 34%, rgba(196,204,255,.5), var(--violet) 52%, transparent 74%);
   box-shadow:0 0 26px rgba(124,92,255,.45), inset 0 0 14px rgba(0,0,0,.45); animation:breathe 3.4s ease-in-out infinite;}
@@ -256,8 +364,8 @@ body::before{content:""; position:fixed; inset:0; z-index:1; pointer-events:none
 .msg .you{font-family:var(--font-mono); font-size:11px; color:var(--faint); letter-spacing:.06em; display:block; margin-bottom:6px;}
 
 /* JSON / summary / doc (shared) */
-pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.65; white-space:pre-wrap; word-break:break-word; color:#9ea2c4;}
-.json .k{color:var(--violet-soft);} .json .s{color:#c8d4ff;} .json .n{color:#e9b0ff;} .json .b{color:#ff9ec7;}
+pre.json{margin:0; font-family:var(--font-mono); font-size:12.5px; line-height:1.7; white-space:pre-wrap; word-break:break-word; color:#bcc0e4;}
+.json .k{color:var(--violet-soft);} .json .s{color:#cdd6ff;} .json .n{color:#edb6ff;} .json .b{color:#ff9ec7;}
 .kv{display:grid; grid-template-columns:max-content 1fr; gap:8px 22px; font-family:var(--font-mono); font-size:12.5px;}
 .kv dt{color:var(--faint); letter-spacing:.05em;} .kv dd{margin:0; color:var(--text); word-break:break-word;}
 .kv dd.ok{color:var(--ok);} .kv dd.fail{color:var(--bad);} .kv dd.warn{color:var(--violet-soft);}
@@ -272,7 +380,7 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.6
 .srcitem:hover{color:var(--violet-soft);} .srcitem .ln{color:var(--violet-soft); flex:0 0 auto;}
 .metastrip{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.06em; color:var(--faint); margin-bottom:15px;}
 .metastrip b{color:var(--muted); font-weight:400;}
-.doc{font-family:var(--font-body); color:#c2c6dc; line-height:1.75; font-size:14px; max-width:78ch;}
+.doc{font-family:var(--font-body); color:#d2d5ec; line-height:1.78; font-size:14.5px; max-width:78ch;}
 .doc h1,.doc h2,.doc h3{font-family:var(--font-display); color:var(--ice); letter-spacing:.02em; line-height:1.3; margin:1.3em 0 .5em; font-weight:600;}
 .doc h1{font-size:1.5em; border-bottom:1px solid var(--line); padding-bottom:.3em;}
 .doc h2{font-size:1.24em; color:var(--violet-soft);} .doc h3{font-size:1.08em; color:var(--text);}
@@ -308,14 +416,15 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.6
 .rightp{display:flex; flex-direction:column; gap:9px; min-height:0; overflow-y:auto; padding-right:4px;}
 .rgroup{font-family:var(--font-mono); font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); margin:8px 2px 2px;}
 .rgroup:first-child{margin-top:0;}
-.card{border:1px solid var(--line); border-radius:13px; background:var(--glass); backdrop-filter:blur(8px); padding:13px 15px;}
-.card .ch{display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin-bottom:9px;}
+.card{border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg, var(--graphite), var(--glass)); backdrop-filter:blur(8px); padding:13px 15px;
+  box-shadow:inset 0 1px 0 rgba(233,236,255,.03);}
+.card .ch{display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-bottom:9px;}
 .card .ch .tick{width:6px; height:6px; border-radius:2px; background:var(--violet); box-shadow:0 0 7px var(--violet);}
-.led{font-family:var(--font-mono); font-size:12px; letter-spacing:.04em; color:var(--muted);}
+.led{font-family:var(--font-mono); font-size:12.5px; letter-spacing:.04em; color:var(--text);}
 .led.ok{color:var(--ok);} .led.bad{color:var(--bad);} .led.idle{color:var(--muted);}
-.cline{font-family:var(--font-mono); font-size:10.5px; color:var(--faint); margin-top:7px; line-height:1.6; word-break:break-word;}
-.cline b{color:var(--muted); font-weight:400;}
-.num{font-family:var(--font-display); font-size:26px; font-weight:600; line-height:1; color:var(--text);}
+.cline{font-family:var(--font-mono); font-size:11px; color:var(--muted); margin-top:7px; line-height:1.6; word-break:break-word;}
+.cline b{color:var(--text); font-weight:500;}
+.num{font-family:var(--font-display); font-size:27px; font-weight:600; line-height:1; color:var(--ice); letter-spacing:.01em;}
 .num.ok{color:var(--ok);} .num.bad{color:var(--bad);}
 .numrow{display:flex; align-items:baseline; gap:7px;} .numrow .u{font-family:var(--font-mono); font-size:10px; color:var(--faint);}
 .bar{height:5px; border-radius:5px; background:rgba(255,255,255,.06); margin-top:10px; overflow:hidden;}
@@ -356,20 +465,173 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.6
 @keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3%,-2.5%)}}
 @keyframes rise{from{opacity:0; transform:translateY(12px)}to{opacity:1; transform:translateY(0)}}
 @keyframes approveGlow{0%,100%{box-shadow:0 0 0 0 rgba(124,92,255,0)}50%{box-shadow:0 0 13px 0 rgba(124,92,255,.45)}}
+@keyframes eyepulse{0%,100%{opacity:.78; filter:brightness(.92)}50%{opacity:1; filter:brightness(1.25)}}
+@keyframes halopulse{0%,100%{opacity:.6; transform:translate(-50%,-44%) scale(.96)}50%{opacity:1; transform:translate(-50%,-44%) scale(1.08)}}
+@keyframes wordglow{0%,100%{opacity:.4}50%{opacity:.62}}
+@keyframes heroScan{0%{top:30%; opacity:0}10%{opacity:.55}50%{top:74%; opacity:.42}90%{opacity:.5}100%{top:30%; opacity:0}}
+@keyframes cutsLift{0%,100%{opacity:.55; background-position:0 0}50%{opacity:.95; background-position:0 -8px}}
+@media (prefers-reduced-motion:reduce){ .giant::before{animation:none} .hero::after{animation:none; top:52%; opacity:.16} }
 
 /* ============================================================ RESPONSIVE */
 @media (max-width:1200px){
-  .grid{grid-template-columns:230px minmax(0,1fr);}
+  .grid{grid-template-columns:var(--col-left) minmax(0,1fr);}
   .rightp{display:none;}
+  .vsplit.right{display:none;}
 }
 @media (max-width:880px){
   body{overflow:auto;} .app{height:auto; min-height:100vh;}
   .grid{grid-template-columns:1fr; gap:12px;}
   .sidebar{flex-direction:row; flex-wrap:wrap; overflow:visible;} .sidebar .tool{flex:1 1 130px;} .sgroup{width:100%;}
   .center{grid-template-rows:auto auto auto;} .viewer{min-height:340px;}
+  .vsplit,.hsplit{display:none;}
   .by{display:none;}
 }
 @media (prefers-reduced-motion:reduce){ *{animation-duration:.001s !important; animation-iteration-count:1 !important;} }
+/* ===== JARVIS HERO OVERHAUL — additive, do not remove existing rules ===== */
+:root{
+  --hue-avatar:#8a6cff; --hue-core:#9b7bff; --hue-source:#7fb6ff; --hue-forge:#c06bff;
+  --acc-dyn:#8a6cff;
+}
+.hero{ --acc-dyn: var(--hue-avatar); }
+/* mode switch pill */
+.modeSwitch{
+  position:absolute; z-index:7; top:34px; left:50%; transform:translateX(-50%);
+  display:flex; gap:4px; padding:5px; border-radius:999px;
+  background:linear-gradient(180deg,rgba(22,24,38,.74),rgba(9,10,17,.62));
+  border:1px solid rgba(255,255,255,.085);
+  box-shadow:0 14px 38px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.07);
+  backdrop-filter:blur(16px) saturate(125%); -webkit-backdrop-filter:blur(16px) saturate(125%);
+}
+.modeSwitch button{
+  appearance:none; cursor:pointer; border:0; background:transparent; color:var(--muted);
+  font:600 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.22em;
+  padding:9px 19px; border-radius:999px; transition:color .25s ease, background .25s ease, box-shadow .25s ease;
+  text-transform:uppercase;
+}
+.modeSwitch button:hover{ color:var(--ice); }
+.modeSwitch button.on{
+  color:#fff;
+  background:radial-gradient(120% 120% at 50% 0%, color-mix(in srgb,var(--acc-dyn) 42%, transparent), transparent 70%),
+             linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--acc-dyn) 45%, transparent),
+             0 6px 22px color-mix(in srgb,var(--acc-dyn) 30%, transparent);
+}
+.modeSwitch button:focus-visible{ outline:2px solid var(--acc-dyn); outline-offset:2px; }
+
+/* avatar mount — layered like #bust3d, framed a touch wider for a bust read */
+#avatar3d{
+  position:absolute; inset:-4% -8%; z-index:5; display:block;
+  pointer-events:none; opacity:0; transition:opacity .42s ease;
+}
+#avatar3d canvas{ width:100%!important; height:100%!important; display:block; }
+/* abstract obsidian-mask overlay: dissolve the edges + torso into the dark
+   so the GLB reads as an emerging AI mask, never a full human figure */
+/* soft "emerging from dark" feather — NO hard rectangular box.
+   Only a whisper of edge vignette (round, not boxy) + a gentle bottom ground
+   so the bust dissolves into the hero instead of sitting in a black panel. */
+#avatar3d::before{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:6;
+  background:
+    radial-gradient(82% 92% at 50% 44%, transparent 60%, rgba(8,6,18,.18) 100%),
+    linear-gradient(180deg, transparent 52%, rgba(6,4,14,.55) 90%, rgba(5,4,12,.78) 100%);
+}
+/* screen-space scanlines over avatar — slow, fine, barely there */
+#avatar3d::after{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:6; opacity:.13; mix-blend-mode:screen;
+  background:repeating-linear-gradient(to bottom, rgba(150,120,255,.05) 0 1px, transparent 1px 6px);
+  animation:scanDrift 22s linear infinite;
+}
+@keyframes scanDrift{ from{background-position:0 0} to{background-position:0 72px} }
+
+/* source + forge mounts */
+.heroMount{
+  position:absolute; inset:0; z-index:5; display:block; opacity:0; pointer-events:none;
+  transition:opacity .42s ease;
+}
+.heroMount canvas{ width:100%!important; height:100%!important; display:block }
+
+/* mode visibility orchestration via data-mode on #figure */
+#figure[data-mode="avatar"] #avatar3d{ opacity:1; }
+#figure[data-mode="core"] #bust3d{ opacity:1!important; }
+#figure:not([data-mode="core"]) #bust3d{ opacity:0; transition:opacity .42s ease; }
+#figure:not([data-mode="core"]) #bustFallback{ opacity:0!important; transition:opacity .42s ease; }
+#figure[data-mode="source"] #sourceMap{ opacity:1; }
+#figure[data-mode="forge"] #forgeStage{ opacity:1; }
+/* SOURCE fills the hero band but stays ON-SCREEN (no huge off-canvas breakout that
+   pushed clusters out of view). Pointer events on so the user can zoom + pan the graph. */
+#figure[data-mode="source"] #sourceMap{ left:-7%; right:-7%; top:0; bottom:0; pointer-events:auto; cursor:grab; }
+#figure[data-mode="source"] #sourceMap.grabbing{ cursor:grabbing; }
+#figure[data-mode="forge"]  #forgeStage{ left:-26%; right:-26%; top:-6%;  bottom:-6%; }
+
+/* per-mode hero composition — same system, distinct intent.
+   The wordmark recedes for graph/build modes so the entity/graph reads,
+   and stays prominent for avatar/core. (Aura stays state-driven for error feedback.) */
+.hero[data-mode="avatar"] .giant{ opacity:.92; }
+/* keep the dark backing soft in avatar mode so it never reads as a black block */
+.hero[data-mode="avatar"] .figure .haze{ opacity:.62; }
+.hero[data-mode="core"]   .giant{ opacity:1; }
+.hero[data-mode="source"] .giant{ opacity:.5; }
+.hero[data-mode="source"] .wordEcho{ opacity:.28; }
+.hero[data-mode="forge"]  .giant{ opacity:.62; }
+.hero[data-mode="source"] .heroCuts,
+.hero[data-mode="forge"]  .heroCuts{ opacity:.28; }
+
+/* editorial microtexts around the hero */
+.heroMicro{ position:absolute; z-index:2; pointer-events:none;
+  font:600 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.34em;
+  color:rgba(154,163,184,.40); text-transform:uppercase; white-space:nowrap;
+  opacity:0; transition:opacity .5s ease; mix-blend-mode:screen;
+}
+.heroMicro.show{ opacity:1; }
+.heroMicro.m1{ top:22%; left:6%; transform:rotate(-90deg); transform-origin:left top; }
+.heroMicro.m2{ bottom:16%; right:5%; }
+.heroMicro.m3{ top:30%; right:4%; transform:rotate(90deg); transform-origin:right top; }
+.heroMicro.m4{ bottom:24%; left:6%; }
+
+/* forge call-to-action */
+.forgeCTA{
+  position:absolute; z-index:7; left:50%; bottom:18px; transform:translateX(-50%);
+  display:none; align-items:center; gap:8px; padding:9px 16px; border-radius:999px; cursor:pointer;
+  font:700 11px/1 ui-monospace,Menlo,monospace; letter-spacing:.16em; color:#fff; text-transform:uppercase;
+  border:1px solid color-mix(in srgb,var(--hue-forge) 45%, transparent);
+  background:radial-gradient(120% 140% at 50% 0%, color-mix(in srgb,var(--hue-forge) 40%, transparent), rgba(12,13,20,.7) 75%);
+  box-shadow:0 8px 26px color-mix(in srgb,var(--hue-forge) 28%, transparent), inset 0 1px 0 rgba(255,255,255,.08);
+  transition:transform .18s ease, box-shadow .25s ease;
+}
+.forgeCTA:hover{ transform:translateX(-50%) translateY(-1px); }
+.forgeCTA.show{ display:inline-flex; }
+.forgeCTA .spark{ width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 10px var(--hue-forge); }
+
+/* stronger wordmark layering */
+.hero .giant{ position:relative; }
+.hero .giant::after{
+  content:"JARVIS"; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  background-size:240% 100%; animation:wmScan 9s linear infinite; opacity:.0;
+}
+.hero.thinking .giant::after{ opacity:.65; animation-duration:3.2s; }
+@keyframes wmScan{ from{background-position:160% 0} to{background-position:-60% 0} }
+/* horizontal fracture cuts on the wordmark */
+.hero .giant::before{
+  content:""; position:absolute; left:-4%; right:-4%; top:46%; height:2px; pointer-events:none;
+  background:linear-gradient(90deg,transparent, color-mix(in srgb,var(--acc-dyn) 60%, transparent), transparent);
+  opacity:.0; transform:translateY(0); animation:cutSlide 6.5s ease-in-out infinite;
+}
+.hero.thinking .giant::before{ opacity:.5; animation-duration:2.6s; }
+@keyframes cutSlide{ 0%,100%{transform:translateY(-60px);opacity:0} 50%{transform:translateY(60px);opacity:.6} }
+
+/* state flash overlay on hero */
+.hero .stateFlash{ position:absolute; inset:0; z-index:8; pointer-events:none; opacity:0; }
+.hero .stateFlash.ok{ animation:flashOk 1.6s ease-out; }
+.hero .stateFlash.bad{ animation:flashBad 1.6s ease-out; }
+@keyframes flashOk{ 0%{opacity:.0} 12%{opacity:.5; box-shadow:inset 0 0 120px color-mix(in srgb,var(--acc-dyn) 60%, transparent)} 100%{opacity:0} }
+@keyframes flashBad{ 0%{opacity:.0} 12%{opacity:.55; box-shadow:inset 0 0 120px color-mix(in srgb,var(--bad) 60%, transparent)} 100%{opacity:0} }
+
+@media (prefers-reduced-motion: reduce){
+  #avatar3d::after, .hero .giant::after, .hero .giant::before{ animation:none!important; }
+}
+/* ===== END JARVIS HERO OVERHAUL ===== */
 </style>
 </head>
 <body>
@@ -422,6 +684,17 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.6
         data-title="Run the safety gate?"
         data-text="This executes the local safety-gate checks against the working tree. Read-only verification — it changes nothing and never commits, pushes or deploys."><span class="i">⛨</span>Safety Gate</button>
 
+      <div class="sgroup">Forge Approval</div>
+      <button class="tool" data-act="cmd" data-cmd="/approval"><span class="i">⊜</span>Approval Center</button>
+      <button class="tool" data-act="cmd" data-cmd="/approve-latest"><span class="i">✓</span>Approve Latest</button>
+      <button class="tool" data-act="cmd" data-cmd="/implementation-prompt"><span class="i">✍</span>Implementation Prompt</button>
+
+      <div class="sgroup">Apply Guard · local only</div>
+      <button class="tool" data-act="cmd" data-cmd="/apply-guard"><span class="i">⛉</span>Apply Guard</button>
+      <button class="tool" data-act="cmd" data-cmd="/apply-plan"><span class="i">◳</span>Apply Plan</button>
+      <button class="tool" data-act="cmd" data-cmd="/apply-latest"><span class="i">▷</span>Apply Latest <span class="tag" style="margin-left:auto;font-family:var(--font-mono);font-size:8px;letter-spacing:.1em;color:var(--violet-soft);border:1px solid rgba(124,92,255,.3);border-radius:6px;padding:2px 6px;">DRY-RUN</span></button>
+
+            <button class="tool" data-act="get" data-path="/sources-dashboard"><span class="i">&#9635;</span>Local Dashboard &middot; local</button>
       <div class="sgroup">Restricted · human only</div>
       <span class="tool lock" title="Human-only — never executed from this cockpit"><span class="i">⏼</span>Commit<span class="tag">LOCKED</span></span>
       <span class="tool lock" title="Human-only — never executed from this cockpit"><span class="i">↥</span>Push<span class="tag">LOCKED</span></span>
@@ -434,7 +707,21 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.6
       <section class="hero">
         <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
         <span class="tagtop">JARVIS CORE · LOCAL RUNTIME</span>
+    <div class="modeSwitch" role="tablist" aria-label="Hero mode">
+      <button type="button" data-mode="avatar" class="on" role="tab" aria-selected="true">Avatar</button>
+      <button type="button" data-mode="core" role="tab" aria-selected="false">Core</button>
+      <button type="button" data-mode="source" role="tab" aria-selected="false">Source</button>
+      <button type="button" data-mode="forge" role="tab" aria-selected="false">Forge</button>
+    </div>
+    <div class="heroMicro m1" aria-hidden="true"></div>
+    <div class="heroMicro m2" aria-hidden="true"></div>
+    <div class="heroMicro m3" aria-hidden="true"></div>
+    <div class="heroMicro m4" aria-hidden="true"></div>
+    <div class="stateFlash" aria-hidden="true"></div>
+    <button type="button" class="forgeCTA" aria-hidden="true"><span class="spark"></span>Forge Feature</button>
+        <div class="wordEcho" aria-hidden="true">JARVIS</div>
         <h1 class="giant">JARVIS</h1>
+        <div class="heroCuts" aria-hidden="true"></div>
         <div class="figure" id="figure" data-state="offline">
           <div class="shadow"></div>
           <div class="tilt" id="tilt">
@@ -442,70 +729,54 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.6
             <div class="aura"></div>
             <div class="ring"></div>
             <div class="ring b"></div>
-            <div id="bust3d" class="bust3d" role="img" aria-label="JARVIS humanoid — real-time 3D model"></div>
-            <svg class="bust" id="bustFallback" viewBox="0 0 440 600" aria-label="JARVIS abstract crystal entity">
+    <div id="avatar3d" aria-hidden="true"></div>
+    <div id="sourceMap" class="heroMount" aria-hidden="true"></div>
+    <div id="forgeStage" class="heroMount" aria-hidden="true"></div>
+            <div id="bust3d" class="bust3d" role="img" aria-label="JARVIS AI core — live procedural crystal entity"></div>
+            <svg class="bust" id="bustFallback" viewBox="0 0 440 600" aria-label="JARVIS abstract crystal AI core">
               <defs>
-                <linearGradient id="glass" x1="14%" y1="8%" x2="86%" y2="96%">
-                  <stop offset="0%" stop-color="#c6cbf8"/><stop offset="22%" stop-color="#8a8fd4"/>
-                  <stop offset="46%" stop-color="#3e3c66"/><stop offset="72%" stop-color="#181830"/><stop offset="100%" stop-color="#0a0a18"/>
+                <linearGradient id="glass" x1="20%" y1="6%" x2="80%" y2="98%">
+                  <stop offset="0%" stop-color="#cdd2ff"/><stop offset="24%" stop-color="#8a8fd4"/>
+                  <stop offset="52%" stop-color="#3a386a"/><stop offset="78%" stop-color="#16142c"/><stop offset="100%" stop-color="#080714"/>
                 </linearGradient>
-                <radialGradient id="headVol" cx="36%" cy="28%" r="76%">
-                  <stop offset="0%" stop-color="rgba(236,238,255,.55)"/><stop offset="32%" stop-color="rgba(170,150,255,.06)"/>
-                  <stop offset="64%" stop-color="rgba(18,16,38,.16)"/><stop offset="100%" stop-color="rgba(4,4,12,.68)"/>
-                </radialGradient>
+                <linearGradient id="shardG" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#2a2350"/><stop offset="100%" stop-color="#0b0a18"/>
+                </linearGradient>
                 <radialGradient id="spec" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color="rgba(245,246,255,.9)"/><stop offset="55%" stop-color="rgba(245,246,255,.12)"/><stop offset="100%" stop-color="transparent"/>
-                </radialGradient>
-                <radialGradient id="shadeR" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color="rgba(3,3,10,.5)"/><stop offset="100%" stop-color="transparent"/>
-                </radialGradient>
-                <radialGradient id="socket" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color="rgba(3,3,10,0)"/><stop offset="52%" stop-color="rgba(3,3,10,.6)"/><stop offset="100%" stop-color="transparent"/>
-                </radialGradient>
-                <radialGradient id="cheekL" cx="34%" cy="34%" r="42%">
-                  <stop offset="0%" stop-color="rgba(233,236,255,.3)"/><stop offset="100%" stop-color="transparent"/>
+                  <stop offset="0%" stop-color="rgba(245,246,255,.85)"/><stop offset="60%" stop-color="rgba(245,246,255,.1)"/><stop offset="100%" stop-color="transparent"/>
                 </radialGradient>
                 <filter id="soft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5"/></filter>
-                <filter id="rock" x="0" y="0" width="100%" height="100%">
-                  <feTurbulence type="fractalNoise" baseFrequency="0.028 0.045" numOctaves="4" seed="11" stitchTiles="stitch" result="n"/>
-                  <feColorMatrix in="n" type="matrix"
-                    values="0.30 0 0.48 0 0   0.10 0 0.18 0 0   0.48 0 0.80 0 0   0 0 0 0.65 0"/>
-                </filter>
-                <clipPath id="headClip"><path id="clipPath"/></clipPath>
               </defs>
-              <path class="glow" id="silGlow"/>
-              <path id="silBody" fill="url(#glass)"/>
-              <g clip-path="url(#headClip)">
-                <path class="mesh" id="mesh"/>
-                <rect class="rock" x="0" y="0" width="440" height="600" filter="url(#rock)"/>
-                <rect x="0" y="0" width="440" height="600" fill="url(#headVol)"/>
-                <ellipse cx="300" cy="300" rx="74" ry="130" fill="url(#shadeR)" opacity=".55"/>
-                <ellipse class="lit" cx="156" cy="172" rx="84" ry="100" fill="url(#cheekL)"/>
-                <ellipse cx="150" cy="146" rx="62" ry="44" fill="url(#spec)" opacity=".8"/>
-                <ellipse cx="218" cy="250" rx="14" ry="84" fill="url(#spec)" opacity=".3"/>
-                <ellipse cx="220" cy="438" rx="128" ry="78" fill="url(#socket)" opacity=".55"/>
-                <path class="lipline" d="M190 332 Q220 343 250 332"/>
+              <!-- violet aura -->
+              <polygon class="glow" points="220,118 378,210 378,390 220,482 62,390 62,210"/>
+              <!-- geodesic containment field (two hexagons overlaid → 12-point star) -->
+              <polygon class="shell"   points="220,150 349.9,225 349.9,375 220,450 90.1,375 90.1,225"/>
+              <polygon class="shell b" points="370,300 295,429.9 145,429.9 70,300 145,170.1 295,170.1"/>
+              <!-- fractal shard burst -->
+              <g class="shards">
+                <polygon class="shard" fill="url(#shardG)" points="220,146 209,198 231,198"/>
+                <polygon class="shard" fill="url(#shardG)" points="366,222 316,252 326,230"/>
+                <polygon class="shard" fill="url(#shardG)" points="366,378 326,370 316,348"/>
+                <polygon class="shard" fill="url(#shardG)" points="220,454 231,402 209,402"/>
+                <polygon class="shard" fill="url(#shardG)" points="74,378 124,348 114,370"/>
+                <polygon class="shard" fill="url(#shardG)" points="74,222 114,230 124,252"/>
               </g>
-              <!-- recessed sockets -->
-              <ellipse cx="176" cy="206" rx="44" ry="25" fill="url(#socket)" opacity=".75"/>
-              <ellipse cx="266" cy="206" rx="44" ry="25" fill="url(#socket)" opacity=".75"/>
-              <!-- brow ridges + nostrils -->
-              <path class="brow" d="M148 182 Q177 170 206 184"/>
-              <path class="brow" d="M236 184 Q265 170 294 182"/>
-              <ellipse class="nostril" cx="207" cy="300" rx="4.5" ry="3"/>
-              <ellipse class="nostril" cx="233" cy="300" rx="4.5" ry="3"/>
-              <!-- eyes -->
-              <g class="eyes">
-                <ellipse class="eyeglow" cx="176" cy="206" rx="26" ry="11"/>
-                <ellipse class="eyeglow" cx="266" cy="206" rx="26" ry="11"/>
-                <path class="eye" d="M152 206 Q176 192 200 206 Q176 218 152 206 Z"/>
-                <path class="eye" d="M242 206 Q266 192 290 206 Q266 218 242 206 Z"/>
-                <circle class="pupil" cx="176" cy="206" r="3.4"/>
-                <circle class="pupil" cx="266" cy="206" r="3.4"/>
+              <!-- obsidian crystal core (faceted octahedron, no face) -->
+              <g class="core">
+                <polygon class="facet" fill="url(#glass)" opacity=".94" points="220,170 318,300 220,300"/>
+                <polygon class="facet" fill="url(#glass)" opacity=".76" points="220,170 122,300 220,300"/>
+                <polygon class="facet" fill="url(#glass)" opacity=".6"  points="220,430 318,300 220,300"/>
+                <polygon class="facet" fill="url(#glass)" opacity=".46" points="220,430 122,300 220,300"/>
+                <path class="mesh" d="M220,170 L220,430 M122,300 L318,300 M170,235 L270,365 M270,235 L170,365"/>
+                <ellipse cx="248" cy="216" rx="26" ry="42" fill="url(#spec)" opacity=".5" transform="rotate(28 248 216)"/>
               </g>
-              <path class="edge" id="silEdge" fill="none"/>
+              <!-- soul glow · spark · sensor visor -->
+              <circle class="coreglow" cx="220" cy="300" r="28"/>
+              <circle class="spark" cx="220" cy="300" r="3.6"/>
+              <line class="visorline" x1="152" y1="300" x2="288" y2="300"/>
             </svg>
             <div class="gloss"></div>
+            <div class="awaken" aria-hidden="true"><span class="halo"></span><span class="visor"></span><span class="eye l"></span><span class="eye r"></span></div>
           </div>
         </div>
         <div class="herometa">Research becomes plan · <b>Plan becomes controlled action</b> · Human approval required</div>
@@ -532,7 +803,7 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.6
           <div class="empty">
             <span class="orb"></span>
             <div><b>JARVIS standing by.</b><span class="hint">Choose a tool on the left, or type a command below.</span></div>
-            <div class="hint">Try <code>/status</code> · <code>/self-test</code> · <code>/plan</code> · <code>/search n8n</code></div>
+            <div class="hint">Try <code>/full-test</code> · <code>/api-index</code> · <code>/runbook</code> · <code>/doctor</code></div>
           </div>
         </div>
       </section>
@@ -540,7 +811,7 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.6
       <!-- CHAT / COMMAND BAR -->
       <form class="chat" id="chat" autocomplete="off">
         <span class="chev">›</span>
-        <input id="cmd" type="text" placeholder="Ask JARVIS or run a local command…   /status /self-test /plan /search &lt;term&gt;">
+        <input id="cmd" type="text" placeholder="Ask JARVIS…   /forge &lt;feature&gt; /approval /approve-latest /apply-plan /apply-latest /apply-confirm">
         <button type="submit" class="cbtn send">Send</button>
         <button type="button" class="cbtn run" id="runBtn">Run</button>
         <button type="button" class="cbtn" id="copyBtn2">Copy Output</button>
@@ -623,29 +894,32 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12px; line-height:1.6
 "use strict";
 const $ = (id)=>document.getElementById(id);
 
-/* ---------- crystal bust geometry ---------- */
-const SIL = "M220 62 C286 62 332 104 336 196 C339 252 326 302 284 334 C268 348 256 354 252 368 "
-          + "L252 392 C252 406 262 412 300 420 C356 432 410 476 426 600 L14 600 "
-          + "C30 476 84 432 140 420 C178 412 188 406 188 392 L188 368 "
-          + "C184 354 172 348 156 334 C114 302 101 252 104 196 C108 104 154 62 220 62 Z";
-function buildBust(){
-  ["clipPath","silBody","silGlow","silEdge"].forEach(id=>$(id).setAttribute("d",SIL));
-  let d="", S=28;
-  for(let y=40;y<=440;y+=S) d+=`M60 ${y}L380 ${y}`;
-  for(let x=-220;x<=640;x+=S){ d+=`M${x} 40L${x+400} 440`; d+=`M${x} 440L${x+400} 40`; }
-  $("mesh").setAttribute("d",d);
-}
+/* ---------- abstract crystal-core fallback ----------
+   The SVG #bustFallback is now a static faceted AI core (no facial geometry), so
+   nothing needs to be path-built at runtime. Kept as a guarded no-op for safety in
+   case future markup re-introduces driven paths. */
+function buildBust(){ /* abstract core SVG is fully declarative — nothing to build */ }
 
-/* ---------- figure state ---------- */
-const ACCENT = {idle:"#7c5cff", working:"#a98bff", ok:"#9fa6ff", error:"#ff6f8a", offline:"#3a3850"};
+/* ---------- entity / AI-core state ---------- */
+const ACCENT = {idle:"#8a6cff", working:"#b8a2ff", ok:"#aab1ff", error:"#ff708d", offline:"#3a3850"};
 let figTimer=null, apiOnline=false;
 function setFig(state, hold){
   if(figTimer){clearTimeout(figTimer); figTimer=null;}
   const f=$("figure"); f.dataset.state=state;
   f.style.setProperty("--accent", ACCENT[state]||ACCENT.idle);
-  if(window.__jarvisModelState) window.__jarvisModelState(state); // live-tint the 3D rim/emissive
+  const hero=document.querySelector(".hero"); if(hero) hero.classList.toggle("thinking", state==="working");
+  if(window.__jarvisModelState) window.__jarvisModelState(state); // live-drive the procedural AI core
   if(hold) figTimer=setTimeout(()=>setFig(apiOnline?"idle":"offline"), hold);
 }
+/* Public hook — drive the centre entity from anywhere:
+   window.setJarvisVisualState('idle'|'processing'|'success'|'error').
+   'processing' holds until cleared; success/error flash ~1.8s then settle. */
+const VSTATE = {idle:"idle", processing:"working", working:"working", success:"ok", ok:"ok", error:"error", offline:"offline"};
+window.setJarvisVisualState = function(s){
+  const mapped = VSTATE[s] || "idle";
+  if(mapped==="ok"||mapped==="error") setFig(mapped, 1800);
+  else setFig(mapped);
+};
 
 /* ---------- helpers ---------- */
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -755,7 +1029,7 @@ const LOGS=[]; // in-memory command history for this session
 function emptyHTML(){
   return '<div class="empty"><span class="orb"></span><div><b>JARVIS standing by.</b>'
     +'<span class="hint">Choose a tool or type a command.</span></div>'
-    +'<div class="hint">Try <code>/status</code> · <code>/self-test</code> · <code>/plan</code> · <code>/search n8n</code></div></div>';
+    +'<div class="hint">Try <code>/full-test</code> · <code>/api-index</code> · <code>/runbook</code> · <code>/doctor</code></div></div>';
 }
 function renderLogs(){
   if(!LOGS.length) return '<div class="logempty">No actions yet. Run a tool or a slash command — your local history appears here (click to re-run).</div>';
@@ -870,6 +1144,7 @@ document.querySelectorAll(".tool[data-act]").forEach(btn=>{
     else if(act==="confirm") openConfirm(path, btn.dataset.label, btn.dataset.title, btn.dataset.text);
     else if(act==="searchfocus"){ const i=$("cmd"); i.value="/search "; i.focus(); }
     else if(act==="readerfocus"){ const i=$("cmd"); i.value="/open "; i.focus(); }
+    else if(act==="cmd"){ runCommand(btn.dataset.cmd||""); }
     else if(act==="newcmd"){ $("cmd").value=""; $("cmd").focus(); resetViewer(); }
   });
 });
@@ -878,20 +1153,77 @@ document.querySelectorAll(".tool[data-act]").forEach(btn=>{
 const CMDMAP={ status:["/status","get"], "self-test":["/self-test","post"], selftest:["/self-test","post"],
   sources:["/sources","get"], plan:["/artifact?file=plan","get"], backlog:["/artifact?file=backlog","get"],
   n8n:["/artifact?file=n8n","get"], latest:["/latest","get"], validate:["/validate","post"], next:["/next","get"] };
-function runCommand(raw){
-  const text=(raw||"").trim(); if(!text) return;
-  if(text[0]==="/"){
-    const parts=text.slice(1).split(/\s+/); const c=parts[0].toLowerCase(); const arg=text.slice(1+parts[0].length).trim();
-    if(c==="search"){ if(arg.length<2){ showMessage("Search needs at least 2 characters. Example: /search n8n","warn",text); return; }
-      call("/source-search?q="+encodeURIComponent(arg), {}, "/search "+arg); return; }
-    if(c==="open"||c==="source"){ if(arg.length<2){ showMessage("Open needs a path. Example: /open 02_SOURCES/DEEP_RESEARCH/README.md","warn",text); return; }
-      call("/source?path="+encodeURIComponent(arg), {}, "Open · "+arg); return; }
-    if(c==="digest"){ openConfirm("/digest","Generate Digest","Generate local digest?","This runs the real local research → plan pipeline and may take a while. It only writes files inside the project — no commit, push or deploy."); return; }
-    if(c==="safety"||c==="safety-gate"){ openConfirm("/safety-gate","Safety Gate","Run the safety gate?","This executes the local safety-gate checks against the working tree. Read-only verification — it changes nothing."); return; }
-    if(CMDMAP[c]){ const [p,m]=CMDMAP[c]; call(p, m==="post"?post({}):{}, "/"+c); return; }
-    showMessage("Unknown command: /"+c+". Try /status, /next, /self-test, /sources, /plan, /backlog, /n8n, /latest, /validate, /digest, /safety, /search <term>, /open <path>.","warn",text); return;
+async function backendCommand(text){
+  const j=await call("/command", post({command:text}), "Command · "+text);
+  if(!j || j.blocked) return;
+  if(j.routed_to){
+    const method=(j.method||"GET").toUpperCase();
+    await call(j.routed_to, method==="POST"?post({}):{}, j.routed_to);
   }
-  showMessage("Chat reasoning not connected yet. Use slash commands or local tools.","info",text);
+}
+function runCommand(raw){
+  const text=(raw||"").trim();
+  if(!text) return;
+  $("cmd").value="";
+  // FORGE engine routing: "/forge <feature>", "forge: <feature>", "forja <feature>"
+  const fm=text.match(/^\/?(forge|forja)\b[:\s]*([\s\S]*)$/i);
+  if(fm){
+    const feat=(fm[2]||"").trim();
+    if(!feat){ showMessage("Type a feature after /forge — e.g. /forge cria uma feature de internet research", "info", text); $("cmd").value="/forge "; $("cmd").focus(); return; }
+    call('/forge-run', post({goal:feat, mode:'normal'}), 'Forge · '+feat);
+    return;
+  }
+  // Block 87 — Forge Apply Guarded: /apply-guard /apply-plan /apply-latest /apply-confirm
+  const gm=text.match(/^\/?(apply-guard|applyguard|apply-plan|applyplan|apply-latest|applylatest|apply-confirm|applyconfirm)\b[:\s]*([\s\S]*)$/i);
+  if(gm){
+    const cmd=gm[1].toLowerCase().replace(/[^a-z]/g,''); // applyguard / applyplan / applylatest / applyconfirm
+    const arg=(gm[2]||"").trim();
+    const CONF="APPLY_LOCAL_ONLY_NO_COMMIT";
+    if(cmd==="applyguard"){ call('/forge-apply-guard-dashboard', {}, 'Apply Guard'); return; }
+    if(cmd==="applyplan"){ call('/forge-apply-guard-plan', post(arg?{decision_id:arg}:{}), 'Apply Plan'); return; }
+    if(cmd==="applylatest"){ call('/forge-apply-guard-execute', post({}), 'Apply Latest · dry-run'); return; }
+    // apply-confirm: require the explicit token typed in, so it can never fire by accident
+    if(arg.indexOf(CONF)===0){
+      const rest=arg.slice(CONF.length).trim();
+      call('/forge-apply-guard-execute', post(Object.assign({confirm:CONF}, rest?{decision_id:rest}:{})), 'Apply CONFIRM · local'); return;
+    }
+    showMessage('To really apply LOCALLY, type the full token:  /apply-confirm '+CONF+'  (optionally a decision_id after it). It writes a new isolated block to jarvis_api.py with backup + auto-rollback — no commit, push or deploy.', 'info', text);
+    $("cmd").value='/apply-confirm '+CONF+' '; $("cmd").focus(); return;
+  }
+  // Block 86 — Forge Approval Center: /approval /approve-latest /reject-latest /implementation-prompt
+  const am=text.match(/^\/?(approval|approve-latest|approvelatest|reject-latest|rejectlatest|implementation-prompt|implementationprompt|impl-prompt)\b[:\s]*([\s\S]*)$/i);
+  if(am){
+    const cmd=am[1].toLowerCase();
+    const arg=(am[2]||"").trim();
+    if(cmd==="approval"){ call('/forge-approval-dashboard', {}, 'Approval Center'); return; }
+    if(cmd==="approve-latest"||cmd==="approvelatest"){ call('/forge-approval-decision', post({decision:"approved", notes:arg||"Approved from cockpit"}), 'Approve latest preview'); return; }
+    if(cmd==="reject-latest"||cmd==="rejectlatest"){ call('/forge-approval-decision', post({decision:"rejected", notes:arg||"Rejected from cockpit"}), 'Reject latest preview'); return; }
+    call('/forge-implementation-prompt', post(arg?{decision_id:arg}:{}), 'Implementation Prompt'); return;  // /implementation-prompt
+  }
+  // Block 84 — Workshop / Batch / Matrix / Backlog / Claude Prompt
+  const wm=text.match(/^\/?(workshop|batch|matrix|backlog|claude-prompt|claudeprompt)\b[:\s]*([\s\S]*)$/i);
+  if(wm){
+    const cmd=wm[1].toLowerCase().replace('claudeprompt','claude-prompt');
+    const arg=(wm[2]||"").trim();
+    if(cmd==="matrix"){ call('/capability-matrix', {}, 'Capability Matrix'); return; }
+    if(cmd==="backlog"){
+      const am=arg.match(/^add[:\s]+([\s\S]+)$/i);
+      if(am){ call('/feature-backlog', post({title:am[1].trim(), source:'manual'}), 'Backlog add'); return; }
+      call('/feature-backlog', {}, 'Feature Backlog'); return;
+    }
+    if(cmd==="workshop"){
+      if(!arg){ showMessage("Type a big goal after /workshop — e.g. /workshop melhorar o JARVIS com internet research, memória e dashboards", "info", text); $("cmd").value="/workshop "; $("cmd").focus(); return; }
+      call('/forge-workshop', post({goal:arg, mode:'normal'}), 'Workshop · '+arg.slice(0,40)); return;
+    }
+    if(cmd==="batch"){
+      const ideas=arg.split(/[;\n]+/).map(s=>s.trim()).filter(s=>s.length>2);
+      if(!ideas.length){ showMessage("List ideas separated by ; — e.g. /batch idea 1; idea 2; idea 3", "info", text); $("cmd").value="/batch "; $("cmd").focus(); return; }
+      call('/forge-batch', post({ideas:ideas, mode:'normal'}), 'Batch · '+ideas.length+' ideas'); return;
+    }
+    if(!arg){ showMessage("Type a feature after /claude-prompt — e.g. /claude-prompt internet research", "info", text); $("cmd").value="/claude-prompt "; $("cmd").focus(); return; }
+    call('/claude-feature-prompt', post({goal:arg, mode:'normal'}), 'Claude Prompt · '+arg.slice(0,40)); return;
+  }
+  backendCommand(text);
 }
 $("chat").addEventListener("submit", e=>{ e.preventDefault(); const v=$("cmd").value; runCommand(v); });
 $("runBtn").addEventListener("click", ()=> runCommand($("cmd").value));
@@ -1004,20 +1336,25 @@ $("cmd").focus();
 </script>
 
 <!-- ============================================================
-     3D ENGINE · Three.js (module). Loads the GLB, strips its pale plastic
-     material, repaints it dark violet "obsidian", lights it with a cold key +
-     violet rim, casts a floor shadow, frames it as a dominant bust, and rotates
-     it gently. Pure rendering of the existing asset — no app framework.
-     Any failure → window.__jarvisModelFallback() shows the SVG bust instead.
+     AI-CORE ENGINE · Three.js (module). NO humanoid GLB anymore — the centre is a
+     fully procedural entity: a faceted obsidian-crystal heart with a glowing inner
+     "soul", wrapped in a Fresnel energy shell (rising holographic scan), suspended
+     inside a counter-rotating geodesic containment field, ringed by an orbiting
+     fractal shard-burst and a fine particle dust, crossed by an abstract sensor
+     visor. There is no face, no head, no body — it reads as a living AI core, not a
+     person. idle = dark & contracted · processing = blooms, shards burst outward,
+     visor ignites. Any failure → window.__jarvisModelFallback() shows the abstract
+     crystal SVG instead. Pure rendering — no app framework, no model file needed.
      ============================================================ -->
 <script type="module">
-const STATE_COLORS = { idle:0x7c5cff, working:0xa98bff, ok:0x8f9bff, error:0xff6f8a, offline:0x4a4866 };
+const STATE_COLORS = { idle:0x8a6cff, working:0xc3b0ff, ok:0xaab1ff, error:0xff708d, offline:0x4a4866 };
+const EMISSIVE     = { idle:0x150a38, working:0x3a1f7a, ok:0x241a55, error:0x7a1430, offline:0x080518 };
 (async () => {
   const mount = document.getElementById("bust3d");
   if (!mount) return;
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
   try {
     const THREE = await import("three");
-    const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
     const { RoomEnvironment } = await import("three/addons/environments/RoomEnvironment.js");
 
     const W = () => mount.clientWidth || 1, H = () => mount.clientHeight || 1;
@@ -1025,133 +1362,223 @@ const STATE_COLORS = { idle:0x7c5cff, working:0xa98bff, ok:0x8f9bff, error:0xff6
     const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference:"high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(W(), H());
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.92;
+    renderer.toneMappingExposure = 1.08;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(30, W()/H(), 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(32, W()/H(), 0.1, 100);
+    camera.position.set(0, 0.12, 7.6);
+    camera.lookAt(0, 0, 0);
 
-    // soft neutral reflections so metal/glass don't read as flat black
+    // soft neutral reflections so the obsidian doesn't read as flat black
     const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.05).texture;
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-    // ---- lighting: cold key · violet rim · weak fill · low ambient ----
-    scene.add(new THREE.AmbientLight(0x14141f, 0.55));
-    scene.add(new THREE.HemisphereLight(0x232844, 0x05040a, 0.55));
-    const key = new THREE.DirectionalLight(0xeaf0ff, 2.5);
-    key.position.set(-2.4, 4.0, 3.2);
-    key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
-    key.shadow.bias = -0.0006; key.shadow.radius = 4;
-    scene.add(key);
-    const rim = new THREE.DirectionalLight(STATE_COLORS.idle, 3.4);
-    rim.position.set(3.2, 2.6, -3.0);
-    scene.add(rim);
-    const fill = new THREE.DirectionalLight(0x515b80, 0.7);
-    fill.position.set(2.6, 0.4, 2.4);
-    scene.add(fill);
+    // ---- lighting: cold key · violet rim · weak fill · inner core point ----
+    scene.add(new THREE.AmbientLight(0x101018, 0.6));
+    scene.add(new THREE.HemisphereLight(0x232844, 0x05040a, 0.5));
+    const key  = new THREE.DirectionalLight(0xeaf0ff, 2.2); key.position.set(-2.4, 3.6, 3.2); scene.add(key);
+    const rim  = new THREE.DirectionalLight(STATE_COLORS.idle, 3.2); rim.position.set(3.0, 1.6, -2.6); scene.add(rim);
+    const fill = new THREE.DirectionalLight(0x4a5480, 0.6); fill.position.set(2.4, -0.6, 2.0); scene.add(fill);
+    const corePoint = new THREE.PointLight(STATE_COLORS.idle, 0.4, 9, 2); scene.add(corePoint);
 
-    // ---- floor shadow catcher ----
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(60, 60),
-      new THREE.ShadowMaterial({ opacity:0.5 })
-    );
-    ground.rotation.x = -Math.PI/2;
-    ground.receiveShadow = true;
-    scene.add(ground);
+    // the whole entity lives under one group that floats + parallax-rotates
+    const root = new THREE.Group(); scene.add(root);
 
-    const overridden = []; // materials we tint on state change
+    // ---- obsidian crystal heart (faceted icosahedron, glassy, deep-violet core) ----
+    const obsidian = new THREE.MeshPhysicalMaterial({
+      color:0x120d22, metalness:0.0, roughness:0.15,
+      transmission:0.55, thickness:1.6, ior:1.5,
+      attenuationColor:new THREE.Color(0x6a44ff), attenuationDistance:1.5,
+      clearcoat:1.0, clearcoatRoughness:0.15,
+      emissive:new THREE.Color(EMISSIVE.idle), emissiveIntensity:0.2,
+      envMapIntensity:1.3, transparent:true, flatShading:true, side:THREE.DoubleSide
+    });
+    const coreGeo = new THREE.IcosahedronGeometry(1.2, 1);
+    const core = new THREE.Mesh(coreGeo, obsidian); core.rotation.set(0.5, 0.3, 0.1); root.add(core);
 
-    const loader = new GLTFLoader();
-    loader.load(
-      "/asset/models/jarvis-humanoid.glb",
-      (gltf) => {
-        const model = gltf.scene;
+    // ---- inner "soul": additive glow seen through the transmissive crystal ----
+    const soulMat = new THREE.MeshBasicMaterial({ color:STATE_COLORS.idle, transparent:true, opacity:0.5, blending:THREE.AdditiveBlending, depthWrite:false });
+    const soul = new THREE.Mesh(new THREE.IcosahedronGeometry(0.54, 0), soulMat); root.add(soul);
 
-        // repaint every mesh into translucent dark "obsidian glass" (premium, not plastic)
-        model.traverse((o) => {
-          if (!o.isMesh) return;
-          o.castShadow = true; o.receiveShadow = true;
-          const src = Array.isArray(o.material) ? o.material[0] : o.material;
-          const glass = new THREE.MeshPhysicalMaterial({
-            color: 0x16131f, metalness: 0.42, roughness: 0.34,
-            clearcoat: 0.65, clearcoatRoughness: 0.30,
-            emissive: 0x2a1466, emissiveIntensity: 0.18,
-            transparent: true, opacity: 0.8, side: THREE.DoubleSide,
-            envMapIntensity: 0.7, depthWrite: true   // translucent but self-occluding → no see-through artefacts
-          });
-          // keep surface detail from the original normal map if present
-          if (src && src.normalMap) { glass.normalMap = src.normalMap; if (src.normalScale && glass.normalScale) glass.normalScale.copy(src.normalScale); }
-          o.material = glass;
-          overridden.push(glass);
-        });
-
-        // recenter on origin, feet at y=0 (robust against any GLB scale/pivot)
-        let box = new THREE.Box3().setFromObject(model);
-        const c0 = box.getCenter(new THREE.Vector3());
-        model.position.x -= c0.x; model.position.z -= c0.z; model.position.y -= box.min.y;
-        scene.add(model);
-
-        box = new THREE.Box3().setFromObject(model);
-        const h = Math.max(box.getSize(new THREE.Vector3()).y, 0.001);
-        ground.position.y = 0;
-
-        // frame a dominant bust with generous headroom so the head is never clipped
-        const targetY = h * 0.70;
-        const frameH  = h * 0.92;
-        const fov = camera.fov * Math.PI/180;
-        const dist = (frameH/2) / Math.tan(fov/2) * 1.16;
-        camera.position.set(0, targetY, dist);
-        camera.lookAt(0, targetY, 0);
-        camera.near = Math.max(dist*0.02, 0.01); camera.far = dist*8; camera.updateProjectionMatrix();
-
-        // size the shadow camera to the model
-        const sc = key.shadow.camera;
-        sc.left=-h; sc.right=h; sc.top=h; sc.bottom=-h; sc.near=0.1; sc.far=dist*5; sc.updateProjectionMatrix();
-
-        // live state tint (called by setFig)
-        window.__jarvisModelState = (state) => {
-          const col = STATE_COLORS[state] != null ? STATE_COLORS[state] : STATE_COLORS.idle;
-          rim.color.setHex(col);
-          rim.intensity = state==="working" ? 4.4 : state==="offline" ? 1.6 : 3.4;
-          const ei = state==="working" ? 0.32 : state==="error" ? 0.26 : state==="offline" ? 0.06 : 0.18;
-          overridden.forEach(m => { if (m.emissive) { m.emissive.setHex(state==="error"?0x7a1430:0x2a1466); m.emissiveIntensity = ei; } });
-        };
-
-        // ---- gentle mouse-follow · yaw ±10° · pitch ±5° · no 360 spin ----
-        const MAXY = 10*Math.PI/180, MAXP = 5*Math.PI/180;
-        let tYaw=0, tPitch=0, cYaw=0, cPitch=0, t=0;
-        const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
-        const hero = document.querySelector(".hero") || mount;
-        hero.addEventListener("mousemove", (e) => {
-          const b = hero.getBoundingClientRect();
-          const nx = ((e.clientX-b.left)/b.width - 0.5)*2, ny = ((e.clientY-b.top)/b.height - 0.5)*2;
-          tYaw = Math.max(-1, Math.min(1, nx)) * MAXY;
-          tPitch = Math.max(-1, Math.min(1, ny)) * MAXP;
-        }, {passive:true});
-        hero.addEventListener("mouseleave", () => { tYaw = 0; tPitch = 0; }); // ease back to front
-
-        let ready = false;
-        function render(){
-          if (document.hidden) { requestAnimationFrame(render); return; }
-          t += 0.016;
-          const sway = reduce ? 0 : Math.sin(t*0.55)*0.03;      // ~1.7° idle life, never a turntable
-          cYaw   += ((tYaw + sway) - cYaw) * 0.06;
-          cPitch += (tPitch - cPitch) * 0.06;
-          model.rotation.y = cYaw; model.rotation.x = cPitch;
-          renderer.render(scene, camera);
-          if (!ready) { ready = true; window.__jarvisModelReady = true; mount.setAttribute("data-loaded",""); }
-          requestAnimationFrame(render);
-        }
-        render();
+    // ---- Fresnel energy shell (edge bloom + rising holographic scan) ----
+    const fresnelMat = new THREE.ShaderMaterial({
+      transparent:true, depthWrite:false, side:THREE.FrontSide, blending:THREE.AdditiveBlending,
+      uniforms:{
+        uColor:{ value:new THREE.Color(STATE_COLORS.idle) },
+        uCore:{ value:new THREE.Color(0x0b0718) },
+        uPower:{ value:2.6 }, uInt:{ value:0.95 }, uScan:{ value:0.0 }, uTime:{ value:0.0 }
       },
-      undefined,
-      () => { if (window.__jarvisModelFallback) window.__jarvisModelFallback(); }
-    );
+      vertexShader:`
+        varying vec3 vN; varying vec3 vV; varying vec3 vW;
+        void main(){
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vW = wp.xyz; vN = normalize(mat3(modelMatrix) * normal);
+          vV = normalize(cameraPosition - wp.xyz);
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }`,
+      fragmentShader:`
+        varying vec3 vN; varying vec3 vV; varying vec3 vW;
+        uniform vec3 uColor, uCore; uniform float uPower, uInt, uScan, uTime;
+        void main(){
+          float f = pow(1.0 - clamp(dot(normalize(vN), normalize(vV)), 0.0, 1.0), uPower);
+          float bands = pow(0.5 + 0.5 * sin(vW.y * 30.0 - uTime * 1.6), 6.0);
+          float sweep = smoothstep(0.05, 0.0, abs(fract(vW.y * 0.42 - uTime * 0.12) - 0.5));
+          float a = f * uInt + bands * 0.05 * (0.5 + uScan) + sweep * (0.10 + 0.5 * uScan);
+          vec3 col = mix(uCore, uColor, clamp(f + sweep * 0.55, 0.0, 1.0));
+          gl_FragColor = vec4(col, clamp(a, 0.0, 0.95));
+        }`
+    });
+    const shell = new THREE.Mesh(coreGeo, fresnelMat); shell.scale.setScalar(1.05); root.add(shell);
+
+    // ---- geodesic containment field (two counter-rotating wire shells) ----
+    const wireMat  = new THREE.MeshBasicMaterial({ color:0x9a86ff, wireframe:true, transparent:true, opacity:0.10, blending:THREE.AdditiveBlending, depthWrite:false });
+    const wire  = new THREE.Mesh(new THREE.IcosahedronGeometry(1.78, 2), wireMat); root.add(wire);
+    const wire2Mat = new THREE.MeshBasicMaterial({ color:0x6f5ad6, wireframe:true, transparent:true, opacity:0.05, blending:THREE.AdditiveBlending, depthWrite:false });
+    const wire2 = new THREE.Mesh(new THREE.IcosahedronGeometry(2.18, 1), wire2Mat); root.add(wire2);
+
+    // ---- fractal shard burst orbiting the core (fibonacci sphere) ----
+    const shardMat = new THREE.MeshPhysicalMaterial({
+      color:0x161031, metalness:0.1, roughness:0.22,
+      clearcoat:0.8, clearcoatRoughness:0.25,
+      emissive:new THREE.Color(EMISSIVE.idle), emissiveIntensity:0.25,
+      envMapIntensity:1.1, flatShading:true
+    });
+    const shardGeos = [ new THREE.TetrahedronGeometry(0.17), new THREE.OctahedronGeometry(0.14), new THREE.IcosahedronGeometry(0.13, 0) ];
+    const shardGroup = new THREE.Group(); root.add(shardGroup);
+    const shards = [];
+    const N = reduce ? 16 : 32;
+    for (let i = 0; i < N; i++){
+      const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(Math.max(0, 1 - y*y)), phi = i * 2.399963;
+      const dir = new THREE.Vector3(Math.cos(phi)*r, y*0.82, Math.sin(phi)*r);
+      const s = new THREE.Mesh(shardGeos[i % shardGeos.length], shardMat);
+      s.userData = { dir, baseR:1.78 + (i % 5) * 0.07,
+        spin:new THREE.Vector3(Math.sin(i)*0.5, Math.cos(i*1.3)*0.6, Math.sin(i*0.7)*0.45) };
+      s.scale.setScalar(0.65 + (i % 4) * 0.2);
+      shardGroup.add(s); shards.push(s);
+    }
+
+    // ---- particle dust (in-scene, additive) ----
+    const pCount = reduce ? 70 : 160;
+    const pPos = new Float32Array(pCount * 3);
+    for (let i = 0; i < pCount; i++){
+      const rr = 2.3 + Math.sqrt(i / pCount) * 1.9, th = i * 2.399963, ph = Math.acos(1 - 2 * ((i + 0.5) / pCount));
+      pPos[i*3]   = Math.sin(ph) * Math.cos(th) * rr;
+      pPos[i*3+1] = Math.cos(ph) * rr * 0.68;
+      pPos[i*3+2] = Math.sin(ph) * Math.sin(th) * rr;
+    }
+    const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+    const pMat = new THREE.PointsMaterial({ color:0xb7a6ff, size:0.03, transparent:true, opacity:0.5, blending:THREE.AdditiveBlending, depthWrite:false });
+    const points = new THREE.Points(pGeo, pMat); root.add(points);
+
+    // ---- abstract sensor visor (thin glowing bar across the core — no eyes) ----
+    const visorMat = new THREE.MeshBasicMaterial({ color:0xeef0ff, transparent:true, opacity:0.12, blending:THREE.AdditiveBlending, depthWrite:false });
+    const visor = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 0.05), visorMat); visor.position.z = 1.25; root.add(visor);
+    const visorGlowMat = new THREE.MeshBasicMaterial({ color:STATE_COLORS.idle, transparent:true, opacity:0.08, blending:THREE.AdditiveBlending, depthWrite:false });
+    const visorGlow = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 0.5), visorGlowMat); visorGlow.position.z = 1.1; root.add(visorGlow);
+
+    const emissiveMats = [obsidian, shardMat]; // tinted together on state change
+
+    // ---- state driver: idle calm → processing alive (all values lerp smoothly) ----
+    let curState = "idle", curExpand = 0;
+    let tExpand = 0, tRim = 3.2, tKey = 2.2, tCoreL = 0.4, tEm = 0.2, tWire = 0.10,
+        tSoul = 0.5, tVisor = 0.12, tFresI = 0.95, tFresScan = 0.0, tPts = 0.5;
+    const colCur = new THREE.Color(STATE_COLORS.idle), colTgt = new THREE.Color(STATE_COLORS.idle);
+    const emCur  = new THREE.Color(EMISSIVE.idle),     emTgt  = new THREE.Color(EMISSIVE.idle);
+    window.__jarvisModelState = (state) => {
+      curState = state;
+      const on = state === "working", off = state === "offline", err = state === "error", okk = state === "ok";
+      colTgt.setHex(STATE_COLORS[state] != null ? STATE_COLORS[state] : STATE_COLORS.idle);
+      emTgt.setHex(EMISSIVE[state]   != null ? EMISSIVE[state]   : EMISSIVE.idle);
+      tExpand   = on ? 1 : okk ? 0.5 : err ? 0.4 : off ? -0.45 : 0;
+      tRim      = on ? 5.2 : off ? 1.1 : err ? 3.8 : 3.2;
+      tKey      = off ? 1.4 : 2.2;
+      tCoreL    = on ? 2.4 : okk ? 1.5 : err ? 1.7 : off ? 0.05 : 0.5;
+      tEm       = on ? 0.55 : err ? 0.42 : off ? 0.04 : okk ? 0.4 : 0.2;
+      tWire     = on ? 0.18 : off ? 0.025 : 0.10;
+      tSoul     = on ? 0.95 : off ? 0.12 : okk ? 0.8 : 0.5;
+      tVisor    = on ? 0.95 : off ? 0.0 : okk ? 0.6 : err ? 0.7 : 0.12;
+      tFresI    = on ? 1.45 : off ? 0.35 : 0.95;
+      tFresScan = on ? 1.0 : err ? 0.5 : 0.0;
+      tPts      = off ? 0.16 : on ? 0.75 : 0.5;
+    };
+
+    // ---- gentle mouse-follow (parallax rotation of the whole entity) ----
+    const MAXY = 11*Math.PI/180, MAXP = 7*Math.PI/180;
+    let tYaw = 0, tPitch = 0, cYaw = 0, cPitch = 0;
+    const hero = document.querySelector(".hero") || mount;
+    hero.addEventListener("mousemove", (e) => {
+      const b = hero.getBoundingClientRect();
+      const nx = ((e.clientX-b.left)/b.width - 0.5)*2, ny = ((e.clientY-b.top)/b.height - 0.5)*2;
+      tYaw = Math.max(-1, Math.min(1, nx)) * MAXY;
+      tPitch = Math.max(-1, Math.min(1, ny)) * MAXP;
+    }, {passive:true});
+    hero.addEventListener("mouseleave", () => { tYaw = 0; tPitch = 0; });
+
+    let ready = false, t = 0;
+    const K = 0.06;
+    function render(){
+      if (document.hidden) { requestAnimationFrame(render); return; }
+      t += 0.016;
+      const pulse = (curState === "working" && !reduce) ? (Math.sin(t * 3.0) + 1) / 2 : 0;
+
+      // smooth every state value toward its target
+      curExpand += (tExpand - curExpand) * K;
+      rim.intensity += (tRim - rim.intensity) * K;
+      key.intensity += (tKey - key.intensity) * K;
+      corePoint.intensity += ((tCoreL + pulse * 0.8) - corePoint.intensity) * K;
+      colCur.lerp(colTgt, K); emCur.lerp(emTgt, K);
+      rim.color.copy(colCur); corePoint.color.copy(colCur);
+      soulMat.color.copy(colCur); soulMat.opacity += (tSoul - soulMat.opacity) * K;
+      visorGlowMat.color.copy(colCur);
+      wireMat.color.copy(colCur); wireMat.opacity += ((tWire + pulse * 0.06) - wireMat.opacity) * K;
+      wire2Mat.opacity += (tWire * 0.5 - wire2Mat.opacity) * K;
+      visorMat.opacity += (tVisor - visorMat.opacity) * K;
+      visorGlowMat.opacity += ((tVisor * 0.45) - visorGlowMat.opacity) * K;
+      pMat.opacity += (tPts - pMat.opacity) * K;
+      for (let i = 0; i < emissiveMats.length; i++){ const m = emissiveMats[i];
+        m.emissive.copy(emCur); m.emissiveIntensity += ((tEm + pulse * 0.18) - m.emissiveIntensity) * K; }
+      fresnelMat.uniforms.uColor.value.copy(colCur);
+      fresnelMat.uniforms.uTime.value = t;
+      fresnelMat.uniforms.uInt.value  += ((tFresI + pulse * 0.4) - fresnelMat.uniforms.uInt.value) * K;
+      fresnelMat.uniforms.uScan.value += (tFresScan - fresnelMat.uniforms.uScan.value) * K;
+
+      // rotation accelerates while processing
+      const spd = reduce ? 0 : (0.0016 + Math.max(0, curExpand) * 0.0045);
+      core.rotation.y += spd; core.rotation.x += spd * 0.4;
+      shell.rotation.copy(core.rotation);
+      soul.rotation.y -= spd * 1.5; soul.rotation.x += spd * 0.8;
+      wire.rotation.y -= spd * 0.7; wire.rotation.z += spd * 0.3;
+      wire2.rotation.y += spd * 0.5; wire2.rotation.x -= spd * 0.2;
+      if (!reduce) points.rotation.y += 0.0006;
+
+      // shard burst: drift outward + tumble
+      const expand = 1 + Math.max(0, curExpand) * 0.46 + pulse * 0.06;
+      for (let i = 0; i < shards.length; i++){
+        const s = shards[i], u = s.userData, rr = u.baseR * expand;
+        s.position.set(u.dir.x * rr, u.dir.y * rr, u.dir.z * rr);
+        s.rotation.x += u.spin.x * (spd + 0.002);
+        s.rotation.y += u.spin.y * (spd + 0.002);
+        s.rotation.z += u.spin.z * (spd + 0.002);
+      }
+      shardGroup.rotation.y += spd * 0.5;
+
+      // sensor visor breathes
+      visor.scale.x = 0.8 + 0.18 * Math.sin(t * 1.2) + pulse * 0.12;
+
+      // float + parallax of the whole entity
+      cYaw += (tYaw - cYaw) * 0.06; cPitch += (tPitch - cPitch) * 0.06;
+      root.position.y = reduce ? 0 : Math.sin(t * 0.6) * 0.05;
+      root.rotation.y = cYaw + (reduce ? 0 : Math.sin(t * 0.4) * 0.02);
+      root.rotation.x = cPitch;
+
+      renderer.render(scene, camera);
+      if (!ready) { ready = true; window.__jarvisModelReady = true; mount.setAttribute("data-loaded",""); }
+      requestAnimationFrame(render);
+    }
+    render();
 
     // keep crisp on resize / layout changes
     const onResize = () => { renderer.setSize(W(), H()); camera.aspect = W()/H(); camera.updateProjectionMatrix(); };
@@ -1161,6 +1588,1075 @@ const STATE_COLORS = { idle:0x7c5cff, working:0xa98bff, ok:0x8f9bff, error:0xff6
   } catch (err) {
     if (window.__jarvisModelFallback) window.__jarvisModelFallback();
   }
+})();
+</script>
+
+<!-- JARVIS BLOCK 81 AUTOPILOT PANEL -->
+<style>
+  #j81-launch {
+    position: fixed; z-index: 9998; right: 24px; bottom: 24px;
+    display: inline-flex; align-items: center; gap: 9px;
+    border: 1px solid color-mix(in srgb, var(--violet) 55%, transparent);
+    background: linear-gradient(135deg, rgba(28,22,46,.92), rgba(90,52,160,.6));
+    color: var(--ice);
+    border-radius: 999px; padding: 12px 18px;
+    font-family: var(--font-mono); font-weight: 500; font-size: 11px;
+    letter-spacing: .18em; text-transform: uppercase;
+    box-shadow: 0 18px 60px rgba(0,0,0,.45), 0 0 34px rgba(138,108,255,.28);
+    cursor: pointer; backdrop-filter: blur(16px);
+    transition: transform .18s, box-shadow .22s, border-color .2s;
+  }
+  #j81-launch::before {
+    content: ""; width: 8px; height: 8px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 32%, #f3f1ff, var(--violet) 62%, transparent 80%);
+    box-shadow: 0 0 12px var(--violet); animation: breathe 3.2s ease-in-out infinite;
+  }
+  #j81-launch:hover { transform: translateY(-2px); border-color: var(--violet-soft);
+    box-shadow: 0 22px 70px rgba(0,0,0,.5), 0 0 44px rgba(138,108,255,.4); }
+  #j81-panel {
+    position: fixed; z-index: 9999; right: 24px; bottom: 80px;
+    width: min(440px, calc(100vw - 34px));
+    max-height: min(720px, calc(100vh - 116px));
+    overflow: hidden;
+    border: 1px solid var(--line-2); border-radius: 24px;
+    background: linear-gradient(180deg, rgba(15,12,24,.97), rgba(24,20,38,.95));
+    color: var(--text);
+    box-shadow: 0 36px 100px rgba(0,0,0,.66), inset 0 1px 0 rgba(233,236,255,.06),
+      0 0 60px rgba(138,108,255,.1);
+    backdrop-filter: blur(22px);
+    display: none; opacity: 0; transform: translateY(14px) scale(.985);
+    transition: opacity .26s ease, transform .26s cubic-bezier(.2,.8,.2,1);
+    font-family: var(--font-body);
+  }
+  #j81-panel.open { display: block; opacity: 1; transform: translateY(0) scale(1); }
+  .j81-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 17px 18px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(138,108,255,.08), transparent);
+  }
+  .j81-title {
+    font-family: var(--font-display); font-weight: 600; letter-spacing: .16em;
+    text-transform: uppercase; font-size: 12.5px; color: var(--ice);
+  }
+  .j81-sub { color: var(--muted); font-size: 12px; margin-top: 5px; line-height: 1.5; }
+  .j81-close {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 13px; cursor: pointer;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    transition: .18s;
+  }
+  .j81-close:hover { color: var(--ice); border-color: var(--line-2); background: rgba(255,255,255,.04); }
+  .j81-body { padding: 16px; display: grid; gap: 13px; }
+  #j81-goal {
+    width: 100%; min-height: 116px; resize: vertical;
+    border-radius: 16px; border: 1px solid var(--line-2);
+    background: rgba(0,0,0,.28); color: var(--ice);
+    padding: 13px 14px; outline: none;
+    font: 500 13.5px/1.55 var(--font-body); transition: border-color .2s, box-shadow .2s;
+  }
+  #j81-goal:focus { border-color: color-mix(in srgb, var(--violet) 60%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--violet) 30%, transparent); }
+  #j81-goal::placeholder { color: var(--faint); }
+  .j81-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .j81-btn {
+    border: 1px solid var(--line-2); background: rgba(138,108,255,.10);
+    color: var(--text); border-radius: 13px; padding: 10px 14px;
+    font-family: var(--font-mono); font-weight: 500; font-size: 11px;
+    letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+    transition: transform .15s, background .18s, color .18s, box-shadow .2s, border-color .18s;
+  }
+  .j81-btn:hover { color: var(--ice); background: rgba(138,108,255,.18); transform: translateY(-1px); }
+  .j81-btn.primary {
+    background: linear-gradient(135deg, var(--violet), var(--violet-ink));
+    border-color: transparent; color: #fff; font-weight: 700;
+    box-shadow: 0 8px 26px rgba(138,108,255,.34);
+  }
+  .j81-btn.primary:hover { filter: brightness(1.1); }
+  #j81-output {
+    max-height: 310px; overflow: auto; white-space: pre-wrap;
+    border-radius: 16px; border: 1px solid var(--line);
+    background: rgba(0,0,0,.34); padding: 13px 14px;
+    color: #bcc0e4; font: 12px/1.6 var(--font-mono);
+  }
+  .j81-pillrow { display: flex; gap: 7px; flex-wrap: wrap; }
+  .j81-pill {
+    border: 1px solid var(--line); background: rgba(138,108,255,.06);
+    border-radius: 999px; padding: 6px 11px; color: var(--muted);
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  }
+</style>
+
+<button id="j81-launch" type="button">Autopilot</button>
+<section id="j81-panel" aria-label="JARVIS Feature Autopilot">
+  <div class="j81-head">
+    <div>
+      <div class="j81-title">JARVIS Feature Autopilot</div>
+      <div class="j81-sub">Write a feature. Get production plan + Claude decision.</div>
+    </div>
+    <button class="j81-close" id="j81-close" type="button">Close</button>
+  </div>
+  <div class="j81-body">
+    <textarea id="j81-goal" placeholder="Ex: cria uma feature para o JARVIS gerar uma análise de projeto e sugerir o próximo bloco mais forte..."></textarea>
+    <div class="j81-actions">
+      <button class="j81-btn primary" id="j81-run" type="button">Run Autopilot</button>
+      <button class="j81-btn" id="j81-plan" type="button">Plan Only</button>
+      <button class="j81-btn" id="j81-dashboard" type="button">Dashboard</button>
+      <button class="j81-btn" id="j81-copy" type="button">Copy</button>
+    </div>
+    <div class="j81-pillrow">
+      <span class="j81-pill">local-first</span>
+      <span class="j81-pill">feature planning</span>
+      <span class="j81-pill">Claude decision</span>
+      <span class="j81-pill">one clean package</span>
+    </div>
+    <pre id="j81-output">JARVIS standing by. Type a feature and run Autopilot.</pre>
+  </div>
+</section>
+
+<script>
+(function(){
+  const launch = document.getElementById('j81-launch');
+  const panel = document.getElementById('j81-panel');
+  const close = document.getElementById('j81-close');
+  const goal = document.getElementById('j81-goal');
+  const output = document.getElementById('j81-output');
+
+  function show(v){ output.textContent = typeof v === 'string' ? v : JSON.stringify(v, null, 2); }
+  function open(){ panel.classList.add('open'); goal.focus(); }
+  function hide(){ panel.classList.remove('open'); }
+
+  const vstate = (s)=>{ try{ window.setJarvisVisualState && window.setJarvisVisualState(s); }catch(e){} };
+  async function post(path, body){
+    vstate('processing');
+    try{
+      const res = await fetch(path, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body || {})
+      });
+      const j = await res.json();
+      vstate(j && j.ok===false ? 'error' : 'success');
+      return j;
+    }catch(e){ vstate('error'); throw e; }
+  }
+  async function get(path){
+    vstate('processing');
+    try{
+      const res = await fetch(path);
+      const j = await res.json();
+      vstate(j && j.ok===false ? 'error' : 'success');
+      return j;
+    }catch(e){ vstate('error'); throw e; }
+  }
+
+  launch && launch.addEventListener('click', open);
+  close && close.addEventListener('click', hide);
+
+  document.getElementById('j81-run')?.addEventListener('click', async () => {
+    const value = goal.value.trim();
+    if(!value){ show('Type a feature first.'); return; }
+    show('Running Feature Autopilot...');
+    try { show(await post('/autopilot-run', {goal:value, mode:'normal'})); }
+    catch(e){ show('ERROR: ' + e.message); }
+  });
+
+  document.getElementById('j81-plan')?.addEventListener('click', async () => {
+    const value = goal.value.trim();
+    if(!value){ show('Type a feature first.'); return; }
+    show('Generating plan...');
+    try { show(await post('/feature-autopilot', {goal:value, mode:'normal'})); }
+    catch(e){ show('ERROR: ' + e.message); }
+  });
+
+  document.getElementById('j81-dashboard')?.addEventListener('click', async () => {
+    show('Loading dashboard...');
+    try { show(await get('/autopilot-dashboard')); }
+    catch(e){ show('ERROR: ' + e.message); }
+  });
+
+  document.getElementById('j81-copy')?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(output.textContent || ''); show((output.textContent || '') + '\n\n[COPIED]'); }
+    catch(e){ show('Copy failed: ' + e.message); }
+  });
+})();
+</script>
+<!-- END JARVIS BLOCK 81 AUTOPILOT PANEL -->
+
+<!-- JARVIS BLOCK 83 FORGE CONSOLE -->
+<style>
+  :root { --forge:#c06bff; }
+  #j83-launch {
+    position: fixed; z-index: 9998; right: 24px; bottom: 78px;
+    display: inline-flex; align-items: center; gap: 9px;
+    border: 1px solid color-mix(in srgb, var(--forge) 55%, transparent);
+    background: linear-gradient(135deg, rgba(30,18,46,.92), rgba(120,52,170,.55));
+    color: var(--ice);
+    border-radius: 999px; padding: 12px 18px;
+    font-family: var(--font-mono); font-weight: 500; font-size: 11px;
+    letter-spacing: .18em; text-transform: uppercase;
+    box-shadow: 0 18px 60px rgba(0,0,0,.45), 0 0 34px color-mix(in srgb,var(--forge) 30%, transparent);
+    cursor: pointer; backdrop-filter: blur(16px);
+    transition: transform .18s, box-shadow .22s, border-color .2s;
+  }
+  #j83-launch::before {
+    content: ""; width: 8px; height: 8px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 32%, #fbeaff, var(--forge) 62%, transparent 80%);
+    box-shadow: 0 0 12px var(--forge); animation: breathe 3.2s ease-in-out infinite;
+  }
+  #j83-launch:hover { transform: translateY(-2px);
+    border-color: color-mix(in srgb,var(--forge) 75%, transparent);
+    box-shadow: 0 22px 70px rgba(0,0,0,.5), 0 0 44px color-mix(in srgb,var(--forge) 42%, transparent); }
+  #j83-panel {
+    position: fixed; z-index: 9999; right: 24px; bottom: 132px;
+    width: min(440px, calc(100vw - 34px));
+    max-height: min(640px, calc(100vh - 170px));
+    overflow: hidden;
+    border: 1px solid var(--line-2); border-radius: 24px;
+    background: linear-gradient(180deg, rgba(17,12,26,.97), rgba(28,20,42,.95));
+    color: var(--text);
+    box-shadow: 0 36px 100px rgba(0,0,0,.66), inset 0 1px 0 rgba(233,236,255,.06),
+      0 0 60px color-mix(in srgb,var(--forge) 16%, transparent);
+    backdrop-filter: blur(22px);
+    display: none; opacity: 0; transform: translateY(14px) scale(.985);
+    transition: opacity .26s ease, transform .26s cubic-bezier(.2,.8,.2,1);
+    font-family: var(--font-body);
+  }
+  #j83-panel.open { display: block; opacity: 1; transform: translateY(0) scale(1); }
+  .j83-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 17px 18px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, color-mix(in srgb,var(--forge) 12%, transparent), transparent);
+  }
+  .j83-title { font-family: var(--font-display); font-weight: 600; letter-spacing: .16em;
+    text-transform: uppercase; font-size: 12.5px; color: var(--ice); }
+  .j83-sub { color: var(--muted); font-size: 12px; margin-top: 5px; line-height: 1.5; }
+  .j83-close { background: transparent; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px; cursor: pointer;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; transition: .18s; }
+  .j83-close:hover { color: var(--ice); border-color: var(--line-2); background: rgba(255,255,255,.04); }
+  .j83-body { padding: 16px; display: grid; gap: 13px; }
+  #j83-goal { width: 100%; min-height: 104px; resize: vertical;
+    border-radius: 16px; border: 1px solid var(--line-2);
+    background: rgba(0,0,0,.28); color: var(--ice); padding: 13px 14px; outline: none;
+    font: 500 13.5px/1.55 var(--font-body); transition: border-color .2s, box-shadow .2s; }
+  #j83-goal:focus { border-color: color-mix(in srgb, var(--forge) 60%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--forge) 30%, transparent); }
+  #j83-goal::placeholder { color: var(--faint); }
+  .j83-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .j83-grouplabel { color: var(--muted); font-family: var(--font-mono); font-size: 9.5px;
+    letter-spacing: .16em; text-transform: uppercase; margin-top: 2px;
+    padding-top: 11px; border-top: 1px solid var(--line); }
+  .j83-btn { border: 1px solid var(--line-2); background: color-mix(in srgb,var(--forge) 10%, transparent);
+    color: var(--text); border-radius: 13px; padding: 10px 14px;
+    font-family: var(--font-mono); font-weight: 500; font-size: 11px;
+    letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+    transition: transform .15s, background .18s, color .18s, box-shadow .2s, border-color .18s; }
+  .j83-btn:hover { color: var(--ice); background: color-mix(in srgb,var(--forge) 18%, transparent); transform: translateY(-1px); }
+  .j83-btn.primary { background: linear-gradient(135deg, var(--forge), #7a3fb0);
+    border-color: transparent; color: #fff; font-weight: 700;
+    box-shadow: 0 8px 26px color-mix(in srgb,var(--forge) 34%, transparent); }
+  .j83-btn.primary:hover { filter: brightness(1.1); }
+  .j83-hint { color: var(--muted); font: 11px/1.5 var(--font-mono); }
+  .j83-pillrow { display: flex; gap: 7px; flex-wrap: wrap; }
+  .j83-pill { border: 1px solid var(--line); background: color-mix(in srgb,var(--forge) 7%, transparent);
+    border-radius: 999px; padding: 6px 11px; color: var(--muted);
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; }
+</style>
+
+<button id="j83-launch" type="button">Forge</button>
+<section id="j83-panel" aria-label="JARVIS Forge Engine">
+  <div class="j83-head">
+    <div>
+      <div class="j83-title">JARVIS Forge Engine</div>
+      <div class="j83-sub">Describe a feature → get a real technical package + Claude decision.</div>
+    </div>
+    <button class="j83-close" id="j83-close" type="button">Close</button>
+  </div>
+  <div class="j83-body">
+    <textarea id="j83-goal" placeholder="Ex: cria uma feature de internet research · cria um módulo de memória local · cria um dashboard de sources"></textarea>
+    <div class="j83-actions">
+      <button class="j83-btn primary" id="j83-run" type="button">Forge Feature</button>
+      <button class="j83-btn" id="j83-plan" type="button">Plan Only</button>
+      <button class="j83-btn" id="j83-dashboard" type="button">Dashboard</button>
+      <button class="j83-btn" id="j83-latest" type="button">Latest</button>
+    </div>
+    <div class="j83-grouplabel">Workshop · Block 84</div>
+    <div class="j83-actions">
+      <button class="j83-btn" id="j83-workshop" type="button">Workshop</button>
+      <button class="j83-btn" id="j83-batch" type="button">Batch</button>
+      <button class="j83-btn" id="j83-matrix" type="button">Matrix</button>
+      <button class="j83-btn" id="j83-backlog" type="button">Backlog</button>
+      <button class="j83-btn" id="j83-claude" type="button">Claude Prompt</button>
+    </div>
+    <div class="j83-pillrow">
+      <span class="j83-pill">classify</span>
+      <span class="j83-pill">prioritize</span>
+      <span class="j83-pill">impact / effort / risk</span>
+      <span class="j83-pill">batch packages</span>
+      <span class="j83-pill">no auto-edit</span>
+    </div>
+    <div class="j83-hint">Forge = one feature. Workshop = many ideas → ranked. Batch splits lines/<code>;</code> into ideas. Matrix/Backlog need no input. Everything renders in the main viewer →. No commit/push/deploy/auto-patch.</div>
+  </div>
+</section>
+
+<script>
+(function(){
+  const launch = document.getElementById('j83-launch');
+  const panel = document.getElementById('j83-panel');
+  const close = document.getElementById('j83-close');
+  const goal = document.getElementById('j83-goal');
+
+  function open(){
+    // carry over whatever is already typed in the main command bar
+    try{ const cmd = document.getElementById('cmd'); if(cmd && cmd.value.trim() && !goal.value.trim()) goal.value = cmd.value.trim(); }catch(e){}
+    panel.classList.add('open'); goal.focus();
+  }
+  function hide(){ panel.classList.remove('open'); }
+  // Route through the cockpit's own viewer so results land in the existing output area.
+  function viewer(path, opts, label){
+    if(typeof window.call === 'function'){ window.call(path, opts, label); }
+    else { fetch(path, opts||{}); }
+  }
+  function postBody(body){
+    return (typeof window.post === 'function')
+      ? window.post(body)
+      : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})};
+  }
+
+  launch && launch.addEventListener('click', open);
+  close && close.addEventListener('click', hide);
+
+  document.getElementById('j83-run')?.addEventListener('click', () => {
+    const v = goal.value.trim();
+    if(!v){ goal.focus(); return; }
+    hide(); viewer('/forge-run', postBody({goal:v, mode:'normal'}), 'Forge · '+v);
+  });
+  document.getElementById('j83-plan')?.addEventListener('click', () => {
+    const v = goal.value.trim();
+    if(!v){ goal.focus(); return; }
+    hide(); viewer('/forge-plan', postBody({goal:v, mode:'normal'}), 'Forge plan · '+v);
+  });
+  document.getElementById('j83-dashboard')?.addEventListener('click', () => { hide(); viewer('/forge-dashboard', {}, 'Forge dashboard'); });
+  document.getElementById('j83-latest')?.addEventListener('click', () => { hide(); viewer('/forge-latest', {}, 'Forge latest'); });
+
+  // ---- Block 84 — Workshop tools ----
+  function splitIdeas(v){ return (v||'').split(/[;\n]+/).map(s=>s.trim()).filter(s=>s.length>2); }
+  document.getElementById('j83-workshop')?.addEventListener('click', () => {
+    const v = goal.value.trim();
+    if(!v){ goal.focus(); return; }
+    hide(); viewer('/forge-workshop', postBody({goal:v, mode:'normal'}), 'Workshop · '+v.slice(0,40));
+  });
+  document.getElementById('j83-batch')?.addEventListener('click', () => {
+    const ideas = splitIdeas(goal.value);
+    if(!ideas.length){ goal.focus(); return; }
+    hide(); viewer('/forge-batch', postBody({ideas:ideas, mode:'normal'}), 'Batch · '+ideas.length+' ideas');
+  });
+  document.getElementById('j83-matrix')?.addEventListener('click', () => { hide(); viewer('/capability-matrix', {}, 'Capability Matrix'); });
+  document.getElementById('j83-backlog')?.addEventListener('click', () => { hide(); viewer('/feature-backlog', {}, 'Feature Backlog'); });
+  document.getElementById('j83-claude')?.addEventListener('click', () => {
+    const v = goal.value.trim();
+    if(!v){ goal.focus(); return; }
+    hide(); viewer('/claude-feature-prompt', postBody({goal:v, mode:'normal'}), 'Claude Prompt · '+v.slice(0,40));
+  });
+
+  // Esc closes the console
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && panel.classList.contains('open')) hide(); });
+})();
+</script>
+<!-- END JARVIS BLOCK 83 FORGE CONSOLE -->
+
+<script type="module">
+/* ============================================================
+   JARVIS — 4-MODE LIVING HERO (avatar / core / source / forge)
+   Additive. Wrapped so a single failure never blanks the hero.
+   ============================================================ */
+(function(){
+"use strict";
+const RM = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const HUE = { avatar:'#8a6cff', core:'#9b7bff', source:'#7fb6ff', forge:'#c06bff' };
+const TAG = {
+  avatar:'DEHUMANIZED ENTITY', core:'OBSIDIAN AI CORE',
+  source:'SOURCE CONSTELLATION', forge:'BUILD MODE'
+};
+const META = {
+  avatar:'Local-first agent · private runtime · humanoid signal',
+  core:'Procedural intelligence core · live state',
+  source:'Indexed memory · context graph · local sources',
+  forge:'Constructive runtime · describe a feature to forge'
+};
+const MICRO = {
+  avatar:['LOCAL FIRST','PRIVATE RUNTIME','AGENT OS','THEO PADILHA'],
+  core:['OBSIDIAN','LIVE STATE','AGENT OS','THEO PADILHA'],
+  source:['INDEX','LOCAL MEMORY','CONTEXT','THEO PADILHA'],
+  forge:['BUILD MODE','FORGE','SHARDS','THEO PADILHA']
+};
+const STATE_MAP = { idle:'idle', processing:'working', working:'working', success:'ok', ok:'ok', error:'error', offline:'offline' };
+
+let figure, heroEl, switchEl, microEls=[], flashEl, forgeCTA;
+let MODE = 'avatar';
+let curState = 'idle';
+const engines = {}; // {avatar, source, forge} each: {start,stop,setState,inited}
+
+function q(s,r){ return (r||document).querySelector(s); }
+function qa(s,r){ return Array.from((r||document).querySelectorAll(s)); }
+
+/* ---------- shared three loader (lazy) ---------- */
+let THREE_P=null, GLTF_P=null, ROOMENV_P=null;
+function loadThree(){ if(!THREE_P) THREE_P=import('three'); return THREE_P; }
+function loadGLTF(){ if(!GLTF_P) GLTF_P=import('three/addons/loaders/GLTFLoader.js'); return GLTF_P; }
+function loadRoomEnv(){ if(!ROOMENV_P) ROOMENV_P=import('three/addons/environments/RoomEnvironment.js'); return ROOMENV_P; }
+
+function webglOK(){
+  try{ const c=document.createElement('canvas');
+    return !!(window.WebGLRenderingContext && (c.getContext('webgl')||c.getContext('experimental-webgl'))); }
+  catch(e){ return false; }
+}
+
+/* ============================================================
+   AVATAR ENGINE — GLB as dark glass / obsidian mask entity
+   ============================================================ */
+function makeAvatar(){
+  const mount = q('#avatar3d'); if(!mount) return null;
+  let THREE, renderer, scene, camera, root, wire, visor, particles, env;
+  let raf=0, running=false, ready=false, disposed=false;
+  let mx=0, my=0, tYaw=0, tPitch=0, cYaw=0, cPitch=0, t0=performance.now();
+  let state='idle', flash=0, silhouette=true; // dependable default: dark silhouette + crystal overlays (not a face)
+
+  function onMove(e){
+    const r = heroEl.getBoundingClientRect();
+    mx = ((e.clientX-r.left)/r.width)*2-1;
+    my = ((e.clientY-r.top)/r.height)*2-1;
+  }
+
+  async function init(){
+    if(ready||disposed) return;
+    if(!webglOK()) throw new Error('no-webgl');
+    THREE = await loadThree();
+    renderer = new THREE.WebGLRenderer({alpha:true, antialias:true, powerPreference:'high-performance'});
+    renderer.setClearColor(0x000000,0);
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+    const w=mount.clientWidth||520, h=mount.clientHeight||520;
+    renderer.setSize(w,h,false);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.82;   // darker, less blown-out → obsidian read
+    mount.appendChild(renderer.domElement);
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(32, w/h, 0.1, 100);
+    camera.position.set(0,0.02,5.4);
+
+    // env (PMREM) so glass reads — graceful if RoomEnvironment missing
+    try{
+      const {RoomEnvironment} = await loadRoomEnv();
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      scene.environment = env;
+    }catch(e){ /* no env, still render */ }
+
+    // lights: dim fill, restrained violet key/rim -> the mask stays in shadow, glassy not washed
+    scene.add(new THREE.AmbientLight(0x141226, 0.26));
+    const key = new THREE.DirectionalLight(0x8666ff, 0.92); key.position.set(2.2,2.4,3); scene.add(key);
+    const rim = new THREE.DirectionalLight(0x547fd6, 0.68); rim.position.set(-3,1.2,-2); scene.add(rim);
+    const under = new THREE.PointLight(0x7a5cff, 0.30, 12); under.position.set(0,-2,2); scene.add(under);
+
+    root = new THREE.Group(); scene.add(root);
+
+    // load GLB with timeout -> else throw to fallback
+    const {GLTFLoader} = await loadGLTF();
+    const url = '/asset/models/jarvis-humanoid.glb';
+    const gltf = await new Promise((res,rej)=>{
+      const to=setTimeout(()=>rej(new Error('glb-timeout')), 8000);
+      try{
+        new GLTFLoader().load(url, g=>{clearTimeout(to);res(g);}, undefined, err=>{clearTimeout(to);rej(err);});
+      }catch(err){ clearTimeout(to); rej(err); }
+    });
+
+    const model = gltf.scene || gltf.scenes[0];
+    // normalize scale/center
+    const box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const center = new THREE.Vector3(); box.getCenter(center);
+    const maxd = Math.max(size.x,size.y,size.z)||1;
+    const s = 2.15/maxd; model.scale.setScalar(s);   // smaller → headroom, no top clip
+    model.position.sub(center.multiplyScalar(s));
+    model.position.y -= 0.06;                          // settle low → reads as a bust rising from the dark
+
+    // OBSIDIAN GLASS material override on every mesh
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color:0x0b0a16, flatShading:true, metalness:0.10, roughness:0.25,
+      transmission:0.55, thickness:1.2, ior:1.3,
+      attenuationColor:new THREE.Color(0x8a6cff), attenuationDistance:2.2,
+      emissive:new THREE.Color(0x190f3a), emissiveIntensity:0.25,
+      envMapIntensity:1.2, transparent:true, opacity:0.92, side:THREE.DoubleSide
+    });
+    const silMat = new THREE.MeshStandardMaterial({
+      color:0x070612, flatShading:true, metalness:0.58, roughness:0.36,
+      emissive:0x130a2c, emissiveIntensity:0.14, envMapIntensity:0.9
+    });
+    const wires=[];
+    model.traverse(o=>{
+      if(o.isMesh && o.geometry){
+        o.material = silhouette ? silMat : glassMat;
+        o.castShadow=false; o.receiveShadow=false;
+        try{
+          const wg = o.geometry;
+          const wmat = new THREE.MeshBasicMaterial({color:0x8a6cff, wireframe:true, transparent:true, opacity:0.10, blending:THREE.AdditiveBlending, depthWrite:false});
+          const wm = new THREE.Mesh(wg, wmat); wm.position.copy(o.position); wm.scale.copy(o.scale).multiplyScalar(1.004); wm.quaternion.copy(o.quaternion);
+          wires.push([o,wm]);
+        }catch(e){}
+      }
+    });
+    root.add(model);
+    wires.forEach(([o,wm])=> o.parent && o.parent.add(wm));
+    wire = wires;
+
+    // iconic luminous VISOR scan-band — now THIN + soft + slow (elegant, not harsh)
+    const visGeo = new THREE.PlaneGeometry(2.6, 0.075);
+    const visMat = new THREE.MeshBasicMaterial({color:0xb6a0ff, transparent:true, opacity:0.32, blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false});
+    visor = new THREE.Mesh(visGeo, visMat);
+    visor.position.set(0, 0.34, 1.35); root.add(visor);
+
+    // orbiting particles
+    const N=140, pg=new THREE.BufferGeometry(), pa=new Float32Array(N*3);
+    for(let i=0;i<N;i++){ const a=Math.random()*Math.PI*2, rr=1.6+Math.random()*1.4, yy=(Math.random()-0.5)*3;
+      pa[i*3]=Math.cos(a)*rr; pa[i*3+1]=yy; pa[i*3+2]=Math.sin(a)*rr; }
+    pg.setAttribute('position', new THREE.BufferAttribute(pa,3));
+    const pmat = new THREE.PointsMaterial({color:0x9a7bff, size:0.026, transparent:true, opacity:0.32, blending:THREE.AdditiveBlending, depthWrite:false});
+    particles = new THREE.Points(pg,pmat); scene.add(particles);
+
+    ready=true;
+    window.addEventListener('pointermove', onMove, {passive:true});
+    window.addEventListener('resize', resize);
+    resize();
+  }
+
+  function resize(){
+    if(!renderer||!camera) return;
+    const w=mount.clientWidth||520, h=mount.clientHeight||520;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+
+  function setState(s){
+    state=s; if(s==='ok'||s==='error') flash=1;
+  }
+
+  function frame(){
+    if(!running) return;
+    raf=requestAnimationFrame(frame);
+    const now=performance.now(), tt=(now-t0)/1000;
+    const speed = (state==='working')?2.0:1.0;
+    // mouse follow (limited)
+    tYaw = THREE.MathUtils.clamp(mx*0.32, -0.32, 0.32);   // ~±18deg
+    tPitch = THREE.MathUtils.clamp(my*0.18, -0.18, 0.18); // ~±10deg
+    cYaw += (tYaw-cYaw)*0.06; cPitch += (tPitch-cPitch)*0.06;
+    if(root){
+      root.rotation.y = cYaw + Math.sin(tt*0.4)*0.03;
+      root.rotation.x = cPitch + Math.sin(tt*0.5)*0.015;
+      root.position.y = Math.sin(tt*0.9)*0.04; // breathe
+    }
+    if(visor){
+      visor.position.y = 0.30 + Math.sin(tt*speed*0.5)*0.58;   // slow, graceful full-mask sweep
+      const base = state==='working'?0.46:0.28;
+      visor.material.opacity = base + Math.sin(tt*speed*1.3)*0.07 + flash*0.28;
+    }
+    if(particles){
+      particles.rotation.y += 0.0012*speed;
+      particles.material.opacity = 0.26 + (state==='working'?0.18:0.0) + flash*0.28;
+    }
+    if(flash>0) flash = Math.max(0, flash-0.02);
+    renderer.render(scene,camera);
+  }
+
+  return {
+    name:'avatar', get inited(){return ready;}, get ok(){return ready && !disposed;},
+    async start(){
+      if(disposed) return;
+      if(!ready){ await init(); }
+      running=true; if(!RM){ if(!raf) frame(); } else { renderer&&renderer.render(scene,camera); }
+    },
+    stop(){ running=false; if(raf){cancelAnimationFrame(raf); raf=0;} },
+    setState, useSilhouette(){ silhouette=true; },
+    dispose(){ disposed=true; this.stop(); try{ window.removeEventListener('pointermove',onMove); }catch(e){} }
+  };
+}
+
+/* ============================================================
+   SOURCE ENGINE — canvas constellation of intelligence sources
+   ============================================================ */
+function makeSource(){
+  const mount = q('#sourceMap'); if(!mount) return null;
+  const cvs = document.createElement('canvas'); mount.appendChild(cvs);
+  const ctx = cvs.getContext('2d');
+  let raf=0, running=false, w=0,h=0, dpr=Math.min(devicePixelRatio||1,2);
+  let nodes=[], clusters=[], total=0, state='idle', t0=performance.now();
+  const PLACEHOLDER=['PLAN','BACKLOG','N8N','DIGEST','SOURCES','MEMORY','CONTEXT','RESEARCH','DOCTOR','ACCEPTANCE'];
+  // pan/zoom view + interaction state
+  const view={k:1,x:0,y:0};
+  let fitted=false, wired=false, dragging=false, lastX=0, lastY=0;
+  let mX=-1, mY=-1, hoverIdx=-1;
+
+  function resize(){ w=mount.clientWidth||520; h=mount.clientHeight||520; cvs.width=w*dpr; cvs.height=h*dpr; cvs.style.width=w+'px'; cvs.style.height=h+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
+
+  function base(name){ try{ return String(name).split('/').pop().split('\\').pop().slice(0,16).toUpperCase(); }catch(e){ return String(name).slice(0,16); } }
+
+  // ---- mouse control: reset, wheel-zoom (toward cursor), drag-pan ----
+  function fit(){ view.k=1; view.x=0; view.y=0; fitted=true; }
+  function clampK(k){ return Math.max(0.5, Math.min(4.2, k)); }
+  function localXY(e){ const r=cvs.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+  function onWheel(e){ e.preventDefault(); const p=localXY(e), old=view.k, nk=clampK(old*Math.exp(-e.deltaY*0.0016)); if(nk===old) return;
+    view.x = p.x-(p.x-view.x)*(nk/old); view.y = p.y-(p.y-view.y)*(nk/old); view.k = nk; }
+  function onDown(e){ if(e.button!=null && e.button!==0) return; dragging=true; const p=localXY(e); lastX=p.x; lastY=p.y; mount.classList.add('grabbing'); try{ cvs.setPointerCapture(e.pointerId); }catch(_){} }
+  function onMove(e){ const p=localXY(e); mX=p.x; mY=p.y; if(dragging){ view.x+=p.x-lastX; view.y+=p.y-lastY; lastX=p.x; lastY=p.y; } }
+  function onUp(e){ dragging=false; mount.classList.remove('grabbing'); try{ cvs.releasePointerCapture(e.pointerId); }catch(_){} }
+  function onLeave(){ dragging=false; mX=-1; mY=-1; mount.classList.remove('grabbing'); }
+  function wire(){ if(wired) return; wired=true;
+    cvs.addEventListener('wheel', onWheel, {passive:false});
+    cvs.addEventListener('pointerdown', onDown); cvs.addEventListener('pointermove', onMove);
+    cvs.addEventListener('pointerup', onUp); cvs.addEventListener('pointercancel', onUp);
+    cvs.addEventListener('pointerleave', onLeave); cvs.addEventListener('dblclick', e=>{ e.preventDefault(); fit(); }); }
+
+  async function fetchSources(){
+    let labels=[];
+    try{
+      const r = await fetch('/sources'); if(r.ok){
+        const j = await r.json();
+        let arr = Array.isArray(j)?j:(j.sources||j.items||j.data||[]);
+        if(!Array.isArray(arr)) arr=[];
+        labels = arr.slice(0,26).map(x=> base(typeof x==='string'?x:(x.name||x.path||x.id||x.title||'SRC')));
+      }
+    }catch(e){}
+    if(!labels.length) labels = PLACEHOLDER.slice();
+    total = labels.length;
+    // cluster anchors distributed across the width → the graph fills the band,
+    // not a single tight ring in the middle (Obsidian-graph read).
+    const CN = Math.max(2, Math.min(5, Math.round(labels.length/4)));
+    clusters = [];
+    for(let i=0;i<CN;i++){
+      const u = CN>1 ? i/(CN-1) : 0.5;
+      clusters.push({
+        nx: 0.22 + u*0.56,                                  // tighter spread → stays on-screen + readable
+        ny: 0.34 + (i%2?0.22:0.02) + Math.sin(i*2.1)*0.04,  // alternating high/low band
+        ph: i*1.3
+      });
+    }
+    nodes = labels.map((lab,i)=>{
+      const cl = i % CN;
+      const a  = (i/labels.length)*Math.PI*2 + cl*0.7;
+      const r  = 0.05 + (i%3)*0.032;                        // small radius around its cluster
+      return {lab, cl, a, r, sp:(0.20+ (i%5)*0.10)*((i%2)?-1:1), p:(i*0.137)%1, sz:3.0+(i%3)*0.9};
+    });
+  }
+
+  function frame(){
+    if(!running) return;
+    raf=requestAnimationFrame(frame);
+    const tt=(performance.now()-t0)/1000;
+    const speed=(state==='working')?1.7:1.0;
+    // clear in device space, then draw the world under the pan/zoom transform
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+    ctx.setTransform(dpr*view.k,0,0,dpr*view.k, view.x*dpr, view.y*dpr);
+    const k=view.k, m=Math.min(w,h), hx=w*0.5, hy=h*0.52;
+    const wmx=(mX-view.x)/k, wmy=(mY-view.y)/k;   // mouse in world space (hover)
+    // faint dotted baseline
+    ctx.save(); ctx.globalAlpha=0.05; ctx.strokeStyle='#7fb6ff'; ctx.lineWidth=1/k; ctx.setLineDash([2/k,7/k]);
+    for(let y=h*0.22;y<=h*0.82;y+=Math.max(46,h/7)){ ctx.beginPath();ctx.moveTo(w*0.06,y);ctx.lineTo(w*0.94,y);ctx.stroke(); }
+    ctx.setLineDash([]); ctx.restore();
+    // cluster pixel positions with gentle organic drift
+    const cpos = clusters.map(c=>({
+      x: c.nx*w + Math.sin(tt*0.22*speed + c.ph)*8,
+      y: c.ny*h + Math.cos(tt*0.18*speed + c.ph)*8
+    }));
+    // hub → cluster spines
+    cpos.forEach(c=>{ ctx.strokeStyle='rgba(127,182,255,.18)'; ctx.lineWidth=1.1/k;
+      ctx.beginPath(); ctx.moveTo(hx,hy); ctx.lineTo(c.x,c.y); ctx.stroke(); });
+    // node positions
+    const npos = nodes.map(n=>{
+      const ang = n.a + tt*n.sp*0.05*speed;
+      const c = cpos[n.cl];
+      return { x:c.x+Math.cos(ang)*n.r*m, y:c.y+Math.sin(ang)*n.r*m*0.92, n };
+    });
+    // hover pick (nearest node within radius, world space)
+    hoverIdx=-1;
+    if(mX>=0 && !dragging){ let best=Infinity;
+      for(let i=0;i<npos.length;i++){ const dx=npos[i].x-wmx, dy=npos[i].y-wmy, d=dx*dx+dy*dy;
+        if(d<best && d < (18/k)*(18/k)){ best=d; hoverIdx=i; } } }
+    // node → cluster links
+    npos.forEach(p=>{ const c=cpos[p.n.cl]; ctx.strokeStyle='rgba(127,182,255,.12)'; ctx.lineWidth=1/k;
+      ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(p.x,p.y); ctx.stroke(); });
+    // a few cross-links between near nodes → graph density
+    for(let i=0;i<npos.length;i++){ const a=npos[i], b=npos[(i+3)%npos.length];
+      const dx=a.x-b.x, dy=a.y-b.y; if(dx*dx+dy*dy < (m*0.22)*(m*0.22)){
+        ctx.strokeStyle='rgba(160,150,255,.05)'; ctx.lineWidth=1/k;
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); } }
+    // data particles flowing hub → clusters
+    cpos.forEach((c,i)=>{ const t=(tt*0.22*speed + i*0.31)%1; const px=hx+(c.x-hx)*t, py=hy+(c.y-hy)*t;
+      ctx.fillStyle='rgba(184,163,255,.6)'; ctx.beginPath(); ctx.arc(px,py,1.8/k,0,7); ctx.fill(); });
+    // cluster cores
+    cpos.forEach(c=>{ ctx.fillStyle='rgba(127,182,255,.55)'; ctx.shadowColor='#7fb6ff'; ctx.shadowBlur=10;
+      ctx.beginPath(); ctx.arc(c.x,c.y,4.4,0,7); ctx.fill(); ctx.shadowBlur=0; });
+    // nodes + readable labels (dark outline for contrast on any background)
+    const fs=11; ctx.textAlign='left'; ctx.lineJoin='round';
+    npos.forEach((p,i)=>{
+      const hot=i===hoverIdx, sz=p.n.sz*(hot?1.6:1);
+      ctx.fillStyle= hot?'#eaf2ff':'rgba(196,214,248,.95)'; ctx.shadowColor='#7fb6ff'; ctx.shadowBlur= hot?16:8;
+      ctx.beginPath(); ctx.arc(p.x,p.y,sz,0,7); ctx.fill(); ctx.shadowBlur=0;
+      if(hot){ ctx.strokeStyle='rgba(180,205,255,.7)'; ctx.lineWidth=1.4/k; ctx.beginPath(); ctx.arc(p.x,p.y,sz+4/k,0,7); ctx.stroke(); }
+      ctx.font=(hot?'700 '+(fs+1):''+fs)+'px ui-monospace,Menlo,monospace';
+      const lx=p.x+sz+5, ly=p.y+3.5;
+      ctx.lineWidth=3/k; ctx.strokeStyle='rgba(4,7,18,.9)'; ctx.strokeText(p.n.lab, lx, ly);
+      ctx.fillStyle= hot?'#dfeaff':'rgba(210,222,246,.82)'; ctx.fillText(p.n.lab, lx, ly);
+    });
+    // central hub (index count)
+    ctx.fillStyle='rgba(127,182,255,.95)'; ctx.shadowColor='#7fb6ff'; ctx.shadowBlur=18;
+    ctx.beginPath(); ctx.arc(hx,hy,7,0,7); ctx.fill(); ctx.shadowBlur=0;
+    ctx.textAlign='center';
+    ctx.lineWidth=4/k; ctx.strokeStyle='rgba(4,7,18,.85)'; ctx.font='700 32px ui-sans-serif,system-ui';
+    ctx.strokeText(String(total), hx, hy-15); ctx.fillStyle='#eaf1ff'; ctx.fillText(String(total), hx, hy-15);
+    ctx.fillStyle='rgba(170,186,214,.8)'; ctx.font='9px ui-monospace,Menlo,monospace';
+    ctx.fillText('LOCAL MEMORY · CONTEXT INDEX', hx, hy+24);
+    ctx.textAlign='left';
+    // ---- fixed HUD (screen space, not zoomed): controls hint + zoom % ----
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.font='9px ui-monospace,Menlo,monospace'; ctx.textAlign='left'; ctx.fillStyle='rgba(150,168,200,.5)';
+    ctx.fillText('scroll: zoom   ·   drag: pan   ·   dbl-click: reset', 16, h-16);
+    ctx.textAlign='right'; ctx.fillStyle='rgba(127,182,255,.6)'; ctx.fillText(Math.round(view.k*100)+'%', w-16, h-16);
+    ctx.textAlign='left';
+  }
+
+  return {
+    name:'source', inited:false,
+    async start(){ if(!this.inited){ resize(); await fetchSources(); fit(); wire(); this.inited=true; window.addEventListener('resize',resize); }
+      running=true; if(!RM){ if(!raf) frame(); } else { frame(); } },
+    stop(){ running=false; if(raf){cancelAnimationFrame(raf);raf=0;} },
+    setState(s){ state=s; },
+    dispose(){ this.stop(); }
+  };
+}
+
+/* ============================================================
+   FORGE ENGINE — wireframe scaffold + shards converging to a core
+   ============================================================ */
+function makeForge(){
+  const mount = q('#forgeStage'); if(!mount) return null;
+  const cvs = document.createElement('canvas'); mount.appendChild(cvs);
+  const ctx = cvs.getContext('2d');
+  let raf=0, running=false, w=0,h=0, dpr=Math.min(devicePixelRatio||1,2);
+  let shards=[], sparks=[], state='idle', t0=performance.now();
+
+  function resize(){ w=mount.clientWidth||520; h=mount.clientHeight||520; cvs.width=w*dpr; cvs.height=h*dpr; cvs.style.width=w+'px'; cvs.style.height=h+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
+  function build(){
+    shards=[]; for(let i=0;i<26;i++){ const a=Math.random()*Math.PI*2;
+      shards.push({a, r0:0.42+Math.random()*0.2, ph:Math.random()*Math.PI*2, sz:6+Math.random()*14}); }
+    sparks=[]; for(let i=0;i<40;i++){ sparks.push({a:Math.random()*Math.PI*2, r:Math.random(), sp:0.3+Math.random()*0.7}); }
+  }
+  function frame(){
+    if(!running) return; raf=requestAnimationFrame(frame);
+    const tt=(performance.now()-t0)/1000, speed=(state==='working')?2.2:1.0;
+    ctx.clearRect(0,0,w,h);
+    const cx=w/2, cy=h*0.52, R=Math.min(w,h);
+    const conv = 0.5+0.5*Math.sin(tt*0.5*speed);     // breathing build convergence
+    // blueprint scaffold (concentric hex rings)
+    ctx.strokeStyle='rgba(192,107,255,.15)'; ctx.lineWidth=1;
+    for(let ring=1;ring<=4;ring++){ const rr=ring*0.085*R*1.15, sides=6; ctx.beginPath();
+      for(let s=0;s<=sides;s++){ const ang=(s/sides)*Math.PI*2 + tt*0.08*ring*speed + ring*0.2; const x=cx+Math.cos(ang)*rr, y=cy+Math.sin(ang)*rr*0.86; s?ctx.lineTo(x,y):ctx.moveTo(x,y);} ctx.closePath(); ctx.stroke(); }
+    // construction beams + converging shards
+    shards.forEach(sh=>{
+      const r=(sh.r0*(0.40+0.60*(1-conv)))*R, ang=sh.a+tt*0.12*speed;
+      const x=cx+Math.cos(ang)*r, y=cy+Math.sin(ang)*r*0.86;
+      ctx.strokeStyle='rgba(192,107,255,'+(0.05+conv*0.10)+')'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke();
+      ctx.save(); ctx.translate(x,y); ctx.rotate(sh.ph+tt*speed*0.6); ctx.fillStyle='rgba(206,140,255,'+(0.30+conv*0.45)+')';
+      ctx.beginPath(); ctx.moveTo(0,-sh.sz); ctx.lineTo(sh.sz*0.5,sh.sz*0.5); ctx.lineTo(-sh.sz*0.5,sh.sz*0.5); ctx.closePath(); ctx.fill(); ctx.restore(); });
+    // spinning containment ring
+    ctx.strokeStyle='rgba(220,180,255,'+(0.18+conv*0.22)+')'; ctx.lineWidth=1.4;
+    ctx.beginPath(); for(let s=0;s<=48;s++){ const ang=(s/48)*Math.PI*2, rr=(0.16+conv*0.03)*R; const x=cx+Math.cos(ang+tt*0.5*speed)*rr, y=cy+Math.sin(ang+tt*0.5*speed)*rr*0.86; s?ctx.lineTo(x,y):ctx.moveTo(x,y);} ctx.stroke();
+    // forming core
+    const cr = 10+conv*22;
+    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,cr*2.2);
+    g.addColorStop(0,'rgba(235,205,255,'+(0.55+conv*0.4)+')'); g.addColorStop(.5,'rgba(192,107,255,'+(0.25+conv*0.2)+')'); g.addColorStop(1,'rgba(192,107,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,cr*2.2,0,7); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,'+(0.65+conv*0.3)+')'; ctx.beginPath(); ctx.arc(cx,cy,cr*0.45,0,7); ctx.fill();
+    // build-sparks rising into the core
+    sparks.forEach(sp=>{ sp.r-= 0.006*sp.sp*speed; if(sp.r<0){ sp.r=1; sp.a=Math.random()*Math.PI*2; }
+      const x=cx+Math.cos(sp.a)*sp.r*R*0.42, y=cy+Math.sin(sp.a)*sp.r*R*0.36;
+      ctx.fillStyle='rgba(255,230,255,'+(1-sp.r)*0.8+')'; ctx.fillRect(x,y,2,2); });
+  }
+  return {
+    name:'forge', inited:false,
+    async start(){ if(!this.inited){ resize(); build(); this.inited=true; window.addEventListener('resize',resize); }
+      running=true; if(!RM){ if(!raf) frame(); } else { frame(); } },
+    stop(){ running=false; if(raf){cancelAnimationFrame(raf);raf=0;} },
+    setState(s){ state=s; },
+    dispose(){ this.stop(); }
+  };
+}
+
+/* ============================================================
+   MODE ORCHESTRATION
+   ============================================================ */
+function applyHue(mode){
+  try{ heroEl.style.setProperty('--acc-dyn', HUE[mode]||HUE.avatar); }catch(e){}
+}
+function setMicro(mode){
+  const arr = MICRO[mode]||MICRO.avatar;
+  microEls.forEach((el,i)=>{ if(!el) return; el.textContent=arr[i]||''; el.classList.toggle('show', !!arr[i]); });
+}
+function ensureHolders(){
+  try{
+    const tag = q('.tagtop');
+    if(tag && !tag.querySelector('[data-mode-label]')){
+      const sp=document.createElement('span'); sp.setAttribute('data-mode-label','');
+      sp.style.cssText='margin-left:8px;opacity:.85;letter-spacing:.22em;font-size:.92em';
+      tag.appendChild(document.createTextNode(' \u00b7 ')); tag.appendChild(sp);
+    }
+  }catch(e){}
+  try{
+    const meta = q('.herometa');
+    if(meta && !meta.querySelector('[data-mode-meta]')){
+      const sp=document.createElement('span'); sp.setAttribute('data-mode-meta','');
+      sp.style.cssText='display:block;margin-top:4px;opacity:.7';
+      meta.appendChild(sp);
+    }
+  }catch(e){}
+}
+function setLabels(mode){
+  try{ const tl = q('[data-mode-label]'); if(tl) tl.textContent = TAG[mode]||''; }catch(e){}
+  try{ const meta = q('.herometa [data-mode-meta]'); if(meta) meta.textContent = META[mode]||''; }catch(e){}
+}
+
+async function ensureEngine(mode){
+  try{
+    if(mode==='avatar'){ if(!engines.avatar) engines.avatar = makeAvatar();
+      if(engines.avatar){ try{ await engines.avatar.start(); engines.avatar.setState(STATE_MAP[curState]||'idle'); }
+        catch(e){ avatarFallback(); } } else { avatarFallback(); } }
+    else if(mode==='source'){ if(!engines.source) engines.source = makeSource();
+      if(engines.source){ await engines.source.start(); engines.source.setState(STATE_MAP[curState]||'idle'); } }
+    else if(mode==='forge'){ if(!engines.forge) engines.forge = makeForge();
+      if(engines.forge){ await engines.forge.start(); engines.forge.setState(STATE_MAP[curState]||'idle'); } }
+    else if(mode==='core'){ /* core engine owns #bust3d; just reveal via data-mode */ }
+  }catch(e){ if(mode==='avatar') avatarFallback(); }
+}
+
+function avatarFallback(){
+  // GLB failed / WebGL missing / timeout -> guarantee a visual.
+  // The dependable default is the existing procedural CORE entity, so the hero is NEVER empty.
+  try{
+    const av = q('#avatar3d');
+    const hasCanvas = av && av.querySelector('canvas');
+    if(!hasCanvas){
+      // try to trigger the core's own SVG fallback too (harmless if absent)
+      try{ if(typeof window.__jarvisModelFallback==='function') window.__jarvisModelFallback(); }catch(_){}
+      setMode('core');
+    }
+  }catch(e){}
+}
+
+function stopOthers(active){
+  ['avatar','source','forge'].forEach(k=>{ if(k!==active && engines[k]){ try{ engines[k].stop(); }catch(e){} } });
+  // core engine: we let it idle when hidden; it owns #bust3d (cannot safely stop its loop)
+}
+
+let switching=false;
+function setMode(mode, silent){
+  if(!['avatar','core','source','forge'].includes(mode)) mode='avatar';
+  MODE = mode;
+  try{ figure.setAttribute('data-mode', mode); }catch(e){}
+  try{ heroEl.setAttribute('data-mode', mode); }catch(e){}   // per-mode wordmark/aura composition
+  // switch button states
+  try{ qa('.modeSwitch button').forEach(b=>{ const on=b.getAttribute('data-mode')===mode; b.classList.toggle('on',on); b.setAttribute('aria-selected', on?'true':'false'); }); }catch(e){}
+  applyHue(mode); setMicro(mode); setLabels(mode);
+  // forge CTA + command placeholder
+  try{
+    if(forgeCTA) forgeCTA.classList.toggle('show', mode==='forge');
+    const inp = q('#hero ~ * input, .cmdbar input, .chatbar input, #cmd, input[type="text"]') || qa('input').find(i=>/cmd|chat|command|describe/i.test((i.placeholder||'')+i.id+i.className));
+    if(inp){
+      if(mode==='forge'){ inp.dataset._ph = inp.dataset._ph || inp.placeholder || ''; inp.placeholder='Describe a feature to forge…  e.g. add a notes endpoint'; }
+      else if(inp.dataset._ph!=null){ inp.placeholder = inp.dataset._ph; }
+    }
+  }catch(e){}
+  ensureEngine(mode);
+  stopOthers(mode);
+}
+
+window.setJarvisHeroMode = function(mode){ try{ setMode(mode); }catch(e){ console.warn('heroMode fail',e); } };
+
+/* ---------- state routing: wrap existing setJarvisVisualState ---------- */
+function driveState(state){
+  curState = state;
+  const norm = STATE_MAP[state]||'idle';
+  // route to active engine
+  const eng = engines[MODE]; if(eng && eng.setState){ try{ eng.setState(norm); }catch(e){} }
+  // hero alive class
+  try{ heroEl.classList.toggle('thinking', norm==='working'); }catch(e){}
+  // flash on ok/error
+  try{
+    if((norm==='ok'||norm==='error') && flashEl){
+      flashEl.classList.remove('ok','bad'); void flashEl.offsetWidth;
+      flashEl.classList.add(norm==='ok'?'ok':'bad');
+      setTimeout(()=>{ try{flashEl.classList.remove('ok','bad');}catch(e){} }, 1800);
+    }
+  }catch(e){}
+}
+(function wrapVisual(){
+  const orig = window.setJarvisVisualState;
+  window.setJarvisVisualState = function(state){
+    let r; try{ if(typeof orig==='function') r = orig.apply(this, arguments); }catch(e){}
+    try{ driveState(state); }catch(e){}
+    return r;
+  };
+})();
+
+/* ---------- forge CTA -> real Forge Engine, rendered in the existing viewer ---------- */
+function wireForge(){
+  if(!forgeCTA) return;
+  forgeCTA.addEventListener('click', ()=>{
+    try{
+      const inp = q('#cmd, input[type="text"]') || qa('input').find(i=>/cmd|chat|command|describe/i.test((i.placeholder||'')+i.id+i.className));
+      const desc = inp && inp.value && inp.value.trim();
+      // With a feature typed: run the real engine and show it in the main viewer.
+      if(desc && typeof window.call==='function' && typeof window.post==='function'){
+        if(inp) inp.value='';
+        window.call('/forge-run', window.post({goal:desc, mode:'normal'}), 'Forge · '+desc);
+        return;
+      }
+      // Empty: open the dedicated FORGE console so the user can describe a feature.
+      const launch = document.getElementById('j83-launch');
+      if(launch){ launch.click(); return; }
+      if(inp){ inp.focus(); }
+    }catch(e){ console.warn('forge cta fail',e); }
+  });
+}
+
+/* ---------- wire mode switch buttons ---------- */
+function wireSwitch(){
+  if(!switchEl) return;
+  switchEl.addEventListener('click', e=>{
+    const b = e.target.closest('button[data-mode]'); if(!b) return;
+    setMode(b.getAttribute('data-mode'));
+  });
+}
+
+/* ---------- boot ---------- */
+function boot(){
+  try{
+    figure = q('#figure') || q('.figure');
+    heroEl = q('#hero') || q('.hero');
+    switchEl = q('.modeSwitch');
+    microEls = ['m1','m2','m3','m4'].map(c=> q('.heroMicro.'+c));
+    flashEl = q('.hero .stateFlash');
+    forgeCTA = q('.forgeCTA');
+    if(!figure || !heroEl){ return; }
+    // refresh endpoint count microcopy if present (non-destructive)
+    ensureHolders();
+    wireSwitch(); wireForge();
+    // DEFAULT MODE = avatar
+    setMode('avatar');
+  }catch(e){ console.warn('hero boot fail', e); }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+})();
+</script>
+
+<!-- ============================================================
+     JARVIS — RESIZABLE COCKPIT (draggable splitters + localStorage)
+     Sidebar width · right-panel width · hero/output height.
+     Self-contained, additive; never throws into the rest of the app.
+     ============================================================ -->
+<script>
+(function(){
+  "use strict";
+  try{
+    var grid = document.querySelector('.grid');
+    var center = document.querySelector('.center');
+    if(!grid) return;
+    var root = document.documentElement;
+    var LS = 'jarvisLayout_v1';
+    var saved = {};
+    try{ saved = JSON.parse(localStorage.getItem(LS) || '{}') || {}; }catch(e){ saved = {}; }
+
+    function setVar(name, val){ root.style.setProperty(name, val); }
+    function curPx(name, fb){ var v = getComputedStyle(root).getPropertyValue(name).trim(); var n = parseFloat(v); return isFinite(n) ? n : fb; }
+    function persist(){ try{ localStorage.setItem(LS, JSON.stringify(saved)); }catch(e){} }
+
+    // apply any saved preferences up-front (clamped so stale values can't break the layout)
+    var clamp = function(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); };
+    if(saved.colLeft)  setVar('--col-left',  clamp(saved.colLeft,  170, 480) + 'px');
+    if(saved.colRight) setVar('--col-right', clamp(saved.colRight, 170, 480) + 'px');
+    if(saved.heroH)    setVar('--hero-h',    clamp(saved.heroH,    320, window.innerHeight * 0.74) + 'px');
+
+    // throttle canvas re-fit while dragging (avatar / source / forge listen to resize)
+    var pend = false;
+    function fireResize(){ if(pend) return; pend = true; requestAnimationFrame(function(){ pend = false; try{ window.dispatchEvent(new Event('resize')); }catch(e){} }); }
+
+    function dragCol(handle, side){
+      handle.addEventListener('pointerdown', function(e){
+        if(e.button != null && e.button !== 0) return;
+        e.preventDefault();
+        try{ handle.setPointerCapture(e.pointerId); }catch(_){}
+        handle.classList.add('dragging');
+        var startX = e.clientX;
+        var start = curPx(side === 'left' ? '--col-left' : '--col-right', side === 'left' ? 250 : 300);
+        function mv(ev){
+          var d = ev.clientX - startX;
+          var val = side === 'left' ? (start + d) : (start - d);
+          val = Math.max(170, Math.min(480, val));
+          setVar(side === 'left' ? '--col-left' : '--col-right', val + 'px');
+          fireResize();
+        }
+        function up(){
+          handle.classList.remove('dragging');
+          window.removeEventListener('pointermove', mv);
+          window.removeEventListener('pointerup', up);
+          var v = curPx(side === 'left' ? '--col-left' : '--col-right', side === 'left' ? 250 : 300);
+          if(side === 'left') saved.colLeft = Math.round(v); else saved.colRight = Math.round(v);
+          persist(); fireResize();
+        }
+        window.addEventListener('pointermove', mv);
+        window.addEventListener('pointerup', up);
+      });
+    }
+
+    function dragRow(handle){
+      handle.addEventListener('pointerdown', function(e){
+        if(e.button != null && e.button !== 0) return;
+        e.preventDefault();
+        try{ handle.setPointerCapture(e.pointerId); }catch(_){}
+        handle.classList.add('dragging');
+        var startY = e.clientY;
+        var hero = document.querySelector('.hero');
+        var start = hero ? hero.getBoundingClientRect().height : 460;
+        function mv(ev){
+          var val = start + (ev.clientY - startY);
+          val = Math.max(320, Math.min(window.innerHeight * 0.74, val));
+          setVar('--hero-h', val + 'px');
+          fireResize();
+        }
+        function up(){
+          handle.classList.remove('dragging');
+          window.removeEventListener('pointermove', mv);
+          window.removeEventListener('pointerup', up);
+          var hh = document.querySelector('.hero');
+          if(hh){ saved.heroH = Math.round(hh.getBoundingClientRect().height); persist(); }
+          fireResize();
+        }
+        window.addEventListener('pointermove', mv);
+        window.addEventListener('pointerup', up);
+      });
+    }
+
+    var vL = document.createElement('div'); vL.className = 'vsplit left';  vL.title = 'Drag to resize sidebar';
+    var vR = document.createElement('div'); vR.className = 'vsplit right'; vR.title = 'Drag to resize right panel';
+    grid.appendChild(vL); grid.appendChild(vR);
+    dragCol(vL, 'left'); dragCol(vR, 'right');
+
+    if(center){
+      var hS = document.createElement('div'); hS.className = 'hsplit'; hS.title = 'Drag to resize hero / output';
+      center.appendChild(hS); dragRow(hS);
+    }
+  }catch(e){ /* layout resizers are non-critical */ }
 })();
 </script>
 </body>
