@@ -211,8 +211,292 @@ def cmd_routes(_: argparse.Namespace) -> None:
     print("  search <term> --json Raw search JSON")
     print("  status               Raw /status JSON")
     print("  git                  Git summary")
+    print("  daily                Save daily intelligence report")
+    print("  audit                Run local audit checks")
+    print("  mass-search <terms>  Search several terms and save report")
+    print("  export-pack          Export local JSON state pack")
     print("  routes               Show this help")
 
+
+
+
+# === JARVIS_CLI_BLOCK_93_BATCH_INTELLIGENCE ===
+# Batch local intelligence commands.
+# Local-only. No external calls. No .env. No commit/push/deploy.
+
+def _j93_stamp() -> str:
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def _j93_dir() -> Path:
+    d = ROOT / "05_EXECUCAO" / "93_JARVIS_BATCH_INTELLIGENCE_RUNNER"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _j93_reports() -> Path:
+    d = _j93_dir() / "reports"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _j93_exports() -> Path:
+    d = _j93_dir() / "exports"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _j93_rel(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except Exception:
+        return str(path)
+
+
+def _j93_write_report(prefix: str, content: str) -> Path:
+    out = _j93_reports() / f"{prefix}_{_j93_stamp()}.md"
+    out.write_text(content, encoding="utf-8")
+    return out
+
+
+def _j93_git_snapshot() -> str:
+    return "\n".join([
+        "branch: " + git(["branch", "--show-current"]),
+        "head: " + git(["rev-parse", "--short", "HEAD"]),
+        "",
+        "last commits:",
+        git(["log", "--oneline", "-5"]),
+        "",
+        "status:",
+        git(["status", "--short"]) or "clean",
+    ])
+
+
+def _j93_run_local_check(name: str, cmd: list[str]) -> dict[str, Any]:
+    try:
+        r = subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, timeout=20)
+        return {
+            "name": name,
+            "ok": r.returncode == 0,
+            "exit_code": r.returncode,
+            "stdout": (r.stdout or "").strip()[-900:],
+            "stderr": (r.stderr or "").strip()[-900:],
+        }
+    except Exception as exc:
+        return {"name": name, "ok": False, "error": str(exc)}
+
+
+def cmd_daily(_: argparse.Namespace) -> None:
+    brief = call_json("GET", "/jarvis-brief")
+    health = call_json("GET", "/sources-health")
+    insight = call_json("GET", "/sources-insight")
+    guard = call_json("GET", "/forge-apply-guard-dashboard")
+
+    src = brief.get("sources", {}) if brief.get("ok") else {}
+
+    lines = [
+        "# JARVIS Daily Intelligence",
+        "",
+        "- Status real: local batch report",
+        "- External calls: false",
+        "- Commit/push/deploy: false",
+        "",
+        "## Git",
+        "```text",
+        _j93_git_snapshot(),
+        "```",
+        "",
+        "## Brief",
+        f"- Brief OK: `{brief.get('ok')}`",
+        f"- Health: `{src.get('health_status', health.get('health_status', 'unknown'))}`",
+        f"- Sources: `{src.get('total_sources', health.get('total_sources', 0))}`",
+        f"- Indexed: `{src.get('total_files_indexed', health.get('total_files_indexed', 0))}`",
+        f"- Sensitive skipped: `{src.get('sensitive_skipped', health.get('sensitive_skipped', 0))}`",
+        f"- Duplicate groups: `{src.get('duplicate_groups', insight.get('duplicate_groups', 0))}`",
+        "",
+        "## Guard",
+        f"- Apply guard OK: `{guard.get('ok')}`",
+        f"- Status real: `{guard.get('status_real', '')}`",
+        f"- Required confirmation: `{guard.get('required_confirmation', '')}`",
+        "",
+        "## Signals",
+    ]
+
+    for sig in (brief.get("signals") or health.get("signals") or [])[:12]:
+        lines.append(f"- `{sig.get('level', '')}` {sig.get('signal', '')}")
+
+    lines += [
+        "",
+        "## Largest files",
+    ]
+
+    for f in (insight.get("largest_files") or brief.get("largest_files") or [])[:8]:
+        lines.append(f"- `{f.get('path', '')}` — {f.get('size_human', '')}")
+
+    lines += [
+        "",
+        "## Next commands",
+        "```bash",
+        "./11_SCRIPTS/jarvis_quick.sh audit",
+        "./11_SCRIPTS/jarvis_quick.sh mass-search jarvis forge sources",
+        "./11_SCRIPTS/jarvis_quick.sh export-pack",
+        "```",
+        "",
+    ]
+
+    out = _j93_write_report("daily_intelligence", "\n".join(lines))
+    print("DAILY_REPORT_SAVED:", _j93_rel(out))
+    print("")
+    print("\n".join(lines[:70]))
+
+
+def cmd_audit(_: argparse.Namespace) -> None:
+    checks = []
+    checks.append(_j93_run_local_check("py_compile core/api/cli", [
+        sys.executable,
+        "-m",
+        "py_compile",
+        "11_SCRIPTS/jarvis_api.py",
+        "11_SCRIPTS/jarvis_core.py",
+        "11_SCRIPTS/jarvis_cli.py",
+    ]))
+
+    endpoints = [
+        ("GET /status", "GET", "/status"),
+        ("GET /jarvis-brief", "GET", "/jarvis-brief"),
+        ("GET /sources-health", "GET", "/sources-health"),
+        ("GET /sources-insight", "GET", "/sources-insight"),
+        ("GET /forge-apply-guard-dashboard", "GET", "/forge-apply-guard-dashboard"),
+    ]
+
+    for name, method, path in endpoints:
+        data = call_json(method, path)
+        checks.append({
+            "name": name,
+            "ok": bool(data.get("ok")),
+            "endpoint": data.get("endpoint", path),
+            "status_real": data.get("status_real", ""),
+            "error": data.get("error", ""),
+        })
+
+    passed = sum(1 for c in checks if c.get("ok"))
+    total = len(checks)
+
+    lines = [
+        "# JARVIS Local Audit",
+        "",
+        f"- Passed: `{passed}/{total}`",
+        "- External calls: false",
+        "- Commit/push/deploy: false",
+        "",
+        "## Git",
+        "```text",
+        _j93_git_snapshot(),
+        "```",
+        "",
+        "## Checks",
+    ]
+
+    for c in checks:
+        status = "OK" if c.get("ok") else "FAIL"
+        lines.append(f"- `{status}` {c.get('name')}")
+        if c.get("error"):
+            lines.append(f"  - error: `{c.get('error')}`")
+        if c.get("stderr"):
+            lines.append("  - stderr tail:")
+            lines.append("```text")
+            lines.append(str(c.get("stderr"))[:900])
+            lines.append("```")
+
+    out = _j93_write_report("local_audit", "\n".join(lines))
+    print("AUDIT_REPORT_SAVED:", _j93_rel(out))
+    print(f"PASSED: {passed}/{total}")
+    for c in checks:
+        print(("OK   " if c.get("ok") else "FAIL "), c.get("name"))
+
+
+def cmd_mass_search(args: argparse.Namespace) -> None:
+    terms = [t.strip() for t in args.terms if t.strip()]
+    if not terms:
+        print("Usage: jarvis_quick.sh mass-search <term1> <term2> ...")
+        return
+
+    lines = [
+        "# JARVIS Mass Search",
+        "",
+        "- Status real: local sources search batch",
+        f"- Terms: `{', '.join(terms)}`",
+        "",
+    ]
+
+    print("MASS SEARCH")
+    for term in terms:
+        data = call_json("GET", "/sources-search?q=" + urllib.parse.quote(term) + f"&limit={args.limit}")
+        print(f"- {term}: {data.get('count')} match(es), returned {data.get('returned')}")
+
+        lines += [
+            f"## {term}",
+            "",
+            f"- Count: `{data.get('count')}`",
+            f"- Returned: `{data.get('returned')}`",
+            "",
+        ]
+
+        for r in data.get("results", [])[: args.limit]:
+            lines.append(f"### `{r.get('path', '')}`")
+            lines.append(f"- Match: `{','.join(r.get('matched_in', []))}`")
+            lines.append(f"- Meta: `{r.get('category', '')}` `{r.get('ext', '')}` `{r.get('size_human', '')}`")
+            snip = (r.get("snippet") or "").strip()
+            if snip:
+                lines.append("")
+                lines.append("> " + snip[:500].replace("\n", " "))
+            lines.append("")
+
+    out = _j93_write_report("mass_search", "\n".join(lines))
+    print("MASS_SEARCH_REPORT_SAVED:", _j93_rel(out))
+
+
+def cmd_export_pack(_: argparse.Namespace) -> None:
+    base = _j93_exports() / f"jarvis_export_pack_{_j93_stamp()}"
+    base.mkdir(parents=True, exist_ok=True)
+
+    payloads = {
+        "status.json": call_json("GET", "/status"),
+        "brief.json": call_json("GET", "/jarvis-brief"),
+        "health.json": call_json("GET", "/sources-health"),
+        "insight.json": call_json("GET", "/sources-insight"),
+        "apply_guard.json": call_json("GET", "/forge-apply-guard-dashboard"),
+    }
+
+    for name, data in payloads.items():
+        (base / name).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    (base / "git.txt").write_text(_j93_git_snapshot(), encoding="utf-8")
+
+    readme = [
+        "# JARVIS Export Pack",
+        "",
+        "- Status real: local export pack",
+        "- External calls: false",
+        "- Commit/push/deploy: false",
+        "- Secrets/env read: false",
+        "",
+        "## Files",
+    ]
+
+    for name in sorted(payloads):
+        readme.append(f"- `{name}`")
+    readme.append("- `git.txt`")
+    readme.append("")
+    readme.append("Use this pack to inspect local state without opening the cockpit UI.")
+
+    (base / "README.md").write_text("\n".join(readme), encoding="utf-8")
+
+    print("EXPORT_PACK_SAVED:", _j93_rel(base))
+    for item in sorted(base.iterdir()):
+        print("-", _j93_rel(item))
+
+# === END JARVIS_CLI_BLOCK_93_BATCH_INTELLIGENCE ===
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="jarvis", description="JARVIS local terminal command center")
@@ -248,6 +532,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("routes")
     s.set_defaults(fn=cmd_routes)
+
+    s = sub.add_parser("daily")
+    s.set_defaults(fn=cmd_daily)
+
+    s = sub.add_parser("audit")
+    s.set_defaults(fn=cmd_audit)
+
+    s = sub.add_parser("mass-search")
+    s.add_argument("terms", nargs="+")
+    s.add_argument("--limit", type=int, default=3)
+    s.set_defaults(fn=cmd_mass_search)
+
+    s = sub.add_parser("export-pack")
+    s.set_defaults(fn=cmd_export_pack)
 
     return p
 
