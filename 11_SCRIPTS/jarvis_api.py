@@ -10250,6 +10250,217 @@ _j89_install()
 # === END JARVIS BLOCK 89 ===
 
 
+
+# === JARVIS BLOCK 91 — LOCAL BRIEF CENTER v1 ===
+# Local cockpit brief built on top of existing safe blocks.
+# Read-only. No external calls, no .env, no commit/push/deploy.
+import time as _j91_time
+import subprocess as _j91_subprocess
+from pathlib import Path as _j91_Path
+from urllib.parse import urlparse as _j91_urlparse
+from http.server import BaseHTTPRequestHandler as _j91_BaseHTTPRequestHandler
+
+_J91ROOT = _j91_Path(__file__).resolve().parents[1]
+_J91_GET_ROUTES = {"/jarvis-brief", "/jarvis-brief-report"}
+
+def _j91_now():
+    try:
+        return _j91_time.strftime("%Y-%m-%d %H:%M:%S", _j91_time.localtime())
+    except Exception:
+        return ""
+
+def _j91_git(args):
+    try:
+        r = _j91_subprocess.run(
+            ["git"] + list(args),
+            cwd=str(_J91ROOT),
+            text=True,
+            capture_output=True,
+            timeout=3
+        )
+        return (r.stdout or r.stderr or "").strip()
+    except Exception as e:
+        return "git_unavailable: " + str(e)
+
+def _j91_base(endpoint, ok=True):
+    return {
+        "ok": bool(ok),
+        "endpoint": endpoint,
+        "engine": "JARVIS Block 91 — Local Brief Center v1",
+        "status_real": "local_readonly_brief",
+        "blocked_actions": ["commit", "push", "deploy", "read_env", "install_dependency", "free_shell", "delete_files"],
+        "safety": {
+            "local_only": True,
+            "external_calls": False,
+            "read_only": True,
+            "reads_env": False,
+            "commit": False,
+            "push": False,
+            "deploy": False
+        }
+    }
+
+def _j91_safe(fn, fallback):
+    try:
+        return fn()
+    except Exception as e:
+        out = dict(fallback)
+        out["error"] = str(e)
+        return out
+
+def _j91_brief():
+    health = _j91_safe(_j89_health, {"ok": False})
+    insight = _j91_safe(_j89_insight, {"ok": False})
+    dashboard = _j91_safe(_j88_dashboard, {"ok": False})
+
+    git_status = _j91_git(["status", "--short"])
+    git_branch = _j91_git(["branch", "--show-current"])
+    git_head = _j91_git(["rev-parse", "--short", "HEAD"])
+    git_last = _j91_git(["log", "--oneline", "-1"])
+
+    total_sources = health.get("total_sources", dashboard.get("total_sources", 0))
+    indexed = health.get("total_files_indexed", dashboard.get("total_files_indexed", 0))
+    health_status = health.get("health_status", "unknown")
+    sensitive_skipped = health.get("sensitive_skipped", dashboard.get("skipped_forbidden", 0))
+    large_files = health.get("large_files", 0)
+    duplicate_groups = insight.get("duplicate_groups", 0)
+
+    summary = []
+    summary.append("Git: " + ("clean" if not git_status else "dirty"))
+    summary.append("Sources: %s total / %s indexed" % (total_sources, indexed))
+    summary.append("Health: " + str(health_status))
+    summary.append("Sensitive skipped: " + str(sensitive_skipped))
+    summary.append("Large files: " + str(large_files))
+    summary.append("Duplicate groups: " + str(duplicate_groups))
+
+    out = _j91_base("GET /jarvis-brief", True)
+    out["generated_at"] = _j91_now()
+    out["git"] = {
+        "branch": git_branch,
+        "head": git_head,
+        "last_commit": git_last,
+        "status_short": git_status,
+        "clean": not bool(git_status)
+    }
+    out["sources"] = {
+        "health_status": health_status,
+        "total_sources": total_sources,
+        "total_files_indexed": indexed,
+        "total_size_human": health.get("total_size_human", insight.get("total_size_human", "")),
+        "sensitive_skipped": sensitive_skipped,
+        "large_files": large_files,
+        "stale_files": health.get("stale_files", 0),
+        "duplicate_groups": duplicate_groups,
+        "roots_scanned": health.get("roots_scanned", []),
+        "roots_missing": health.get("roots_missing", []),
+    }
+    out["signals"] = health.get("signals", [])
+    out["largest_files"] = insight.get("largest_files", [])[:5]
+    out["recent_files"] = dashboard.get("recent_files", [])[:5]
+    out["summary"] = summary
+    out["next_safe_steps"] = [
+        "Use /sources-health to inspect source health",
+        "Use /sources-search <term> to find local context",
+        "Use /brief-report for a copyable markdown report",
+        "No commit/push/deploy is executed by this endpoint"
+    ]
+    return out
+
+def _j91_markdown_report(data):
+    git = data.get("git", {})
+    src = data.get("sources", {})
+    L = []
+    L.append("# JARVIS Local Brief")
+    L.append("")
+    L.append("- Generated at: " + str(data.get("generated_at", "")))
+    L.append("- Status real: local read-only brief")
+    L.append("")
+    L.append("## Git")
+    L.append("- Branch: `" + str(git.get("branch", "")) + "`")
+    L.append("- Head: `" + str(git.get("head", "")) + "`")
+    L.append("- Last commit: `" + str(git.get("last_commit", "")) + "`")
+    L.append("- Clean: " + str(git.get("clean", False)))
+    L.append("")
+    L.append("## Sources")
+    L.append("- Health: " + str(src.get("health_status", "")))
+    L.append("- Total sources: " + str(src.get("total_sources", 0)))
+    L.append("- Indexed files: " + str(src.get("total_files_indexed", 0)))
+    L.append("- Size: " + str(src.get("total_size_human", "")))
+    L.append("- Sensitive skipped: " + str(src.get("sensitive_skipped", 0)))
+    L.append("- Large files: " + str(src.get("large_files", 0)))
+    L.append("- Duplicate groups: " + str(src.get("duplicate_groups", 0)))
+    L.append("")
+    L.append("## Signals")
+    for s in data.get("signals", [])[:12]:
+        L.append("- `" + str(s.get("level", "")) + "` " + str(s.get("signal", "")))
+    L.append("")
+    L.append("## Recent files")
+    for f in data.get("recent_files", [])[:8]:
+        L.append("- `" + str(f.get("path", f.get("name", ""))) + "` — " + str(f.get("category", "")))
+    L.append("")
+    L.append("## Largest files")
+    for f in data.get("largest_files", [])[:8]:
+        L.append("- `" + str(f.get("path", "")) + "` — " + str(f.get("size_human", "")))
+    L.append("")
+    L.append("## Next safe steps")
+    for s in data.get("next_safe_steps", []):
+        L.append("- " + str(s))
+    L.append("")
+    L.append("---")
+    L.append("No commit, push, deploy, external call, or .env read was performed.")
+    return "\n".join(L)
+
+def _j91_report():
+    brief = _j91_brief()
+    out = _j91_base("GET /jarvis-brief-report", True)
+    out["generated_at"] = brief.get("generated_at")
+    out["report_md"] = _j91_markdown_report(brief)
+    out["data"] = brief
+    return out
+
+def _j91_do_GET(self):
+    path = _j91_urlparse(self.path).path
+    try:
+        if path == "/jarvis-brief":
+            return _j83_json_out(self, _j91_brief())
+        if path == "/jarvis-brief-report":
+            return _j83_json_out(self, _j91_report())
+    except Exception as e:
+        p = _j91_base("GET " + path, False)
+        p["error"] = str(e)
+        return _j83_json_out(self, p, 500)
+    return self.__class__._j91_prev_GET(self)
+
+def _j91_do_POST(self):
+    return self.__class__._j91_prev_POST(self)
+
+def _j91_install():
+    patched = []
+    for name, obj in list(globals().items()):
+        if not isinstance(obj, type):
+            continue
+        try:
+            if (
+                issubclass(obj, _j91_BaseHTTPRequestHandler)
+                and obj is not _j91_BaseHTTPRequestHandler
+                and hasattr(obj, "do_GET")
+                and hasattr(obj, "do_POST")
+                and not getattr(obj, "_j91_installed", False)
+            ):
+                obj._j91_prev_GET = obj.do_GET
+                obj._j91_prev_POST = obj.do_POST
+                obj.do_GET = _j91_do_GET
+                obj.do_POST = _j91_do_POST
+                obj._j91_installed = True
+                patched.append(name)
+        except Exception:
+            pass
+    print("[J91] Installed Local Brief Center routes on:", ", ".join(patched) if patched else "none")
+
+_j91_install()
+# === END JARVIS BLOCK 91 ===
+
+
 if __name__ == "__main__":
     sys.exit(main())
 

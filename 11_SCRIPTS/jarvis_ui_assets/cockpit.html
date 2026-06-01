@@ -1370,6 +1370,15 @@ async function backendCommand(text){
 function runCommand(raw){
   const text=(raw||"").trim();
   if(!text) return;
+  // Block 91 — Local Brief Center: /brief /brief-report
+  const br=text.match(/^\/?(brief|jarvis-brief|today|brief-report|jarvis-report)\b[:\s]*([\s\S]*)$/i);
+  if(br){
+    const bcmd=br[1].toLowerCase().replace(/[^a-z]/g,'');
+    if(bcmd==="briefreport"||bcmd==="jarvisreport"){
+      call('/jarvis-brief-report', {}, 'JARVIS Brief Report'); return;
+    }
+    call('/jarvis-brief', {}, 'JARVIS Brief'); return;
+  }
   $("cmd").value="";
   // Block 89 — Sources Search + Insights: /sources-search <term> /sources-insight /sources-health
   const sm=text.match(/^\/?(sources-search|sourcessearch|sources-insight|sourcesinsight|sources-health|sourceshealth)\b[:\s]*([\s\S]*)$/i);
