@@ -215,6 +215,10 @@ def cmd_routes(_: argparse.Namespace) -> None:
     print("  audit                Run local audit checks")
     print("  mass-search <terms>  Search several terms and save report")
     print("  export-pack          Export local JSON state pack")
+    print("  start                Save session start report")
+    print("  close <note>         Save session close report")
+    print("  doctor               Quick local stability doctor")
+    print("  next-block           Recommend the next build block")
     print("  routes               Show this help")
 
 
@@ -498,6 +502,224 @@ def cmd_export_pack(_: argparse.Namespace) -> None:
 
 # === END JARVIS_CLI_BLOCK_93_BATCH_INTELLIGENCE ===
 
+
+
+# === JARVIS_CLI_BLOCK_94_SESSION_CONTROL ===
+# Session start/close/doctor/next-block commands.
+# Local-only. No external calls. No .env. No commit/push/deploy.
+
+def _j94_dir() -> Path:
+    d = ROOT / "05_EXECUCAO" / "94_JARVIS_SESSION_CONTROL"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _j94_sessions() -> Path:
+    d = _j94_dir() / "sessions"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _j94_stamp() -> str:
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def _j94_rel(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except Exception:
+        return str(path)
+
+
+def _j94_brief_metrics() -> dict[str, Any]:
+    brief = call_json("GET", "/jarvis-brief")
+    health = call_json("GET", "/sources-health")
+    src = brief.get("sources", {}) if brief.get("ok") else {}
+    return {
+        "brief_ok": brief.get("ok"),
+        "health": src.get("health_status", health.get("health_status", "unknown")),
+        "sources": src.get("total_sources", health.get("total_sources", 0)),
+        "indexed": src.get("total_files_indexed", health.get("total_files_indexed", 0)),
+        "sensitive_skipped": src.get("sensitive_skipped", health.get("sensitive_skipped", 0)),
+        "large_files": src.get("large_files", health.get("large_files", 0)),
+        "duplicate_groups": src.get("duplicate_groups", 0),
+        "signals": brief.get("signals", health.get("signals", [])),
+    }
+
+
+def _j94_git_md() -> list[str]:
+    return [
+        "## Git",
+        "```text",
+        "branch: " + git(["branch", "--show-current"]),
+        "head: " + git(["rev-parse", "--short", "HEAD"]),
+        "",
+        "last commits:",
+        git(["log", "--oneline", "-5"]),
+        "",
+        "status:",
+        git(["status", "--short"]) or "clean",
+        "```",
+        "",
+    ]
+
+
+def cmd_start(_: argparse.Namespace) -> None:
+    m = _j94_brief_metrics()
+    out = _j94_sessions() / f"session_start_{_j94_stamp()}.md"
+
+    lines = [
+        "# JARVIS Session Start",
+        "",
+        "- Status real: local session start",
+        "- External calls: false",
+        "- Commit/push/deploy: false",
+        "",
+    ]
+    lines += _j94_git_md()
+    lines += [
+        "## System",
+        f"- Brief OK: `{m['brief_ok']}`",
+        f"- Health: `{m['health']}`",
+        f"- Sources: `{m['sources']}`",
+        f"- Indexed: `{m['indexed']}`",
+        f"- Sensitive skipped: `{m['sensitive_skipped']}`",
+        f"- Large files: `{m['large_files']}`",
+        f"- Duplicate groups: `{m['duplicate_groups']}`",
+        "",
+        "## Recommended commands",
+        "```bash",
+        "./11_SCRIPTS/jarvis_quick.sh audit",
+        "./11_SCRIPTS/jarvis_quick.sh daily",
+        "./11_SCRIPTS/jarvis_quick.sh next-block",
+        "```",
+        "",
+        "## Notes",
+        "- Write what you want to build next before editing.",
+        "- Keep commits small.",
+        "- Do not push/deploy unless explicitly decided.",
+        "",
+    ]
+
+    out.write_text("\n".join(lines), encoding="utf-8")
+    print("SESSION_START_SAVED:", _j94_rel(out))
+    print("")
+    print("\n".join(lines[:60]))
+
+
+def cmd_close(args: argparse.Namespace) -> None:
+    note = " ".join(args.note).strip() or "Session closed without manual note."
+    m = _j94_brief_metrics()
+    out = _j94_sessions() / f"session_close_{_j94_stamp()}.md"
+
+    lines = [
+        "# JARVIS Session Close",
+        "",
+        "- Status real: local session close",
+        "- External calls: false",
+        "- Commit/push/deploy: false",
+        "",
+        "## Human note",
+        note,
+        "",
+    ]
+    lines += _j94_git_md()
+    lines += [
+        "## Final system snapshot",
+        f"- Health: `{m['health']}`",
+        f"- Sources: `{m['sources']}`",
+        f"- Indexed: `{m['indexed']}`",
+        f"- Sensitive skipped: `{m['sensitive_skipped']}`",
+        f"- Duplicate groups: `{m['duplicate_groups']}`",
+        "",
+        "## Next resume command",
+        "```bash",
+        "./11_SCRIPTS/jarvis_quick.sh start",
+        "./11_SCRIPTS/jarvis_quick.sh daily",
+        "```",
+        "",
+    ]
+
+    out.write_text("\n".join(lines), encoding="utf-8")
+    print("SESSION_CLOSE_SAVED:", _j94_rel(out))
+    print("")
+    print("\n".join(lines[:70]))
+
+
+def cmd_doctor(_: argparse.Namespace) -> None:
+    checks = []
+    checks.append(("git clean", not bool(git(["status", "--short"]))))
+    checks.append(("api status", bool(call_json("GET", "/status").get("ok"))))
+    checks.append(("brief endpoint", bool(call_json("GET", "/jarvis-brief").get("ok"))))
+    checks.append(("sources health", bool(call_json("GET", "/sources-health").get("ok"))))
+    checks.append(("sources insight", bool(call_json("GET", "/sources-insight").get("ok"))))
+    checks.append(("apply guard", bool(call_json("GET", "/forge-apply-guard-dashboard").get("ok"))))
+
+    compile_check = _j93_run_local_check("py_compile", [
+        sys.executable,
+        "-m",
+        "py_compile",
+        "11_SCRIPTS/jarvis_api.py",
+        "11_SCRIPTS/jarvis_core.py",
+        "11_SCRIPTS/jarvis_cli.py",
+    ])
+    checks.append(("py_compile", bool(compile_check.get("ok"))))
+
+    passed = sum(1 for _, ok in checks if ok)
+    total = len(checks)
+
+    print(f"JARVIS DOCTOR: {passed}/{total}")
+    for name, ok in checks:
+        print(("OK   " if ok else "WARN "), name)
+
+    if passed != total:
+        print("")
+        print("Next safe step: run ./11_SCRIPTS/jarvis_quick.sh audit and inspect the generated report.")
+    else:
+        print("")
+        print("System looks stable for local work.")
+
+
+def cmd_next_block(_: argparse.Namespace) -> None:
+    status = git(["status", "--short"])
+    m = _j94_brief_metrics()
+
+    candidates = [
+        {
+            "block": "95",
+            "name": "Task Queue Runner",
+            "why": "Run many requested local tasks as a queue without opening the UI.",
+            "commands": ["queue-add", "queue-run", "queue-status"],
+        },
+        {
+            "block": "96",
+            "name": "Source Cleanup Advisor",
+            "why": "Detect duplicate/backups/noisy files and produce cleanup suggestions without deleting anything.",
+            "commands": ["cleanup-advice", "noise-map"],
+        },
+        {
+            "block": "97",
+            "name": "Feature Pack Generator",
+            "why": "Generate ready implementation packages from one terminal command.",
+            "commands": ["feature-pack"],
+        },
+    ]
+
+    print("NEXT BLOCK RECOMMENDATION")
+    print("- git:", "dirty" if status else "clean")
+    print("- health:", m.get("health"))
+    print("- sources:", m.get("sources"), "indexed:", m.get("indexed"))
+    print("")
+    print("Recommended: Block", candidates[0]["block"], "—", candidates[0]["name"])
+    print("Why:", candidates[0]["why"])
+    print("Commands:", ", ".join(candidates[0]["commands"]))
+    print("")
+    print("Other good options:")
+    for c in candidates[1:]:
+        print(f"- Block {c['block']} — {c['name']}: {c['why']}")
+
+# === END JARVIS_CLI_BLOCK_94_SESSION_CONTROL ===
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="jarvis", description="JARVIS local terminal command center")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -546,6 +768,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("export-pack")
     s.set_defaults(fn=cmd_export_pack)
+
+    s = sub.add_parser("start")
+    s.set_defaults(fn=cmd_start)
+
+    s = sub.add_parser("close")
+    s.add_argument("note", nargs="*")
+    s.set_defaults(fn=cmd_close)
+
+    s = sub.add_parser("doctor")
+    s.set_defaults(fn=cmd_doctor)
+
+    s = sub.add_parser("next-block")
+    s.set_defaults(fn=cmd_next_block)
 
     return p
 
