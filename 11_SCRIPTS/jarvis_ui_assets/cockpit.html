@@ -632,6 +632,75 @@ pre.json{margin:0; font-family:var(--font-mono); font-size:12.5px; line-height:1
   #avatar3d::after, .hero .giant::after, .hero .giant::before{ animation:none!important; }
 }
 /* ===== END JARVIS HERO OVERHAUL ===== */
+
+/* === JARVIS BLOCK 90 — SOURCES CARDS UI === */
+.srcdash{display:flex; flex-direction:column; gap:14px; color:var(--ice);}
+.srcdash-head{display:flex; justify-content:space-between; gap:14px; align-items:flex-start; padding:14px 16px; border:1px solid var(--line-2); border-radius:16px; background:linear-gradient(180deg, rgba(124,92,255,.10), rgba(255,255,255,.025));}
+.srcdash-title{font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--violet-soft);}
+.srcdash-sub{margin-top:6px; color:var(--muted); font-size:12px; line-height:1.45;}
+.srcdash-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:10px;}
+.srcdash-card{border:1px solid var(--line); border-radius:15px; padding:12px 13px; background:linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.020)); box-shadow:0 14px 34px rgba(0,0,0,.18);}
+.srcdash-card.ok{border-color:rgba(76,255,183,.20);}
+.srcdash-card.warn{border-color:rgba(255,205,92,.25);}
+.srcdash-k{font-family:var(--font-mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);}
+.srcdash-v{margin-top:6px; font-size:20px; font-weight:700; color:var(--ice);}
+.srcdash-list{display:flex; flex-direction:column; gap:9px;}
+.srcdash-row{border:1px solid rgba(255,255,255,.075); border-radius:14px; padding:11px 12px; background:rgba(0,0,0,.16);}
+.srcdash-rowtop{display:flex; justify-content:space-between; gap:12px; align-items:flex-start;}
+.srcdash-path{font-family:var(--font-mono); font-size:11px; color:#d9dcff; word-break:break-word;}
+.srcdash-meta{margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;}
+.srcdash-pill{font-family:var(--font-mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border:1px solid rgba(255,255,255,.10); border-radius:999px; padding:3px 7px; background:rgba(255,255,255,.035);}
+.srcdash-snippet{margin-top:8px; color:#bfc4e8; font-size:12px; line-height:1.55;}
+.srcdash-section{display:flex; flex-direction:column; gap:8px;}
+.srcdash-h{font-family:var(--font-mono); color:var(--violet-soft); font-size:10px; letter-spacing:.16em; text-transform:uppercase; margin-top:4px;}
+/* === END JARVIS BLOCK 90 — SOURCES CARDS UI === */
+
+
+/* === JARVIS BLOCK 90.1 — CLEAN SOURCES UI PATCH === */
+.srcdash-head{
+  border-color:rgba(255,255,255,.10)!important;
+  background:linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.018))!important;
+}
+.srcdash-title{
+  color:#eef1ff!important;
+  letter-spacing:.12em!important;
+}
+.srcdash-sub{
+  color:#aeb4cf!important;
+}
+.srcdash-card{
+  border-color:rgba(255,255,255,.095)!important;
+  background:linear-gradient(180deg, rgba(255,255,255,.050), rgba(255,255,255,.018))!important;
+  box-shadow:none!important;
+}
+.srcdash-card.ok,.srcdash-card.warn{
+  border-color:rgba(255,255,255,.13)!important;
+}
+.srcdash-v{
+  font-size:18px!important;
+  color:#f4f6ff!important;
+}
+.srcdash-pill{
+  color:#b8bfd8!important;
+  border-color:rgba(255,255,255,.12)!important;
+  background:rgba(255,255,255,.035)!important;
+}
+.srcdash-h{
+  color:#d7dcf5!important;
+  letter-spacing:.12em!important;
+}
+.srcdash-row{
+  border-color:rgba(255,255,255,.090)!important;
+  background:rgba(255,255,255,.025)!important;
+}
+.srcdash-path{
+  color:#eef1ff!important;
+}
+.srcdash-snippet{
+  color:#c5cadf!important;
+}
+/* === END JARVIS BLOCK 90.1 — CLEAN SOURCES UI PATCH === */
+
 </style>
 </head>
 <body>
@@ -1070,6 +1139,132 @@ function showMessage(text, kind, echo){
 
 /* ---------- main call ---------- */
 function post(body){ return {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body||{})}; }
+
+/* === JARVIS BLOCK 90 — SOURCES CARDS UI === */
+function j90Esc(v){
+  return String(v ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function j90Pill(v){ return v ? `<span class="srcdash-pill">${j90Esc(v)}</span>` : ""; }
+function j90Metric(k,v,kind){
+  return `<div class="srcdash-card ${kind||""}"><div class="srcdash-k">${j90Esc(k)}</div><div class="srcdash-v">${j90Esc(v)}</div></div>`;
+}
+function j90Row(path, meta, snippet){
+  const pills=(meta||[]).filter(Boolean).map(j90Pill).join("");
+  return `<div class="srcdash-row">
+    <div class="srcdash-rowtop"><div class="srcdash-path">${j90Esc(path)}</div></div>
+    <div class="srcdash-meta">${pills}</div>
+    ${snippet ? `<div class="srcdash-snippet">${j90Esc(snippet)}</div>` : ""}
+  </div>`;
+}
+function j90List(title, rows){
+  if(!rows || !rows.length) return "";
+  return `<div class="srcdash-section"><div class="srcdash-h">${j90Esc(title)}</div><div class="srcdash-list">${rows.join("")}</div></div>`;
+}
+function renderSourcesCards(j){
+  const ep=String(j && j.endpoint || "");
+  if(!ep.startsWith("GET /sources-")) return "";
+
+  let title="Sources";
+  let subtitle=j.status_real || "local read-only";
+  let metrics=[];
+  let sections=[];
+
+  if(ep==="GET /sources-search"){
+    title="Sources Search";
+    subtitle=`query: ${j.query || ""} · ${j.count || 0} match(es) · returned ${j.returned || 0}`;
+    metrics=[
+      j90Metric("Matches", j.count || 0, "ok"),
+      j90Metric("Returned", j.returned || 0),
+      j90Metric("Mode", "read-only")
+    ];
+    const rows=(j.results||[]).slice(0,12).map(r =>
+      j90Row(r.path || r.name || "unknown", [
+        (r.matched_in||[]).join("+"),
+        r.category,
+        r.ext,
+        r.size_human
+      ], r.snippet || "")
+    );
+    sections.push(j90List("Results", rows));
+  }
+
+  else if(ep==="GET /sources-insight"){
+    title="Sources Insight";
+    subtitle=`${j.total_sources || 0} source(s) · ${j.total_size_human || ""}`;
+    metrics=[
+      j90Metric("Sources", j.total_sources || 0, "ok"),
+      j90Metric("Size", j.total_size_human || "—"),
+      j90Metric("Duplicates", j.duplicate_groups || 0, (j.duplicate_groups ? "warn" : "ok"))
+    ];
+    sections.push(j90List("Largest files", (j.largest_files||[]).slice(0,8).map(f =>
+      j90Row(f.path, [f.size_human, f.category, f.modified_at], "")
+    )));
+    sections.push(j90List("Probable duplicates", (j.probable_duplicates||[]).slice(0,8).map(d =>
+      j90Row(d.name, [`count ${d.count}`, d.size_human], (d.paths||[]).slice(0,4).join(" · "))
+    )));
+    sections.push(j90List("Categories", (j.categories||[]).slice(0,10).map(c =>
+      j90Row(c.category, [`${c.count} file(s)`], "")
+    )));
+  }
+
+  else if(ep==="GET /sources-health"){
+    title="Sources Health";
+    subtitle=`status: ${j.health_status || "unknown"} · local read-only`;
+    metrics=[
+      j90Metric("Health", j.health_status || "—", j.health_status==="ok" ? "ok" : "warn"),
+      j90Metric("Sources", j.total_sources || 0),
+      j90Metric("Indexed", j.total_files_indexed || 0),
+      j90Metric("Sensitive skipped", j.sensitive_skipped || 0, "ok")
+    ];
+    sections.push(j90List("Signals", (j.signals||[]).map(s =>
+      j90Row(s.signal || "signal", [s.level], "")
+    )));
+    sections.push(j90List("Missing roots", (j.roots_missing||[]).map(r =>
+      j90Row(r, ["not present"], "")
+    )));
+  }
+
+  else if(ep==="GET /sources-dashboard"){
+    title="Sources Dashboard";
+    subtitle=`${j.total_sources || 0} source(s) · ${j.total_size_human || ""}`;
+    metrics=[
+      j90Metric("Sources", j.total_sources || 0, "ok"),
+      j90Metric("Indexed", j.total_files_indexed || 0),
+      j90Metric("Size", j.total_size_human || "—")
+    ];
+    sections.push(j90List("Recent files", (j.recent_files||[]).slice(0,10).map(f =>
+      j90Row(f.path || f.name, [f.category, f.modified_at, f.size], "")
+    )));
+    sections.push(j90List("Categories", (j.categories||[]).slice(0,10).map(c =>
+      j90Row(c.category, [`${c.count} file(s)`], "")
+    )));
+  }
+
+  else if(ep==="GET /sources-data"){
+    title="Sources Data";
+    subtitle=`${j.count || 0} source(s) · returned ${j.returned || 0}`;
+    metrics=[
+      j90Metric("Count", j.count || 0),
+      j90Metric("Returned", j.returned || 0),
+      j90Metric("Mode", "read-only")
+    ];
+    sections.push(j90List("Sources", (j.sources||[]).slice(0,12).map(f =>
+      j90Row(f.path || f.name, [f.category, f.ext, f.size_human, f.modified_at], f.preview || "")
+    )));
+  }
+
+  if(!metrics.length && !sections.length) return "";
+  return `<div class="srcdash">
+    <div class="srcdash-head">
+      <div><div class="srcdash-title">${j90Esc(title)}</div><div class="srcdash-sub">${j90Esc(subtitle)}</div></div>
+      <span class="srcdash-pill">local only</span>
+    </div>
+    <div class="srcdash-grid">${metrics.join("")}</div>
+    ${sections.join("")}
+  </div>`;
+}
+/* === END JARVIS BLOCK 90 — SOURCES CARDS UI === */
+
 async function call(path, opts, label){
   setFig("working");
   const method=(opts&&opts.method)||"GET";
@@ -1080,7 +1275,18 @@ async function call(path, opts, label){
     let j; try{ j=await res.json(); }catch(e){ j={ok:false, error:"non-JSON response", http:res.status}; }
     lastJSON=j; apiOnline=true; setApiDot(true);
     summaryHTML=buildSummary(j);
-    const doc=extractDoc(j); docHTML=renderMD(doc); $("tabDoc").disabled=!doc;
+    let doc=null;
+    const srcCards=renderSourcesCards(j);
+    if(srcCards){
+      docHTML=srcCards;
+      $("tabDoc").disabled=false;
+      $("tabDoc").textContent="Cards";
+    } else {
+      doc=extractDoc(j);
+      docHTML=renderMD(doc);
+      $("tabDoc").disabled=!doc;
+      $("tabDoc").textContent="Doc";
+    }
     // source reader → dedicated Source tab
     const isSource=path.indexOf("/source?")>=0;
     if(isSource && typeof j.content==="string" && j.content.trim()){ srcHTML=renderMD(j.content); $("tabSrc").disabled=false; }
