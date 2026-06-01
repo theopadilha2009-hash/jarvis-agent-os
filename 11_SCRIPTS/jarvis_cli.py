@@ -219,6 +219,11 @@ def cmd_routes(_: argparse.Namespace) -> None:
     print("  close <note>         Save session close report")
     print("  doctor               Quick local stability doctor")
     print("  next-block           Recommend the next build block")
+    print("  queue-add <task>     Add task to local queue")
+    print("  queue-status         Show queue summary")
+    print("  queue-list           List all queued tasks")
+    print("  queue-run            Process pending queue tasks into reports")
+    print("  queue-clear-done     Remove completed tasks from queue")
     print("  routes               Show this help")
 
 
@@ -720,6 +725,285 @@ def cmd_next_block(_: argparse.Namespace) -> None:
 
 # === END JARVIS_CLI_BLOCK_94_SESSION_CONTROL ===
 
+
+
+# === JARVIS_CLI_BLOCK_95_TASK_QUEUE_RUNNER ===
+# Queue multiple local tasks and generate execution packages.
+# Local-only. No external calls. No .env. No commit/push/deploy. No arbitrary shell.
+
+def _j95_dir() -> Path:
+    d = ROOT / "05_EXECUCAO" / "95_JARVIS_TASK_QUEUE_RUNNER"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _j95_reports() -> Path:
+    d = _j95_dir() / "reports"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _j95_queue_file() -> Path:
+    return _j95_dir() / "queue.json"
+
+
+def _j95_stamp() -> str:
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def _j95_rel(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except Exception:
+        return str(path)
+
+
+def _j95_load() -> list[dict[str, Any]]:
+    qf = _j95_queue_file()
+    if not qf.exists():
+        return []
+    try:
+        data = json.loads(qf.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _j95_save(items: list[dict[str, Any]]) -> None:
+    qf = _j95_queue_file()
+    qf.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _j95_next_id(items: list[dict[str, Any]]) -> int:
+    ids = []
+    for item in items:
+        try:
+            ids.append(int(item.get("id", 0)))
+        except Exception:
+            pass
+    return (max(ids) + 1) if ids else 1
+
+
+def _j95_classify(task: str) -> str:
+    t = task.lower()
+    if any(w in t for w in ["buscar", "search", "procurar", "fonte", "source"]):
+        return "source_research"
+    if any(w in t for w in ["audit", "auditar", "validar", "doctor", "check"]):
+        return "local_audit"
+    if any(w in t for w in ["feature", "criar", "build", "implementar", "adicionar"]):
+        return "feature_package"
+    if any(w in t for w in ["limpar", "cleanup", "duplicado", "backup", "noise"]):
+        return "cleanup_advice"
+    if any(w in t for w in ["resumo", "brief", "daily", "report"]):
+        return "brief_report"
+    return "general_task"
+
+
+def _j95_keywords(task: str) -> list[str]:
+    raw = []
+    for part in task.replace(",", " ").replace(";", " ").replace("/", " ").split():
+        word = "".join(ch for ch in part.lower() if ch.isalnum() or ch in "-_")
+        if len(word) >= 4 and word not in {"para", "com", "que", "uma", "esse", "isso", "criar", "fazer"}:
+            raw.append(word)
+    out = []
+    for w in raw:
+        if w not in out:
+            out.append(w)
+    return out[:5]
+
+
+def _j95_report_for_task(item: dict[str, Any]) -> Path:
+    task = str(item.get("task", "")).strip()
+    kind = str(item.get("type", "general_task"))
+    metrics = _j94_brief_metrics() if "_j94_brief_metrics" in globals() else {}
+    search_terms = _j95_keywords(task)
+
+    lines = [
+        f"# JARVIS Queue Task #{item.get('id')} — {task}",
+        "",
+        "- Status real: local queue package",
+        "- External calls: false",
+        "- Commit/push/deploy: false",
+        "- Arbitrary shell: false",
+        f"- Task type: `{kind}`",
+        "",
+        "## Git snapshot",
+        "```text",
+        _j93_git_snapshot() if "_j93_git_snapshot" in globals() else (git(["status", "--short"]) or "clean"),
+        "```",
+        "",
+        "## System snapshot",
+        f"- Health: `{metrics.get('health', 'unknown')}`",
+        f"- Sources: `{metrics.get('sources', 0)}`",
+        f"- Indexed: `{metrics.get('indexed', 0)}`",
+        f"- Sensitive skipped: `{metrics.get('sensitive_skipped', 0)}`",
+        "",
+        "## Execution plan",
+    ]
+
+    if kind == "feature_package":
+        lines += [
+            "1. Clarify expected behavior.",
+            "2. Identify if this is CLI, API, UI, source, or automation work.",
+            "3. Prefer one local deterministic patch.",
+            "4. Validate with py_compile and existing endpoints.",
+            "5. Commit only after clean local evidence.",
+        ]
+    elif kind == "source_research":
+        lines += [
+            "1. Search local sources first.",
+            "2. Use only allow-listed source endpoints.",
+            "3. Summarize findings with paths and snippets.",
+            "4. Do not read .env or sensitive paths.",
+        ]
+    elif kind == "cleanup_advice":
+        lines += [
+            "1. Detect duplicate/noisy/backups only.",
+            "2. Produce advice report.",
+            "3. Do not delete anything.",
+            "4. Require human approval before any cleanup.",
+        ]
+    elif kind == "local_audit":
+        lines += [
+            "1. Run local audit command.",
+            "2. Check API, sources, compile, and guard status.",
+            "3. Save report under 05_EXECUCAO.",
+        ]
+    else:
+        lines += [
+            "1. Convert task into a safe local package.",
+            "2. Use existing JARVIS endpoints.",
+            "3. Avoid broad repo changes.",
+            "4. Keep status real.",
+        ]
+
+    lines += [
+        "",
+        "## Local source search hints",
+    ]
+
+    if not search_terms:
+        lines.append("- No strong search term extracted.")
+    else:
+        for term in search_terms:
+            data = call_json("GET", "/sources-search?q=" + urllib.parse.quote(term) + "&limit=3")
+            lines.append(f"### `{term}`")
+            lines.append(f"- Count: `{data.get('count')}`")
+            for r in data.get("results", [])[:3]:
+                lines.append(f"- `{r.get('path', '')}` — {r.get('category', '')} — {r.get('size_human', '')}")
+            lines.append("")
+
+    lines += [
+        "## Safe next command",
+        "```bash",
+        "./11_SCRIPTS/jarvis_quick.sh audit",
+        "```",
+        "",
+        "Status real: report generated only. No implementation was applied.",
+        "",
+    ]
+
+    out = _j95_reports() / f"queue_task_{item.get('id')}_{_j95_stamp()}.md"
+    out.write_text("\n".join(lines), encoding="utf-8")
+    return out
+
+
+def cmd_queue_add(args: argparse.Namespace) -> None:
+    task = " ".join(args.task).strip()
+    if not task:
+        print('Usage: ./11_SCRIPTS/jarvis_quick.sh queue-add "task description"')
+        return
+
+    items = _j95_load()
+    item = {
+        "id": _j95_next_id(items),
+        "task": task,
+        "type": _j95_classify(task),
+        "status": "pending",
+        "created_at": _j95_stamp(),
+        "updated_at": _j95_stamp(),
+        "report": "",
+    }
+    items.append(item)
+    _j95_save(items)
+
+    print("QUEUE_ADDED:", item["id"])
+    print("type:", item["type"])
+    print("task:", item["task"])
+
+
+def cmd_queue_status(_: argparse.Namespace) -> None:
+    items = _j95_load()
+    pending = [x for x in items if x.get("status") == "pending"]
+    done = [x for x in items if x.get("status") == "done"]
+    failed = [x for x in items if x.get("status") == "failed"]
+
+    print("JARVIS TASK QUEUE")
+    print("- total:", len(items))
+    print("- pending:", len(pending))
+    print("- done:", len(done))
+    print("- failed:", len(failed))
+    print("- file:", _j95_rel(_j95_queue_file()))
+
+    for item in items[-12:]:
+        print(f"#{item.get('id')} [{item.get('status')}] {item.get('type')} — {item.get('task')}")
+        if item.get("report"):
+            print("   report:", item.get("report"))
+
+
+def cmd_queue_list(_: argparse.Namespace) -> None:
+    items = _j95_load()
+    if not items:
+        print("QUEUE_EMPTY")
+        return
+    for item in items:
+        print(f"#{item.get('id')} [{item.get('status')}] {item.get('type')}")
+        print("  task:", item.get("task"))
+        if item.get("report"):
+            print("  report:", item.get("report"))
+
+
+def cmd_queue_run(args: argparse.Namespace) -> None:
+    items = _j95_load()
+    pending = [x for x in items if x.get("status") == "pending"]
+    limit = max(1, int(args.limit or 1))
+    selected = pending[:limit]
+
+    if not selected:
+        print("NO_PENDING_TASKS")
+        return
+
+    print("RUNNING_QUEUE_TASKS:", len(selected))
+
+    by_id = {x.get("id"): x for x in items}
+    for item in selected:
+        try:
+            report = _j95_report_for_task(item)
+            current = by_id.get(item.get("id"), item)
+            current["status"] = "done"
+            current["updated_at"] = _j95_stamp()
+            current["report"] = _j95_rel(report)
+            print(f"OK #{item.get('id')} -> {_j95_rel(report)}")
+        except Exception as exc:
+            current = by_id.get(item.get("id"), item)
+            current["status"] = "failed"
+            current["updated_at"] = _j95_stamp()
+            current["error"] = str(exc)
+            print(f"FAIL #{item.get('id')}: {exc}")
+
+    _j95_save(items)
+
+
+def cmd_queue_clear_done(_: argparse.Namespace) -> None:
+    items = _j95_load()
+    kept = [x for x in items if x.get("status") != "done"]
+    removed = len(items) - len(kept)
+    _j95_save(kept)
+    print("CLEARED_DONE:", removed)
+    print("remaining:", len(kept))
+
+# === END JARVIS_CLI_BLOCK_95_TASK_QUEUE_RUNNER ===
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="jarvis", description="JARVIS local terminal command center")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -781,6 +1065,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("next-block")
     s.set_defaults(fn=cmd_next_block)
+
+    s = sub.add_parser("queue-add")
+    s.add_argument("task", nargs="+")
+    s.set_defaults(fn=cmd_queue_add)
+
+    s = sub.add_parser("queue-status")
+    s.set_defaults(fn=cmd_queue_status)
+
+    s = sub.add_parser("queue-list")
+    s.set_defaults(fn=cmd_queue_list)
+
+    s = sub.add_parser("queue-run")
+    s.add_argument("--limit", type=int, default=3)
+    s.set_defaults(fn=cmd_queue_run)
+
+    s = sub.add_parser("queue-clear-done")
+    s.set_defaults(fn=cmd_queue_clear_done)
 
     return p
 
