@@ -10006,6 +10006,250 @@ _j88_install()
 # === END JARVIS BLOCK 88 ===
 
 
+# === JARVIS BLOCK 89 — SOURCES SEARCH + INSIGHTS v1 ===
+# Search + insight + health over the local sources, built ON TOP of Block 88's scanner (reuse, not
+# re-implement): _j88_scan / _j88_safe_preview / _j88_human_size / _J88ROOT / allowlist + blocklist.
+# Read-only. No external calls, no .env/secret/token/cookie reads, no shell, no commit/push/deploy.
+import json as _j89_json
+import time as _j89_time
+from urllib.parse import urlparse as _j89_urlparse, parse_qs as _j89_parse_qs
+from http.server import BaseHTTPRequestHandler as _j89_BaseHTTPRequestHandler
+
+_J89_GET_ROUTES = {"/sources-search", "/sources-insight", "/sources-health"}
+_J89_GREP_MAX_BYTES = 262144     # only content-search text files up to 256 KB
+_J89_GREP_MAX_READS = 2000       # safety cap on per-request content reads
+_J89_STALE_DAYS = 180
+_J89_LARGE_BYTES = 1_000_000
+
+
+def _j89_base(endpoint, ok=True):
+    return {
+        "ok": bool(ok),
+        "endpoint": endpoint,
+        "engine": "JARVIS Block 89 — Sources Search + Insights v1",
+        "status_real": "live_local_readonly",
+        "reuses": "Block 88 scanner (allow-listed, read-only)",
+        "blocked_actions": ["commit", "push", "deploy", "read_env", "free_shell",
+                            "install_dependency", "delete_files", "parallel_app"],
+        "safety": {
+            "local_only": True, "external_calls": False, "read_only": True,
+            "reads_env": False, "reads_secrets": False,
+            "reads_only_allowlisted_paths": True,
+            "commit": False, "push": False, "deploy": False,
+        },
+    }
+
+
+def _j89_grep_file(full, term):
+    try:
+        if full.stat().st_size > _J89_GREP_MAX_BYTES:
+            return ""
+        txt = full.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return ""
+    i = txt.lower().find(term)
+    if i < 0:
+        return ""
+    start = max(0, i - 60)
+    end = min(len(txt), i + len(term) + 140)
+    snip = " ".join(txt[start:end].replace("\x00", " ").split())
+    return ("…" if start > 0 else "") + snip[:240] + ("…" if end < len(txt) else "")
+
+
+def _j89_search(q, limit=50):
+    term = str(q or "").strip().lower()
+    out = _j89_base("GET /sources-search", True)
+    out["query"] = q
+    if not term:
+        out["fallback"] = True
+        out["count"] = 0
+        out["results"] = []
+        out["message"] = "Provide a term, e.g. /sources-search?q=jarvis . Nothing invented."
+        return out
+    scan = _j88_scan()
+    results = []
+    reads = 0
+    for f in scan["files"]:
+        path_hit = term in f["path"].lower() or term in f["name"].lower()
+        snippet, content_hit = "", False
+        if f["indexed"] and reads < _J89_GREP_MAX_READS:
+            reads += 1
+            snippet = _j89_grep_file(_J88ROOT / f["path"], term)
+            content_hit = bool(snippet)
+        if not (path_hit or content_hit):
+            continue
+        if not snippet:
+            snippet = _j88_safe_preview(_J88ROOT / f["path"], f["ext"]) if f["indexed"] else ""
+        matched_in = (["name/path"] if path_hit else []) + (["content"] if content_hit else [])
+        results.append({
+            "path": f["path"], "name": f["name"], "ext": f["ext"],
+            "size_human": _j88_human_size(f["size"]), "modified_at": f["modified_at"],
+            "category": f["category"], "tags": f["tags"],
+            "matched_in": matched_in, "snippet": snippet,
+            "_modified": f["modified"], "_score": (2 if content_hit else 0) + (1 if path_hit else 0),
+        })
+    results.sort(key=lambda r: (r["_score"], r["_modified"]), reverse=True)
+    for r in results:
+        r.pop("_modified", None)
+        r.pop("_score", None)
+    out["count"] = len(results)
+    out["returned"] = min(len(results), limit)
+    out["roots_scanned"] = scan["roots_scanned"]
+    out["results"] = results[:limit]
+    if not results:
+        out["fallback"] = True
+        out["message"] = "No local source matched '" + str(q) + "' in the allowed paths. Nothing invented."
+    return out
+
+
+def _j89_insight():
+    scan = _j88_scan()
+    files = scan["files"]
+    out = _j89_base("GET /sources-insight", True)
+    if not files:
+        out["fallback"] = True
+        out["message"] = "No readable sources in the allowed paths. Nothing invented."
+        out["total_sources"] = 0
+        return out
+    by_size = sorted(files, key=lambda x: x["size"], reverse=True)
+    by_new = sorted(files, key=lambda x: x["modified"], reverse=True)
+    catc, extc = {}, {}
+    for f in files:
+        catc[f["category"]] = catc.get(f["category"], 0) + 1
+        extc[f["ext"] or "(none)"] = extc.get(f["ext"] or "(none)", 0) + 1
+    # probable duplicates: same (lowercased name, exact size) appearing more than once
+    groups = {}
+    for f in files:
+        groups.setdefault((f["name"].lower(), f["size"]), []).append(f["path"])
+    dups = [{"name": k[0], "size_human": _j88_human_size(k[1]), "count": len(v), "paths": v[:6]}
+            for k, v in groups.items() if len(v) > 1]
+    dups.sort(key=lambda d: d["count"], reverse=True)
+
+    def slim(f):
+        return {"path": f["path"], "size_human": _j88_human_size(f["size"]),
+                "category": f["category"], "modified_at": f["modified_at"]}
+
+    out["total_sources"] = len(files)
+    out["total_size_human"] = _j88_human_size(scan["total_bytes"])
+    out["roots_scanned"] = scan["roots_scanned"]
+    out["largest_files"] = [slim(f) for f in by_size[:10]]
+    out["newest_files"] = [slim(f) for f in by_new[:10]]
+    out["oldest_files"] = [slim(f) for f in by_new[-10:][::-1]]
+    out["probable_duplicates"] = dups[:15]
+    out["duplicate_groups"] = len(dups)
+    out["categories"] = [{"category": k, "count": v} for k, v in sorted(catc.items(), key=lambda kv: kv[1], reverse=True)]
+    out["file_types"] = [{"ext": k, "count": v} for k, v in sorted(extc.items(), key=lambda kv: kv[1], reverse=True)[:14]]
+    out["truncated"] = scan["truncated"]
+    out["next_safe_steps"] = [
+        "Search a term with /sources-search?q=...",
+        "Check /sources-health for stale/large/sensitive signals",
+        "All read-only and local; .env/secrets are never read",
+    ]
+    return out
+
+
+def _j89_health():
+    scan = _j88_scan()
+    files = scan["files"]
+    out = _j89_base("GET /sources-health", True)
+    now = int(_j89_time.time())
+    indexed = [f for f in files if f["indexed"]]
+    stale = [f for f in files if (now - f["modified"]) > _J89_STALE_DAYS * 86400]
+    large = [f for f in files if f["size"] > _J89_LARGE_BYTES]
+    missing_roots = [r for r in _J88_ALLOWED_ROOTS if not (_J88ROOT / r).exists()]
+    signals = []
+    status = "ok"
+    if not files:
+        status = "warn"
+        signals.append({"level": "warn", "signal": "no readable sources found in the allowed paths"})
+    else:
+        signals.append({"level": "ok", "signal": "%d files, %d indexed, across %d roots"
+                        % (len(files), len(indexed), len(scan["roots_scanned"]))})
+    if scan["skipped_forbidden"]:
+        signals.append({"level": "ok", "signal": "%d sensitive path(s) skipped (.env/secret/token/etc.)" % scan["skipped_forbidden"]})
+    if large:
+        signals.append({"level": "info", "signal": "%d file(s) larger than 1 MB" % len(large)})
+    if stale:
+        signals.append({"level": "info", "signal": "%d file(s) older than %d days" % (len(stale), _J89_STALE_DAYS)})
+    if scan["truncated"]:
+        status = "warn"
+        signals.append({"level": "warn", "signal": "scan truncated at the file cap — totals are partial"})
+    if missing_roots:
+        signals.append({"level": "info", "signal": "allowed roots not present on disk: " + ", ".join(missing_roots)})
+    out["health_status"] = status
+    out["total_sources"] = len(files)
+    out["total_files_indexed"] = len(indexed)
+    out["total_size_human"] = _j88_human_size(scan["total_bytes"])
+    out["roots_scanned"] = scan["roots_scanned"]
+    out["roots_missing"] = missing_roots
+    out["stale_files"] = len(stale)
+    out["large_files"] = len(large)
+    out["sensitive_skipped"] = scan["skipped_forbidden"]
+    out["truncated"] = scan["truncated"]
+    out["signals"] = signals
+    out["next_safe_steps"] = [
+        "Review large files via /sources-insight (largest_files)",
+        "Search content with /sources-search?q=...",
+        "Everything is local + read-only",
+    ]
+    return out
+
+
+def _j89_do_GET(self):
+    parsed = _j89_urlparse(self.path)
+    path = parsed.path
+    try:
+        if path == "/sources-search":
+            qs = _j89_parse_qs(parsed.query)
+            q = (qs.get("q") or qs.get("query") or [""])[0]
+            try:
+                limit = max(1, min(200, int((qs.get("limit") or ["50"])[0])))
+            except Exception:
+                limit = 50
+            return _j83_json_out(self, _j89_search(q, limit))
+        if path == "/sources-insight":
+            return _j83_json_out(self, _j89_insight())
+        if path == "/sources-health":
+            return _j83_json_out(self, _j89_health())
+    except Exception as e:
+        p = _j89_base("GET " + path, False)
+        p["error"] = str(e)
+        return _j83_json_out(self, p, 500)
+    return self.__class__._j89_prev_GET(self)
+
+
+def _j89_do_POST(self):
+    return self.__class__._j89_prev_POST(self)
+
+
+def _j89_install():
+    patched = []
+    for name, obj in list(globals().items()):
+        if not isinstance(obj, type):
+            continue
+        try:
+            if (
+                issubclass(obj, _j89_BaseHTTPRequestHandler)
+                and obj is not _j89_BaseHTTPRequestHandler
+                and hasattr(obj, "do_GET")
+                and hasattr(obj, "do_POST")
+                and not getattr(obj, "_j89_installed", False)
+            ):
+                obj._j89_prev_GET = obj.do_GET
+                obj._j89_prev_POST = obj.do_POST
+                obj.do_GET = _j89_do_GET
+                obj.do_POST = _j89_do_POST
+                obj._j89_installed = True
+                patched.append(name)
+        except Exception:
+            pass
+    print("[J89] Installed Sources Search + Insights routes on:", ", ".join(patched) if patched else "none")
+
+
+_j89_install()
+# === END JARVIS BLOCK 89 ===
+
+
 if __name__ == "__main__":
     sys.exit(main())
 

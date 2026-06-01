@@ -1165,6 +1165,18 @@ function runCommand(raw){
   const text=(raw||"").trim();
   if(!text) return;
   $("cmd").value="";
+  // Block 89 — Sources Search + Insights: /sources-search <term> /sources-insight /sources-health
+  const sm=text.match(/^\/?(sources-search|sourcessearch|sources-insight|sourcesinsight|sources-health|sourceshealth)\b[:\s]*([\s\S]*)$/i);
+  if(sm){
+    const scmd=sm[1].toLowerCase().replace(/[^a-z]/g,''); // sourcessearch / sourcesinsight / sourceshealth
+    const arg=(sm[2]||"").trim();
+    if(scmd==="sourcessearch"){
+      if(!arg){ showMessage("Type a term after /sources-search — e.g. /sources-search jarvis", "info", text); $("cmd").value="/sources-search "; $("cmd").focus(); return; }
+      call('/sources-search?q='+encodeURIComponent(arg), {}, 'Sources Search · '+arg); return;
+    }
+    if(scmd==="sourcesinsight"){ call('/sources-insight', {}, 'Sources Insight'); return; }
+    call('/sources-health', {}, 'Sources Health'); return;
+  }
   // FORGE engine routing: "/forge <feature>", "forge: <feature>", "forja <feature>"
   const fm=text.match(/^\/?(forge|forja)\b[:\s]*([\s\S]*)$/i);
   if(fm){
