@@ -1087,8 +1087,9 @@ function buildSummary(j){
 }
 function buildChips(j){
   const box=$("rChips"); box.innerHTML="";
-  if(j.precisa_aprovacao){ const c=document.createElement("span"); c.className="chip approve"; c.textContent="⚠ Approval required"; box.appendChild(c); }
-  const blocked=j.blocked_actions||j.blocked;
+  if(j.precisa_aprovacao && !(typeof ownerDevSoftBypass==="function" && ownerDevSoftBypass(j))){ const c=document.createElement("span"); c.className="chip approve"; c.textContent="⚠ Approval required"; box.appendChild(c); }
+  let blocked=j.blocked_actions||j.blocked;
+  if(typeof ownerDevVisibleBlocked==="function"){ blocked=ownerDevVisibleBlocked(blocked); }
   if(Array.isArray(blocked)) blocked.forEach(b=>{ const c=document.createElement("span"); c.className="chip block"; c.textContent=b; box.appendChild(c); });
 }
 
@@ -2886,5 +2887,111 @@ else boot();
   }catch(e){ /* layout resizers are non-critical */ }
 })();
 </script>
+
+<script>
+/* === JARVIS BLOCK 97: OWNER DEV MODE UI BEGIN === */
+(function(){
+  const HARD_BLOCKED = ["commit","push","deploy","free_shell","read_env","read_secrets","external_production","outside_repo"];
+  window.JARVIS_OWNER_DEV = window.JARVIS_OWNER_DEV || { active:false, local:false, hardBlocked:HARD_BLOCKED };
+
+  function norm(v){ return String(v||"").toLowerCase().replace(/[^a-z0-9_/-]+/g,"_"); }
+  function $(id){ return document.getElementById(id); }
+
+  function show(label, data){
+    const line = $("line") || $("statusLine");
+    const out = $("out") || $("rJson") || document.querySelector("pre");
+    if(line) line.textContent = label;
+    if(out) out.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  }
+
+  async function ownerDevRefresh(){
+    try{
+      const res = await fetch("/owner-dev");
+      const data = await res.json();
+      window.JARVIS_OWNER_DEV.active = !!data.owner_dev_mode;
+      window.JARVIS_OWNER_DEV.local = !!data.localhost_confirmed;
+      window.JARVIS_OWNER_DEV.data = data;
+      paintOwnerDev();
+      return data;
+    }catch(e){
+      window.JARVIS_OWNER_DEV.active = false;
+      window.JARVIS_OWNER_DEV.error = String(e);
+      paintOwnerDev();
+      return {ok:false,error:String(e)};
+    }
+  }
+
+  async function ownerDevToggle(path){
+    const res = await fetch(path || "/owner-dev/toggle", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
+    const data = await res.json();
+    window.JARVIS_OWNER_DEV.active = !!data.owner_dev_mode;
+    window.JARVIS_OWNER_DEV.local = !!data.localhost_confirmed;
+    window.JARVIS_OWNER_DEV.data = data;
+    paintOwnerDev();
+    show("Owner Dev Mode atualizado", data);
+  }
+
+  async function ownerDevCall(path, method){
+    const res = await fetch(path, {method:method||"GET", headers:{"Content-Type":"application/json"}, body:(method==="POST" ? "{}" : undefined)});
+    const data = await res.json();
+    show((data.ok ? "OK " : "FAIL ") + path, data);
+    return data;
+  }
+
+  function paintOwnerDev(){
+    let box = $("ownerDevBox");
+    if(!box){
+      box = document.createElement("div");
+      box.id = "ownerDevBox";
+      box.style.cssText = "position:fixed;right:16px;top:16px;z-index:99999;max-width:360px;padding:12px;border-radius:18px;border:1px solid rgba(120,180,255,.35);background:rgba(3,10,22,.92);color:#e8f1ff;font:12px system-ui;box-shadow:0 18px 60px rgba(0,0,0,.35);backdrop-filter:blur(12px)";
+      document.body.appendChild(box);
+    }
+    const active = !!window.JARVIS_OWNER_DEV.active;
+    box.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <b style="font-size:12px;letter-spacing:.08em;">${active ? "OWNER DEV MODE ON" : "OWNER DEV MODE OFF"}</b>
+        <span style="width:9px;height:9px;border-radius:99px;background:${active ? "#7dffbf" : "#ffbf69"};display:inline-block;"></span>
+      </div>
+      <div style="opacity:.78;line-height:1.35;margin-bottom:10px;">
+        Localhost only. Commit, push, deploy, .env, secrets and free shell stay locked.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <button onclick="jarvisOwnerDevOn()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">ON</button>
+        <button onclick="jarvisOwnerDevOff()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">OFF</button>
+        <button onclick="jarvisOwnerDevSelfTest()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">Self-Test</button>
+        <button onclick="jarvisOwnerDevStatus()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">Status</button>
+      </div>
+    `;
+  }
+
+  window.ownerDevSoftBypass = function(j){
+    if(!window.JARVIS_OWNER_DEV || !window.JARVIS_OWNER_DEV.active || !j) return false;
+    const endpoint = String(j.endpoint || j.routed_to || "");
+    const safe = /(owner-dev|self-test|digest|validate|safety-gate|latest|artifact|sources|source|command|forge|approval|apply|jarvis-brief|status|next)/i.test(endpoint);
+    const blocked = j.blocked_actions || j.blocked || [];
+    const hasHard = Array.isArray(blocked) && blocked.some(x => HARD_BLOCKED.includes(norm(x)));
+    return safe && !hasHard;
+  };
+
+  window.ownerDevVisibleBlocked = function(blocked){
+    if(!Array.isArray(blocked)) return blocked;
+    if(!window.JARVIS_OWNER_DEV || !window.JARVIS_OWNER_DEV.active) return blocked;
+    return blocked.filter(x => HARD_BLOCKED.includes(norm(x)));
+  };
+
+  window.jarvisOwnerDevOn = () => ownerDevToggle("/owner-dev/on");
+  window.jarvisOwnerDevOff = () => ownerDevToggle("/owner-dev/off");
+  window.jarvisOwnerDevStatus = async () => show("Owner Dev Mode", await ownerDevRefresh());
+  window.jarvisOwnerDevSelfTest = () => ownerDevCall("/self-test", "POST");
+
+  document.addEventListener("DOMContentLoaded", function(){
+    paintOwnerDev();
+    ownerDevRefresh();
+  });
+  setTimeout(ownerDevRefresh, 600);
+})();
+/* === JARVIS BLOCK 97: OWNER DEV MODE UI END === */
+</script>
+
 </body>
 </html>

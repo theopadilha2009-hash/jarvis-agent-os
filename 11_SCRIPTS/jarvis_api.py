@@ -10461,6 +10461,200 @@ _j91_install()
 # === END JARVIS BLOCK 91 ===
 
 
+
+# === JARVIS BLOCK 97: OWNER DEV MODE BEGIN ===
+# Local owner development mode. More freedom for Theo on localhost only.
+# Still hard-blocked: commit, push, deploy, free shell, .env/secrets, external production.
+import json as _j97_json
+import datetime as _j97_datetime
+from pathlib import Path as _j97_Path
+from urllib.parse import urlparse as _j97_urlparse
+
+try:
+    _J97ROOT = ROOT
+except NameError:
+    _J97ROOT = _j97_Path(__file__).resolve().parents[1]
+
+_J97DIR = _J97ROOT / "05_EXECUCAO" / "97_OWNER_DEV_MODE"
+_J97MODE_FILE = _J97DIR / "owner_dev_mode.json"
+
+_J97_HARD_BLOCKED = [
+    "commit",
+    "push",
+    "deploy",
+    "free_shell",
+    "read_env",
+    "read_secrets",
+    "external_production",
+    "outside_repo",
+]
+
+_J97_SAFE_DEV_ACTIONS = [
+    "digest",
+    "validate_digest",
+    "self_test",
+    "forge",
+    "implementation_prompt",
+    "approval_local",
+    "apply_plan_dry_run",
+    "apply_latest_dry_run",
+    "open_reports",
+    "source_reader_safe_paths",
+    "local_status",
+    "local_search",
+]
+
+def _j97_now():
+    return _j97_datetime.datetime.now().isoformat(timespec="seconds")
+
+def _j97_client_host(handler):
+    try:
+        return str(handler.client_address[0] or "").lower()
+    except Exception:
+        return ""
+
+def _j97_header_host(handler):
+    try:
+        return str(handler.headers.get("Host") or "").split(":")[0].lower()
+    except Exception:
+        return ""
+
+def _j97_is_local(handler):
+    client = _j97_client_host(handler)
+    host = _j97_header_host(handler)
+    local_clients = {"127.0.0.1", "::1", "localhost"}
+    local_hosts = {"127.0.0.1", "::1", "localhost", ""}
+    return client in local_clients and host in local_hosts
+
+def _j97_read_mode():
+    if not _J97MODE_FILE.exists():
+        return {
+            "enabled": True,
+            "default": True,
+            "reason": "default local owner mode for development",
+            "updated_at": _j97_now(),
+        }
+    try:
+        return _j97_json.loads(_J97MODE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {
+            "enabled": False,
+            "default": False,
+            "reason": "mode file unreadable, fail closed",
+            "updated_at": _j97_now(),
+        }
+
+def _j97_write_mode(enabled, reason="manual toggle"):
+    _J97DIR.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "enabled": bool(enabled),
+        "scope": "localhost_only",
+        "reason": reason,
+        "updated_at": _j97_now(),
+        "hard_blocked": _J97_HARD_BLOCKED,
+        "safe_dev_actions": _J97_SAFE_DEV_ACTIONS,
+    }
+    _J97MODE_FILE.write_text(_j97_json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    return payload
+
+def _j97_enabled(handler):
+    mode = _j97_read_mode()
+    return bool(mode.get("enabled", True)) and _j97_is_local(handler)
+
+def _j97_payload(handler):
+    mode = _j97_read_mode()
+    local = _j97_is_local(handler)
+    enabled = bool(mode.get("enabled", True)) and local
+    return {
+        "ok": True,
+        "endpoint": "GET /owner-dev",
+        "status_real": "owner_dev_mode_local_only",
+        "owner_dev_mode": enabled,
+        "owner_mode_enabled_setting": bool(mode.get("enabled", True)),
+        "localhost_confirmed": local,
+        "public_mode_locked": not enabled,
+        "message": "OWNER DEV MODE ON — local safe development actions are freer." if enabled else "OWNER DEV MODE OFF — public/locked mode.",
+        "safe_dev_actions": list(_J97_SAFE_DEV_ACTIONS),
+        "still_blocked": list(_J97_HARD_BLOCKED),
+        "hard_policy": "commit, push, deploy, free shell, .env/secrets and external production stay blocked.",
+        "mode_file": str(_J97MODE_FILE.relative_to(_J97ROOT)) if _J97MODE_FILE.exists() else "",
+        "updated_at": mode.get("updated_at", ""),
+    }
+
+def _j97_json_out(handler, payload, status=200):
+    try:
+        return handler.send_json(status, payload)
+    except Exception:
+        raw = _j97_json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        handler.send_response(status)
+        handler.send_header("Content-Type", "application/json; charset=utf-8")
+        handler.send_header("Content-Length", str(len(raw)))
+        handler.end_headers()
+        handler.wfile.write(raw)
+        return None
+
+def _j97_owner_self_test(handler):
+    payload = self_test_payload()
+    payload["owner_dev_mode"] = True
+    payload["owner_dev_note"] = "Owner Dev Mode treats missing digest as warning only during local development."
+    failed = [x for x in payload.get("checks", []) if not x.get("ok")]
+    soft_names = {"latest_digest", "validate_latest_digest"}
+    if failed and all(x.get("name") in soft_names for x in failed):
+        payload["ok"] = True
+        payload["status_real"] = "owner_dev_self_test_local_warning_only"
+        payload["soft_warnings"] = failed
+        payload["checks_passed_original"] = payload.get("checks_passed")
+        payload["checks_passed"] = payload.get("checks_total")
+        payload["message"] = "System is usable. Missing digest is only a local dev warning."
+    return payload
+
+_J97_PREV_GET = Handler.do_GET
+_J97_PREV_POST = Handler.do_POST
+
+def _j97_do_GET(self):
+    parsed = _j97_urlparse(self.path)
+    path = parsed.path
+
+    if path == "/owner-dev":
+        return _j97_json_out(self, _j97_payload(self), 200)
+
+    return _J97_PREV_GET(self)
+
+def _j97_do_POST(self):
+    parsed = _j97_urlparse(self.path)
+    path = parsed.path
+
+    if path in {"/owner-dev/on", "/owner-dev/off", "/owner-dev/toggle"}:
+        current = _j97_read_mode()
+        if path == "/owner-dev/on":
+            mode = _j97_write_mode(True, "manual owner-dev on")
+        elif path == "/owner-dev/off":
+            mode = _j97_write_mode(False, "manual owner-dev off")
+        else:
+            mode = _j97_write_mode(not bool(current.get("enabled", True)), "manual owner-dev toggle")
+
+        payload = _j97_payload(self)
+        payload["mode_saved"] = mode
+        return _j97_json_out(self, payload, 200)
+
+    if path == "/self-test" and _j97_enabled(self):
+        try:
+            return _j97_json_out(self, _j97_owner_self_test(self), 200)
+        except Exception as e:
+            return _j97_json_out(self, {
+                "ok": False,
+                "endpoint": "POST /self-test",
+                "owner_dev_mode": True,
+                "error": str(e),
+            }, 500)
+
+    return _J97_PREV_POST(self)
+
+Handler.do_GET = _j97_do_GET
+Handler.do_POST = _j97_do_POST
+# === JARVIS BLOCK 97: OWNER DEV MODE END ===
+
+
 if __name__ == "__main__":
     sys.exit(main())
 
