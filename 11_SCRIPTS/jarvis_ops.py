@@ -58,6 +58,18 @@ def install_local_ignore() -> None:
 
 
 
+
+def grow(limit: int = 2) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_growth_loop.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_growth_loop.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_growth_loop.py", "apply", "--limit", str(limit))
+    print(out)
+    return code
+
+
 def patch_run(action: str = "apply-next", limit: int = 1) -> int:
     script = REPO / "11_SCRIPTS" / "jarvis_patch_runner.py"
     if not script.exists():
@@ -94,7 +106,11 @@ def self_patch(action: str, patch: str = "cycle-command") -> int:
         print("Missing script: 11_SCRIPTS/jarvis_self_patch.py")
         return 1
 
-    code, out = py("11_SCRIPTS/jarvis_self_patch.py", action, patch)
+    args = [action]
+    if action != "list":
+        args.append(patch)
+
+    code, out = py("11_SCRIPTS/jarvis_self_patch.py", *args)
     print(out)
     return code
 
@@ -436,6 +452,10 @@ def main() -> int:
 
     sub.add_parser("done")
 
+
+    p_grow = sub.add_parser("grow")
+    p_grow.add_argument("--limit", type=int, default=2)
+
     p_patch_run = sub.add_parser("patch-run")
     p_patch_run.add_argument("action", nargs="?", choices=["next", "apply-next"], default="apply-next")
     p_patch_run.add_argument("--limit", type=int, default=1)
@@ -515,6 +535,10 @@ def main() -> int:
 
     if args.cmd == "done":
         return done()
+
+
+    if args.cmd == "grow":
+        return grow(limit=args.limit)
 
     if args.cmd == "patch-run":
         return patch_run(args.action, limit=args.limit)
