@@ -56,6 +56,22 @@ def install_local_ignore() -> None:
 
 
 
+
+def auto_cycle(goal: str, no_apply: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_auto_cycle.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_auto_cycle.py")
+        return 1
+
+    args = [goal]
+    if no_apply:
+        args.append("--no-apply")
+
+    code, out = py("11_SCRIPTS/jarvis_auto_cycle.py", *args)
+    print(out)
+    return code
+
+
 def self_patch(action: str, patch: str = "cycle-command") -> int:
     script = REPO / "11_SCRIPTS" / "jarvis_self_patch.py"
     if not script.exists():
@@ -304,6 +320,11 @@ def main() -> int:
 
 
 
+
+    p_auto_cycle = sub.add_parser("auto-cycle")
+    p_auto_cycle.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_auto_cycle.add_argument("--no-apply", action="store_true")
+
     p_self_patch = sub.add_parser("self-patch")
     p_self_patch.add_argument("action", choices=["list", "plan", "apply"])
     p_self_patch.add_argument("patch", nargs="?", default="cycle-command")
@@ -350,6 +371,13 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "auto-cycle":
+        return auto_cycle(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            no_apply=args.no_apply,
+        )
 
     if args.cmd == "self-patch":
         return self_patch(args.action, args.patch)
