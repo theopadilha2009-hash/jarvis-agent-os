@@ -175,6 +175,19 @@ def next_action() -> int:
     return 0
 
 
+
+def progress(save: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_progress_dashboard.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_progress_dashboard.py")
+        return 1
+
+    args = ["--save"] if save else []
+    code, out = py("11_SCRIPTS/jarvis_progress_dashboard.py", *args)
+    print(out)
+    return code
+
+
 def report() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -248,6 +261,10 @@ def main() -> int:
 
     sub.add_parser("clean")
     sub.add_parser("next")
+
+    p_progress = sub.add_parser("progress")
+    p_progress.add_argument("--save", action="store_true")
+
     sub.add_parser("report")
 
     args = parser.parse_args()
@@ -273,6 +290,10 @@ def main() -> int:
 
     if args.cmd == "next":
         return next_action()
+
+
+    if args.cmd == "progress":
+        return progress(save=args.save)
 
     if args.cmd == "report":
         return report()
