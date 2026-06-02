@@ -641,6 +641,22 @@ def task(action: str = "list", extra: list[str] | None = None) -> int:
     return code
 
 
+
+def decide(goal: str, plan_only: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_decision_engine.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_decision_engine.py")
+        return 1
+
+    args = [goal]
+    if plan_only:
+        args.append("--plan-only")
+
+    code, out = py("11_SCRIPTS/jarvis_decision_engine.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -684,6 +700,11 @@ def main() -> int:
 
 
 
+
+
+    p_decide = sub.add_parser("decide")
+    p_decide.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_decide.add_argument("--plan-only", action="store_true")
 
     p_task = sub.add_parser("task")
     p_task.add_argument("action", nargs="?", choices=["list", "next"], default="list")
@@ -814,6 +835,13 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "decide":
+        return decide(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            plan_only=args.plan_only,
+        )
 
     if args.cmd == "task":
         return task(args.action)
