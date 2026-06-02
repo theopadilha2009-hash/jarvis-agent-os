@@ -355,6 +355,60 @@ def health() -> int:
 
 
 
+
+def work(goal: str) -> int:
+    print("JARVIS WORK — HEALTH")
+    code1 = health() if "health" in globals() else status()
+
+    print("")
+    print("JARVIS WORK — IMPROVE")
+    code2 = improve(goal, print_full=False)
+
+    print("")
+    print("JARVIS WORK — PATCH NEXT")
+    code3 = patch_run("next", limit=1) if "patch_run" in globals() else 0
+
+    return max(code1, code2, code3)
+
+
+
+
+def sync_check() -> int:
+    print("JARVIS SYNC CHECK — FETCH")
+    code_fetch, out_fetch = run(["git", "fetch", "origin"])
+    print(out_fetch or "fetch ok")
+
+    print("")
+    print("JARVIS SYNC CHECK — LOCAL")
+    _, local = run(["git", "rev-parse", "--short", "HEAD"])
+    print(local)
+
+    print("")
+    print("JARVIS SYNC CHECK — REMOTE")
+    _, remote = run(["git", "rev-parse", "--short", "origin/main"])
+    print(remote)
+
+    print("")
+    print("JARVIS SYNC CHECK — STATUS")
+    code_status = status()
+
+    return max(code_fetch, code_status)
+
+
+
+
+def done() -> int:
+    print("JARVIS DONE — CLOSEOUT")
+    code1 = closeout(print_full=False)
+
+    print("")
+    print("JARVIS DONE — STATUS")
+    code2 = status()
+
+    return max(code1, code2)
+
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -371,6 +425,16 @@ def main() -> int:
 
     sub.add_parser("health")
 
+
+
+    p_work = sub.add_parser("work")
+    p_work.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+
+
+    sub.add_parser("sync-check")
+
+
+    sub.add_parser("done")
 
     p_patch_run = sub.add_parser("patch-run")
     p_patch_run.add_argument("action", nargs="?", choices=["next", "apply-next"], default="apply-next")
@@ -439,6 +503,18 @@ def main() -> int:
     if args.cmd == "health":
         return health()
 
+
+
+    if args.cmd == "work":
+        return work(" ".join(args.goal).strip() or "melhorar Jarvis")
+
+
+    if args.cmd == "sync-check":
+        return sync_check()
+
+
+    if args.cmd == "done":
+        return done()
 
     if args.cmd == "patch-run":
         return patch_run(args.action, limit=args.limit)

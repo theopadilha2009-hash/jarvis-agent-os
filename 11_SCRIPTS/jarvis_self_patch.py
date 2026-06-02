@@ -12,6 +12,9 @@ PATCH_ORDER = [
     "cycle-command",
     "fast-command",
     "health-command",
+    "work-command",
+    "sync-check-command",
+    "done-command",
 ]
 
 SAFE_PATCHES = {
@@ -25,13 +28,31 @@ SAFE_PATCHES = {
         "title": "Add Jarvis fast command",
         "risk": "low",
         "target": "11_SCRIPTS/jarvis_ops.py",
-        "description": "Adds fast command: auto-cycle + status in one command.",
+        "description": "Adds fast command: auto-cycle + status.",
     },
     "health-command": {
         "title": "Add Jarvis health command",
         "risk": "low",
         "target": "11_SCRIPTS/jarvis_ops.py",
-        "description": "Adds health command: status + progress in one command.",
+        "description": "Adds health command: status + progress.",
+    },
+    "work-command": {
+        "title": "Add Jarvis work command",
+        "risk": "low",
+        "target": "11_SCRIPTS/jarvis_ops.py",
+        "description": "Adds work command: health + improve + patch-run next.",
+    },
+    "sync-check-command": {
+        "title": "Add Jarvis sync-check command",
+        "risk": "low",
+        "target": "11_SCRIPTS/jarvis_ops.py",
+        "description": "Adds sync-check command: fetch + local/remote comparison + status.",
+    },
+    "done-command": {
+        "title": "Add Jarvis done command",
+        "risk": "low",
+        "target": "11_SCRIPTS/jarvis_ops.py",
+        "description": "Adds done command: closeout + status.",
     },
 }
 
@@ -54,8 +75,7 @@ def current_paths() -> list[str]:
 
 
 def guard_expected(expected: list[str]) -> bool:
-    paths = current_paths()
-    return all(p in expected for p in paths)
+    return all(p in expected for p in current_paths())
 
 
 def ops_text() -> str:
@@ -69,12 +89,13 @@ def write_ops(text: str) -> None:
 def insert_before_main(text: str, block: str) -> str:
     marker = "\ndef main() -> int:"
     if marker not in text:
-        raise RuntimeError("Could not find main() insertion point")
+        raise RuntimeError("Could not find main insertion point")
     return text.replace(marker, "\n" + block + marker, 1)
 
 
 def insert_parser(text: str, block: str) -> str:
     markers = [
+        '    p_patch_run = sub.add_parser("patch-run")',
         '    p_auto_cycle = sub.add_parser("auto-cycle")',
         '    p_self_patch = sub.add_parser("self-patch")',
         '    p_improve = sub.add_parser("improve")',
@@ -89,6 +110,7 @@ def insert_parser(text: str, block: str) -> str:
 
 def insert_route(text: str, block: str) -> str:
     markers = [
+        '    if args.cmd == "patch-run":',
         '    if args.cmd == "auto-cycle":',
         '    if args.cmd == "self-patch":',
         '    if args.cmd == "improve":',
@@ -103,13 +125,15 @@ def insert_route(text: str, block: str) -> str:
 
 def is_applied(patch_name: str) -> bool:
     text = ops_text()
-    if patch_name == "cycle-command":
-        return "def cycle(" in text and 'p_cycle = sub.add_parser("cycle")' in text
-    if patch_name == "fast-command":
-        return "def fast(" in text and 'p_fast = sub.add_parser("fast")' in text
-    if patch_name == "health-command":
-        return "def health(" in text and 'sub.add_parser("health")' in text
-    return False
+    checks = {
+        "cycle-command": "def cycle(",
+        "fast-command": "def fast(",
+        "health-command": "def health(",
+        "work-command": "def work(",
+        "sync-check-command": "def sync_check(",
+        "done-command": "def done(",
+    }
+    return checks.get(patch_name, "__missing__") in text
 
 
 def next_patch_name() -> str | None:
@@ -119,17 +143,228 @@ def next_patch_name() -> str | None:
     return None
 
 
+def add_simple_command(name: str, func_code: str, parser_code: str, route_code: str) -> dict:
+    text = ops_text()
+    changed = False
+
+    if f"def {name}(" not in text:
+        text = insert_before_main(text, func_code)
+        changed = True
+
+    parser_signature = parser_code.strip().splitlines()[0].strip()
+    if parser_signature and parser_signature not in text:
+        text = insert_parser(text, parser_code)
+        changed = True
+
+    route_signature = f'if args.cmd == "{name.replace("_", "-")}":'
+    if route_signature not in text:
+        text = insert_route(text, route_code)
+        changed = True
+
+    write_ops(text)
+    return {"ok": True, "patch": f"{name}-command", "changed": changed}
+
+
+def apply_cycle_command() -> dict:
+    return add_simple_command(
+        "cycle",
+        '''
+def cycle(goal: str, print_full: bool = False) -> int:
+    print("JARVIS CYCLE — IMPROVE")
+    code1 = improve(goal, print_full=print_full)
+
+    print("")
+    print("JARVIS CYCLE — CLOSEOUT")
+    code2 = closeout(print_full=False)
+
+    return max(code1, code2)
+
+
+''',
+        '''
+    p_cycle = sub.add_parser("cycle")
+    p_cycle.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_cycle.add_argument("--print", action="store_true")
+
+''',
+        '''
+    if args.cmd == "cycle":
+        return cycle(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            print_full=args.print,
+        )
+
+''',
+    )
+
+
+def apply_fast_command() -> dict:
+    return add_simple_command(
+        "fast",
+        '''
+def fast(goal: str, no_apply: bool = False) -> int:
+    print("JARVIS FAST — AUTO CYCLE")
+    code1 = auto_cycle(goal, no_apply=no_apply)
+
+    print("")
+    print("JARVIS FAST — STATUS")
+    code2 = status()
+
+    return max(code1, code2)
+
+
+''',
+        '''
+    p_fast = sub.add_parser("fast")
+    p_fast.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_fast.add_argument("--no-apply", action="store_true")
+
+''',
+        '''
+    if args.cmd == "fast":
+        return fast(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            no_apply=args.no_apply,
+        )
+
+''',
+    )
+
+
+def apply_health_command() -> dict:
+    return add_simple_command(
+        "health",
+        '''
+def health() -> int:
+    print("JARVIS HEALTH — STATUS")
+    code1 = status()
+
+    print("")
+    print("JARVIS HEALTH — PROGRESS")
+    code2 = progress(save=False)
+
+    return max(code1, code2)
+
+
+''',
+        '''
+    sub.add_parser("health")
+
+''',
+        '''
+    if args.cmd == "health":
+        return health()
+
+''',
+    )
+
+
+def apply_work_command() -> dict:
+    return add_simple_command(
+        "work",
+        '''
+def work(goal: str) -> int:
+    print("JARVIS WORK — HEALTH")
+    code1 = health() if "health" in globals() else status()
+
+    print("")
+    print("JARVIS WORK — IMPROVE")
+    code2 = improve(goal, print_full=False)
+
+    print("")
+    print("JARVIS WORK — PATCH NEXT")
+    code3 = patch_run("next", limit=1) if "patch_run" in globals() else 0
+
+    return max(code1, code2, code3)
+
+
+''',
+        '''
+    p_work = sub.add_parser("work")
+    p_work.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+
+''',
+        '''
+    if args.cmd == "work":
+        return work(" ".join(args.goal).strip() or "melhorar Jarvis")
+
+''',
+    )
+
+
+def apply_sync_check_command() -> dict:
+    return add_simple_command(
+        "sync_check",
+        '''
+def sync_check() -> int:
+    print("JARVIS SYNC CHECK — FETCH")
+    code_fetch, out_fetch = run(["git", "fetch", "origin"])
+    print(out_fetch or "fetch ok")
+
+    print("")
+    print("JARVIS SYNC CHECK — LOCAL")
+    _, local = run(["git", "rev-parse", "--short", "HEAD"])
+    print(local)
+
+    print("")
+    print("JARVIS SYNC CHECK — REMOTE")
+    _, remote = run(["git", "rev-parse", "--short", "origin/main"])
+    print(remote)
+
+    print("")
+    print("JARVIS SYNC CHECK — STATUS")
+    code_status = status()
+
+    return max(code_fetch, code_status)
+
+
+''',
+        '''
+    sub.add_parser("sync-check")
+
+''',
+        '''
+    if args.cmd == "sync-check":
+        return sync_check()
+
+''',
+    )
+
+
+def apply_done_command() -> dict:
+    return add_simple_command(
+        "done",
+        '''
+def done() -> int:
+    print("JARVIS DONE — CLOSEOUT")
+    code1 = closeout(print_full=False)
+
+    print("")
+    print("JARVIS DONE — STATUS")
+    code2 = status()
+
+    return max(code1, code2)
+
+
+''',
+        '''
+    sub.add_parser("done")
+
+''',
+        '''
+    if args.cmd == "done":
+        return done()
+
+''',
+    )
+
+
 def plan(patch_name: str) -> dict:
     if patch_name == "next":
         patch_name = next_patch_name() or "none"
 
     if patch_name == "none":
-        return {
-            "ok": True,
-            "patch": "none",
-            "message": "No pending safe patch.",
-            "available": PATCH_ORDER,
-        }
+        return {"ok": True, "patch": "none", "message": "No pending safe patch.", "available": PATCH_ORDER}
 
     patch = SAFE_PATCHES.get(patch_name)
     if not patch:
@@ -142,142 +377,6 @@ def plan(patch_name: str) -> dict:
         "applied": is_applied(patch_name),
         **patch,
     }
-
-
-def apply_cycle_command() -> dict:
-    text = ops_text()
-    changed = False
-
-    if "def cycle(" not in text:
-        func = '''
-def cycle(goal: str, print_full: bool = False) -> int:
-    print("JARVIS CYCLE — IMPROVE")
-    code1 = improve(goal, print_full=print_full)
-
-    print("")
-    print("JARVIS CYCLE — CLOSEOUT")
-    code2 = closeout(print_full=False)
-
-    return max(code1, code2)
-
-
-'''
-        text = insert_before_main(text, func)
-        changed = True
-
-    if 'p_cycle = sub.add_parser("cycle")' not in text:
-        parser = '''
-    p_cycle = sub.add_parser("cycle")
-    p_cycle.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
-    p_cycle.add_argument("--print", action="store_true")
-
-'''
-        text = insert_parser(text, parser)
-        changed = True
-
-    if 'if args.cmd == "cycle":' not in text:
-        route = '''
-    if args.cmd == "cycle":
-        return cycle(
-            " ".join(args.goal).strip() or "melhorar Jarvis",
-            print_full=args.print,
-        )
-
-'''
-        text = insert_route(text, route)
-        changed = True
-
-    write_ops(text)
-    return {"ok": True, "patch": "cycle-command", "changed": changed}
-
-
-def apply_fast_command() -> dict:
-    text = ops_text()
-    changed = False
-
-    if "def fast(" not in text:
-        func = '''
-def fast(goal: str, no_apply: bool = False) -> int:
-    print("JARVIS FAST — AUTO CYCLE")
-    code1 = auto_cycle(goal, no_apply=no_apply)
-
-    print("")
-    print("JARVIS FAST — STATUS")
-    code2 = status()
-
-    return max(code1, code2)
-
-
-'''
-        text = insert_before_main(text, func)
-        changed = True
-
-    if 'p_fast = sub.add_parser("fast")' not in text:
-        parser = '''
-    p_fast = sub.add_parser("fast")
-    p_fast.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
-    p_fast.add_argument("--no-apply", action="store_true")
-
-'''
-        text = insert_parser(text, parser)
-        changed = True
-
-    if 'if args.cmd == "fast":' not in text:
-        route = '''
-    if args.cmd == "fast":
-        return fast(
-            " ".join(args.goal).strip() or "melhorar Jarvis",
-            no_apply=args.no_apply,
-        )
-
-'''
-        text = insert_route(text, route)
-        changed = True
-
-    write_ops(text)
-    return {"ok": True, "patch": "fast-command", "changed": changed}
-
-
-def apply_health_command() -> dict:
-    text = ops_text()
-    changed = False
-
-    if "def health(" not in text:
-        func = '''
-def health() -> int:
-    print("JARVIS HEALTH — STATUS")
-    code1 = status()
-
-    print("")
-    print("JARVIS HEALTH — PROGRESS")
-    code2 = progress(save=False)
-
-    return max(code1, code2)
-
-
-'''
-        text = insert_before_main(text, func)
-        changed = True
-
-    if 'sub.add_parser("health")' not in text:
-        parser = '''
-    sub.add_parser("health")
-
-'''
-        text = insert_parser(text, parser)
-        changed = True
-
-    if 'if args.cmd == "health":' not in text:
-        route = '''
-    if args.cmd == "health":
-        return health()
-
-'''
-        text = insert_route(text, route)
-        changed = True
-
-    write_ops(text)
-    return {"ok": True, "patch": "health-command", "changed": changed}
 
 
 def apply_patch(patch_name: str) -> dict:
@@ -301,14 +400,20 @@ def apply_patch(patch_name: str) -> dict:
         if not patch_name:
             return {"ok": True, "patch": "none", "changed": False, "message": "No pending safe patch."}
 
-    if patch_name == "cycle-command":
-        return apply_cycle_command()
-    if patch_name == "fast-command":
-        return apply_fast_command()
-    if patch_name == "health-command":
-        return apply_health_command()
+    handlers = {
+        "cycle-command": apply_cycle_command,
+        "fast-command": apply_fast_command,
+        "health-command": apply_health_command,
+        "work-command": apply_work_command,
+        "sync-check-command": apply_sync_check_command,
+        "done-command": apply_done_command,
+    }
 
-    return {"ok": False, "error": f"Unknown patch: {patch_name}", "available": PATCH_ORDER}
+    handler = handlers.get(patch_name)
+    if not handler:
+        return {"ok": False, "error": f"Unknown patch: {patch_name}", "available": PATCH_ORDER}
+
+    return handler()
 
 
 def list_patches() -> dict:
@@ -327,7 +432,7 @@ def list_patches() -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="JARVIS Block 113 Self Patch Catalog")
+    parser = argparse.ArgumentParser(description="JARVIS Block 115 Expanded Self Patch Catalog")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("list")
