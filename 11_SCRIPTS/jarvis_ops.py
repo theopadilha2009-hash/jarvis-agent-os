@@ -112,6 +112,22 @@ def sprint(goal: str, save: bool = True) -> int:
     return code
 
 
+
+def forge(goal: str, save: bool = True) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_forge_cli.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_forge_cli.py")
+        return 1
+
+    args = [goal]
+    if save:
+        args.append("--save")
+
+    code, out = py("11_SCRIPTS/jarvis_forge_cli.py", *args)
+    print(out)
+    return code
+
+
 def clean() -> int:
     install_local_ignore()
 
@@ -225,6 +241,11 @@ def main() -> int:
     p_sprint = sub.add_parser("sprint")
     p_sprint.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
 
+
+    p_forge = sub.add_parser("forge")
+    p_forge.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_forge.add_argument("--print", action="store_true")
+
     sub.add_parser("clean")
     sub.add_parser("next")
     sub.add_parser("report")
@@ -242,6 +263,10 @@ def main() -> int:
 
     if args.cmd == "sprint":
         return sprint(" ".join(args.goal).strip() or "melhorar Jarvis")
+
+
+    if args.cmd == "forge":
+        return forge(" ".join(args.goal).strip() or "melhorar Jarvis", save=not args.print)
 
     if args.cmd == "clean":
         return clean()
