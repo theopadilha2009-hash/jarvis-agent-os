@@ -59,6 +59,18 @@ def install_local_ignore() -> None:
 
 
 
+
+def backlog(action: str = "apply-next") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_autonomous_backlog.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_autonomous_backlog.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_autonomous_backlog.py", action)
+    print(out)
+    return code
+
+
 def grow(limit: int = 2) -> int:
     script = REPO / "11_SCRIPTS" / "jarvis_growth_loop.py"
     if not script.exists():
@@ -425,6 +437,57 @@ def done() -> int:
 
 
 
+
+def morning() -> int:
+    print("JARVIS MORNING — SYNC CHECK")
+    code1 = sync_check() if "sync_check" in globals() else status()
+
+    print("")
+    print("JARVIS MORNING — HEALTH")
+    code2 = health() if "health" in globals() else status()
+
+    print("")
+    print("JARVIS MORNING — WORK")
+    code3 = work("melhorar Jarvis") if "work" in globals() else improve("melhorar Jarvis", print_full=False)
+
+    return max(code1, code2, code3)
+
+
+
+
+def nightly() -> int:
+    print("JARVIS NIGHTLY — DONE")
+    code1 = done() if "done" in globals() else closeout(print_full=False)
+
+    print("")
+    print("JARVIS NIGHTLY — PROGRESS")
+    code2 = progress(save=True) if "progress" in globals() else 0
+
+    print("")
+    print("JARVIS NIGHTLY — STATUS")
+    code3 = status()
+
+    return max(code1, code2, code3)
+
+
+
+
+def autopilot(goal: str, limit: int = 2) -> int:
+    print("JARVIS AUTOPILOT — GROW")
+    code1 = grow(limit=limit) if "grow" in globals() else 0
+
+    print("")
+    print("JARVIS AUTOPILOT — WORK")
+    code2 = work(goal) if "work" in globals() else improve(goal, print_full=False)
+
+    print("")
+    print("JARVIS AUTOPILOT — DONE")
+    code3 = done() if "done" in globals() else closeout(print_full=False)
+
+    return max(code1, code2, code3)
+
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -452,6 +515,21 @@ def main() -> int:
 
     sub.add_parser("done")
 
+
+
+
+    sub.add_parser("morning")
+
+
+    sub.add_parser("nightly")
+
+
+    p_autopilot = sub.add_parser("autopilot")
+    p_autopilot.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_autopilot.add_argument("--limit", type=int, default=2)
+
+    p_backlog = sub.add_parser("backlog")
+    p_backlog.add_argument("action", nargs="?", choices=["list", "apply-next"], default="apply-next")
 
     p_grow = sub.add_parser("grow")
     p_grow.add_argument("--limit", type=int, default=2)
@@ -536,6 +614,25 @@ def main() -> int:
     if args.cmd == "done":
         return done()
 
+
+
+
+    if args.cmd == "morning":
+        return morning()
+
+
+    if args.cmd == "nightly":
+        return nightly()
+
+
+    if args.cmd == "autopilot":
+        return autopilot(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            limit=args.limit,
+        )
+
+    if args.cmd == "backlog":
+        return backlog(args.action)
 
     if args.cmd == "grow":
         return grow(limit=args.limit)
