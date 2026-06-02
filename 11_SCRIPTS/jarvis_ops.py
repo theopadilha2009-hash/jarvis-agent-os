@@ -53,6 +53,24 @@ def install_local_ignore() -> None:
     exclude.write_text(final, encoding="utf-8")
 
 
+
+def autoship(message: str, dry_run: bool = False, no_push: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_autoship.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_autoship.py")
+        return 1
+
+    args = [message]
+    if dry_run:
+        args.append("--dry-run")
+    if no_push:
+        args.append("--no-push")
+
+    code, out = py("11_SCRIPTS/jarvis_autoship.py", *args)
+    print(out)
+    return code
+
+
 def status() -> int:
     print("JARVIS OPS HUB — STATUS")
     print(f"Repo: {REPO}")
@@ -243,6 +261,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
+
+    p_ship = sub.add_parser("ship")
+    p_ship.add_argument("message", nargs="*", default=["chore: autoship Jarvis update"])
+    p_ship.add_argument("--dry-run", action="store_true")
+    p_ship.add_argument("--no-push", action="store_true")
+
     sub.add_parser("status")
 
     p_resume = sub.add_parser("resume")
@@ -268,6 +292,14 @@ def main() -> int:
     sub.add_parser("report")
 
     args = parser.parse_args()
+
+
+    if args.cmd == "ship":
+        return autoship(
+            " ".join(args.message).strip() or "chore: autoship Jarvis update",
+            dry_run=args.dry_run,
+            no_push=args.no_push,
+        )
 
     if args.cmd == "status":
         return status()
