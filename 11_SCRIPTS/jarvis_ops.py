@@ -591,6 +591,22 @@ def launch(goal: str, limit: int = 2) -> int:
 
 
 
+
+def mission(goal: str, steps: int = 2, plan_only: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_mission_engine.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_mission_engine.py")
+        return 1
+
+    args = [goal, "--steps", str(steps)]
+    if plan_only:
+        args.append("--plan-only")
+
+    code, out = py("11_SCRIPTS/jarvis_mission_engine.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -631,6 +647,12 @@ def main() -> int:
     p_autopilot.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
     p_autopilot.add_argument("--limit", type=int, default=2)
 
+
+
+    p_mission = sub.add_parser("mission")
+    p_mission.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_mission.add_argument("--steps", type=int, default=2)
+    p_mission.add_argument("--plan-only", action="store_true")
 
     p_snapshot = sub.add_parser("snapshot")
     p_snapshot.add_argument("label", nargs="*", default=["manual"])
@@ -744,6 +766,14 @@ def main() -> int:
             limit=args.limit,
         )
 
+
+
+    if args.cmd == "mission":
+        return mission(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            steps=args.steps,
+            plan_only=args.plan_only,
+        )
 
     if args.cmd == "snapshot":
         return snapshot(" ".join(args.label).strip() or "manual")
