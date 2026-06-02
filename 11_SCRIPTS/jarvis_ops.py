@@ -625,6 +625,22 @@ def power(goal: str, steps: int = 2, autoship: bool = False, message: str = "") 
     return code
 
 
+
+def task(action: str = "list", extra: list[str] | None = None) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_task_engine.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_task_engine.py")
+        return 1
+
+    args = [action]
+    if extra:
+        args.extend(extra)
+
+    code, out = py("11_SCRIPTS/jarvis_task_engine.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -667,6 +683,10 @@ def main() -> int:
 
 
 
+
+
+    p_task = sub.add_parser("task")
+    p_task.add_argument("action", nargs="?", choices=["list", "next"], default="list")
 
     p_power = sub.add_parser("power")
     p_power.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
@@ -793,6 +813,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "task":
+        return task(args.action)
 
     if args.cmd == "power":
         return power(

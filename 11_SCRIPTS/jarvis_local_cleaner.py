@@ -35,6 +35,7 @@ PATTERNS = [
     "05_EXECUCAO/118_OPERATOR_EXPANSION/",
     "05_EXECUCAO/119_MISSION_ENGINE/",
     "05_EXECUCAO/120_POWER_LOOP/",
+    "05_EXECUCAO/121_TASK_ENGINE/",
     "*.pid",
     "*.tmp",
     "*.local.log",
