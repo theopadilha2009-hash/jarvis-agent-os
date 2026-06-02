@@ -657,6 +657,18 @@ def decide(goal: str, plan_only: bool = False) -> int:
     return code
 
 
+
+def plan_tasks() -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_task_planner.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_task_planner.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_task_planner.py", "seed")
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -701,6 +713,9 @@ def main() -> int:
 
 
 
+
+
+    sub.add_parser("plan-tasks")
 
     p_decide = sub.add_parser("decide")
     p_decide.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
@@ -836,6 +851,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "plan-tasks":
+        return plan_tasks()
 
     if args.cmd == "decide":
         return decide(
