@@ -488,6 +488,109 @@ def autopilot(goal: str, limit: int = 2) -> int:
 
 
 
+
+def snapshot(label: str = "manual") -> int:
+    from datetime import datetime
+    import json
+
+    out_dir = REPO / "05_EXECUCAO" / "118_OPERATOR_EXPANSION"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report = out_dir / "SNAPSHOT_REPORT.md"
+
+    _, status_out = run(["git", "status", "-sb"])
+    _, porcelain_out = run(["git", "status", "--porcelain"])
+    _, diff_out = run(["git", "diff", "--stat"])
+    _, commits_out = run(["git", "log", "--oneline", "--decorate", "-12"])
+
+    payload = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "label": label,
+        "git_clean": not bool(porcelain_out.strip()),
+        "status": status_out,
+        "diff": diff_out or "clean",
+        "commits": commits_out,
+    }
+
+    lines = [
+        "# JARVIS Snapshot — Block 118",
+        "",
+        f"Generated at: `{payload['created_at']}`",
+        f"Label: **{label}**",
+        f"Git clean: `{'yes' if payload['git_clean'] else 'no'}`",
+        "",
+        "## Status",
+        "",
+        "```text",
+        status_out or "-",
+        "```",
+        "",
+        "## Diff",
+        "",
+        "```text",
+        diff_out or "clean",
+        "```",
+        "",
+        "## Last Commits",
+        "",
+        "```text",
+        commits_out or "-",
+        "```",
+        "",
+        "## Payload",
+        "",
+        "```json",
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        "```",
+        "",
+    ]
+
+    report.write_text("\n".join(lines), encoding="utf-8")
+
+    print("SNAPSHOT_SAVED")
+    print(report)
+    print(status_out)
+    return 0
+
+
+
+
+def review() -> int:
+    print("JARVIS REVIEW — STATUS")
+    code1 = status()
+
+    print("")
+    print("JARVIS REVIEW — PROGRESS")
+    code2 = progress(save=True) if "progress" in globals() else 0
+
+    print("")
+    print("JARVIS REVIEW — CLOSEOUT")
+    code3 = closeout(print_full=False)
+
+    return max(code1, code2, code3)
+
+
+
+
+def launch(goal: str, limit: int = 2) -> int:
+    print("JARVIS LAUNCH — SNAPSHOT")
+    code1 = snapshot("launch-start")
+
+    print("")
+    print("JARVIS LAUNCH — GROW")
+    code2 = grow(limit=limit) if "grow" in globals() else 0
+
+    print("")
+    print("JARVIS LAUNCH — AUTOPILOT")
+    code3 = autopilot(goal, limit=limit) if "autopilot" in globals() else work(goal)
+
+    print("")
+    print("JARVIS LAUNCH — FINAL SNAPSHOT")
+    code4 = snapshot("launch-end")
+
+    return max(code1, code2, code3, code4)
+
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -527,6 +630,16 @@ def main() -> int:
     p_autopilot = sub.add_parser("autopilot")
     p_autopilot.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
     p_autopilot.add_argument("--limit", type=int, default=2)
+
+
+    p_snapshot = sub.add_parser("snapshot")
+    p_snapshot.add_argument("label", nargs="*", default=["manual"])
+
+    sub.add_parser("review")
+
+    p_launch = sub.add_parser("launch")
+    p_launch.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_launch.add_argument("--limit", type=int, default=2)
 
     p_backlog = sub.add_parser("backlog")
     p_backlog.add_argument("action", nargs="?", choices=["list", "apply-next"], default="apply-next")
@@ -627,6 +740,19 @@ def main() -> int:
 
     if args.cmd == "autopilot":
         return autopilot(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            limit=args.limit,
+        )
+
+
+    if args.cmd == "snapshot":
+        return snapshot(" ".join(args.label).strip() or "manual")
+
+    if args.cmd == "review":
+        return review()
+
+    if args.cmd == "launch":
+        return launch(
             " ".join(args.goal).strip() or "melhorar Jarvis",
             limit=args.limit,
         )
