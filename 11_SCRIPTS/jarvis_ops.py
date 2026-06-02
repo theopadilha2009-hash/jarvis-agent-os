@@ -54,6 +54,22 @@ def install_local_ignore() -> None:
 
 
 
+
+def improve(goal: str, print_full: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_auto_improve.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_auto_improve.py")
+        return 1
+
+    args = [goal]
+    if print_full:
+        args.append("--print")
+
+    code, out = py("11_SCRIPTS/jarvis_auto_improve.py", *args)
+    print(out)
+    return code
+
+
 def autoship(message: str, dry_run: bool = False, no_push: bool = False) -> int:
     script = REPO / "11_SCRIPTS" / "jarvis_autoship.py"
     if not script.exists():
@@ -262,6 +278,11 @@ def main() -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
 
+
+    p_improve = sub.add_parser("improve")
+    p_improve.add_argument("goal", nargs="*", default=["melhorar", "autonomia", "do", "Jarvis"])
+    p_improve.add_argument("--print", action="store_true")
+
     p_ship = sub.add_parser("ship")
     p_ship.add_argument("message", nargs="*", default=["chore: autoship Jarvis update"])
     p_ship.add_argument("--dry-run", action="store_true")
@@ -293,6 +314,13 @@ def main() -> int:
 
     args = parser.parse_args()
 
+
+
+    if args.cmd == "improve":
+        return improve(
+            " ".join(args.goal).strip() or "melhorar autonomia do Jarvis",
+            print_full=args.print,
+        )
 
     if args.cmd == "ship":
         return autoship(
