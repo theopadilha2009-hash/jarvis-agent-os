@@ -41,11 +41,11 @@ def run_self_patch(apply_patch: bool) -> tuple[int, str]:
 
     outputs = []
 
-    code, out = py("11_SCRIPTS/jarvis_self_patch.py", "plan", "cycle-command")
+    code, out = py("11_SCRIPTS/jarvis_self_patch.py", "plan", "next")
     outputs.append("SELF_PATCH_PLAN\n" + (out or "-"))
 
     if apply_patch:
-        code2, out2 = py("11_SCRIPTS/jarvis_self_patch.py", "apply", "cycle-command")
+        code2, out2 = py("11_SCRIPTS/jarvis_self_patch.py", "apply", "next")
         outputs.append("SELF_PATCH_APPLY\n" + (out2 or "-"))
         return max(code, code2), "\n\n".join(outputs)
 

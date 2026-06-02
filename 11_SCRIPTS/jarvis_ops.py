@@ -313,6 +313,32 @@ def report() -> int:
     return 0
 
 
+
+def fast(goal: str, no_apply: bool = False) -> int:
+    print("JARVIS FAST — AUTO CYCLE")
+    code1 = auto_cycle(goal, no_apply=no_apply)
+
+    print("")
+    print("JARVIS FAST — STATUS")
+    code2 = status()
+
+    return max(code1, code2)
+
+
+
+
+def health() -> int:
+    print("JARVIS HEALTH — STATUS")
+    code1 = status()
+
+    print("")
+    print("JARVIS HEALTH — PROGRESS")
+    code2 = progress(save=False)
+
+    return max(code1, code2)
+
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -320,6 +346,14 @@ def main() -> int:
 
 
 
+
+
+    p_fast = sub.add_parser("fast")
+    p_fast.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_fast.add_argument("--no-apply", action="store_true")
+
+
+    sub.add_parser("health")
 
     p_auto_cycle = sub.add_parser("auto-cycle")
     p_auto_cycle.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
@@ -372,6 +406,17 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "fast":
+        return fast(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            no_apply=args.no_apply,
+        )
+
+
+    if args.cmd == "health":
+        return health()
 
     if args.cmd == "auto-cycle":
         return auto_cycle(
