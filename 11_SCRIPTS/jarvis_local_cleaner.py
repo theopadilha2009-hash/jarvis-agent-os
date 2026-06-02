@@ -28,6 +28,7 @@ PATTERNS = [
     "05_EXECUCAO/111_SELF_PATCH_PLANNER/",
     "05_EXECUCAO/112_AUTO_CYCLE_RUNNER/",
     "05_EXECUCAO/113_SELF_PATCH_CATALOG/",
+    "05_EXECUCAO/114_PATCH_RUNNER/",
     "*.pid",
     "*.tmp",
     "*.local.log",

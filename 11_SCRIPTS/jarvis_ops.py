@@ -57,6 +57,22 @@ def install_local_ignore() -> None:
 
 
 
+
+def patch_run(action: str = "apply-next", limit: int = 1) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_patch_runner.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_patch_runner.py")
+        return 1
+
+    args = [action]
+    if action == "apply-next":
+        args.extend(["--limit", str(limit)])
+
+    code, out = py("11_SCRIPTS/jarvis_patch_runner.py", *args)
+    print(out)
+    return code
+
+
 def auto_cycle(goal: str, no_apply: bool = False) -> int:
     script = REPO / "11_SCRIPTS" / "jarvis_auto_cycle.py"
     if not script.exists():
@@ -355,6 +371,11 @@ def main() -> int:
 
     sub.add_parser("health")
 
+
+    p_patch_run = sub.add_parser("patch-run")
+    p_patch_run.add_argument("action", nargs="?", choices=["next", "apply-next"], default="apply-next")
+    p_patch_run.add_argument("--limit", type=int, default=1)
+
     p_auto_cycle = sub.add_parser("auto-cycle")
     p_auto_cycle.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
     p_auto_cycle.add_argument("--no-apply", action="store_true")
@@ -417,6 +438,10 @@ def main() -> int:
 
     if args.cmd == "health":
         return health()
+
+
+    if args.cmd == "patch-run":
+        return patch_run(args.action, limit=args.limit)
 
     if args.cmd == "auto-cycle":
         return auto_cycle(
