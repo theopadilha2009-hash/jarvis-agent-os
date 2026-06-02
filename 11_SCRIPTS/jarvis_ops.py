@@ -607,6 +607,24 @@ def mission(goal: str, steps: int = 2, plan_only: bool = False) -> int:
     return code
 
 
+
+def power(goal: str, steps: int = 2, autoship: bool = False, message: str = "") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_power_loop.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_power_loop.py")
+        return 1
+
+    args = [goal, "--steps", str(steps)]
+    if autoship:
+        args.append("--ship")
+    if message:
+        args.extend(["--message", message])
+
+    code, out = py("11_SCRIPTS/jarvis_power_loop.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -648,6 +666,13 @@ def main() -> int:
     p_autopilot.add_argument("--limit", type=int, default=2)
 
 
+
+
+    p_power = sub.add_parser("power")
+    p_power.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_power.add_argument("--steps", type=int, default=2)
+    p_power.add_argument("--ship", action="store_true")
+    p_power.add_argument("--message", default="")
 
     p_mission = sub.add_parser("mission")
     p_mission.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
@@ -767,6 +792,15 @@ def main() -> int:
         )
 
 
+
+
+    if args.cmd == "power":
+        return power(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            steps=args.steps,
+            autoship=args.ship,
+            message=args.message,
+        )
 
     if args.cmd == "mission":
         return mission(
