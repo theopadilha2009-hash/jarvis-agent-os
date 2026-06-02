@@ -55,6 +55,30 @@ def install_local_ignore() -> None:
 
 
 
+
+def self_patch(action: str, patch: str = "cycle-command") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_self_patch.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_self_patch.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_self_patch.py", action, patch)
+    print(out)
+    return code
+
+
+
+def cycle(goal: str, print_full: bool = False) -> int:
+    print("JARVIS CYCLE — IMPROVE")
+    code1 = improve(goal, print_full=print_full)
+
+    print("")
+    print("JARVIS CYCLE — CLOSEOUT")
+    code2 = closeout(print_full=False)
+
+    return max(code1, code2)
+
+
 def improve(goal: str, print_full: bool = False) -> int:
     script = REPO / "11_SCRIPTS" / "jarvis_auto_improve.py"
     if not script.exists():
@@ -279,6 +303,16 @@ def main() -> int:
 
 
 
+
+    p_self_patch = sub.add_parser("self-patch")
+    p_self_patch.add_argument("action", choices=["list", "plan", "apply"])
+    p_self_patch.add_argument("patch", nargs="?", default="cycle-command")
+
+
+    p_cycle = sub.add_parser("cycle")
+    p_cycle.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_cycle.add_argument("--print", action="store_true")
+
     p_improve = sub.add_parser("improve")
     p_improve.add_argument("goal", nargs="*", default=["melhorar", "autonomia", "do", "Jarvis"])
     p_improve.add_argument("--print", action="store_true")
@@ -315,6 +349,17 @@ def main() -> int:
     args = parser.parse_args()
 
 
+
+
+    if args.cmd == "self-patch":
+        return self_patch(args.action, args.patch)
+
+
+    if args.cmd == "cycle":
+        return cycle(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            print_full=args.print,
+        )
 
     if args.cmd == "improve":
         return improve(
