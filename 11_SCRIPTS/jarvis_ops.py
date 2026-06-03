@@ -791,6 +791,22 @@ def brain_bootstrap(mode: str = "status") -> int:
     return code
 
 
+
+def brain_smoke(goal: str = "") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_local_brain_smoke.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_local_brain_smoke.py")
+        return 1
+
+    args = []
+    if goal:
+        args.append(goal)
+
+    code, out = py("11_SCRIPTS/jarvis_local_brain_smoke.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -916,6 +932,10 @@ def main() -> int:
 
 
 
+
+
+    p_brain_smoke = sub.add_parser("brain-smoke")
+    p_brain_smoke.add_argument("goal", nargs="*", default=[])
 
     p_brain_bootstrap = sub.add_parser("brain-bootstrap")
     p_brain_bootstrap.add_argument("mode", choices=["status", "ollama-plan", "groq-plan"], nargs="?", default="status")
@@ -1119,6 +1139,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "brain-smoke":
+        return brain_smoke(" ".join(args.goal).strip())
 
     if args.cmd == "brain-bootstrap":
         return brain_bootstrap(args.mode)

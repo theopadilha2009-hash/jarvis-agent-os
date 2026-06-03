@@ -283,6 +283,13 @@ def execute(action: str, goal: str, task: str, prefer: str, allow_calls: bool) -
         "allow_calls": allow_calls,
     }
 
+    if model_response is not None:
+        text = str(model_response.get("text") or "")
+        compact["model_ok"] = model_response.get("ok")
+        compact["model"] = model_response.get("model")
+        compact["model_response_length"] = len(text)
+        compact["model_response_preview"] = text[:700]
+
     if action == "status":
         compact = {
             "action": action,
@@ -314,6 +321,12 @@ def write_outputs(payload: dict) -> None:
         "```",
         "",
     ]
+
+    if payload.get("model_response") and payload["model_response"].get("text"):
+        (OUT / "LAST_MODEL_RESPONSE.md").write_text(
+            payload["model_response"]["text"],
+            encoding="utf-8",
+        )
 
     REPORT.write_text("\n".join(lines), encoding="utf-8")
 
