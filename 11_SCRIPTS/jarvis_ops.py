@@ -951,6 +951,18 @@ def repo_snapshot(action: str = "snapshot") -> int:
     return code
 
 
+
+def operator_brief(action: str = "brief") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_operator_brief.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_operator_brief.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_operator_brief.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1088,6 +1100,10 @@ def main() -> int:
 
 
 
+
+
+    p_operator_brief = sub.add_parser("operator-brief")
+    p_operator_brief.add_argument("action", choices=["brief"], default="brief")
 
     p_repo_snapshot = sub.add_parser("repo-snapshot")
     p_repo_snapshot.add_argument("action", choices=["snapshot"], default="snapshot")
@@ -1345,6 +1361,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "operator-brief":
+        return operator_brief(args.action)
 
     if args.cmd == "repo-snapshot":
         return repo_snapshot(args.action)

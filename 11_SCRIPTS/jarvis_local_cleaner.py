@@ -60,6 +60,7 @@ PATTERNS = [
     "05_EXECUCAO/145_AUTOSHIP/",
     "05_EXECUCAO/147_PATCH_CATALOG/",
     "05_EXECUCAO/148_REPO_SNAPSHOT/",
+    "05_EXECUCAO/149_OPERATOR_BRIEF/",
     "*.pid",
     "*.tmp",
     "*.local.log",
