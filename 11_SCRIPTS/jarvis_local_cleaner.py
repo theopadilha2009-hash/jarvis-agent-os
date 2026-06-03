@@ -71,6 +71,7 @@ PATTERNS = [
     "05_EXECUCAO/158_CAPABILITY_MAP/",
     "05_EXECUCAO/159_CONTROL_CENTER/",
     "05_EXECUCAO/160_STATUS_BOARD/",
+    "05_EXECUCAO/161_START_HERE/",
     "*.pid",
     "*.tmp",
     "*.local.log",

@@ -1095,6 +1095,18 @@ def status_board(action: str = "board") -> int:
     return code
 
 
+
+def start_here(action: str = "build") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_start_here.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_start_here.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_start_here.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1194,6 +1206,10 @@ def main() -> int:
 
 
 
+
+
+    p_start_here = sub.add_parser("start-here")
+    p_start_here.add_argument("action", choices=["build"], default="build")
 
     p_status_board = sub.add_parser("status-board")
     p_status_board.add_argument("action", choices=["board"], default="board")
@@ -1487,6 +1503,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "start-here":
+        return start_here(args.action)
 
     if args.cmd == "status-board":
         return status_board(args.action)
