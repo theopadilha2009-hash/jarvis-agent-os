@@ -1131,6 +1131,18 @@ def integrity_audit(action: str = "audit") -> int:
     return code
 
 
+
+def deep_sweep(action: str = "sweep") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_deep_sweep.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_deep_sweep.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_deep_sweep.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1233,6 +1245,10 @@ def main() -> int:
 
 
 
+
+
+    p_deep_sweep = sub.add_parser("deep-sweep")
+    p_deep_sweep.add_argument("action", choices=["sweep"], default="sweep")
 
     p_integrity_audit = sub.add_parser("integrity-audit")
     p_integrity_audit.add_argument("action", choices=["audit"], default="audit")
@@ -1538,6 +1554,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "deep-sweep":
+        return deep_sweep(args.action)
 
     if args.cmd == "integrity-audit":
         return integrity_audit(args.action)
