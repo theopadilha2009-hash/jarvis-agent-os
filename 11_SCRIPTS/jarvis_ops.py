@@ -987,6 +987,18 @@ def maintenance_cycle(action: str = "run") -> int:
     return code
 
 
+
+def command_health(action: str = "run") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_command_health.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_command_health.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_command_health.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1127,6 +1139,10 @@ def main() -> int:
 
 
 
+
+
+    p_command_health = sub.add_parser("command-health")
+    p_command_health.add_argument("action", choices=["run"], default="run")
 
     p_maintenance_cycle = sub.add_parser("maintenance-cycle")
     p_maintenance_cycle.add_argument("action", choices=["run"], default="run")
@@ -1396,6 +1412,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "command-health":
+        return command_health(args.action)
 
     if args.cmd == "maintenance-cycle":
         return maintenance_cycle(args.action)
