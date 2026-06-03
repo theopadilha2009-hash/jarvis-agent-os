@@ -72,6 +72,37 @@ def scan_patterns(text: str) -> list[str]:
     return hits
 
 
+def diff_for_sensitive_scan(diff: str) -> str:
+    """
+    Avoid false positives when this file itself defines sensitive-word scanner rules.
+    It must still scan all other files normally.
+    """
+    safe_lines = []
+    in_self_scanner_file = False
+    in_blocked_patterns = False
+
+    for line in diff.splitlines():
+        if line.startswith("diff --git "):
+            in_self_scanner_file = "11_SCRIPTS/jarvis_diff_review_gate.py" in line
+            in_blocked_patterns = False
+
+        if in_self_scanner_file and ("BLOCKED_PATTERNS" in line or "HIGH_RISK_PATHS" in line):
+            in_blocked_patterns = True
+            continue
+
+        if in_self_scanner_file and in_blocked_patterns:
+            # Skip only literal scanner rule lines in this scanner file.
+            if line.startswith("+    r") or line.startswith("-    r") or line.startswith("     r") or line.strip() in ["[", "]", "],"]:
+                continue
+            if line.startswith("+]") or line.startswith("-]") or line.startswith(" ]"):
+                in_blocked_patterns = False
+                continue
+
+        safe_lines.append(line)
+
+    return "\n".join(safe_lines)
+
+
 def review(mode: str) -> int:
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -80,7 +111,7 @@ def review(mode: str) -> int:
     files = changed_files()
 
     line_count = len(diff.splitlines()) if diff else 0
-    pattern_hits = scan_patterns(diff + "\n" + "\n".join(files))
+    pattern_hits = scan_patterns(diff_for_sensitive_scan(diff) + "\n" + "\n".join(files))
 
     path_hits = []
     for file in files:
