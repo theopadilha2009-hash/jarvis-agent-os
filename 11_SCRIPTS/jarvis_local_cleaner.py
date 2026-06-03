@@ -67,6 +67,7 @@ PATTERNS = [
     "05_EXECUCAO/153_EXECUTION_INDEX/",
     "05_EXECUCAO/154_NEXT_ACTION_PLANNER/",
     "05_EXECUCAO/155_AUTO_CYCLE_RUNNER/",
+    "05_EXECUCAO/157_COMMAND_MENU/",
     "*.pid",
     "*.tmp",
     "*.local.log",
