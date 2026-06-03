@@ -1119,6 +1119,18 @@ def home_dashboard(action: str = "home") -> int:
     return code
 
 
+
+def integrity_audit(action: str = "audit") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_integrity_audit.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_integrity_audit.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_integrity_audit.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1220,6 +1232,10 @@ def main() -> int:
 
 
 
+
+
+    p_integrity_audit = sub.add_parser("integrity-audit")
+    p_integrity_audit.add_argument("action", choices=["audit"], default="audit")
 
     p_home_dashboard = sub.add_parser("home-dashboard")
     p_home_dashboard.add_argument("action", choices=["home"], default="home")
@@ -1521,6 +1537,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "integrity-audit":
+        return integrity_audit(args.action)
 
     if args.cmd == "home-dashboard":
         return home_dashboard(args.action)
