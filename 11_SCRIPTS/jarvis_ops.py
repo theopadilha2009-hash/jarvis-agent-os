@@ -1083,6 +1083,18 @@ def control_center(action: str = "run") -> int:
     return code
 
 
+
+def status_board(action: str = "board") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_status_board.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_status_board.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_status_board.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1181,6 +1193,10 @@ def main() -> int:
 
 
 
+
+
+    p_status_board = sub.add_parser("status-board")
+    p_status_board.add_argument("action", choices=["board"], default="board")
 
     p_control_center = sub.add_parser("control-center")
     p_control_center.add_argument("action", choices=["run"], default="run")
@@ -1470,6 +1486,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "status-board":
+        return status_board(args.action)
 
     if args.cmd == "control-center":
         return control_center(args.action)
