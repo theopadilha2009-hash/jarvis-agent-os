@@ -767,6 +767,18 @@ def brain(action: str, goal: str = "", task: str = "general", prefer: str = "aut
     return code
 
 
+
+def brain_setup() -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_brain_setup_doctor.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_brain_setup_doctor.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_brain_setup_doctor.py", "doctor")
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -890,6 +902,9 @@ def main() -> int:
 
 
 
+
+
+    sub.add_parser("brain-setup")
 
     p_brain = sub.add_parser("brain")
     p_brain.add_argument("action", choices=["status", "route", "prompt"])
@@ -1086,6 +1101,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "brain-setup":
+        return brain_setup()
 
     if args.cmd == "brain":
         return brain(
