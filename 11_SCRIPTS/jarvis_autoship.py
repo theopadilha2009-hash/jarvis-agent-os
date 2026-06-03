@@ -50,9 +50,18 @@ def porcelain_lines() -> list[str]:
 
 
 def extract_path(line: str) -> str:
-    path = line[3:].strip()
+    raw = line.rstrip()
+
+    # Git porcelain uses two status columns, then the path.
+    # Examples:
+    # " M 11_SCRIPTS/file.py"
+    # "M  11_SCRIPTS/file.py"
+    # "?? 11_SCRIPTS/file.py"
+    path = raw[2:].strip() if len(raw) >= 2 else raw.strip()
+
     if " -> " in path:
         path = path.split(" -> ")[-1].strip()
+
     return path.replace("\\", "/")
 
 

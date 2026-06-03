@@ -915,6 +915,18 @@ def ship_guard(action: str = "preflight") -> int:
     return code
 
 
+
+def safe_patch_cycle(action: str = "status") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_safe_patch_cycle.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_safe_patch_cycle.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_safe_patch_cycle.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1049,6 +1061,10 @@ def main() -> int:
 
 
 
+
+
+    p_patch_cycle = sub.add_parser("patch-cycle")
+    p_patch_cycle.add_argument("action", choices=["status", "apply-next"])
 
     p_autoship = sub.add_parser("autoship")
     p_autoship.add_argument("action", choices=["status", "commit"])
@@ -1294,6 +1310,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "patch-cycle":
+        return safe_patch_cycle(args.action)
 
     if args.cmd == "autoship":
         return autoship(args.action, " ".join(args.message).strip(), push=args.push)
