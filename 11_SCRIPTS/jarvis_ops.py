@@ -1059,6 +1059,18 @@ def command_menu(action: str = "menu") -> int:
     return code
 
 
+
+def capability_map(action: str = "map") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_capability_map.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_capability_map.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_capability_map.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1155,6 +1167,10 @@ def main() -> int:
     p_patch_run.add_argument("--limit", type=int, default=1)
 
 
+
+
+    p_capability_map = sub.add_parser("capability-map")
+    p_capability_map.add_argument("action", choices=["map"], default="map")
 
     p_command_menu = sub.add_parser("command-menu")
     p_command_menu.add_argument("action", choices=["menu"], default="menu")
@@ -1436,6 +1452,10 @@ def main() -> int:
         return patch_run(args.action, limit=args.limit)
 
 
+
+
+    if args.cmd == "capability-map":
+        return capability_map(args.action)
 
     if args.cmd == "command-menu":
         return command_menu(args.action)
