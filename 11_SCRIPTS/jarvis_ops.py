@@ -1035,6 +1035,18 @@ def auto_cycle_runner(action: str = "run") -> int:
     return code
 
 
+
+def auto_cycle_runner_v155(action: str = "run") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_auto_cycle_runner.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_auto_cycle_runner.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_auto_cycle_runner.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1129,6 +1141,10 @@ def main() -> int:
     p_patch_run = sub.add_parser("patch-run")
     p_patch_run.add_argument("action", nargs="?", choices=["next", "apply-next"], default="apply-next")
     p_patch_run.add_argument("--limit", type=int, default=1)
+
+
+    p_auto_cycle_runner = sub.add_parser("auto-cycle-runner")
+    p_auto_cycle_runner.add_argument("action", choices=["run"], default="run")
 
     p_auto_cycle = sub.add_parser("auto-cycle")
     p_auto_cycle.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
@@ -1402,6 +1418,10 @@ def main() -> int:
 
     if args.cmd == "patch-run":
         return patch_run(args.action, limit=args.limit)
+
+
+    if args.cmd == "auto-cycle-runner":
+        return auto_cycle_runner_v155(args.action)
 
     if args.cmd == "auto-cycle":
         return auto_cycle(
