@@ -999,6 +999,18 @@ def command_health(action: str = "run") -> int:
     return code
 
 
+
+def execution_index(action: str = "index") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_execution_index.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_execution_index.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_execution_index.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1140,6 +1152,10 @@ def main() -> int:
 
 
 
+
+
+    p_execution_index = sub.add_parser("execution-index")
+    p_execution_index.add_argument("action", choices=["index"], default="index")
 
     p_command_health = sub.add_parser("command-health")
     p_command_health.add_argument("action", choices=["run"], default="run")
@@ -1413,6 +1429,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "execution-index":
+        return execution_index(args.action)
 
     if args.cmd == "command-health":
         return command_health(args.action)
