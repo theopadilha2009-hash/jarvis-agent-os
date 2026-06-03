@@ -823,6 +823,23 @@ def brain_guard(goal: str = "") -> int:
     return code
 
 
+
+def brain_contract(goal: str = "", attempts: int = 2) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_brain_contract.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_brain_contract.py")
+        return 1
+
+    args = []
+    if goal:
+        args.append(goal)
+    args.extend(["--attempts", str(attempts)])
+
+    code, out = py("11_SCRIPTS/jarvis_brain_contract.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -950,6 +967,11 @@ def main() -> int:
 
 
 
+
+
+    p_brain_contract = sub.add_parser("brain-contract")
+    p_brain_contract.add_argument("goal", nargs="*", default=[])
+    p_brain_contract.add_argument("--attempts", type=int, default=2)
 
     p_brain_guard = sub.add_parser("brain-guard")
     p_brain_guard.add_argument("goal", nargs="*", default=[])
@@ -1161,6 +1183,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "brain-contract":
+        return brain_contract(" ".join(args.goal).strip(), attempts=args.attempts)
 
     if args.cmd == "brain-guard":
         return brain_guard(" ".join(args.goal).strip())

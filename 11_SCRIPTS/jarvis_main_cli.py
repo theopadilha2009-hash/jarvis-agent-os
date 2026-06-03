@@ -32,6 +32,7 @@ def ops(*args: str) -> tuple[int, str]:
 
 def py_compile_core() -> tuple[int, str]:
     files = [
+        "11_SCRIPTS/jarvis_brain_contract.py",
         "11_SCRIPTS/jarvis_brain_quality_guard.py",
         "11_SCRIPTS/jarvis_local_brain_smoke.py",
         "11_SCRIPTS/jarvis_free_brain_bootstrap.py",
@@ -91,6 +92,7 @@ def execute(action: str, goal: str, workers: int, timeout: int, message: str) ->
         steps.append(step("brain-route", ["brain", "route", goal, "--task", "research"]))
         steps.append(step("brain-prompt-local", ["brain", "prompt", goal, "--task", "research", "--prefer", "auto", "--allow-calls"]))
         steps.append(step("brain-quality-guard", ["brain-guard", goal]))
+        steps.append(step("brain-contract", ["brain-contract", goal, "--attempts", "2"]))
         steps.append(step("resume", ["resume", goal]))
         steps.append(step("decision-plan", ["decide", goal, "--plan-only"]))
         steps.append(step("worker-think-plan", ["worker", "plan", "--workers", str(workers), "--goal", goal, "--mode", "think"]))
@@ -98,6 +100,8 @@ def execute(action: str, goal: str, workers: int, timeout: int, message: str) ->
     elif action == "build":
         steps.append(step("brain-route", ["brain", "route", goal, "--task", "code"]))
         steps.append(step("brain-prompt-local", ["brain", "prompt", goal, "--task", "code", "--prefer", "auto", "--allow-calls"]))
+        steps.append(step("brain-quality-guard-code", ["brain-guard", goal]))
+        steps.append(step("brain-contract-code", ["brain-contract", goal, "--attempts", "2"]))
         steps.append(step("parallel-init", ["parallel", "init", "--workers", str(workers)]))
         steps.append(step("worker-safe-run", ["worker", "run", "--workers", str(workers), "--goal", goal, "--mode", "safe", "--timeout", str(timeout)]))
         steps.append(step("worker-collect", ["worker", "collect", "--workers", str(workers), "--goal", goal, "--mode", "safe"]))
