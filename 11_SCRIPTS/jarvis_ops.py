@@ -807,6 +807,22 @@ def brain_smoke(goal: str = "") -> int:
     return code
 
 
+
+def brain_guard(goal: str = "") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_brain_quality_guard.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_brain_quality_guard.py")
+        return 1
+
+    args = []
+    if goal:
+        args.append(goal)
+
+    code, out = py("11_SCRIPTS/jarvis_brain_quality_guard.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -933,6 +949,10 @@ def main() -> int:
 
 
 
+
+
+    p_brain_guard = sub.add_parser("brain-guard")
+    p_brain_guard.add_argument("goal", nargs="*", default=[])
 
     p_brain_smoke = sub.add_parser("brain-smoke")
     p_brain_smoke.add_argument("goal", nargs="*", default=[])
@@ -1140,6 +1160,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "brain-guard":
+        return brain_guard(" ".join(args.goal).strip())
 
     if args.cmd == "brain-smoke":
         return brain_smoke(" ".join(args.goal).strip())

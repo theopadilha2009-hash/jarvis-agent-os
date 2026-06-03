@@ -32,6 +32,7 @@ def ops(*args: str) -> tuple[int, str]:
 
 def py_compile_core() -> tuple[int, str]:
     files = [
+        "11_SCRIPTS/jarvis_brain_quality_guard.py",
         "11_SCRIPTS/jarvis_local_brain_smoke.py",
         "11_SCRIPTS/jarvis_free_brain_bootstrap.py",
         "11_SCRIPTS/jarvis_brain_setup_doctor.py",
@@ -89,6 +90,7 @@ def execute(action: str, goal: str, workers: int, timeout: int, message: str) ->
     elif action == "think":
         steps.append(step("brain-route", ["brain", "route", goal, "--task", "research"]))
         steps.append(step("brain-prompt-local", ["brain", "prompt", goal, "--task", "research", "--prefer", "auto", "--allow-calls"]))
+        steps.append(step("brain-quality-guard", ["brain-guard", goal]))
         steps.append(step("resume", ["resume", goal]))
         steps.append(step("decision-plan", ["decide", goal, "--plan-only"]))
         steps.append(step("worker-think-plan", ["worker", "plan", "--workers", str(workers), "--goal", goal, "--mode", "think"]))
