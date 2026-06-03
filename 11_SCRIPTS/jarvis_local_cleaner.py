@@ -38,6 +38,7 @@ PATTERNS = [
     "05_EXECUCAO/121_TASK_ENGINE/",
     "05_EXECUCAO/122_DECISION_ENGINE/",
     "05_EXECUCAO/123_TASK_PLANNER/",
+    "05_EXECUCAO/124_TASK_DECISION_HARDENING/",
     "*.pid",
     "*.tmp",
     "*.local.log",

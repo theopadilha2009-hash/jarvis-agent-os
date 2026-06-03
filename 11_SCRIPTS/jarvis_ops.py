@@ -722,7 +722,8 @@ def main() -> int:
     p_decide.add_argument("--plan-only", action="store_true")
 
     p_task = sub.add_parser("task")
-    p_task.add_argument("action", nargs="?", choices=["list", "next"], default="list")
+    p_task.add_argument("action", nargs="?", choices=["list", "next", "run"], default="list")
+    p_task.add_argument("--limit", type=int, default=3)
 
     p_power = sub.add_parser("power")
     p_power.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
@@ -863,7 +864,8 @@ def main() -> int:
         )
 
     if args.cmd == "task":
-        return task(args.action)
+        extra = ["--limit", str(args.limit)] if args.action == "run" else None
+        return task(args.action, extra=extra)
 
     if args.cmd == "power":
         return power(
