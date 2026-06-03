@@ -81,7 +81,7 @@ def run_smart(minutes: float, batch_size: int, max_batches: int, push: bool, pac
     pre = validate("preflight")
     if pre["verdict"] != "pass":
         blockers.extend(pre["blockers"])
-        payload = finish(started, minutes, batch_size, max_batches, push, batches, blockers, preflight=pre)
+        payload = finish(started, minutes, batch_size, max_batches, push, batches, blockers, preflight=pre, pace_seconds=pace_seconds)
         print_result(payload)
         return 1
 
@@ -146,12 +146,12 @@ def run_smart(minutes: float, batch_size: int, max_batches: int, push: bool, pac
             if remaining > 0:
                 time.sleep(min(pace_seconds, remaining))
 
-    payload = finish(started, minutes, batch_size, max_batches, push, batches, blockers, preflight=pre)
+    payload = finish(started, minutes, batch_size, max_batches, push, batches, blockers, preflight=pre, pace_seconds=pace_seconds)
     print_result(payload)
     return 0 if payload["verdict"] == "pass" else 1
 
 
-def finish(started, minutes, batch_size, max_batches, push, batches, blockers, preflight):
+def finish(started, minutes, batch_size, max_batches, push, batches, blockers, preflight, pace_seconds: float = 0):
     status = run(["git", "status", "-sb"])
     log = run(["git", "log", "--oneline", "-30"])
     pool = read_json(EXEC / "179_MARATHON_POOL" / "MARATHON_POOL.json")
