@@ -963,6 +963,18 @@ def operator_brief(action: str = "brief") -> int:
     return code
 
 
+
+def daily_checkpoint(action: str = "checkpoint") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_daily_checkpoint.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_daily_checkpoint.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_daily_checkpoint.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1101,6 +1113,10 @@ def main() -> int:
 
 
 
+
+
+    p_daily_checkpoint = sub.add_parser("daily-checkpoint")
+    p_daily_checkpoint.add_argument("action", choices=["checkpoint"], default="checkpoint")
 
     p_operator_brief = sub.add_parser("operator-brief")
     p_operator_brief.add_argument("action", choices=["brief"], default="brief")
@@ -1362,6 +1378,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "daily-checkpoint":
+        return daily_checkpoint(args.action)
 
     if args.cmd == "operator-brief":
         return operator_brief(args.action)
