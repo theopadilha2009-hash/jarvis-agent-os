@@ -1143,6 +1143,18 @@ def deep_sweep(action: str = "sweep") -> int:
     return code
 
 
+
+def command_profiler(action: str = "profile") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_command_profiler.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_command_profiler.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_command_profiler.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1246,6 +1258,10 @@ def main() -> int:
 
 
 
+
+
+    p_command_profiler = sub.add_parser("command-profiler")
+    p_command_profiler.add_argument("action", choices=["profile"], default="profile")
 
     p_deep_sweep = sub.add_parser("deep-sweep")
     p_deep_sweep.add_argument("action", choices=["sweep"], default="sweep")
@@ -1555,6 +1571,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "command-profiler":
+        return command_profiler(args.action)
 
     if args.cmd == "deep-sweep":
         return deep_sweep(args.action)
