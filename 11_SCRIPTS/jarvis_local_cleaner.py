@@ -81,6 +81,7 @@ PATTERNS = [
     "05_EXECUCAO/174_WORK_SESSION/",
     "05_EXECUCAO/175_FEATURE_MARATHON/",
     "05_EXECUCAO/179_MARATHON_POOL/",
+    "05_EXECUCAO/180_FEATURE_PACK_BUILDER/",
     "*.pid",
     "*.tmp",
     "*.local.log",

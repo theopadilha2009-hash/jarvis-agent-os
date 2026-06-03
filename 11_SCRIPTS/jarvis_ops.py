@@ -1230,6 +1230,24 @@ def marathon_pool(action: str = "plan", minutes: float = 5.0, max_features: int 
     return code
 
 
+
+def feature_pack(action: str = "plan", limit: int = 6, push: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_feature_pack_builder.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_feature_pack_builder.py")
+        return 1
+
+    args = [action]
+    if action == "build":
+        args += ["--limit", str(limit)]
+        if push:
+            args.append("--push")
+
+    code, out = py("11_SCRIPTS/jarvis_feature_pack_builder.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1339,6 +1357,12 @@ def main() -> int:
 
 
 
+
+
+    p_feature_pack = sub.add_parser("feature-pack")
+    p_feature_pack.add_argument("action", nargs="?", choices=["plan", "build"], default="plan")
+    p_feature_pack.add_argument("--limit", type=int, default=6)
+    p_feature_pack.add_argument("--push", action="store_true")
 
     p_marathon_pool = sub.add_parser("marathon-pool")
     p_marathon_pool.add_argument("action", nargs="?", choices=["plan", "run"], default="plan")
@@ -1680,6 +1704,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "feature-pack":
+        return feature_pack(args.action, args.limit, args.push)
 
     if args.cmd == "marathon-pool":
         return marathon_pool(args.action, args.minutes, args.max_features, args.push)
