@@ -1155,6 +1155,18 @@ def command_profiler(action: str = "profile") -> int:
     return code
 
 
+
+def fast_status(action: str = "status") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_fast_status.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_fast_status.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_fast_status.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1259,6 +1271,10 @@ def main() -> int:
 
 
 
+
+
+    p_fast_status = sub.add_parser("fast-status")
+    p_fast_status.add_argument("action", choices=["status"], default="status")
 
     p_command_profiler = sub.add_parser("command-profiler")
     p_command_profiler.add_argument("action", choices=["profile"], default="profile")
@@ -1572,6 +1588,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "fast-status":
+        return fast_status(args.action)
 
     if args.cmd == "command-profiler":
         return command_profiler(args.action)
