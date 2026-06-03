@@ -79,6 +79,7 @@ PATTERNS = [
     "05_EXECUCAO/168_FAST_STATUS/",
     "05_EXECUCAO/169_QUICK_HOME/",
     "05_EXECUCAO/174_WORK_SESSION/",
+    "05_EXECUCAO/175_FEATURE_MARATHON/",
     "*.pid",
     "*.tmp",
     "*.local.log",

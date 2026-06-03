@@ -1192,6 +1192,26 @@ def work_session(action: str = "start", goal: list[str] | None = None) -> int:
     return code
 
 
+
+def marathon(action: str = "plan", minutes: float = 5.0, max_features: int = 3, push: bool = False, dry_run: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_feature_marathon.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_feature_marathon.py")
+        return 1
+
+    args = [action]
+    if action == "run":
+        args += ["--minutes", str(minutes), "--max-features", str(max_features)]
+        if push:
+            args.append("--push")
+        if dry_run:
+            args.append("--dry-run")
+
+    code, out = py("11_SCRIPTS/jarvis_feature_marathon.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1299,6 +1319,14 @@ def main() -> int:
 
 
 
+
+
+    p_marathon = sub.add_parser("marathon")
+    p_marathon.add_argument("action", nargs="?", choices=["plan", "run"], default="plan")
+    p_marathon.add_argument("--minutes", type=float, default=5.0)
+    p_marathon.add_argument("--max-features", type=int, default=3)
+    p_marathon.add_argument("--push", action="store_true")
+    p_marathon.add_argument("--dry-run", action="store_true")
 
     p_work_session = sub.add_parser("work-session")
     p_work_session.add_argument("action", choices=["start"], default="start")
@@ -1625,6 +1653,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "marathon":
+        return marathon(args.action, args.minutes, args.max_features, args.push, args.dry_run)
 
     if args.cmd == "work-session":
         return work_session(args.action, args.goal)
