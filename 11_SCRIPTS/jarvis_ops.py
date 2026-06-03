@@ -1249,7 +1249,7 @@ def feature_pack(action: str = "plan", limit: int = 6, push: bool = False) -> in
 
 
 
-def smart_marathon(action: str = "plan", minutes: float = 10, batch_size: int = 5, max_batches: int = 2, push: bool = False) -> int:
+def smart_marathon(action: str = "plan", minutes: float = 10, batch_size: int = 5, max_batches: int = 2, push: bool = False, pace_seconds: float = 0) -> int:
     script = REPO / "11_SCRIPTS" / "jarvis_smart_marathon.py"
     if not script.exists():
         print("Missing script: 11_SCRIPTS/jarvis_smart_marathon.py")
@@ -1257,7 +1257,7 @@ def smart_marathon(action: str = "plan", minutes: float = 10, batch_size: int = 
 
     args = [action]
     if action == "run":
-        args += ["--minutes", str(minutes), "--batch-size", str(batch_size), "--max-batches", str(max_batches)]
+        args += ["--minutes", str(minutes), "--batch-size", str(batch_size), "--max-batches", str(max_batches), "--pace-seconds", str(pace_seconds)]
         if push:
             args.append("--push")
 
@@ -1384,6 +1384,7 @@ def main() -> int:
     p_smart_marathon.add_argument("--batch-size", type=int, default=5)
     p_smart_marathon.add_argument("--max-batches", type=int, default=2)
     p_smart_marathon.add_argument("--push", action="store_true")
+    p_smart_marathon.add_argument("--pace-seconds", type=float, default=0)
 
     p_feature_pack = sub.add_parser("feature-pack")
     p_feature_pack.add_argument("action", nargs="?", choices=["plan", "build"], default="plan")
@@ -1734,7 +1735,7 @@ def main() -> int:
 
 
     if args.cmd == "smart-marathon":
-        return smart_marathon(args.action, args.minutes, args.batch_size, args.max_batches, args.push)
+        return smart_marathon(args.action, args.minutes, args.batch_size, args.max_batches, args.push, args.pace_seconds)
 
     if args.cmd == "feature-pack":
         return feature_pack(args.action, args.limit, args.push)
