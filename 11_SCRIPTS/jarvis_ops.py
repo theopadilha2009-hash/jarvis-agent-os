@@ -816,8 +816,9 @@ def main() -> int:
 
     sub.add_parser("status")
 
+
     p_resume = sub.add_parser("resume")
-    p_resume.add_argument("--print", action="store_true")
+    p_resume.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
 
     p_closeout = sub.add_parser("closeout")
     p_closeout.add_argument("--print", action="store_true")
@@ -984,8 +985,9 @@ def main() -> int:
     if args.cmd == "status":
         return status()
 
+
     if args.cmd == "resume":
-        return resume(save=not args.print)
+        return resume(" ".join(args.goal).strip() or "melhorar Jarvis")
 
     if args.cmd == "closeout":
         return closeout(print_full=args.print)
