@@ -713,6 +713,18 @@ def one(goal: str, auto: bool = False, limit: int = 1) -> int:
     return code
 
 
+
+def parallel(cmd: str, workers: int = 2) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_parallel_worktree.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_parallel_worktree.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_parallel_worktree.py", cmd, "--workers", str(workers))
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -833,6 +845,11 @@ def main() -> int:
     sub.add_parser("status")
 
 
+
+
+    p_parallel = sub.add_parser("parallel")
+    p_parallel.add_argument("action", choices=["init", "status", "clean"])
+    p_parallel.add_argument("--workers", type=int, default=2)
 
     p_one = sub.add_parser("one")
     p_one.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
@@ -1008,6 +1025,10 @@ def main() -> int:
         return status()
 
 
+
+
+    if args.cmd == "parallel":
+        return parallel(args.action, workers=args.workers)
 
     if args.cmd == "one":
         return one(
