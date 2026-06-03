@@ -748,6 +748,25 @@ def worker(action: str, workers: int = 2, goal: str = "melhorar autonomia do Jar
     return code
 
 
+
+def brain(action: str, goal: str = "", task: str = "general", prefer: str = "auto", allow_calls: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_brain_router.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_brain_router.py")
+        return 1
+
+    args = [action]
+    if goal:
+        args.append(goal)
+    args.extend(["--task", task, "--prefer", prefer])
+    if allow_calls:
+        args.append("--allow-calls")
+
+    code, out = py("11_SCRIPTS/jarvis_brain_router.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -870,6 +889,14 @@ def main() -> int:
 
 
 
+
+
+    p_brain = sub.add_parser("brain")
+    p_brain.add_argument("action", choices=["status", "route", "prompt"])
+    p_brain.add_argument("goal", nargs="*", default=[])
+    p_brain.add_argument("--task", default="general")
+    p_brain.add_argument("--prefer", default="auto")
+    p_brain.add_argument("--allow-calls", action="store_true")
 
     p_worker = sub.add_parser("worker")
     p_worker.add_argument("action", choices=["plan", "run", "open", "status", "collect"])
@@ -1058,6 +1085,16 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "brain":
+        return brain(
+            args.action,
+            " ".join(args.goal).strip(),
+            task=args.task,
+            prefer=args.prefer,
+            allow_calls=args.allow_calls,
+        )
 
     if args.cmd == "worker":
         return worker(

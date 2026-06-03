@@ -46,6 +46,7 @@ PATTERNS = [
     "05_EXECUCAO/129_PARALLEL_WORKTREE/",
     "05_EXECUCAO/130_WORKER_AUTO_RUNNER/",
     "05_EXECUCAO/132_MAIN_CLI/",
+    "05_EXECUCAO/133_BRAIN_ROUTER/",
     "*.pid",
     "*.tmp",
     "*.local.log",
