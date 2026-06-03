@@ -32,6 +32,7 @@ def ops(*args: str) -> tuple[int, str]:
 
 def py_compile_core() -> tuple[int, str]:
     files = [
+        "11_SCRIPTS/jarvis_safe_apply.py",
         "11_SCRIPTS/jarvis_patch_proposal.py",
         "11_SCRIPTS/jarvis_brain_contract.py",
         "11_SCRIPTS/jarvis_brain_quality_guard.py",
@@ -104,6 +105,8 @@ def execute(action: str, goal: str, workers: int, timeout: int, message: str) ->
         steps.append(step("brain-quality-guard-code", ["brain-guard", goal]))
         steps.append(step("brain-contract-code", ["brain-contract", goal, "--attempts", "2"]))
         steps.append(step("patch-proposal", ["patch-proposal", goal]))
+        steps.append(step("safe-apply-check", ["safe-apply", "check", goal]))
+        steps.append(step("safe-apply-plan", ["safe-apply", "plan", goal]))
         steps.append(step("parallel-init", ["parallel", "init", "--workers", str(workers)]))
         steps.append(step("worker-safe-run", ["worker", "run", "--workers", str(workers), "--goal", goal, "--mode", "safe", "--timeout", str(timeout)]))
         steps.append(step("worker-collect", ["worker", "collect", "--workers", str(workers), "--goal", goal, "--mode", "safe"]))

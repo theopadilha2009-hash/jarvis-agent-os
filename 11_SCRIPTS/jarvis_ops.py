@@ -856,6 +856,22 @@ def patch_proposal(goal: str = "") -> int:
     return code
 
 
+
+def safe_apply(action: str = "plan", goal: str = "") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_safe_apply.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_safe_apply.py")
+        return 1
+
+    args = [action]
+    if goal:
+        args.append(goal)
+
+    code, out = py("11_SCRIPTS/jarvis_safe_apply.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -985,6 +1001,11 @@ def main() -> int:
 
 
 
+
+
+    p_safe_apply = sub.add_parser("safe-apply")
+    p_safe_apply.add_argument("action", choices=["plan", "check", "apply-template"])
+    p_safe_apply.add_argument("goal", nargs="*", default=[])
 
     p_patch_proposal = sub.add_parser("patch-proposal")
     p_patch_proposal.add_argument("goal", nargs="*", default=[])
@@ -1205,6 +1226,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "safe-apply":
+        return safe_apply(args.action, " ".join(args.goal).strip())
 
     if args.cmd == "patch-proposal":
         return patch_proposal(" ".join(args.goal).strip())
