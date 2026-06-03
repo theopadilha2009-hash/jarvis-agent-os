@@ -872,7 +872,7 @@ def main() -> int:
 
 
     p_worker = sub.add_parser("worker")
-    p_worker.add_argument("action", choices=["plan", "run", "open", "status"])
+    p_worker.add_argument("action", choices=["plan", "run", "open", "status", "collect"])
     p_worker.add_argument("--workers", type=int, default=2)
     p_worker.add_argument("--goal", default="melhorar autonomia do Jarvis")
     p_worker.add_argument("--mode", choices=["safe", "think", "session"], default="safe")

@@ -14,6 +14,22 @@ OUT = REPO / "05_EXECUCAO" / "130_WORKER_AUTO_RUNNER"
 REPORT = OUT / "WORKER_AUTO_REPORT.md"
 STATE = OUT / "WORKER_AUTO_STATE.json"
 
+HARD_ERROR_MARKERS = [
+    "Traceback (most recent call last)",
+    "SyntaxError",
+    "NameError",
+    "ModuleNotFoundError",
+    "ImportError",
+    "PARE:",
+    "MAIN_NOT_CLEAN",
+    "WORKER_DIRTY_STOPPING",
+    "Missing script:",
+    "error: unrecognized arguments",
+    "fatal:",
+    "FAILED",
+    "BLOCKED",
+]
+
 
 def run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
     result = subprocess.run(
@@ -81,6 +97,44 @@ def collect_status(workers: int) -> list[dict]:
     return items
 
 
+def classify_result(code: int, tail: str, worker_clean: bool) -> dict:
+    hard_markers = [marker for marker in HARD_ERROR_MARKERS if marker in tail]
+
+    if code == 124:
+        return {
+            "class": "hard_fail",
+            "reason": "timeout",
+            "hard_markers": hard_markers,
+        }
+
+    if not worker_clean:
+        return {
+            "class": "hard_fail",
+            "reason": "worker_dirty_after_run",
+            "hard_markers": hard_markers,
+        }
+
+    if hard_markers:
+        return {
+            "class": "hard_fail",
+            "reason": "hard_error_marker_found",
+            "hard_markers": hard_markers,
+        }
+
+    if code != 0:
+        return {
+            "class": "soft_warn",
+            "reason": "nonzero_exit_but_worker_clean",
+            "hard_markers": [],
+        }
+
+    return {
+        "class": "ok",
+        "reason": "zero_exit_and_clean",
+        "hard_markers": [],
+    }
+
+
 def plan(workers: int, goal: str, mode: str) -> int:
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -93,8 +147,8 @@ def plan(workers: int, goal: str, mode: str) -> int:
             "path": str(path),
             "mode": mode,
             "goal": goal,
-            "command": " ".join(cmd),
-            "powershell": f'cd "{path}"; {" ".join(cmd)}',
+            "command": cmd,
+            "powershell": f'cd "{path}"; py -3 11_SCRIPTS\\jarvis_ops.py one "{goal}"',
         })
 
     payload = {
@@ -165,8 +219,8 @@ def run_workers(workers: int, goal: str, mode: str, timeout: int) -> int:
             "log_file": log_file,
         })
 
+    raw_max_code = 0
     results = []
-    max_code = 0
 
     for item in processes:
         proc = item["proc"]
@@ -179,21 +233,34 @@ def run_workers(workers: int, goal: str, mode: str, timeout: int) -> int:
         item["log_file"].close()
 
         log_text = Path(item["log"]).read_text(encoding="utf-8", errors="replace")
+        tail = log_text[-7000:] if log_text else ""
 
-        result = {
+        raw_max_code = max(raw_max_code, code)
+
+        results.append({
             "worker": item["worker"],
             "path": item["path"],
             "cmd": item["cmd"],
             "code": code,
             "log": item["log"],
-            "tail": log_text[-5000:] if log_text else "",
-        }
-
-        results.append(result)
-        max_code = max(max_code, code)
+            "tail": tail,
+        })
 
     duration = round(time.time() - started_at, 2)
     status_after = collect_status(workers)
+    clean_map = {item.get("worker"): bool(item.get("clean")) for item in status_after}
+
+    for result in results:
+        result["classification"] = classify_result(
+            int(result["code"]),
+            str(result.get("tail") or ""),
+            clean_map.get(result["worker"], False),
+        )
+
+    hard_failures = [r for r in results if r["classification"]["class"] == "hard_fail"]
+    soft_warnings = [r for r in results if r["classification"]["class"] == "soft_warn"]
+
+    effective_exit_code = 1 if hard_failures else 0
 
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -203,7 +270,10 @@ def run_workers(workers: int, goal: str, mode: str, timeout: int) -> int:
         "mode": mode,
         "timeout": timeout,
         "duration_seconds": duration,
-        "exit_code": max_code,
+        "raw_exit_code": raw_max_code,
+        "effective_exit_code": effective_exit_code,
+        "hard_failures": len(hard_failures),
+        "soft_warnings": len(soft_warnings),
         "status_before": status_before,
         "status_after": status_after,
         "results": results,
@@ -214,12 +284,15 @@ def run_workers(workers: int, goal: str, mode: str, timeout: int) -> int:
     print("WORKER_AUTO_RUN_DONE")
     print(REPORT)
     print(json.dumps({
-        "exit_code": max_code,
+        "raw_exit_code": raw_max_code,
+        "effective_exit_code": effective_exit_code,
+        "hard_failures": len(hard_failures),
+        "soft_warnings": len(soft_warnings),
         "duration_seconds": duration,
         "status_after": status_after,
     }, ensure_ascii=False, indent=2))
 
-    return max_code
+    return effective_exit_code
 
 
 def open_windows(workers: int, goal: str, mode: str) -> int:
@@ -267,13 +340,67 @@ def open_windows(workers: int, goal: str, mode: str) -> int:
     return 0
 
 
+def collect(workers: int, goal: str, mode: str) -> int:
+    OUT.mkdir(parents=True, exist_ok=True)
+
+    logs = []
+    for log_path in sorted(OUT.glob("worker_*.log"))[-20:]:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+        logs.append({
+            "file": str(log_path),
+            "size": log_path.stat().st_size,
+            "tail": text[-5000:] if text else "",
+        })
+
+    payload = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "action": "collect",
+        "workers": workers,
+        "goal": goal,
+        "mode": mode,
+        "status": collect_status(workers),
+        "logs": logs,
+    }
+
+    write_outputs(payload)
+
+    print("WORKER_AUTO_COLLECT_DONE")
+    print(REPORT)
+    print(json.dumps({
+        "workers": payload["status"],
+        "logs_collected": len(logs),
+    }, ensure_ascii=False, indent=2))
+
+    return 0
+
+
+def status(workers: int, goal: str, mode: str) -> int:
+    OUT.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "action": "status",
+        "workers": workers,
+        "goal": goal,
+        "mode": mode,
+        "status": collect_status(workers),
+    }
+
+    write_outputs(payload)
+
+    print("WORKER_AUTO_STATUS")
+    print(REPORT)
+    print(json.dumps(payload["status"], ensure_ascii=False, indent=2))
+    return 0
+
+
 def write_outputs(payload: dict) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
 
     STATE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     lines = [
-        "# JARVIS Worker Auto Runner — Block 130",
+        "# JARVIS Worker Auto Runner — Block 131",
         "",
         f"Generated at: `{payload.get('created_at')}`",
         f"Action: `{payload.get('action')}`",
@@ -293,8 +420,8 @@ def write_outputs(payload: dict) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="JARVIS Block 130 Worker Auto Runner")
-    parser.add_argument("action", choices=["plan", "run", "open", "status"])
+    parser = argparse.ArgumentParser(description="JARVIS Block 131 Worker Auto Runner Hardening")
+    parser.add_argument("action", choices=["plan", "run", "open", "status", "collect"])
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--goal", default="melhorar autonomia do Jarvis")
     parser.add_argument("--mode", choices=["safe", "think", "session"], default="safe")
@@ -313,20 +440,10 @@ def main() -> int:
         return open_windows(workers, args.goal, args.mode)
 
     if args.action == "status":
-        OUT.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "created_at": datetime.now().isoformat(timespec="seconds"),
-            "action": "status",
-            "workers": workers,
-            "goal": args.goal,
-            "mode": args.mode,
-            "status": collect_status(workers),
-        }
-        write_outputs(payload)
-        print("WORKER_AUTO_STATUS")
-        print(REPORT)
-        print(json.dumps(payload["status"], ensure_ascii=False, indent=2))
-        return 0
+        return status(workers, args.goal, args.mode)
+
+    if args.action == "collect":
+        return collect(workers, args.goal, args.mode)
 
     return 0
 
