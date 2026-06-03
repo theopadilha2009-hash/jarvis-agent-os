@@ -27,10 +27,10 @@ def board() -> int:
     checks = {
         "git_status": run(["git", "status", "-sb"]),
         "git_log": run(["git", "log", "--oneline", "-8"]),
-        "autoship": run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "autoship", "status"]),
-        "ship_guard": run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "ship-guard", "preflight"]),
-        "next_action": run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "next-action", "plan"]),
-        "capability_map": run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "capability-map", "map"]),
+        "autoship": run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "autoship", "status"]),
+        "ship_guard": run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "ship-guard", "preflight"]),
+        "next_action": run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "next-action", "plan"]),
+        "capability_map": run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "capability-map", "map"]),
     }
 
     blockers = []

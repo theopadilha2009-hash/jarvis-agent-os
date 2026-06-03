@@ -43,7 +43,7 @@ def resume(goal: str) -> int:
     _, git_status = run(["git", "status", "-sb"])
     _, commits = run(["git", "log", "--oneline", "--decorate", "-8"])
 
-    next_command = f'py -3 11_SCRIPTS\\jarvis_ops.py decide "{goal}"'
+    next_command = f'py -3 11_SCRIPTS/jarvis_ops.py decide "{goal}"'
 
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),

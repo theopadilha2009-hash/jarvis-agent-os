@@ -57,7 +57,7 @@ def load_contract(goal: str) -> dict:
             ],
             "validation": [
                 "git status -sb",
-                "py -3 -m py_compile 11_SCRIPTS\\jarvis_ops.py",
+                "py -3 -m py_compile 11_SCRIPTS/jarvis_ops.py",
             ],
             "risks": ["Contrato ausente."],
             "forbidden_actions": ["não mexer em .env", "não commitar segredo"],

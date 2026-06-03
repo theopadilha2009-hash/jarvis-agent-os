@@ -14,11 +14,11 @@ STATE = OUT / "CONTROL_CENTER.json"
 STEPS = [
     ("git_status", ["git", "status", "-sb"]),
     ("last_commits", ["git", "log", "--oneline", "-8"]),
-    ("autoship_status", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "autoship", "status"]),
-    ("ship_guard", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "ship-guard", "preflight"]),
-    ("command_menu", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "command-menu", "menu"]),
-    ("capability_map", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "capability-map", "map"]),
-    ("next_action", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "next-action", "plan"]),
+    ("autoship_status", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "autoship", "status"]),
+    ("ship_guard", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "ship-guard", "preflight"]),
+    ("command_menu", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "command-menu", "menu"]),
+    ("capability_map", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "capability-map", "map"]),
+    ("next_action", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "next-action", "plan"]),
 ]
 
 

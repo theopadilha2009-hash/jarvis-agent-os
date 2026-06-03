@@ -108,15 +108,15 @@ def doctor() -> dict:
         recommended_next.append("Optional: add Groq/OpenAI/Anthropic/Tavily/Brave keys as environment variables only, never inside Git.")
 
     if checks["ollama"]["http"] or any(checks["api_keys_present"].values()) or checks["claude_code"]["cli"]:
-        recommended_next.append("Run: py -3 11_SCRIPTS\\jarvis_ops.py brain status")
+        recommended_next.append("Run: py -3 11_SCRIPTS/jarvis_ops.py brain status")
 
     return {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "checks": checks,
         "recommended_next": recommended_next,
         "safe_commands": {
-            "check_brain": "py -3 11_SCRIPTS\\jarvis_ops.py brain status",
-            "route_code": 'py -3 11_SCRIPTS\\jarvis_ops.py brain route "criar scripts sozinho" --task code',
+            "check_brain": "py -3 11_SCRIPTS/jarvis_ops.py brain status",
+            "route_code": 'py -3 11_SCRIPTS/jarvis_ops.py brain route "criar scripts sozinho" --task code',
             "jarvis_think": '.\\jarvis.bat think "melhorar autonomia do Jarvis"',
             "jarvis_build": '.\\jarvis.bat build "melhorar autonomia do Jarvis"',
         },

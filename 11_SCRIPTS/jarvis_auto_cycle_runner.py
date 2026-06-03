@@ -12,13 +12,13 @@ REPORT = OUT / "AUTO_CYCLE_RUNNER.md"
 STATE = OUT / "AUTO_CYCLE_RUNNER.json"
 
 STEPS = [
-    ("repo-snapshot", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "repo-snapshot", "snapshot"]),
-    ("execution-index", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "execution-index", "index"]),
-    ("command-health", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "command-health", "run"]),
-    ("maintenance-cycle", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "maintenance-cycle", "run"]),
-    ("next-action", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "next-action", "plan"]),
-    ("patch-catalog", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "patch-catalog", "next"]),
-    ("autoship-status", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "autoship", "status"]),
+    ("repo-snapshot", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "repo-snapshot", "snapshot"]),
+    ("execution-index", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "execution-index", "index"]),
+    ("command-health", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "command-health", "run"]),
+    ("maintenance-cycle", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "maintenance-cycle", "run"]),
+    ("next-action", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "next-action", "plan"]),
+    ("patch-catalog", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "patch-catalog", "next"]),
+    ("autoship-status", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "autoship", "status"]),
     ("git-status", ["git", "status", "-sb"]),
     ("git-log", ["git", "log", "--oneline", "-8"]),
 ]

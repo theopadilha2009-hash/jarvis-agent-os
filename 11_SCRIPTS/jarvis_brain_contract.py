@@ -208,7 +208,7 @@ def fallback_contract(goal: str) -> dict:
         ],
         "validation": [
             "git status -sb",
-            "py -3 -m py_compile 11_SCRIPTS\\jarvis_ops.py",
+            "py -3 -m py_compile 11_SCRIPTS/jarvis_ops.py",
             ".\\jarvis.bat think \"melhorar autonomia do Jarvis\"",
         ],
         "forbidden_actions": [

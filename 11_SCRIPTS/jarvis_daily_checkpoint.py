@@ -23,9 +23,9 @@ def collect() -> dict:
         "status": ["git", "status", "-sb"],
         "porcelain": ["git", "status", "--porcelain"],
         "last_commits": ["git", "log", "--oneline", "-10"],
-        "patch_catalog": ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "patch-catalog", "list"],
-        "repo_snapshot": ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "repo-snapshot", "snapshot"],
-        "operator_brief": ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "operator-brief", "brief"],
+        "patch_catalog": ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "patch-catalog", "list"],
+        "repo_snapshot": ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "repo-snapshot", "snapshot"],
+        "operator_brief": ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "operator-brief", "brief"],
     }
 
     checks = {}

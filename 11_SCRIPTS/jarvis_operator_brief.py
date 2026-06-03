@@ -23,9 +23,9 @@ def collect() -> dict:
         "status": ["git", "status", "-sb"],
         "porcelain": ["git", "status", "--porcelain"],
         "last_commits": ["git", "log", "--oneline", "-6"],
-        "autoship_status": ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "autoship", "status"],
-        "ship_guard": ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "ship-guard", "preflight"],
-        "patch_catalog_next": ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "patch-catalog", "next"],
+        "autoship_status": ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "autoship", "status"],
+        "ship_guard": ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "ship-guard", "preflight"],
+        "patch_catalog_next": ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "patch-catalog", "next"],
     }
 
     checks = {}

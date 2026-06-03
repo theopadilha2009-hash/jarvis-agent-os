@@ -123,7 +123,7 @@ def base_plan(goal: str, allow_bootstrap_dirty: bool = False) -> dict:
         "can_write_real_file": len(blockers) == 0,
         "validations": [
             f"py -3 -m py_compile {GENERATED_REL}",
-            "py -3 -m py_compile 11_SCRIPTS\\jarvis_ops.py",
+            "py -3 -m py_compile 11_SCRIPTS/jarvis_ops.py",
             "git status -sb",
         ],
         "git_status": git_status(),
@@ -231,7 +231,7 @@ def apply_generated(goal: str, allow_bootstrap_dirty: bool) -> int:
     GENERATED_FILE.write_text(content, encoding="utf-8")
 
     code1, out1 = run(["py", "-3", "-m", "py_compile", GENERATED_REL])
-    code2, out2 = run(["py", "-3", "-m", "py_compile", "11_SCRIPTS\\jarvis_ops.py"])
+    code2, out2 = run(["py", "-3", "-m", "py_compile", "11_SCRIPTS/jarvis_ops.py"])
 
     payload["applied"] = True
     payload["validation_exit_codes"] = {
@@ -266,11 +266,11 @@ def validate(goal: str) -> int:
         codes.append(c)
         outputs.append(o)
 
-    c, o = run(["py", "-3", "-m", "py_compile", "11_SCRIPTS\\jarvis_safe_apply_v2.py"])
+    c, o = run(["py", "-3", "-m", "py_compile", "11_SCRIPTS/jarvis_safe_apply_v2.py"])
     codes.append(c)
     outputs.append(o)
 
-    c, o = run(["py", "-3", "-m", "py_compile", "11_SCRIPTS\\jarvis_ops.py"])
+    c, o = run(["py", "-3", "-m", "py_compile", "11_SCRIPTS/jarvis_ops.py"])
     codes.append(c)
     outputs.append(o)
 

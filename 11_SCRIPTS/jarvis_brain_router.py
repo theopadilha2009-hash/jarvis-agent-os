@@ -185,7 +185,7 @@ Required behavior:
         "user": user,
         "safe_shell_context": [
             "git status -sb",
-            "py -3 -m py_compile 11_SCRIPTS\\jarvis_ops.py",
+            "py -3 -m py_compile 11_SCRIPTS/jarvis_ops.py",
             ".\\jarvis.bat think \"melhorar autonomia do Jarvis\"",
         ],
     }

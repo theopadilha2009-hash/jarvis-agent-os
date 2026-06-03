@@ -125,7 +125,7 @@ def init_workers(count: int) -> int:
             encoding="utf-8",
         )
 
-        command = f'cd "{path}"; py -3 11_SCRIPTS\\jarvis_ops.py one "melhorar autonomia do Jarvis"'
+        command = f'cd "{path}"; py -3 11_SCRIPTS/jarvis_ops.py one "melhorar autonomia do Jarvis"'
 
         workers.append({
             "worker": index,

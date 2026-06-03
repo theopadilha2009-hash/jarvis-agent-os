@@ -35,13 +35,13 @@ def decide(data: dict) -> list[dict]:
         actions.append({
             "priority": 1,
             "title": "Clean current worktree",
-            "command": "py -3 11_SCRIPTS\\jarvis_ops.py autoship status",
+            "command": "py -3 11_SCRIPTS/jarvis_ops.py autoship status",
             "reason": "Git has local changes.",
         })
         actions.append({
             "priority": 2,
             "title": "Ship guarded changes",
-            "command": "py -3 11_SCRIPTS\\jarvis_ops.py autoship commit \"chore: ship guarded Jarvis changes\" --push",
+            "command": "py -3 11_SCRIPTS/jarvis_ops.py autoship commit \"chore: ship guarded Jarvis changes\" --push",
             "reason": "Use Autoship only after status looks safe.",
         })
         return actions
@@ -49,21 +49,21 @@ def decide(data: dict) -> list[dict]:
     actions.append({
         "priority": 1,
         "title": "Run command health",
-        "command": "py -3 11_SCRIPTS\\jarvis_ops.py command-health run",
+        "command": "py -3 11_SCRIPTS/jarvis_ops.py command-health run",
         "reason": "Confirm all core commands still work.",
     })
 
     actions.append({
         "priority": 2,
         "title": "Run maintenance cycle",
-        "command": "py -3 11_SCRIPTS\\jarvis_ops.py maintenance-cycle run",
+        "command": "py -3 11_SCRIPTS/jarvis_ops.py maintenance-cycle run",
         "reason": "Refresh repo snapshot, operator brief, checkpoint, and catalog view.",
     })
 
     actions.append({
         "priority": 3,
         "title": "Create next small capability",
-        "command": "py -3 11_SCRIPTS\\jarvis_ops.py patch-catalog next",
+        "command": "py -3 11_SCRIPTS/jarvis_ops.py patch-catalog next",
         "reason": "Find the next safe feature candidate.",
     })
 
@@ -75,9 +75,9 @@ def collect() -> dict:
     porcelain = run(["git", "status", "--porcelain"])
     log = run(["git", "log", "--oneline", "-8"])
     branch = run(["git", "branch", "--show-current"])
-    catalog = run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "patch-catalog", "next"])
-    autoship = run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "autoship", "status"])
-    ship_guard = run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "ship-guard", "preflight"])
+    catalog = run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "patch-catalog", "next"])
+    autoship = run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "autoship", "status"])
+    ship_guard = run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "ship-guard", "preflight"])
 
     data = {
         "created_at": datetime.now().isoformat(timespec="seconds"),

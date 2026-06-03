@@ -33,7 +33,7 @@ BLOCKED_PARTS = [
 
 DEFAULT_VALIDATIONS = [
     "git status -sb",
-    "py -3 -m py_compile 11_SCRIPTS\\jarvis_ops.py",
+    "py -3 -m py_compile 11_SCRIPTS/jarvis_ops.py",
     ".\\jarvis.bat think \"melhorar autonomia do Jarvis\"",
 ]
 

@@ -25,12 +25,12 @@ def cycle() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
 
     steps = [
-        ("repo_snapshot", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "repo-snapshot", "snapshot"]),
-        ("operator_brief", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "operator-brief", "brief"]),
-        ("daily_checkpoint", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "daily-checkpoint", "checkpoint"]),
-        ("patch_catalog_next", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "patch-catalog", "next"]),
-        ("autoship_status", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "autoship", "status"]),
-        ("ship_guard", ["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "ship-guard", "preflight"]),
+        ("repo_snapshot", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "repo-snapshot", "snapshot"]),
+        ("operator_brief", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "operator-brief", "brief"]),
+        ("daily_checkpoint", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "daily-checkpoint", "checkpoint"]),
+        ("patch_catalog_next", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "patch-catalog", "next"]),
+        ("autoship_status", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "autoship", "status"]),
+        ("ship_guard", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "ship-guard", "preflight"]),
         ("git_status", ["git", "status", "-sb"]),
         ("git_log", ["git", "log", "--oneline", "-8"]),
     ]

@@ -237,7 +237,7 @@ def commit(message: str, push: bool) -> int:
         print(REPORT)
         return 1
 
-    gate_code, gate_out = run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "ship-guard", "preflight"])
+    gate_code, gate_out = run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "ship-guard", "preflight"])
     payload["checks"].append({
         "name": "ship-guard preflight",
         "exit_code": gate_code,

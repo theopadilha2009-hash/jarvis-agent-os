@@ -11,18 +11,18 @@ REPORT = OUT / "COMMAND_MENU.md"
 STATE = OUT / "COMMAND_MENU.json"
 
 COMMANDS = [
-    {"group": "status", "name": "autoship status", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py autoship status"},
-    {"group": "status", "name": "ship guard", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py ship-guard preflight"},
-    {"group": "status", "name": "repo snapshot", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py repo-snapshot snapshot"},
-    {"group": "status", "name": "execution index", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py execution-index index"},
-    {"group": "planning", "name": "operator brief", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py operator-brief brief"},
-    {"group": "planning", "name": "daily checkpoint", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py daily-checkpoint checkpoint"},
-    {"group": "planning", "name": "next action", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py next-action plan"},
-    {"group": "planning", "name": "patch catalog next", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py patch-catalog next"},
-    {"group": "health", "name": "command health", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py command-health run"},
-    {"group": "health", "name": "maintenance cycle", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py maintenance-cycle run"},
-    {"group": "health", "name": "auto cycle runner", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py auto-cycle-runner run"},
-    {"group": "ship", "name": "autoship commit", "cmd": "py -3 11_SCRIPTS\\jarvis_ops.py autoship commit \"chore: ship guarded Jarvis changes\" --push"},
+    {"group": "status", "name": "autoship status", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py autoship status"},
+    {"group": "status", "name": "ship guard", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py ship-guard preflight"},
+    {"group": "status", "name": "repo snapshot", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py repo-snapshot snapshot"},
+    {"group": "status", "name": "execution index", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py execution-index index"},
+    {"group": "planning", "name": "operator brief", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py operator-brief brief"},
+    {"group": "planning", "name": "daily checkpoint", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py daily-checkpoint checkpoint"},
+    {"group": "planning", "name": "next action", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py next-action plan"},
+    {"group": "planning", "name": "patch catalog next", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py patch-catalog next"},
+    {"group": "health", "name": "command health", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py command-health run"},
+    {"group": "health", "name": "maintenance cycle", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py maintenance-cycle run"},
+    {"group": "health", "name": "auto cycle runner", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py auto-cycle-runner run"},
+    {"group": "ship", "name": "autoship commit", "cmd": "py -3 11_SCRIPTS/jarvis_ops.py autoship commit \"chore: ship guarded Jarvis changes\" --push"},
 ]
 
 

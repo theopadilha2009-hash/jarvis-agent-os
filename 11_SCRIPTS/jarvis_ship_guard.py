@@ -12,9 +12,9 @@ REPORT = OUT / "SHIP_GUARD.md"
 STATE = OUT / "SHIP_GUARD.json"
 
 VALIDATION_COMMANDS = [
-    ["py", "-3", "-m", "py_compile", "11_SCRIPTS\\jarvis_ops.py"],
-    ["py", "-3", "-m", "py_compile", "11_SCRIPTS\\jarvis_main_cli.py"],
-    ["py", "-3", "-m", "py_compile", "11_SCRIPTS\\jarvis_diff_review_gate.py"],
+    ["py", "-3", "-m", "py_compile", "11_SCRIPTS/jarvis_ops.py"],
+    ["py", "-3", "-m", "py_compile", "11_SCRIPTS/jarvis_main_cli.py"],
+    ["py", "-3", "-m", "py_compile", "11_SCRIPTS/jarvis_diff_review_gate.py"],
 ]
 
 
@@ -99,7 +99,7 @@ def preflight() -> int:
         }, ensure_ascii=False, indent=2))
         return 0
 
-    gate_code, gate_out = run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "diff-gate", "commit-gate"])
+    gate_code, gate_out = run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "diff-gate", "commit-gate"])
     checks.append({
         "name": "diff-gate commit-gate",
         "exit_code": gate_code,

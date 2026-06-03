@@ -66,7 +66,7 @@ def machine_sync() -> int:
     if not checks["git_identity_set"]:
         next_actions.append("Configure git user.name and user.email for this computer.")
     if checks["git_clean"] and checks["python_ok"]:
-        next_actions.append("Safe to continue with: py -3 11_SCRIPTS\\jarvis_ops.py status")
+        next_actions.append("Safe to continue with: py -3 11_SCRIPTS/jarvis_ops.py status")
 
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),

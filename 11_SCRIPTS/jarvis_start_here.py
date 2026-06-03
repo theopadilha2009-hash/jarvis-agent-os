@@ -12,12 +12,12 @@ REPORT = OUT / "START_HERE.md"
 STATE = OUT / "START_HERE.json"
 
 COMMANDS = [
-    ("Check status", "py -3 11_SCRIPTS\\jarvis_ops.py status-board board"),
-    ("Run control center", "py -3 11_SCRIPTS\\jarvis_ops.py control-center run"),
-    ("Run command health", "py -3 11_SCRIPTS\\jarvis_ops.py command-health run"),
-    ("Plan next action", "py -3 11_SCRIPTS\\jarvis_ops.py next-action plan"),
-    ("Run full cycle", "py -3 11_SCRIPTS\\jarvis_ops.py auto-cycle-runner run"),
-    ("Ship safe changes", "py -3 11_SCRIPTS\\jarvis_ops.py autoship commit \"chore: ship guarded Jarvis changes\" --push"),
+    ("Check status", "py -3 11_SCRIPTS/jarvis_ops.py status-board board"),
+    ("Run control center", "py -3 11_SCRIPTS/jarvis_ops.py control-center run"),
+    ("Run command health", "py -3 11_SCRIPTS/jarvis_ops.py command-health run"),
+    ("Plan next action", "py -3 11_SCRIPTS/jarvis_ops.py next-action plan"),
+    ("Run full cycle", "py -3 11_SCRIPTS/jarvis_ops.py auto-cycle-runner run"),
+    ("Ship safe changes", "py -3 11_SCRIPTS/jarvis_ops.py autoship commit \"chore: ship guarded Jarvis changes\" --push"),
 ]
 
 
@@ -35,8 +35,8 @@ def build() -> int:
 
     git_status = run(["git", "status", "-sb"])
     git_log = run(["git", "log", "--oneline", "-8"])
-    autoship = run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "autoship", "status"])
-    next_action = run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "next-action", "plan"])
+    autoship = run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "autoship", "status"])
+    next_action = run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "next-action", "plan"])
 
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),

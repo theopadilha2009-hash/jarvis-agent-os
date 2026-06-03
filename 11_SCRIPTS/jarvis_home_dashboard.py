@@ -27,11 +27,11 @@ def home() -> int:
     checks = {
         "git_status": run(["git", "status", "-sb"]),
         "git_log": run(["git", "log", "--oneline", "-10"]),
-        "status_board": run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "status-board", "board"]),
-        "start_here": run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "start-here", "build"]),
-        "command_menu": run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "command-menu", "menu"]),
-        "next_action": run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "next-action", "plan"]),
-        "autoship_status": run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "autoship", "status"]),
+        "status_board": run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "status-board", "board"]),
+        "start_here": run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "start-here", "build"]),
+        "command_menu": run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "command-menu", "menu"]),
+        "next_action": run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "next-action", "plan"]),
+        "autoship_status": run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", "autoship", "status"]),
     }
 
     blockers = []
@@ -46,11 +46,11 @@ def home() -> int:
         "git_status": checks["git_status"]["output"],
         "last_commit": checks["git_log"]["output"].splitlines()[0] if checks["git_log"]["output"] else "",
         "recommended_commands": [
-            "py -3 11_SCRIPTS\\jarvis_ops.py home-dashboard home",
-            "py -3 11_SCRIPTS\\jarvis_ops.py status-board board",
-            "py -3 11_SCRIPTS\\jarvis_ops.py next-action plan",
-            "py -3 11_SCRIPTS\\jarvis_ops.py auto-cycle-runner run",
-            "py -3 11_SCRIPTS\\jarvis_ops.py autoship status",
+            "py -3 11_SCRIPTS/jarvis_ops.py home-dashboard home",
+            "py -3 11_SCRIPTS/jarvis_ops.py status-board board",
+            "py -3 11_SCRIPTS/jarvis_ops.py next-action plan",
+            "py -3 11_SCRIPTS/jarvis_ops.py auto-cycle-runner run",
+            "py -3 11_SCRIPTS/jarvis_ops.py autoship status",
         ],
         "checks": checks,
     }

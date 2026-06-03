@@ -38,7 +38,7 @@ def health() -> int:
     results = []
     blockers = []
 
-    compile_check = run(["py", "-3", "-m", "py_compile", "11_SCRIPTS\\jarvis_ops.py"])
+    compile_check = run(["py", "-3", "-m", "py_compile", "11_SCRIPTS/jarvis_ops.py"])
     results.append({"name": "py_compile_ops", **compile_check})
 
     if compile_check["exit_code"] != 0:
@@ -46,7 +46,7 @@ def health() -> int:
 
     for parts in COMMANDS:
         name = " ".join(parts)
-        item = run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", *parts])
+        item = run(["py", "-3", "11_SCRIPTS/jarvis_ops.py", *parts])
         results.append({"name": name, **item})
 
         if item["exit_code"] != 0 and parts[0] not in ["diff-gate"]:

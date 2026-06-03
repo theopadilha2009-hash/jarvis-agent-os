@@ -132,12 +132,12 @@ def install_ollama_plan() -> dict:
     commands += [
         {
             "title": "test brain after setup",
-            "command": 'py -3 11_SCRIPTS\\jarvis_ops.py brain status',
+            "command": 'py -3 11_SCRIPTS/jarvis_ops.py brain status',
             "safe": True,
         },
         {
             "title": "test local model call only after model exists",
-            "command": 'py -3 11_SCRIPTS\\jarvis_ops.py brain prompt "melhorar autonomia do Jarvis" --task code --prefer ollama --allow-calls',
+            "command": 'py -3 11_SCRIPTS/jarvis_ops.py brain prompt "melhorar autonomia do Jarvis" --task code --prefer ollama --allow-calls',
             "safe": True,
         },
     ]
@@ -159,8 +159,8 @@ def groq_plan() -> dict:
         ],
         "commands": [
             'setx GROQ_API_KEY "PASTE_KEY_HERE"',
-            'py -3 11_SCRIPTS\\jarvis_ops.py brain status',
-            'py -3 11_SCRIPTS\\jarvis_ops.py brain route "criar scripts sozinho" --task code --prefer groq',
+            'py -3 11_SCRIPTS/jarvis_ops.py brain status',
+            'py -3 11_SCRIPTS/jarvis_ops.py brain route "criar scripts sozinho" --task code --prefer groq',
         ],
     }
 

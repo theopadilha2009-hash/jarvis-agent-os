@@ -148,7 +148,7 @@ def plan(workers: int, goal: str, mode: str) -> int:
             "mode": mode,
             "goal": goal,
             "command": cmd,
-            "powershell": f'cd "{path}"; py -3 11_SCRIPTS\\jarvis_ops.py one "{goal}"',
+            "powershell": f'cd "{path}"; py -3 11_SCRIPTS/jarvis_ops.py one "{goal}"',
         })
 
     payload = {
