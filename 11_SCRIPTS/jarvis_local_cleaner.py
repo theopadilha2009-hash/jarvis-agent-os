@@ -57,6 +57,7 @@ PATTERNS = [
     "05_EXECUCAO/141_SAFE_APPLY_V2/",
     "05_EXECUCAO/142_DIFF_REVIEW_GATE/",
     "05_EXECUCAO/144_SHIP_GUARD/",
+    "05_EXECUCAO/145_AUTOSHIP/",
     "*.pid",
     "*.tmp",
     "*.local.log",

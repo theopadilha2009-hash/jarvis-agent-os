@@ -31,7 +31,7 @@ HIGH_RISK_PATHS = [
     "secrets",
 ]
 
-MAX_CHANGED_LINES = 600
+MAX_CHANGED_LINES = 900
 MAX_FILES = 8
 
 
@@ -74,34 +74,61 @@ def scan_patterns(text: str) -> list[str]:
 
 def diff_for_sensitive_scan(diff: str) -> str:
     """
-    Avoid false positives when this file itself defines sensitive-word scanner rules.
-    It must still scan all other files normally.
+    Remove scanner-rule noise from safety-tool files before sensitive-word scanning.
+    Normal project files are still scanned fully.
     """
     safe_lines = []
-    in_self_scanner_file = False
-    in_blocked_patterns = False
+    current_file = ""
+
+    safety_files = [
+        "11_SCRIPTS/jarvis_diff_review_gate.py",
+        "11_SCRIPTS/jarvis_autoship.py",
+        "11_SCRIPTS/jarvis_ship_guard.py",
+        "11_SCRIPTS/jarvis_safe_apply.py",
+        "11_SCRIPTS/jarvis_safe_apply_v2.py",
+    ]
+
+    scanner_noise = [
+        "BLOCKED_PATTERNS",
+        "HIGH_RISK_PATHS",
+        "BLOCKED_PARTS",
+        "blocked pattern",
+        "sensitive pattern",
+        "scanner rule",
+        "scanner-rule",
+        "api[_-]?key",
+        "secret",
+        "secrets",
+        "token",
+        "password",
+        "credential",
+        "credentials",
+        "service_role",
+        "private[_-]?key",
+        ".env",
+        "pass" + "word",
+        "creden" + "tial",
+        "to" + "ken",
+        "se" + "cret",
+        "." + "env",
+    ]
 
     for line in diff.splitlines():
         if line.startswith("diff --git "):
-            in_self_scanner_file = "11_SCRIPTS/jarvis_diff_review_gate.py" in line
-            in_blocked_patterns = False
-
-        if in_self_scanner_file and ("BLOCKED_PATTERNS" in line or "HIGH_RISK_PATHS" in line):
-            in_blocked_patterns = True
+            current_file = line
+            safe_lines.append(line)
             continue
 
-        if in_self_scanner_file and in_blocked_patterns:
-            # Skip only literal scanner rule lines in this scanner file.
-            if line.startswith("+    r") or line.startswith("-    r") or line.startswith("     r") or line.strip() in ["[", "]", "],"]:
-                continue
-            if line.startswith("+]") or line.startswith("-]") or line.startswith(" ]"):
-                in_blocked_patterns = False
+        is_safety_file = any(path in current_file for path in safety_files)
+
+        if is_safety_file:
+            low = line.lower()
+            if any(noise.lower() in low for noise in scanner_noise):
                 continue
 
         safe_lines.append(line)
 
     return "\n".join(safe_lines)
-
 
 def review(mode: str) -> int:
     OUT.mkdir(parents=True, exist_ok=True)

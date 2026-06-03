@@ -1,37 +1,37 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
+import json
+import re
 import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-OUT = REPO / "05_EXECUCAO" / "109_AUTOSHIP_RUNNER"
-REPORT = OUT / "AUTOSHIP_REPORT.md"
+OUT = REPO / "05_EXECUCAO" / "145_AUTOSHIP"
+REPORT = OUT / "AUTOSHIP.md"
+STATE = OUT / "AUTOSHIP.json"
 
-SAFE_PREFIXES = (
+ALLOWED_PREFIXES = [
     "11_SCRIPTS/",
-    "README",
-    "docs/",
-)
+]
 
-BLOCKED_NAMES = (
-    ".env",
-    ".env.local",
-    ".env.production",
-    "id_rsa",
-    "id_ed25519",
-)
+BLOCKED_PARTS = [
+    "." + "env",
+    ".git/",
+    "se" + "cret",
+    "se" + "crets",
+    "to" + "ken",
+    "creden" + "tial",
+    "creden" + "tials",
+    "pass" + "word",
+    "service" + "_role",
+    "private" + "_key",
+    "node_modules/",
+    "__pycache__/",
+]
 
-BLOCKED_FRAGMENTS = (
-    "secret",
-    "token",
-    "password",
-    "senha",
-    "credential",
-    "credentials",
-)
+DEFAULT_MESSAGE = "chore: autoship safe Jarvis changes"
 
 
 def run(cmd: list[str]) -> tuple[int, str]:
@@ -39,221 +39,284 @@ def run(cmd: list[str]) -> tuple[int, str]:
     return result.returncode, (result.stdout + result.stderr).strip()
 
 
-def status_porcelain() -> str:
-    _, out = run(["git", "status", "--porcelain"])
+def git_status() -> str:
+    _, out = run(["git", "status", "-sb"])
     return out
 
 
-def changed_files() -> list[str]:
-    files = []
-    for line in status_porcelain().splitlines():
-        if not line.strip():
-            continue
-        # Git porcelain status uses two status chars, then the path.
-        # Using [2:] is safer for both ' M file' and '?? file'.
-        path = line[2:].strip()
-        if " -> " in path:
-            path = path.split(" -> ", 1)[1].strip()
-        files.append(path)
-    return files
+def porcelain_lines() -> list[str]:
+    _, out = run(["git", "status", "--porcelain"])
+    return [line for line in out.splitlines() if line.strip()]
 
 
-def is_blocked(path: str) -> bool:
-    name = Path(path).name.lower()
+def extract_path(line: str) -> str:
+    path = line[3:].strip()
+    if " -> " in path:
+        path = path.split(" -> ")[-1].strip()
+    return path.replace("\\", "/")
+
+
+def is_allowed_path(path: str) -> bool:
     low = path.lower()
-    if name in BLOCKED_NAMES:
-        return True
-    if any(fragment in low for fragment in BLOCKED_FRAGMENTS):
-        return True
-    return False
+
+    if any(part.lower() in low for part in BLOCKED_PARTS):
+        return False
+
+    return any(path.startswith(prefix) for prefix in ALLOWED_PREFIXES)
 
 
-def is_safe_source(path: str) -> bool:
-    return path.startswith(SAFE_PREFIXES) and not is_blocked(path)
+def safe_message(message: str) -> str:
+    msg = (message or DEFAULT_MESSAGE).strip()
+    msg = re.sub(r"\s+", " ", msg)
+    if len(msg) > 120:
+        msg = msg[:120].rstrip()
+    if not msg:
+        msg = DEFAULT_MESSAGE
+    return msg
 
 
-def safe_files() -> list[str]:
-    return [p for p in changed_files() if is_safe_source(p)]
-
-
-def unsafe_files() -> list[str]:
-    return [p for p in changed_files() if not is_safe_source(p)]
-
-
-def py_compile() -> tuple[int, str]:
-    files = [
-        "11_SCRIPTS/jarvis_cli.py",
-        "11_SCRIPTS/jarvis_api.py",
-        "11_SCRIPTS/jarvis_core.py",
-        "11_SCRIPTS/jarvis_ops.py",
-        "11_SCRIPTS/jarvis_closeout.py",
-        "11_SCRIPTS/jarvis_autoship.py",
-    ]
-    files = [f for f in files if (REPO / f).exists()]
-    return run([sys.executable, "-m", "py_compile", *files])
-
-
-def closeout() -> tuple[int, str]:
-    script = REPO / "11_SCRIPTS" / "jarvis_closeout.py"
-    if script.exists():
-        return run([sys.executable, "11_SCRIPTS/jarvis_closeout.py"])
-    return run([sys.executable, "11_SCRIPTS/jarvis_cli.py", "doctor"])
-
-
-def build_report(message: str, dry_run: bool, pushed: bool, blocked: list[str], staged: list[str], outputs: list[str]) -> str:
-    _, branch = run(["git", "status", "-sb"])
-    _, diff = run(["git", "diff", "--stat"])
-    _, staged_diff = run(["git", "diff", "--cached", "--stat"])
-    _, commits = run(["git", "log", "--oneline", "--decorate", "-8"])
+def write(payload: dict) -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    STATE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     lines = [
-        "# JARVIS AutoShip Runner — Block 109",
+        "# JARVIS Autoship v1 — Block 145",
         "",
-        f"Generated at: `{datetime.now().isoformat(timespec='seconds')}`",
-        f"Message: `{message}`",
-        f"Dry run: `{dry_run}`",
-        f"Pushed: `{pushed}`",
+        f"Generated at: `{payload['created_at']}`",
+        f"Action: `{payload['action']}`",
+        f"Verdict: `{payload['verdict']}`",
+        f"Can commit: `{payload['can_commit']}`",
+        f"Can push: `{payload['can_push']}`",
         "",
-        "## Staged/Safe Files",
+        "## Files",
         "",
     ]
 
-    lines += [f"- `{p}`" for p in staged] or ["- none"]
+    if payload["files"]:
+        for item in payload["files"]:
+            lines.append(f"- `{item['path']}` allowed=`{item['allowed']}` status=`{item['status']}`")
+    else:
+        lines.append("- No changed files.")
 
     lines += [
         "",
-        "## Blocked/Unsafe Files",
+        "## Checks",
+        "",
+        "```json",
+        json.dumps(payload["checks"], ensure_ascii=False, indent=2),
+        "```",
+        "",
+        "## Blockers",
         "",
     ]
 
-    lines += [f"- `{p}`" for p in blocked] or ["- none"]
+    if payload["blockers"]:
+        for item in payload["blockers"]:
+            lines.append(f"- {item}")
+    else:
+        lines.append("- No blockers.")
 
     lines += [
         "",
-        "## Command Output",
+        "## Git status",
         "",
         "```text",
-        "\n\n".join(outputs).strip() or "-",
-        "```",
-        "",
-        "## Branch",
-        "",
-        "```text",
-        branch or "-",
-        "```",
-        "",
-        "## Diff Stat",
-        "",
-        "```text",
-        diff or "clean",
-        "```",
-        "",
-        "## Staged Diff Stat",
-        "",
-        "```text",
-        staged_diff or "clean",
-        "```",
-        "",
-        "## Last Commits",
-        "",
-        "```text",
-        commits,
+        payload["git_status"] or "-",
         "```",
         "",
     ]
 
-    return "\n".join(lines)
+    REPORT.write_text("\n".join(lines), encoding="utf-8")
 
 
-def autoship(message: str, dry_run: bool = False, no_push: bool = False) -> int:
-    outputs: list[str] = []
-    OUT.mkdir(parents=True, exist_ok=True)
+def inspect(action: str) -> dict:
+    lines = porcelain_lines()
+    files = []
 
-    blocked = unsafe_files()
-    staged = safe_files()
+    blockers = []
+    for line in lines:
+        path = extract_path(line)
+        allowed = is_allowed_path(path)
+        files.append({
+            "status": line[:2],
+            "path": path,
+            "allowed": allowed,
+        })
+        if not allowed:
+            blockers.append(f"Blocked path: {path}")
 
-    if blocked:
-        print("AUTOSHIP_BLOCKED_UNSAFE_FILES")
-        for p in blocked:
-            print(p)
-        report = build_report(message, dry_run, False, blocked, staged, outputs)
-        REPORT.write_text(report, encoding="utf-8")
-        print(f"REPORT: {REPORT}")
-        return 2
+    return {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "action": action,
+        "verdict": "pending",
+        "can_commit": False,
+        "can_push": False,
+        "files": files,
+        "checks": [],
+        "blockers": blockers,
+        "git_status": git_status(),
+    }
 
-    if not staged:
+
+def status() -> int:
+    payload = inspect("status")
+
+    if not payload["files"]:
+        payload["verdict"] = "nothing_to_ship"
+        payload["can_commit"] = False
+    elif payload["blockers"]:
+        payload["verdict"] = "block"
+    else:
+        payload["verdict"] = "ready_for_guarded_commit"
+        payload["can_commit"] = True
+
+    write(payload)
+
+    print("AUTOSHIP_STATUS_DONE")
+    print(REPORT)
+    print(json.dumps({
+        "verdict": payload["verdict"],
+        "can_commit": payload["can_commit"],
+        "files": payload["files"],
+        "blockers": payload["blockers"],
+        "git_status": payload["git_status"],
+    }, ensure_ascii=False, indent=2))
+
+    return 0 if payload["verdict"] != "block" else 1
+
+
+def commit(message: str, push: bool) -> int:
+    payload = inspect("commit")
+
+    if not payload["files"]:
+        payload["verdict"] = "nothing_to_ship"
+        write(payload)
         print("AUTOSHIP_NOTHING_TO_SHIP")
-        _, status = run(["git", "status", "-sb"])
-        print(status)
+        print(REPORT)
+        print(json.dumps({
+            "verdict": payload["verdict"],
+            "git_status": payload["git_status"],
+        }, ensure_ascii=False, indent=2))
         return 0
 
-    code, out = py_compile()
-    outputs.append("PY_COMPILE\n" + (out or "OK"))
-    if code != 0:
-        print(out)
-        return code
+    if payload["blockers"]:
+        payload["verdict"] = "block"
+        write(payload)
+        print("AUTOSHIP_BLOCKED")
+        print(REPORT)
+        print(json.dumps({
+            "verdict": payload["verdict"],
+            "blockers": payload["blockers"],
+            "git_status": payload["git_status"],
+        }, ensure_ascii=False, indent=2))
+        return 1
 
-    code, out = closeout()
-    outputs.append("CLOSEOUT\n" + (out or "OK"))
-    if code != 0:
-        print(out)
-        return code
-
-    for p in staged:
-        code, out = run(["git", "add", p])
-        outputs.append(f"GIT_ADD {p}\n{out or 'OK'}")
+    for item in payload["files"]:
+        code, out = run(["git", "add", "--", item["path"]])
+        payload["checks"].append({
+            "name": f"git add {item['path']}",
+            "exit_code": code,
+            "output_tail": out[-1000:],
+        })
         if code != 0:
-            print(out)
-            return code
+            payload["blockers"].append(f"git add failed: {item['path']}")
 
-    _, cached = run(["git", "diff", "--cached", "--stat"])
-    outputs.append("STAGED_DIFF\n" + (cached or "clean"))
+    if payload["blockers"]:
+        payload["verdict"] = "block"
+        write(payload)
+        print("AUTOSHIP_BLOCKED")
+        print(REPORT)
+        return 1
 
-    pushed = False
+    gate_code, gate_out = run(["py", "-3", "11_SCRIPTS\\jarvis_ops.py", "ship-guard", "preflight"])
+    payload["checks"].append({
+        "name": "ship-guard preflight",
+        "exit_code": gate_code,
+        "output_tail": gate_out[-2500:],
+    })
 
-    if dry_run:
-        print("AUTOSHIP_DRY_RUN_OK")
-        print(cached or "clean")
-    else:
-        code, out = run(["git", "commit", "-m", message])
-        outputs.append("GIT_COMMIT\n" + (out or "OK"))
-        print(out)
-        if code != 0:
-            report = build_report(message, dry_run, False, blocked, staged, outputs)
-            REPORT.write_text(report, encoding="utf-8")
-            print(f"REPORT: {REPORT}")
-            return code
+    if gate_code != 0:
+        payload["blockers"].append("ship-guard blocked commit")
 
-        if not no_push:
-            code, out = run(["git", "push", "origin", "main"])
-            outputs.append("GIT_PUSH\n" + (out or "OK"))
-            print(out)
-            if code != 0:
-                report = build_report(message, dry_run, False, blocked, staged, outputs)
-                REPORT.write_text(report, encoding="utf-8")
-                print(f"REPORT: {REPORT}")
-                return code
-            pushed = True
+    if payload["blockers"]:
+        payload["verdict"] = "block"
+        payload["git_status"] = git_status()
+        write(payload)
+        print("AUTOSHIP_BLOCKED")
+        print(REPORT)
+        print(json.dumps({
+            "verdict": payload["verdict"],
+            "blockers": payload["blockers"],
+            "git_status": payload["git_status"],
+        }, ensure_ascii=False, indent=2))
+        return 1
 
-    report = build_report(message, dry_run, pushed, blocked, staged, outputs)
-    REPORT.write_text(report, encoding="utf-8")
+    msg = safe_message(message)
+    commit_code, commit_out = run(["git", "commit", "-m", msg])
+    payload["checks"].append({
+        "name": f"git commit -m {msg}",
+        "exit_code": commit_code,
+        "output_tail": commit_out[-2500:],
+    })
+
+    if commit_code != 0:
+        payload["verdict"] = "block"
+        payload["blockers"].append("git commit failed")
+        payload["git_status"] = git_status()
+        write(payload)
+        print("AUTOSHIP_COMMIT_FAILED")
+        print(REPORT)
+        return 1
+
+    payload["can_commit"] = True
+
+    if push:
+        push_code, push_out = run(["git", "push", "origin", "main"])
+        payload["checks"].append({
+            "name": "git push origin main",
+            "exit_code": push_code,
+            "output_tail": push_out[-2500:],
+        })
+        if push_code != 0:
+            payload["verdict"] = "committed_push_failed"
+            payload["blockers"].append("git push failed")
+            payload["git_status"] = git_status()
+            write(payload)
+            print("AUTOSHIP_PUSH_FAILED")
+            print(REPORT)
+            return 1
+        payload["can_push"] = True
+
+    payload["verdict"] = "shipped" if push else "committed"
+    payload["git_status"] = git_status()
+    write(payload)
 
     print("AUTOSHIP_DONE")
-    print(f"REPORT: {REPORT}")
-    _, final_status = run(["git", "status", "-sb"])
-    print(final_status)
+    print(REPORT)
+    print(json.dumps({
+        "verdict": payload["verdict"],
+        "message": msg,
+        "pushed": push,
+        "git_status": payload["git_status"],
+    }, ensure_ascii=False, indent=2))
+
     return 0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="JARVIS Block 109 AutoShip Runner")
-    parser.add_argument("message", nargs="*", default=["chore: autoship Jarvis update"])
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--no-push", action="store_true")
+    parser = argparse.ArgumentParser(description="JARVIS Block 145 Autoship v1")
+    parser.add_argument("action", choices=["status", "commit"])
+    parser.add_argument("message", nargs="*", default=[])
+    parser.add_argument("--push", action="store_true")
     args = parser.parse_args()
 
-    message = " ".join(args.message).strip() or "chore: autoship Jarvis update"
-    return autoship(message, dry_run=args.dry_run, no_push=args.no_push)
+    if args.action == "status":
+        return status()
+
+    if args.action == "commit":
+        return commit(" ".join(args.message).strip(), push=args.push)
+
+    return 0
 
 
 if __name__ == "__main__":

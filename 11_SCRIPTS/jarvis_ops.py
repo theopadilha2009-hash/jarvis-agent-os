@@ -1048,6 +1048,12 @@ def main() -> int:
 
 
 
+
+    p_autoship = sub.add_parser("autoship")
+    p_autoship.add_argument("action", choices=["status", "commit"])
+    p_autoship.add_argument("message", nargs="*", default=[])
+    p_autoship.add_argument("--push", action="store_true")
+
     p_ship_guard = sub.add_parser("ship-guard")
     p_ship_guard.add_argument("action", choices=["preflight"], default="preflight")
 
@@ -1286,6 +1292,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "autoship":
+        return autoship(args.action, " ".join(args.message).strip(), push=args.push)
 
     if args.cmd == "ship-guard":
         return ship_guard(args.action)
