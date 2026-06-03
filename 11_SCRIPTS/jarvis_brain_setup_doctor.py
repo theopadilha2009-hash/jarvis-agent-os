@@ -17,8 +17,11 @@ STATE = OUT / "BRAIN_SETUP_DOCTOR.json"
 
 
 def run(cmd: list[str]) -> tuple[int, str]:
-    result = subprocess.run(cmd, cwd=REPO, text=True, capture_output=True, check=False)
-    return result.returncode, (result.stdout + result.stderr).strip()
+    try:
+        result = subprocess.run(cmd, cwd=REPO, text=True, capture_output=True, check=False)
+        return result.returncode, (result.stdout + result.stderr).strip()
+    except FileNotFoundError:
+        return 127, f"COMMAND_NOT_FOUND: {cmd[0]}"
 
 
 def has_cli(name: str) -> bool:
