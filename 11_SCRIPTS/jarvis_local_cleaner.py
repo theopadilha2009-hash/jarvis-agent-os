@@ -58,6 +58,7 @@ PATTERNS = [
     "05_EXECUCAO/142_DIFF_REVIEW_GATE/",
     "05_EXECUCAO/144_SHIP_GUARD/",
     "05_EXECUCAO/145_AUTOSHIP/",
+    "05_EXECUCAO/147_PATCH_CATALOG/",
     "*.pid",
     "*.tmp",
     "*.local.log",

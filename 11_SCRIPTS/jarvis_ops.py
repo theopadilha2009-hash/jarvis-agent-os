@@ -927,6 +927,18 @@ def safe_patch_cycle(action: str = "status") -> int:
     return code
 
 
+
+def patch_catalog(action: str = "list") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_patch_catalog.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_patch_catalog.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_patch_catalog.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1062,6 +1074,10 @@ def main() -> int:
 
 
 
+
+
+    p_patch_catalog = sub.add_parser("patch-catalog")
+    p_patch_catalog.add_argument("action", choices=["list", "next", "report"], default="list")
 
     p_patch_cycle = sub.add_parser("patch-cycle")
     p_patch_cycle.add_argument("action", choices=["status", "apply-next"])
@@ -1311,6 +1327,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "patch-catalog":
+        return patch_catalog(args.action)
 
     if args.cmd == "patch-cycle":
         return safe_patch_cycle(args.action)
