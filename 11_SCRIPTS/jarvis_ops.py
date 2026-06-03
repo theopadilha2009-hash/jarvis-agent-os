@@ -872,6 +872,24 @@ def safe_apply(action: str = "plan", goal: str = "") -> int:
     return code
 
 
+
+def safe_apply_v2(action: str = "prepare", goal: str = "", allow_bootstrap_dirty: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_safe_apply_v2.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_safe_apply_v2.py")
+        return 1
+
+    args = [action]
+    if goal:
+        args.append(goal)
+    if allow_bootstrap_dirty:
+        args.append("--allow-bootstrap-dirty")
+
+    code, out = py("11_SCRIPTS/jarvis_safe_apply_v2.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1002,6 +1020,12 @@ def main() -> int:
 
 
 
+
+
+    p_safe_apply_v2 = sub.add_parser("safe-apply-v2")
+    p_safe_apply_v2.add_argument("action", choices=["prepare", "check", "apply-generated", "validate"])
+    p_safe_apply_v2.add_argument("goal", nargs="*", default=[])
+    p_safe_apply_v2.add_argument("--allow-bootstrap-dirty", action="store_true")
 
     p_safe_apply = sub.add_parser("safe-apply")
     p_safe_apply.add_argument("action", choices=["plan", "check", "apply-template"])
@@ -1227,6 +1251,14 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "safe-apply-v2":
+        return safe_apply_v2(
+            args.action,
+            " ".join(args.goal).strip(),
+            allow_bootstrap_dirty=args.allow_bootstrap_dirty,
+        )
 
     if args.cmd == "safe-apply":
         return safe_apply(args.action, " ".join(args.goal).strip())

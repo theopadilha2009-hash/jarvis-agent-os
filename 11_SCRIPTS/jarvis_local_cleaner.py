@@ -54,6 +54,7 @@ PATTERNS = [
     "05_EXECUCAO/138_BRAIN_CONTRACT/",
     "05_EXECUCAO/139_PATCH_PROPOSAL/",
     "05_EXECUCAO/140_SAFE_APPLY_ENGINE/",
+    "05_EXECUCAO/141_SAFE_APPLY_V2/",
     "*.pid",
     "*.tmp",
     "*.local.log",
