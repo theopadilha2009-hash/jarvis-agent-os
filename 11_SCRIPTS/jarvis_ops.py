@@ -17,6 +17,12 @@ LOCAL_IGNORE_PATTERNS = [
 ]
 
 
+def run_stream(cmd: list[str]) -> int:
+    import subprocess
+    proc = subprocess.Popen(cmd, cwd=REPO)
+    return proc.wait()
+
+
 def run(cmd: list[str]) -> tuple[int, str]:
     result = subprocess.run(cmd, cwd=REPO, text=True, capture_output=True, check=False)
     return result.returncode, (result.stdout + result.stderr).strip()
@@ -1261,9 +1267,8 @@ def smart_marathon(action: str = "plan", minutes: float = 10, batch_size: int = 
         if push:
             args.append("--push")
 
-    code, out = py("11_SCRIPTS/jarvis_smart_marathon.py", *args)
-    print(out)
-    return code
+    # Stream smart-marathon live so long paced runs do not look frozen.
+    return run_stream([sys.executable, "11_SCRIPTS/jarvis_smart_marathon.py", *args])
 
 
 def main() -> int:
