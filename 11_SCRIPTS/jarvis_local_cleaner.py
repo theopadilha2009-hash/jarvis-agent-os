@@ -40,6 +40,7 @@ PATTERNS = [
     "05_EXECUCAO/123_TASK_PLANNER/",
     "05_EXECUCAO/124_TASK_DECISION_HARDENING/",
     "05_EXECUCAO/125_MACHINE_SYNC/",
+    "05_EXECUCAO/126_SESSION_RUNNER/",
     "*.pid",
     "*.tmp",
     "*.local.log",

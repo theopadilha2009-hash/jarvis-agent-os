@@ -681,6 +681,22 @@ def machine() -> int:
     return code
 
 
+
+def session(action: str, goal: str, limit: int = 1, auto: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_session_runner.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_session_runner.py")
+        return 1
+
+    args = [action, goal, "--limit", str(limit)]
+    if auto:
+        args.append("--auto")
+
+    code, out = py("11_SCRIPTS/jarvis_session_runner.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -728,6 +744,13 @@ def main() -> int:
 
 
     sub.add_parser("plan-tasks")
+
+
+    p_session = sub.add_parser("session")
+    p_session.add_argument("action", choices=["start", "finish"])
+    p_session.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_session.add_argument("--limit", type=int, default=1)
+    p_session.add_argument("--auto", action="store_true")
 
     sub.add_parser("machine")
 
@@ -870,6 +893,15 @@ def main() -> int:
 
     if args.cmd == "plan-tasks":
         return plan_tasks()
+
+
+    if args.cmd == "session":
+        return session(
+            args.action,
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            limit=args.limit,
+            auto=args.auto,
+        )
 
     if args.cmd == "machine":
         return machine()
