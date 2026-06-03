@@ -1248,6 +1248,24 @@ def feature_pack(action: str = "plan", limit: int = 6, push: bool = False) -> in
     return code
 
 
+
+def smart_marathon(action: str = "plan", minutes: float = 10, batch_size: int = 5, max_batches: int = 2, push: bool = False) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_smart_marathon.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_smart_marathon.py")
+        return 1
+
+    args = [action]
+    if action == "run":
+        args += ["--minutes", str(minutes), "--batch-size", str(batch_size), "--max-batches", str(max_batches)]
+        if push:
+            args.append("--push")
+
+    code, out = py("11_SCRIPTS/jarvis_smart_marathon.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1358,6 +1376,14 @@ def main() -> int:
 
 
 
+
+
+    p_smart_marathon = sub.add_parser("smart-marathon")
+    p_smart_marathon.add_argument("action", nargs="?", choices=["plan", "run"], default="plan")
+    p_smart_marathon.add_argument("--minutes", type=float, default=10)
+    p_smart_marathon.add_argument("--batch-size", type=int, default=5)
+    p_smart_marathon.add_argument("--max-batches", type=int, default=2)
+    p_smart_marathon.add_argument("--push", action="store_true")
 
     p_feature_pack = sub.add_parser("feature-pack")
     p_feature_pack.add_argument("action", nargs="?", choices=["plan", "build"], default="plan")
@@ -1705,6 +1731,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "smart-marathon":
+        return smart_marathon(args.action, args.minutes, args.batch_size, args.max_batches, args.push)
 
     if args.cmd == "feature-pack":
         return feature_pack(args.action, args.limit, args.push)
