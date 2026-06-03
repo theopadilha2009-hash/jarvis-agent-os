@@ -32,6 +32,7 @@ def ops(*args: str) -> tuple[int, str]:
 
 def py_compile_core() -> tuple[int, str]:
     files = [
+        "11_SCRIPTS/jarvis_free_brain_bootstrap.py",
         "11_SCRIPTS/jarvis_brain_setup_doctor.py",
         "11_SCRIPTS/jarvis_brain_router.py",
         "11_SCRIPTS/jarvis_worker_auto_runner.py",
@@ -78,6 +79,7 @@ def execute(action: str, goal: str, workers: int, timeout: int, message: str) ->
 
     if action == "start":
         steps.append(step("machine", ["machine"]))
+        steps.append(step("brain-bootstrap", ["brain-bootstrap", "status"]))
         steps.append(step("brain-setup", ["brain-setup"]))
         steps.append(step("parallel-status", ["parallel", "status", "--workers", str(workers)]))
         steps.append(step("resume", ["resume", goal]))

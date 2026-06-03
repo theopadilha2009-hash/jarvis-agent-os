@@ -779,6 +779,18 @@ def brain_setup() -> int:
     return code
 
 
+
+def brain_bootstrap(mode: str = "status") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_free_brain_bootstrap.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_free_brain_bootstrap.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_free_brain_bootstrap.py", mode)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -903,6 +915,10 @@ def main() -> int:
 
 
 
+
+
+    p_brain_bootstrap = sub.add_parser("brain-bootstrap")
+    p_brain_bootstrap.add_argument("mode", choices=["status", "ollama-plan", "groq-plan"], nargs="?", default="status")
 
     sub.add_parser("brain-setup")
 
@@ -1102,6 +1118,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "brain-bootstrap":
+        return brain_bootstrap(args.mode)
 
     if args.cmd == "brain-setup":
         return brain_setup()

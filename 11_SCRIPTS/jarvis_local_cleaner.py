@@ -48,6 +48,7 @@ PATTERNS = [
     "05_EXECUCAO/132_MAIN_CLI/",
     "05_EXECUCAO/133_BRAIN_ROUTER/",
     "05_EXECUCAO/134_BRAIN_SETUP_DOCTOR/",
+    "05_EXECUCAO/135_FREE_BRAIN_BOOTSTRAP/",
     "*.pid",
     "*.tmp",
     "*.local.log",
