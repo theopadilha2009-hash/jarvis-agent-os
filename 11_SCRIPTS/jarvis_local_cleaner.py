@@ -80,6 +80,7 @@ PATTERNS = [
     "05_EXECUCAO/169_QUICK_HOME/",
     "05_EXECUCAO/174_WORK_SESSION/",
     "05_EXECUCAO/175_FEATURE_MARATHON/",
+    "05_EXECUCAO/179_MARATHON_POOL/",
     "*.pid",
     "*.tmp",
     "*.local.log",
