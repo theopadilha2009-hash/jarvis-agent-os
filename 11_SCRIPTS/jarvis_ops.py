@@ -697,6 +697,22 @@ def session(action: str, goal: str, limit: int = 1, auto: bool = False) -> int:
     return code
 
 
+
+def one(goal: str, auto: bool = False, limit: int = 1) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_operator_one.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_operator_one.py")
+        return 1
+
+    args = [goal, "--limit", str(limit)]
+    if auto:
+        args.append("--auto")
+
+    code, out = py("11_SCRIPTS/jarvis_operator_one.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -816,6 +832,12 @@ def main() -> int:
 
     sub.add_parser("status")
 
+
+
+    p_one = sub.add_parser("one")
+    p_one.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
+    p_one.add_argument("--auto", action="store_true")
+    p_one.add_argument("--limit", type=int, default=1)
 
     p_resume = sub.add_parser("resume")
     p_resume.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
@@ -985,6 +1007,14 @@ def main() -> int:
     if args.cmd == "status":
         return status()
 
+
+
+    if args.cmd == "one":
+        return one(
+            " ".join(args.goal).strip() or "melhorar Jarvis",
+            auto=args.auto,
+            limit=args.limit,
+        )
 
     if args.cmd == "resume":
         return resume(" ".join(args.goal).strip() or "melhorar Jarvis")

@@ -42,6 +42,7 @@ PATTERNS = [
     "05_EXECUCAO/125_MACHINE_SYNC/",
     "05_EXECUCAO/126_SESSION_RUNNER/",
     "05_EXECUCAO/127_RESUME_COMMAND/",
+    "05_EXECUCAO/128_OPERATOR_ONE/",
     "*.pid",
     "*.tmp",
     "*.local.log",
