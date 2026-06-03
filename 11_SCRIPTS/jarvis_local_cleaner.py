@@ -44,6 +44,7 @@ PATTERNS = [
     "05_EXECUCAO/127_RESUME_COMMAND/",
     "05_EXECUCAO/128_OPERATOR_ONE/",
     "05_EXECUCAO/129_PARALLEL_WORKTREE/",
+    "05_EXECUCAO/130_WORKER_AUTO_RUNNER/",
     "*.pid",
     "*.tmp",
     "*.local.log",

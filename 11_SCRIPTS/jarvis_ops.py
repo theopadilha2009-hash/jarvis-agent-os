@@ -725,6 +725,29 @@ def parallel(cmd: str, workers: int = 2) -> int:
     return code
 
 
+
+def worker(action: str, workers: int = 2, goal: str = "melhorar autonomia do Jarvis", mode: str = "safe", timeout: int = 900) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_worker_auto_runner.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_worker_auto_runner.py")
+        return 1
+
+    code, out = py(
+        "11_SCRIPTS/jarvis_worker_auto_runner.py",
+        action,
+        "--workers",
+        str(workers),
+        "--goal",
+        goal,
+        "--mode",
+        mode,
+        "--timeout",
+        str(timeout),
+    )
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -846,6 +869,14 @@ def main() -> int:
 
 
 
+
+
+    p_worker = sub.add_parser("worker")
+    p_worker.add_argument("action", choices=["plan", "run", "open", "status"])
+    p_worker.add_argument("--workers", type=int, default=2)
+    p_worker.add_argument("--goal", default="melhorar autonomia do Jarvis")
+    p_worker.add_argument("--mode", choices=["safe", "think", "session"], default="safe")
+    p_worker.add_argument("--timeout", type=int, default=900)
 
     p_parallel = sub.add_parser("parallel")
     p_parallel.add_argument("action", choices=["init", "status", "clean"])
@@ -1026,6 +1057,16 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "worker":
+        return worker(
+            args.action,
+            workers=args.workers,
+            goal=args.goal,
+            mode=args.mode,
+            timeout=args.timeout,
+        )
 
     if args.cmd == "parallel":
         return parallel(args.action, workers=args.workers)
