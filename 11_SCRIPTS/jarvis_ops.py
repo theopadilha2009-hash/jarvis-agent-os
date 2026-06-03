@@ -1107,6 +1107,18 @@ def start_here(action: str = "build") -> int:
     return code
 
 
+
+def home_dashboard(action: str = "home") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_home_dashboard.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_home_dashboard.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_home_dashboard.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1207,6 +1219,10 @@ def main() -> int:
 
 
 
+
+
+    p_home_dashboard = sub.add_parser("home-dashboard")
+    p_home_dashboard.add_argument("action", choices=["home"], default="home")
 
     p_start_here = sub.add_parser("start-here")
     p_start_here.add_argument("action", choices=["build"], default="build")
@@ -1504,6 +1520,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "home-dashboard":
+        return home_dashboard(args.action)
 
     if args.cmd == "start-here":
         return start_here(args.action)

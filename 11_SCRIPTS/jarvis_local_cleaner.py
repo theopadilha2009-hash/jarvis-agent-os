@@ -72,6 +72,7 @@ PATTERNS = [
     "05_EXECUCAO/159_CONTROL_CENTER/",
     "05_EXECUCAO/160_STATUS_BOARD/",
     "05_EXECUCAO/161_START_HERE/",
+    "05_EXECUCAO/162_HOME_DASHBOARD/",
     "*.pid",
     "*.tmp",
     "*.local.log",
