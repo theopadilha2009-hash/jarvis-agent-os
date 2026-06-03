@@ -10,61 +10,61 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPTS = REPO / "11_SCRIPTS"
-OUT = REPO / "05_EXECUCAO" / "175_FEATURE_MARATHON"
+EXEC = REPO / "05_EXECUCAO"
+OUT = EXEC / "175_FEATURE_MARATHON"
 STATE = OUT / "MARATHON_STATE.json"
 REPORT = OUT / "MARATHON_RUN.md"
 
 CATALOG = [
-    {
-        "slug": "repo_pulse",
-        "title": "Jarvis Auto Repo Pulse",
-        "objective": "Generate a compact repository pulse with git status, recent commits, script count, and execution count.",
-    },
-    {
-        "slug": "script_inventory",
-        "title": "Jarvis Auto Script Inventory",
-        "objective": "Generate an inventory of Jarvis scripts and identify the largest automation files.",
-    },
-    {
-        "slug": "execution_index",
-        "title": "Jarvis Auto Execution Index",
-        "objective": "Index execution output folders so the operator can quickly see recent system artifacts.",
-    },
-    {
-        "slug": "commit_digest",
-        "title": "Jarvis Auto Commit Digest",
-        "objective": "Summarize recent commits into a quick engineering digest.",
-    },
-    {
-        "slug": "operator_runbook",
-        "title": "Jarvis Auto Operator Runbook",
-        "objective": "Create a simple runbook for the current Jarvis cockpit commands.",
-    },
-    {
-        "slug": "slow_command_watch",
-        "title": "Jarvis Auto Slow Command Watch",
-        "objective": "Read profiler state and highlight the slowest current commands.",
-    },
-    {
-        "slug": "cleanliness_guard",
-        "title": "Jarvis Auto Cleanliness Guard",
-        "objective": "Check if the repository is clean and generate a safe next-step note.",
-    },
-    {
-        "slug": "feature_backlog_snapshot",
-        "title": "Jarvis Auto Feature Backlog Snapshot",
-        "objective": "Create a lightweight snapshot of generated feature candidates and next build direction.",
-    },
-    {
-        "slug": "session_digest",
-        "title": "Jarvis Auto Session Digest",
-        "objective": "Summarize the latest work session and current cockpit state.",
-    },
-    {
-        "slug": "safe_ship_note",
-        "title": "Jarvis Auto Safe Ship Note",
-        "objective": "Generate a ship-readiness note from git status, audit state, and profiler state.",
-    },
+    {"slug": "repo_pulse", "title": "Jarvis Auto Repo Pulse", "objective": "Generate a compact repository pulse.", "kind": "repo"},
+    {"slug": "script_inventory", "title": "Jarvis Auto Script Inventory", "objective": "Inventory Jarvis scripts and largest files.", "kind": "scripts"},
+    {"slug": "execution_index", "title": "Jarvis Auto Execution Index", "objective": "Index execution output folders.", "kind": "execution"},
+    {"slug": "commit_digest", "title": "Jarvis Auto Commit Digest", "objective": "Summarize recent commits.", "kind": "commits"},
+    {"slug": "operator_runbook", "title": "Jarvis Auto Operator Runbook", "objective": "Create a cockpit runbook.", "kind": "runbook"},
+    {"slug": "slow_command_watch", "title": "Jarvis Auto Slow Command Watch", "objective": "Highlight slow commands.", "kind": "performance"},
+    {"slug": "cleanliness_guard", "title": "Jarvis Auto Cleanliness Guard", "objective": "Check repo cleanliness.", "kind": "repo"},
+    {"slug": "feature_backlog_snapshot", "title": "Jarvis Auto Feature Backlog Snapshot", "objective": "Snapshot feature candidates.", "kind": "planning"},
+    {"slug": "session_digest", "title": "Jarvis Auto Session Digest", "objective": "Summarize latest work session.", "kind": "session"},
+    {"slug": "safe_ship_note", "title": "Jarvis Auto Safe Ship Note", "objective": "Generate ship-readiness note.", "kind": "shipping"},
+
+    {"slug": "architecture_map", "title": "Jarvis Auto Architecture Map", "objective": "Map key scripts and their operator purpose.", "kind": "architecture"},
+    {"slug": "automation_health", "title": "Jarvis Auto Automation Health", "objective": "Check current automation health signals.", "kind": "health"},
+    {"slug": "branch_snapshot", "title": "Jarvis Auto Branch Snapshot", "objective": "Capture branch and commit state.", "kind": "repo"},
+    {"slug": "build_readiness", "title": "Jarvis Auto Build Readiness", "objective": "Summarize readiness for the next build cycle.", "kind": "shipping"},
+    {"slug": "command_catalog", "title": "Jarvis Auto Command Catalog", "objective": "List known cockpit commands from ops file.", "kind": "commands"},
+    {"slug": "cockpit_summary", "title": "Jarvis Auto Cockpit Summary", "objective": "Create a compact operator cockpit summary.", "kind": "session"},
+    {"slug": "daily_engineering_digest", "title": "Jarvis Auto Daily Engineering Digest", "objective": "Generate daily engineering status.", "kind": "commits"},
+    {"slug": "dependency_free_check", "title": "Jarvis Auto Dependency Free Check", "objective": "Confirm scripts remain standard-library focused.", "kind": "health"},
+    {"slug": "duplicate_name_watch", "title": "Jarvis Auto Duplicate Name Watch", "objective": "Detect duplicate-looking script groups.", "kind": "scripts"},
+    {"slug": "execution_cleanup_plan", "title": "Jarvis Auto Execution Cleanup Plan", "objective": "Plan cleanup of execution artifacts.", "kind": "execution"},
+    {"slug": "feature_growth_log", "title": "Jarvis Auto Feature Growth Log", "objective": "Track feature growth across commits.", "kind": "planning"},
+    {"slug": "file_size_watch", "title": "Jarvis Auto File Size Watch", "objective": "Highlight largest code files.", "kind": "scripts"},
+    {"slug": "git_timeline", "title": "Jarvis Auto Git Timeline", "objective": "Build a timeline from recent commits.", "kind": "commits"},
+    {"slug": "hot_path_watch", "title": "Jarvis Auto Hot Path Watch", "objective": "Identify scripts that appear central to operations.", "kind": "architecture"},
+    {"slug": "local_machine_note", "title": "Jarvis Auto Local Machine Note", "objective": "Record local machine execution context.", "kind": "session"},
+    {"slug": "marathon_capacity_plan", "title": "Jarvis Auto Marathon Capacity Plan", "objective": "Estimate marathon feature-building capacity.", "kind": "planning"},
+    {"slug": "module_boundary_map", "title": "Jarvis Auto Module Boundary Map", "objective": "Group scripts by module boundaries.", "kind": "architecture"},
+    {"slug": "operator_focus_plan", "title": "Jarvis Auto Operator Focus Plan", "objective": "Recommend operator focus for the next cycle.", "kind": "planning"},
+    {"slug": "output_freshness", "title": "Jarvis Auto Output Freshness", "objective": "Check freshness of execution outputs.", "kind": "execution"},
+    {"slug": "performance_baseline", "title": "Jarvis Auto Performance Baseline", "objective": "Capture baseline command speeds.", "kind": "performance"},
+    {"slug": "repo_growth_meter", "title": "Jarvis Auto Repo Growth Meter", "objective": "Measure repo growth through scripts and lines.", "kind": "repo"},
+    {"slug": "script_age_map", "title": "Jarvis Auto Script Age Map", "objective": "Map script files by modification time.", "kind": "scripts"},
+    {"slug": "ship_queue_note", "title": "Jarvis Auto Ship Queue Note", "objective": "Generate a queue note for ship-ready changes.", "kind": "shipping"},
+    {"slug": "stability_score", "title": "Jarvis Auto Stability Score", "objective": "Score current repo stability from local signals.", "kind": "health"},
+    {"slug": "system_index", "title": "Jarvis Auto System Index", "objective": "Create an index of the local Jarvis system.", "kind": "architecture"},
+    {"slug": "task_priority_grid", "title": "Jarvis Auto Task Priority Grid", "objective": "Create a priority grid for next tasks.", "kind": "planning"},
+    {"slug": "test_surface_map", "title": "Jarvis Auto Test Surface Map", "objective": "Map commands used as validation surface.", "kind": "health"},
+    {"slug": "validation_matrix", "title": "Jarvis Auto Validation Matrix", "objective": "Build a matrix of validation commands.", "kind": "health"},
+    {"slug": "workflow_map", "title": "Jarvis Auto Workflow Map", "objective": "Map the local command workflow.", "kind": "architecture"},
+    {"slug": "writing_assistant", "title": "Jarvis Auto Writing Assistant", "objective": "Generate concise operator notes from repo state.", "kind": "session"},
+    {"slug": "autonomy_meter", "title": "Jarvis Auto Autonomy Meter", "objective": "Estimate current autonomy level.", "kind": "planning"},
+    {"slug": "marathon_runbook", "title": "Jarvis Auto Marathon Runbook", "objective": "Document how to run feature marathon cycles.", "kind": "runbook"},
+    {"slug": "operator_checkpoint", "title": "Jarvis Auto Operator Checkpoint", "objective": "Create a reusable checkpoint note.", "kind": "session"},
+    {"slug": "release_note_builder", "title": "Jarvis Auto Release Note Builder", "objective": "Draft release notes from recent commits.", "kind": "shipping"},
+    {"slug": "repo_rhythm", "title": "Jarvis Auto Repo Rhythm", "objective": "Analyze recent commit rhythm.", "kind": "commits"},
+    {"slug": "script_family_map", "title": "Jarvis Auto Script Family Map", "objective": "Group scripts by naming family.", "kind": "scripts"},
+    {"slug": "system_pressure", "title": "Jarvis Auto System Pressure", "objective": "Detect growth pressure from lines and outputs.", "kind": "health"},
+    {"slug": "next_marathon_plan", "title": "Jarvis Auto Next Marathon Plan", "objective": "Plan the next long feature marathon.", "kind": "planning"},
 ]
 
 
@@ -84,15 +84,6 @@ def is_clean():
     return status["output"].strip() == "## main...origin/main", status
 
 
-def load_json(path):
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except Exception as exc:
-        return {"load_error": str(exc)}
-
-
 def feature_path(slug):
     return SCRIPTS / f"jarvis_auto_{slug}.py"
 
@@ -106,6 +97,8 @@ def feature_source(spec):
 
 import argparse
 import json
+import os
+import platform
 import subprocess
 import time
 from datetime import datetime
@@ -130,12 +123,26 @@ def run_cmd(cmd):
     }
 
 
+def read_json(path):
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except Exception as exc:
+        return {"load_error": str(exc)}
+
+
 def script_stats():
     files = sorted(SCRIPTS.glob("jarvis_*.py"))
     rows = []
     total_lines = 0
+    families = {}
 
     for path in files:
+        name = path.stem.replace("jarvis_", "")
+        family = name.split("_")[0] if "_" in name else name
+        families[family] = families.get(family, 0) + 1
+
         try:
             lines = len(path.read_text(encoding="utf-8", errors="replace").splitlines())
         except Exception:
@@ -144,7 +151,10 @@ def script_stats():
         total_lines += lines
         rows.append({
             "path": str(path.relative_to(REPO)),
+            "name": path.name,
+            "family": family,
             "lines": lines,
+            "mtime": path.stat().st_mtime,
         })
 
     rows = sorted(rows, key=lambda item: item["lines"], reverse=True)
@@ -152,7 +162,8 @@ def script_stats():
     return {
         "script_count": len(files),
         "script_lines": total_lines,
-        "largest_scripts": rows[:12],
+        "largest_scripts": rows[:15],
+        "families": dict(sorted(families.items(), key=lambda item: item[1], reverse=True)[:15]),
     }
 
 
@@ -163,8 +174,63 @@ def execution_stats():
     dirs = sorted([item for item in EXEC.iterdir() if item.is_dir()], key=lambda item: item.name, reverse=True)
     return {
         "execution_dir_count": len(dirs),
-        "recent_dirs": [str(item.relative_to(REPO)) for item in dirs[:12]],
+        "recent_dirs": [str(item.relative_to(REPO)) for item in dirs[:15]],
     }
+
+
+def command_catalog():
+    ops = SCRIPTS / "jarvis_ops.py"
+    text = ops.read_text(encoding="utf-8", errors="replace") if ops.exists() else ""
+    commands = []
+    marker = 'sub.add_parser("'
+    for line in text.splitlines():
+        if marker in line:
+            cmd = line.split(marker, 1)[1].split('"', 1)[0]
+            commands.append(cmd)
+    return sorted(set(commands))
+
+
+def kind_findings(payload):
+    kind = FEATURE.get("kind", "general")
+    stats = payload["script_stats"]
+    exec_stats = payload["execution_stats"]
+    findings = []
+
+    if kind == "performance":
+        for item in payload.get("profiler_slowest", [])[:5]:
+            findings.append(f"Command {item.get('name')} measured around {item.get('seconds')}s.")
+    elif kind == "scripts":
+        for item in stats["largest_scripts"][:5]:
+            findings.append(f"{item['path']} is one of the largest scripts with {item['lines']} lines.")
+    elif kind == "commits":
+        for line in payload.get("recent_commits", "").splitlines()[:5]:
+            findings.append(f"Recent commit: {line}")
+    elif kind == "execution":
+        for item in exec_stats["recent_dirs"][:5]:
+            findings.append(f"Recent execution folder: {item}")
+    elif kind == "commands":
+        for cmd in payload.get("commands", [])[:10]:
+            findings.append(f"Available command: {cmd}")
+    elif kind == "health":
+        findings.append(f"Repo status: {payload.get('git_status') or '-'}")
+        findings.append(f"Scripts: {stats['script_count']} / Lines: {stats['script_lines']}")
+    elif kind == "architecture":
+        for family, count in stats["families"].items():
+            findings.append(f"Script family {family}: {count} files")
+    elif kind == "planning":
+        findings.append("Next safe cycle: clean repo, choose one improvement, validate, then ship.")
+        findings.append(f"Current automation scale: {stats['script_count']} scripts.")
+    elif kind == "shipping":
+        findings.append(f"Ship readiness starts from git status: {payload.get('git_status') or '-'}")
+        findings.append("Validation surface: py_compile, dashboard, profiler, work-session.")
+    elif kind == "session":
+        findings.append(f"Machine: {platform.system()} {platform.machine()}")
+        findings.append(f"Working directory: {REPO}")
+    else:
+        findings.append(f"Feature kind: {kind}")
+        findings.append(f"Scripts: {stats['script_count']}")
+
+    return findings
 
 
 def report():
@@ -172,18 +238,11 @@ def report():
     OUT.mkdir(parents=True, exist_ok=True)
 
     git_status = run_cmd(["git", "status", "-sb"])
-    git_log = run_cmd(["git", "log", "--oneline", "-10"])
+    git_log = run_cmd(["git", "log", "--oneline", "-12"])
 
     stats = script_stats()
     exec_stats = execution_stats()
-
-    profiler = {}
-    profiler_path = EXEC / "166_COMMAND_PROFILER" / "COMMAND_PROFILER.json"
-    if profiler_path.exists():
-        try:
-            profiler = json.loads(profiler_path.read_text(encoding="utf-8", errors="replace"))
-        except Exception:
-            profiler = {}
+    profiler = read_json(EXEC / "166_COMMAND_PROFILER" / "COMMAND_PROFILER.json")
 
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -193,10 +252,18 @@ def report():
         "recent_commits": git_log["output"],
         "script_stats": stats,
         "execution_stats": exec_stats,
-        "profiler_slowest": profiler.get("slowest", [])[:5],
+        "commands": command_catalog(),
+        "profiler_slowest": profiler.get("slowest", [])[:8],
+        "python": platform.python_version(),
+        "system": {
+            "platform": platform.system(),
+            "machine": platform.machine(),
+            "cwd": str(REPO),
+        },
         "total_seconds": 0,
     }
 
+    payload["findings"] = kind_findings(payload)
     payload["total_seconds"] = round(time.perf_counter() - started, 4)
 
     json_path = OUT / f"{FEATURE['slug']}.json"
@@ -209,14 +276,25 @@ def report():
         "",
         f"Created at: `{payload['created_at']}`",
         f"Objective: {FEATURE['objective']}",
+        f"Kind: `{FEATURE.get('kind')}`",
         f"Verdict: `{payload['verdict']}`",
         f"Total seconds: `{payload['total_seconds']}`",
+        "",
+        "## Key findings",
+        "",
+    ]
+
+    for item in payload["findings"][:12]:
+        lines.append(f"- {item}")
+
+    lines += [
         "",
         "## Current repo",
         "",
         f"- Scripts: `{stats['script_count']}`",
         f"- Script lines: `{stats['script_lines']}`",
         f"- Execution dirs: `{exec_stats['execution_dir_count']}`",
+        f"- Commands detected: `{len(payload['commands'])}`",
         "",
         "## Largest scripts",
         "",
@@ -224,28 +302,6 @@ def report():
 
     for item in stats["largest_scripts"][:8]:
         lines.append(f"- `{item['path']}` lines=`{item['lines']}`")
-
-    lines += [
-        "",
-        "## Recent execution dirs",
-        "",
-    ]
-
-    for item in exec_stats["recent_dirs"][:8]:
-        lines.append(f"- `{item}`")
-
-    lines += [
-        "",
-        "## Slowest commands",
-        "",
-    ]
-
-    slowest = payload["profiler_slowest"]
-    if slowest:
-        for item in slowest:
-            lines.append(f"- `{item.get('name')}` seconds=`{item.get('seconds')}`")
-    else:
-        lines.append("- No profiler data.")
 
     lines += [
         "",
@@ -270,9 +326,11 @@ def report():
     print(json.dumps({
         "verdict": payload["verdict"],
         "feature": FEATURE["slug"],
+        "kind": FEATURE.get("kind"),
         "script_count": stats["script_count"],
         "script_lines": stats["script_lines"],
         "execution_dir_count": exec_stats["execution_dir_count"],
+        "commands": len(payload["commands"]),
         "total_seconds": payload["total_seconds"],
     }, ensure_ascii=False, indent=2))
 
@@ -298,6 +356,7 @@ if __name__ == "__main__":
 
 def commit_feature(path, slug, push):
     rel = str(path.relative_to(REPO))
+
     add = run(["git", "add", rel])
     if add["exit_code"] != 0:
         return {"ok": False, "stage": "git_add", "result": add}
@@ -312,12 +371,7 @@ def commit_feature(path, slug, push):
         if push_result["exit_code"] != 0:
             return {"ok": False, "stage": "git_push", "result": push_result}
 
-    return {
-        "ok": True,
-        "stage": "done",
-        "commit": commit,
-        "push": push_result,
-    }
+    return {"ok": True, "stage": "done", "commit": commit, "push": push_result}
 
 
 def build_one(spec, push=False, dry_run=False):
@@ -335,50 +389,25 @@ def build_one(spec, push=False, dry_run=False):
         }
 
     if path.exists():
-        return {
-            "slug": slug,
-            "ok": True,
-            "stage": "already_exists",
-            "path": str(path.relative_to(REPO)),
-        }
+        return {"slug": slug, "ok": True, "stage": "already_exists", "path": str(path.relative_to(REPO))}
 
     if dry_run:
-        return {
-            "slug": slug,
-            "ok": True,
-            "stage": "dry_run",
-            "path": str(path.relative_to(REPO)),
-        }
+        return {"slug": slug, "ok": True, "stage": "dry_run", "path": str(path.relative_to(REPO))}
 
     path.write_text(feature_source(spec), encoding="utf-8")
 
     try:
         py_compile.compile(str(path), doraise=True)
     except Exception as exc:
-        return {
-            "slug": slug,
-            "ok": False,
-            "stage": "py_compile",
-            "error": str(exc),
-        }
+        return {"slug": slug, "ok": False, "stage": "py_compile", "error": str(exc)}
 
     feature_run = run(["py", "-3", str(path.relative_to(REPO)), "report"])
     if feature_run["exit_code"] != 0:
-        return {
-            "slug": slug,
-            "ok": False,
-            "stage": "feature_run",
-            "result": feature_run,
-        }
+        return {"slug": slug, "ok": False, "stage": "feature_run", "result": feature_run}
 
     ship = commit_feature(path, slug, push=push)
     if not ship["ok"]:
-        return {
-            "slug": slug,
-            "ok": False,
-            "stage": ship["stage"],
-            "ship": ship,
-        }
+        return {"slug": slug, "ok": False, "stage": ship["stage"], "ship": ship}
 
     return {
         "slug": slug,
@@ -397,7 +426,8 @@ def plan():
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "total_catalog": len(CATALOG),
         "missing_count": len(todo),
-        "next_features": todo[:10],
+        "existing_count": len(CATALOG) - len(todo),
+        "next_features": todo[:20],
     }
     print("FEATURE_MARATHON_PLAN")
     print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -429,7 +459,7 @@ def run_marathon(minutes, max_features, push, dry_run):
             break
 
     final_status = run(["git", "status", "-sb"])
-    recent_log = run(["git", "log", "--oneline", "-10"])
+    recent_log = run(["git", "log", "--oneline", "-20"])
 
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -444,16 +474,18 @@ def run_marathon(minutes, max_features, push, dry_run):
         "git_status": final_status["output"],
         "recent_commits": recent_log["output"],
         "remaining_features": [item["slug"] for item in missing_features()],
+        "total_catalog": len(CATALOG),
         "total_seconds": round(time.perf_counter() - started, 4),
     }
 
     STATE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     lines = [
-        "# JARVIS Feature Marathon — Block 175",
+        "# JARVIS Feature Marathon — v2",
         "",
         f"Created at: `{payload['created_at']}`",
         f"Verdict: `{payload['verdict']}`",
+        f"Catalog: `{payload['total_catalog']}`",
         f"Minutes requested: `{payload['minutes_requested']}`",
         f"Max features: `{payload['max_features']}`",
         f"Push: `{payload['push']}`",
@@ -467,11 +499,7 @@ def run_marathon(minutes, max_features, push, dry_run):
     for item in results:
         lines.append(f"- `{item.get('slug')}` ok=`{item.get('ok')}` stage=`{item.get('stage')}` path=`{item.get('path', '-')}`")
 
-    lines += [
-        "",
-        "## Remaining features",
-        "",
-    ]
+    lines += ["", "## Remaining features", ""]
 
     for slug in payload["remaining_features"]:
         lines.append(f"- `{slug}`")
@@ -498,9 +526,10 @@ def run_marathon(minutes, max_features, push, dry_run):
     print(REPORT)
     print(json.dumps({
         "verdict": payload["verdict"],
+        "catalog": payload["total_catalog"],
         "built_count": len(payload["features_built"]),
-        "results": results,
         "remaining_count": len(payload["remaining_features"]),
+        "results": results,
         "git_status": payload["git_status"],
         "total_seconds": payload["total_seconds"],
     }, ensure_ascii=False, indent=2))
@@ -521,12 +550,7 @@ def main():
         return plan()
 
     if args.action == "run":
-        return run_marathon(
-            minutes=args.minutes,
-            max_features=args.max_features,
-            push=args.push,
-            dry_run=args.dry_run,
-        )
+        return run_marathon(args.minutes, args.max_features, args.push, args.dry_run)
 
     return 0
 
