@@ -939,6 +939,18 @@ def patch_catalog(action: str = "list") -> int:
     return code
 
 
+
+def repo_snapshot(action: str = "snapshot") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_repo_snapshot.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_repo_snapshot.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_repo_snapshot.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1075,6 +1087,10 @@ def main() -> int:
 
 
 
+
+
+    p_repo_snapshot = sub.add_parser("repo-snapshot")
+    p_repo_snapshot.add_argument("action", choices=["snapshot"], default="snapshot")
 
     p_patch_catalog = sub.add_parser("patch-catalog")
     p_patch_catalog.add_argument("action", choices=["list", "next", "report"], default="list")
@@ -1328,6 +1344,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "repo-snapshot":
+        return repo_snapshot(args.action)
 
     if args.cmd == "patch-catalog":
         return patch_catalog(args.action)
