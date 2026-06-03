@@ -902,6 +902,18 @@ def diff_review_gate(mode: str = "review") -> int:
     return code
 
 
+
+def ship_guard(action: str = "preflight") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_ship_guard.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_ship_guard.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_ship_guard.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1034,6 +1046,10 @@ def main() -> int:
 
 
 
+
+
+    p_ship_guard = sub.add_parser("ship-guard")
+    p_ship_guard.add_argument("action", choices=["preflight"], default="preflight")
 
     p_diff_gate = sub.add_parser("diff-gate")
     p_diff_gate.add_argument("mode", choices=["review", "commit-gate"], default="review")
@@ -1269,6 +1285,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "ship-guard":
+        return ship_guard(args.action)
 
     if args.cmd == "diff-gate":
         return diff_review_gate(args.mode)

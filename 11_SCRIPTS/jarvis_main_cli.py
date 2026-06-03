@@ -32,6 +32,7 @@ def ops(*args: str) -> tuple[int, str]:
 
 def py_compile_core() -> tuple[int, str]:
     files = [
+        "11_SCRIPTS/jarvis_ship_guard.py",
         "11_SCRIPTS/jarvis_diff_review_gate.py",
         "11_SCRIPTS/jarvis_safe_apply_v2.py",
         "11_SCRIPTS/jarvis_safe_apply.py",
