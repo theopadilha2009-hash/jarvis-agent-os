@@ -1023,6 +1023,18 @@ def next_action_planner(action: str = "plan") -> int:
     return code
 
 
+
+def auto_cycle_runner(action: str = "run") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_auto_cycle_runner.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_auto_cycle_runner.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_auto_cycle_runner.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
