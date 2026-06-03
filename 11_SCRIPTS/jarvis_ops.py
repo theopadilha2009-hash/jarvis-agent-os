@@ -669,6 +669,18 @@ def plan_tasks() -> int:
     return code
 
 
+
+def machine() -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_machine_sync.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_machine_sync.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_machine_sync.py", "check")
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -716,6 +728,8 @@ def main() -> int:
 
 
     sub.add_parser("plan-tasks")
+
+    sub.add_parser("machine")
 
     p_decide = sub.add_parser("decide")
     p_decide.add_argument("goal", nargs="*", default=["melhorar", "Jarvis"])
@@ -856,6 +870,9 @@ def main() -> int:
 
     if args.cmd == "plan-tasks":
         return plan_tasks()
+
+    if args.cmd == "machine":
+        return machine()
 
     if args.cmd == "decide":
         return decide(
