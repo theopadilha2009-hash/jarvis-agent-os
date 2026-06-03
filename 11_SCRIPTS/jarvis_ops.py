@@ -154,21 +154,22 @@ def improve(goal: str, print_full: bool = False) -> int:
     return code
 
 
-def autoship(message: str, dry_run: bool = False, no_push: bool = False) -> int:
+def autoship(action: str = "status", message: str = "", push: bool = False) -> int:
     script = REPO / "11_SCRIPTS" / "jarvis_autoship.py"
     if not script.exists():
         print("Missing script: 11_SCRIPTS/jarvis_autoship.py")
         return 1
 
-    args = [message]
-    if dry_run:
-        args.append("--dry-run")
-    if no_push:
-        args.append("--no-push")
+    args = [action]
+    if message:
+        args.append(message)
+    if push:
+        args.append("--push")
 
     code, out = py("11_SCRIPTS/jarvis_autoship.py", *args)
     print(out)
     return code
+
 
 
 def status() -> int:
