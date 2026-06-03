@@ -70,7 +70,7 @@ def validate(label: str) -> dict:
     }
 
 
-def run_smart(minutes: float, batch_size: int, max_batches: int, push: bool) -> int:
+def run_smart(minutes: float, batch_size: int, max_batches: int, push: bool, pace_seconds: float = 0) -> int:
     started = time.perf_counter()
     deadline = started + max(0.1, minutes * 60)
     OUT.mkdir(parents=True, exist_ok=True)
@@ -141,6 +141,11 @@ def run_smart(minutes: float, batch_size: int, max_batches: int, push: bool) -> 
         if built_count == 0:
             break
 
+        if pace_seconds and pace_seconds > 0:
+            remaining = deadline - time.perf_counter()
+            if remaining > 0:
+                time.sleep(min(pace_seconds, remaining))
+
     payload = finish(started, minutes, batch_size, max_batches, push, batches, blockers, preflight=pre)
     print_result(payload)
     return 0 if payload["verdict"] == "pass" else 1
@@ -161,6 +166,7 @@ def finish(started, minutes, batch_size, max_batches, push, batches, blockers, p
         "batch_size": batch_size,
         "max_batches": max_batches,
         "push": push,
+        "pace_seconds": pace_seconds,
         "batches_completed": len(batches),
         "features_built_total": sum(int(item.get("built_count") or 0) for item in batches),
         "blockers": blockers,
@@ -299,13 +305,14 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=5)
     parser.add_argument("--max-batches", type=int, default=2)
     parser.add_argument("--push", action="store_true")
+    parser.add_argument("--pace-seconds", type=float, default=0)
     args = parser.parse_args()
 
     if args.action == "plan":
         return plan()
 
     if args.action == "run":
-        return run_smart(args.minutes, args.batch_size, args.max_batches, args.push)
+        return run_smart(args.minutes, args.batch_size, args.max_batches, args.push, args.pace_seconds)
 
     return 0
 

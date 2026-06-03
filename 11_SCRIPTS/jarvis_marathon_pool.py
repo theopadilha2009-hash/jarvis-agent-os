@@ -19,11 +19,13 @@ DOMAINS = [
     "repo", "git", "script", "execution", "operator", "shipping", "validation", "health",
     "performance", "architecture", "planning", "session", "autonomy", "marathon", "quality",
     "index", "audit", "summary", "runbook", "growth",
+    "integration", "memory", "dashboard", "metrics", "reviewer", "builder", "doctor", "release", "backup", "security",
 ]
 
 ACTIONS = [
     "scanner", "digest", "map", "index", "score", "watch", "planner", "report", "matrix", "timeline",
     "snapshot", "guard", "advisor", "baseline", "review", "pulse", "meter", "catalog", "brief", "check",
+    "optimizer", "compressor", "explainer", "checkpoint", "router", "validator", "cleaner", "tracker", "builder", "coordinator",
 ]
 
 
@@ -38,7 +40,7 @@ def run(cmd):
     }
 
 
-def generated_specs(limit=400):
+def generated_specs(limit=2000):
     specs = []
     for domain in DOMAINS:
         for action in ACTIONS:
