@@ -87,7 +87,7 @@ def run_smart(minutes: float, batch_size: int, max_batches: int, push: bool) -> 
 
     batch_index = 0
 
-    while time.perf_counter() < deadline and batch_index < max_batches:
+    while time.perf_counter() < deadline and (max_batches <= 0 or batch_index < max_batches):
         batch_index += 1
 
         clean, status = clean_status()
@@ -283,8 +283,8 @@ def plan() -> int:
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "pool_remaining": pool.get("remaining_count"),
         "readiness_findings": readiness.get("findings", []),
-        "suggested_30_min_command": "py -3 11_SCRIPTS/jarvis_ops.py smart-marathon run --minutes 30 --batch-size 8 --max-batches 6 --push",
-        "suggested_60_min_command": "py -3 11_SCRIPTS/jarvis_ops.py smart-marathon run --minutes 60 --batch-size 8 --max-batches 10 --push",
+        "suggested_30_min_command": "py -3 11_SCRIPTS/jarvis_ops.py smart-marathon run --minutes 30 --batch-size 8 --max-batches 0 --push",
+        "suggested_60_min_command": "py -3 11_SCRIPTS/jarvis_ops.py smart-marathon run --minutes 60 --batch-size 8 --max-batches 0 --push",
     }
 
     print("SMART_MARATHON_PLAN")
