@@ -1179,6 +1179,19 @@ def quick_home(action: str = "home") -> int:
     return code
 
 
+
+def work_session(action: str = "start", goal: list[str] | None = None) -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_work_session.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_work_session.py")
+        return 1
+
+    args = [action] + list(goal or [])
+    code, out = py("11_SCRIPTS/jarvis_work_session.py", *args)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1285,6 +1298,11 @@ def main() -> int:
 
 
 
+
+
+    p_work_session = sub.add_parser("work-session")
+    p_work_session.add_argument("action", choices=["start"], default="start")
+    p_work_session.add_argument("goal", nargs="*")
 
     p_quick_home = sub.add_parser("quick-home")
     p_quick_home.add_argument("action", choices=["home"], default="home")
@@ -1606,6 +1624,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "work-session":
+        return work_session(args.action, args.goal)
 
     if args.cmd == "quick-home":
         return quick_home(args.action)

@@ -78,6 +78,7 @@ PATTERNS = [
     "05_EXECUCAO/166_COMMAND_PROFILER/",
     "05_EXECUCAO/168_FAST_STATUS/",
     "05_EXECUCAO/169_QUICK_HOME/",
+    "05_EXECUCAO/174_WORK_SESSION/",
     "*.pid",
     "*.tmp",
     "*.local.log",
