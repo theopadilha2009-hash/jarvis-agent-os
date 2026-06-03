@@ -75,6 +75,7 @@ PATTERNS = [
     "05_EXECUCAO/162_HOME_DASHBOARD/",
     "05_EXECUCAO/163_INTEGRITY_AUDIT/",
     "05_EXECUCAO/165_DEEP_SWEEP/",
+    "05_EXECUCAO/166_COMMAND_PROFILER/",
     "*.pid",
     "*.tmp",
     "*.local.log",
