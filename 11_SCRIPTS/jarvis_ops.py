@@ -1071,6 +1071,18 @@ def capability_map(action: str = "map") -> int:
     return code
 
 
+
+def control_center(action: str = "run") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_control_center.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_control_center.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_control_center.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1168,6 +1180,10 @@ def main() -> int:
 
 
 
+
+
+    p_control_center = sub.add_parser("control-center")
+    p_control_center.add_argument("action", choices=["run"], default="run")
 
     p_capability_map = sub.add_parser("capability-map")
     p_capability_map.add_argument("action", choices=["map"], default="map")
@@ -1453,6 +1469,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "control-center":
+        return control_center(args.action)
 
     if args.cmd == "capability-map":
         return capability_map(args.action)
