@@ -32,6 +32,7 @@ def ops(*args: str) -> tuple[int, str]:
 
 def py_compile_core() -> tuple[int, str]:
     files = [
+        "11_SCRIPTS/jarvis_diff_review_gate.py",
         "11_SCRIPTS/jarvis_safe_apply_v2.py",
         "11_SCRIPTS/jarvis_safe_apply.py",
         "11_SCRIPTS/jarvis_patch_proposal.py",
@@ -108,6 +109,7 @@ def execute(action: str, goal: str, workers: int, timeout: int, message: str) ->
         steps.append(step("patch-proposal", ["patch-proposal", goal]))
         steps.append(step("safe-apply-check", ["safe-apply", "check", goal]))
         steps.append(step("safe-apply-v2-check", ["safe-apply-v2", "check", goal]))
+        steps.append(step("diff-gate-review", ["diff-gate", "review"]))
         steps.append(step("safe-apply-plan", ["safe-apply", "plan", goal]))
         steps.append(step("safe-apply-v2-prepare", ["safe-apply-v2", "prepare", goal]))
         steps.append(step("parallel-init", ["parallel", "init", "--workers", str(workers)]))

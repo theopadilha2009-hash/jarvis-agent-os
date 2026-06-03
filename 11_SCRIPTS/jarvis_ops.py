@@ -890,6 +890,18 @@ def safe_apply_v2(action: str = "prepare", goal: str = "", allow_bootstrap_dirty
     return code
 
 
+
+def diff_review_gate(mode: str = "review") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_diff_review_gate.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_diff_review_gate.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_diff_review_gate.py", mode)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1021,6 +1033,10 @@ def main() -> int:
 
 
 
+
+
+    p_diff_gate = sub.add_parser("diff-gate")
+    p_diff_gate.add_argument("mode", choices=["review", "commit-gate"], default="review")
 
     p_safe_apply_v2 = sub.add_parser("safe-apply-v2")
     p_safe_apply_v2.add_argument("action", choices=["prepare", "check", "apply-generated", "validate"])
@@ -1252,6 +1268,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "diff-gate":
+        return diff_review_gate(args.mode)
 
     if args.cmd == "safe-apply-v2":
         return safe_apply_v2(

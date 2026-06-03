@@ -55,6 +55,7 @@ PATTERNS = [
     "05_EXECUCAO/139_PATCH_PROPOSAL/",
     "05_EXECUCAO/140_SAFE_APPLY_ENGINE/",
     "05_EXECUCAO/141_SAFE_APPLY_V2/",
+    "05_EXECUCAO/142_DIFF_REVIEW_GATE/",
     "*.pid",
     "*.tmp",
     "*.local.log",
