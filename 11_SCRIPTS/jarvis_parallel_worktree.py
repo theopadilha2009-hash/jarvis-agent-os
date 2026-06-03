@@ -107,7 +107,13 @@ def init_workers(count: int) -> int:
                 return code
             ensure_ignore(path)
 
-        lock = path / ".jarvis_worker_lock"
+        root_lock = path / ".jarvis_worker_lock"
+        if root_lock.exists():
+            root_lock.unlink()
+
+        lock_dir = path / "05_EXECUCAO" / "129_PARALLEL_WORKTREE"
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        lock = lock_dir / ".jarvis_worker_lock.json"
         lock.write_text(
             json.dumps({
                 "worker": index,
@@ -165,6 +171,12 @@ def status_workers(count: int) -> int:
                 "path": str(path),
             })
             continue
+
+        root_lock = path / ".jarvis_worker_lock"
+        if root_lock.exists():
+            root_lock.unlink()
+
+        ensure_ignore(path)
 
         _, status = run(["git", "status", "-sb"], cwd=path)
         _, log = run(["git", "log", "--oneline", "-3"], cwd=path)
