@@ -1167,6 +1167,18 @@ def fast_status(action: str = "status") -> int:
     return code
 
 
+
+def quick_home(action: str = "home") -> int:
+    script = REPO / "11_SCRIPTS" / "jarvis_quick_home.py"
+    if not script.exists():
+        print("Missing script: 11_SCRIPTS/jarvis_quick_home.py")
+        return 1
+
+    code, out = py("11_SCRIPTS/jarvis_quick_home.py", action)
+    print(out)
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="JARVIS Block 106 Terminal Ops Hub")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1272,6 +1284,10 @@ def main() -> int:
 
 
 
+
+
+    p_quick_home = sub.add_parser("quick-home")
+    p_quick_home.add_argument("action", choices=["home"], default="home")
 
     p_fast_status = sub.add_parser("fast-status")
     p_fast_status.add_argument("action", choices=["status"], default="status")
@@ -1589,6 +1605,10 @@ def main() -> int:
 
 
 
+
+
+    if args.cmd == "quick-home":
+        return quick_home(args.action)
 
     if args.cmd == "fast-status":
         return fast_status(args.action)

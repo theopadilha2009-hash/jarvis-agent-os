@@ -77,6 +77,7 @@ PATTERNS = [
     "05_EXECUCAO/165_DEEP_SWEEP/",
     "05_EXECUCAO/166_COMMAND_PROFILER/",
     "05_EXECUCAO/168_FAST_STATUS/",
+    "05_EXECUCAO/169_QUICK_HOME/",
     "*.pid",
     "*.tmp",
     "*.local.log",

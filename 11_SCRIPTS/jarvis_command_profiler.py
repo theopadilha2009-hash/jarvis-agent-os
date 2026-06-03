@@ -14,6 +14,7 @@ STATE = OUT / "COMMAND_PROFILER.json"
 
 COMMANDS = [
     ("git_status", ["git", "status", "-sb"]),
+    ("quick_home", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "quick-home", "home"]),
     ("home_dashboard", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "home-dashboard", "home"]),
     ("integrity_audit", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "integrity-audit", "audit"]),
     ("deep_sweep", ["py", "-3", "11_SCRIPTS/jarvis_ops.py", "deep-sweep", "sweep"]),
