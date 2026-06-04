@@ -1502,6 +1502,7 @@ def main() -> int:
     p_next_action.add_argument("action", choices=["plan"], default="plan")
 
     p_execution_index = sub.add_parser("execution-index")
+    p_marathon_consolidator = sub.add_parser("marathon-consolidator")
     p_execution_index.add_argument("action", choices=["index"], default="index")
 
     p_command_health = sub.add_parser("command-health")
@@ -1850,6 +1851,10 @@ def main() -> int:
     if args.cmd == "next-action":
         return next_action_planner(args.action)
 
+    if args.cmd == "marathon-consolidator":
+        code, out = py("11_SCRIPTS/jarvis_marathon_consolidator.py")
+        print(out)
+        return code
     if args.cmd == "execution-index":
         return execution_index(args.action)
 
