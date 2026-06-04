@@ -13,6 +13,7 @@ SCRIPTS = REPO / "11_SCRIPTS"
 OUT = REPO / "05_EXECUCAO" / "165_DEEP_SWEEP"
 REPORT = OUT / "DEEP_SWEEP.md"
 STATE = OUT / "DEEP_SWEEP.json"
+COMPILE_CACHE = OUT / "DEEP_SWEEP_COMPILE_CACHE.json"
 
 
 def run(cmd: list[str]) -> dict:
@@ -52,10 +53,12 @@ def scan_scripts() -> dict:
         if bad_path_pattern in text:
             windows_path_hits.append(rel)
 
+        stat = path.stat()
         records.append({
             "path": rel,
             "lines": line_count,
-            "size_bytes": path.stat().st_size,
+            "size_bytes": stat.st_size,
+            "mtime_ns": stat.st_mtime_ns,
         })
 
     return {
@@ -64,6 +67,50 @@ def scan_scripts() -> dict:
         "files": records,
         "windows_path_hits": windows_path_hits,
     }
+
+
+
+def compile_fingerprint(script_scan: dict) -> str:
+    parts = []
+    for item in script_scan["files"]:
+        parts.append(f"{item['path']}:{item.get('size_bytes', 0)}:{item.get('mtime_ns', 0)}")
+    return "|".join(parts)
+
+
+def cached_compile_check(script_scan: dict, py_paths: list[str]) -> dict:
+    fingerprint = compile_fingerprint(script_scan)
+
+    cached = {}
+    if COMPILE_CACHE.exists():
+        try:
+            cached = json.loads(COMPILE_CACHE.read_text(encoding="utf-8"))
+        except Exception:
+            cached = {}
+
+    if (
+        cached.get("fingerprint") == fingerprint
+        and cached.get("exit_code") == 0
+        and cached.get("count") == len(py_paths)
+    ):
+        return {
+            "cmd": ["py", "-3", "-m", "py_compile", "<cached>"],
+            "exit_code": 0,
+            "output": "compile skipped: script fingerprint unchanged from last successful compile",
+            "cached": True,
+        }
+
+    result = run(["py", "-3", "-m", "py_compile", *py_paths])
+    result["cached"] = False
+
+    if result["exit_code"] == 0:
+        COMPILE_CACHE.write_text(json.dumps({
+            "fingerprint": fingerprint,
+            "exit_code": result["exit_code"],
+            "count": len(py_paths),
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return result
 
 
 def collect() -> dict:
@@ -79,7 +126,7 @@ def collect() -> dict:
     script_scan = scan_scripts()
     py_paths = [item["path"] for item in script_scan["files"]]
 
-    compile_check = run(["py", "-3", "-m", "py_compile", *py_paths])
+    compile_check = cached_compile_check(script_scan, py_paths)
     git_status = run(["git", "status", "-sb"])
     git_log = run(["git", "log", "--oneline", "-12"])
 
@@ -132,6 +179,7 @@ def collect() -> dict:
         "duplicate_routes": duplicate_routes,
         "missing_script_refs": missing_script_refs,
         "compile_exit_code": compile_check["exit_code"],
+        "compile_cached": compile_check.get("cached", False),
         "compile_output": compile_check["output"],
         "last_commits": git_log["output"],
     }
@@ -155,6 +203,7 @@ def write(data: dict) -> None:
         f"- Routes: `{data['route_count']}`",
         f"- Script refs: `{data['script_ref_count']}`",
         f"- Compile exit: `{data['compile_exit_code']}`",
+        f"- Compile cached: `{data.get('compile_cached', False)}`",
         "",
         "## Git status",
         "",
@@ -239,6 +288,7 @@ def sweep() -> int:
         "verdict": data["verdict"],
         "blockers": data["blockers"],
         "warnings": data["warnings"],
+        "compile_cached": data.get("compile_cached", False),
         "scripts": data["script_scan"]["count"],
         "lines": data["script_scan"]["total_lines"],
         "git_status": data["git_status"],
