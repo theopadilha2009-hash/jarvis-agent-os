@@ -1506,6 +1506,14 @@ def main() -> int:
     p_execution_index.add_argument("action", choices=["index"], default="index")
 
     p_command_map = sub.add_parser("command-map")
+    p_capability_audit = sub.add_parser("capability-audit")
+    p_capability_audit.add_argument("action", nargs="?", default="audit", choices=["audit"])
+
+    p_internet_investigate = sub.add_parser("internet-investigate")
+    p_internet_investigate.add_argument("query", nargs="*", default=[])
+    p_internet_investigate.add_argument("--max-results", type=int, default=5)
+    p_internet_investigate.add_argument("--minutes", type=int, default=0)
+
     p_command_health = sub.add_parser("command-health")
     p_command_health.add_argument("action", choices=["run"], default="run")
 
@@ -1858,6 +1866,20 @@ def main() -> int:
         return code
     if args.cmd == "execution-index":
         return execution_index(args.action)
+    if args.cmd == "capability-audit":
+        return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_capability_audit.py")])
+
+    if args.cmd == "internet-investigate":
+        cmd = [sys.executable, str(Path(__file__).resolve().parent / "jarvis_internet_investigation.py")]
+        query = getattr(args, "query", []) or []
+        cmd.extend(query)
+        cmd.extend(["--max-results", str(getattr(args, "max_results", 5))])
+        minutes = int(getattr(args, "minutes", 0) or 0)
+        if minutes:
+            cmd.extend(["--minutes", str(minutes)])
+        return subprocess.call(cmd)
+
+
 
     if args.cmd == "command-map":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_command_map.py")])
