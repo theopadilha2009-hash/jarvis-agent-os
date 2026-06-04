@@ -1522,6 +1522,7 @@ def main() -> int:
     p_n8n_pipeline = sub.add_parser("n8n-card")
     p_n8n_ready = sub.add_parser("n8n-ready")
     p_n8n_manual_guard = sub.add_parser("n8n-manual-guard")
+    p_n8n_webhooks = sub.add_parser("n8n-webhooks")
     p_n8n_pipeline = sub.add_parser("n8n-pipeline")
     p_n8n_pipeline.add_argument("goal", nargs="?", default="WhatsApp AI SDR workflow with logs fallback human transfer and dry-run safety")
     p_n8n_pipeline.add_argument("--client", default="pipeline-smoke")
@@ -1885,6 +1886,9 @@ def main() -> int:
 
     if args.cmd == "n8n-card":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_operator_card.py")])
+    if args.cmd == "n8n-webhooks":
+        return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_webhook_safety_review.py")])
+
     if args.cmd == "n8n-manual-guard":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_manual_trigger_guard.py")])
 
