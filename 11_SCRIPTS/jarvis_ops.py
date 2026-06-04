@@ -1860,7 +1860,7 @@ def main() -> int:
         return execution_index(args.action)
 
     if args.cmd == "command-map":
-        return py_script("11_SCRIPTS/jarvis_command_map.py")
+        return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_command_map.py")])
     if args.cmd == "command-health":
         return command_health(args.action)
 
