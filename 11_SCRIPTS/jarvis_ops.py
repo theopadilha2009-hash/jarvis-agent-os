@@ -1520,7 +1520,7 @@ def main() -> int:
     sub.add_parser("n8n-export")
     sub.add_parser("n8n-library")
     p_n8n_pipeline = sub.add_parser("n8n-card")
-    sub.add_parser("n8n-pipeline")
+    p_n8n_pipeline = sub.add_parser("n8n-pipeline")
     p_n8n_pipeline.add_argument("goal", nargs="?", default="WhatsApp AI SDR workflow with logs fallback human transfer and dry-run safety")
     p_n8n_pipeline.add_argument("--client", default="pipeline-smoke")
     p_n8n_builder.add_argument("goal", nargs="*", default=[])
