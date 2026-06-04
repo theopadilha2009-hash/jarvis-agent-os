@@ -203,10 +203,12 @@ def build_n8n_skeleton(goal: str, client: str) -> dict:
             },
             "combineOperation": "all",
         }),
-        node("set_context", "Load Context Placeholder", "n8n-nodes-base.set", -20, -80, {
+        node("set_context", "Load Context / Redis/Postgres Memory Placeholder", "n8n-nodes-base.set", -20, -80, {
             "values": {
                 "string": [
-                    {"name": "context_status", "value": "TODO: replace with Supabase/Postgres lookup"},
+                    {"name": "context_status", "value": "TODO: replace with Redis/Postgres/Supabase memory lookup"},
+                    {"name": "redis_memory_status", "value": "TODO: Redis buffer/debounce/human pause"},
+                    {"name": "postgres_state_status", "value": "TODO: Postgres/Supabase conversation_state"},
                     {"name": "human_paused", "value": "false"}
                 ]
             },
@@ -226,7 +228,7 @@ def build_n8n_skeleton(goal: str, client: str) -> dict:
                 ]
             },
         }),
-        node("if_confidence", "Confidence / Fallback Guard", "n8n-nodes-base.if", 740, -160, {
+        node("if_confidence", "Confidence / Fallback / Error Guard", "n8n-nodes-base.if", 740, -160, {
             "conditions": {
                 "number": [
                     {"value1": "={{Number($json.confidence || 0)}}", "operation": "largerEqual", "value2": 0.65}
@@ -243,18 +245,23 @@ def build_n8n_skeleton(goal: str, client: str) -> dict:
                 ]
             }
         }),
-        node("set_handoff", "Human Transfer Placeholder", "n8n-nodes-base.set", 1000, -20, {
+        node("set_handoff", "Human Transfer / Chatwoot Handoff Placeholder", "n8n-nodes-base.set", 1000, -20, {
             "values": {
                 "string": [
                     {"name": "handoff_required", "value": "true"},
+                    {"name": "human_transfer", "value": "TODO: create Chatwoot note/label and pause AI"},
                     {"name": "handoff_reason", "value": "low_confidence_or_human_paused"}
                 ]
             }
         }),
-        node("set_log", "Structured Log Placeholder", "n8n-nodes-base.set", 1260, -140, {
+        node("set_log", "Structured Log Placeholder - Supabase/Postgres Log", "n8n-nodes-base.set", 1260, -140, {
             "values": {
                 "string": [
-                    {"name": "log_status", "value": "TODO: write to Supabase/Postgres"},
+                    {"name": "log_status", "value": "TODO: write to Supabase/Postgres automation_logs"},
+                    {"name": "log_action", "value": "conversation_or_handoff_or_fallback"},
+                    {"name": "fallback_status", "value": "fallback_checked"},
+                    {"name": "human_transfer_status", "value": "human_transfer_checked"},
+                    {"name": "dry_run_safety", "value": "dry_run_only_until_human_approval"},
                     {"name": "status_real", "value": "skeleton_only_not_production"}
                 ]
             }
@@ -268,14 +275,14 @@ def build_n8n_skeleton(goal: str, client: str) -> dict:
     connections = {
         "Webhook IN - Placeholder": {"main": [[{"node": "Normalize Payload", "type": "main", "index": 0}]]},
         "Normalize Payload": {"main": [[{"node": "Anti-loop Guard", "type": "main", "index": 0}]]},
-        "Anti-loop Guard": {"main": [[{"node": "Load Context Placeholder", "type": "main", "index": 0}], [{"node": "Structured Log Placeholder", "type": "main", "index": 0}]]},
-        "Load Context Placeholder": {"main": [[{"node": "Human Pause Guard", "type": "main", "index": 0}]]},
-        "Human Pause Guard": {"main": [[{"node": "AI Agent Placeholder", "type": "main", "index": 0}], [{"node": "Human Transfer Placeholder", "type": "main", "index": 0}]]},
-        "AI Agent Placeholder": {"main": [[{"node": "Confidence / Fallback Guard", "type": "main", "index": 0}]]},
-        "Confidence / Fallback Guard": {"main": [[{"node": "Build Send Payload - Dry Run", "type": "main", "index": 0}], [{"node": "Human Transfer Placeholder", "type": "main", "index": 0}]]},
-        "Build Send Payload - Dry Run": {"main": [[{"node": "Structured Log Placeholder", "type": "main", "index": 0}]]},
-        "Human Transfer Placeholder": {"main": [[{"node": "Structured Log Placeholder", "type": "main", "index": 0}]]},
-        "Structured Log Placeholder": {"main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]},
+        "Anti-loop Guard": {"main": [[{"node": "Load Context / Redis/Postgres Memory Placeholder", "type": "main", "index": 0}], [{"node": "Structured Log Placeholder - Supabase/Postgres Log", "type": "main", "index": 0}]]},
+        "Load Context / Redis/Postgres Memory Placeholder": {"main": [[{"node": "Human Pause Guard", "type": "main", "index": 0}]]},
+        "Human Pause Guard": {"main": [[{"node": "AI Agent Placeholder", "type": "main", "index": 0}], [{"node": "Human Transfer / Chatwoot Handoff Placeholder", "type": "main", "index": 0}]]},
+        "AI Agent Placeholder": {"main": [[{"node": "Confidence / Fallback / Error Guard", "type": "main", "index": 0}]]},
+        "Confidence / Fallback / Error Guard": {"main": [[{"node": "Build Send Payload - Dry Run", "type": "main", "index": 0}], [{"node": "Human Transfer / Chatwoot Handoff Placeholder", "type": "main", "index": 0}]]},
+        "Build Send Payload - Dry Run": {"main": [[{"node": "Structured Log Placeholder - Supabase/Postgres Log", "type": "main", "index": 0}]]},
+        "Human Transfer / Chatwoot Handoff Placeholder": {"main": [[{"node": "Structured Log Placeholder - Supabase/Postgres Log", "type": "main", "index": 0}]]},
+        "Structured Log Placeholder - Supabase/Postgres Log": {"main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]},
     }
 
     return {
@@ -294,7 +301,7 @@ def build_n8n_skeleton(goal: str, client: str) -> dict:
             "credentials_included": False,
             "requires_human_validation": True,
         },
-        "tags": ["jarvis", "skeleton", "not-production"],
+        "tags": ["jarvis", "skeleton", "not-production", "logs", "fallback", "human-transfer", "dry-run"],
     }
 
 def write_outputs(goal: str, client: str) -> dict:

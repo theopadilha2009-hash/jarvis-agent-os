@@ -188,14 +188,32 @@ def connection_stats(data: dict[str, Any]) -> dict[str, Any]:
                     if isinstance(item, dict) and item.get("node"):
                         connected_to.add(item["node"])
 
-    node_names = {n.get("name") for n in nodes if isinstance(n, dict) and n.get("name")}
-    isolated = sorted(n for n in node_names if n not in connected_from and n not in connected_to)
+    all_node_names = {
+        n.get("name")
+        for n in nodes
+        if isinstance(n, dict)
+        and n.get("name")
+    }
+    real_node_names = {
+        n.get("name")
+        for n in nodes
+        if isinstance(n, dict)
+        and n.get("name")
+        and "stickynote" not in str(n.get("type", "")).lower()
+    }
+
+    isolated = sorted(n for n in real_node_names if n not in connected_from and n not in connected_to)
+
+    dangling_sources = sorted(x for x in connected_from if x not in all_node_names and str(x).strip())
+    dangling_targets = sorted(x for x in connected_to if x not in all_node_names and str(x).strip())
 
     return {
         "node_count": len(nodes),
         "connection_source_count": len(connected_from),
         "connection_target_count": len(connected_to),
         "isolated_nodes": isolated,
+        "dangling_sources": dangling_sources,
+        "dangling_targets": dangling_targets,
     }
 
 def score_workflow(blockers: list[str], secret_hits: list[dict[str, str]], signals: dict[str, bool], stats: dict[str, Any]) -> tuple[str, list[str]]:
@@ -209,6 +227,13 @@ def score_workflow(blockers: list[str], secret_hits: list[dict[str, str]], signa
 
     for x in important_missing:
         warnings.append(f"missing professional signal: {x}")
+
+    dangling_sources = stats.get("dangling_sources") or []
+    dangling_targets = stats.get("dangling_targets") or []
+    if dangling_sources:
+        blockers.append(f"connections reference missing source nodes: {', '.join(dangling_sources[:8])}")
+    if dangling_targets:
+        blockers.append(f"connections reference missing target nodes: {', '.join(dangling_targets[:8])}")
 
     isolated = stats.get("isolated_nodes") or []
     if isolated:
