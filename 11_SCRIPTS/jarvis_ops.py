@@ -1505,6 +1505,7 @@ def main() -> int:
     p_marathon_consolidator = sub.add_parser("marathon-consolidator")
     p_execution_index.add_argument("action", choices=["index"], default="index")
 
+    p_command_map = sub.add_parser("command-map")
     p_command_health = sub.add_parser("command-health")
     p_command_health.add_argument("action", choices=["run"], default="run")
 
@@ -1858,6 +1859,8 @@ def main() -> int:
     if args.cmd == "execution-index":
         return execution_index(args.action)
 
+    if args.cmd == "command-map":
+        return py_script("11_SCRIPTS/jarvis_command_map.py")
     if args.cmd == "command-health":
         return command_health(args.action)
 
