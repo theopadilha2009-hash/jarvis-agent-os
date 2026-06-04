@@ -1514,6 +1514,8 @@ def main() -> int:
     p_internet_investigate.add_argument("--max-results", type=int, default=5)
     p_internet_investigate.add_argument("--minutes", type=int, default=0)
 
+    p_n8n_builder = p_n8n_validate = sub.add_parser("n8n-validate")
+    p_n8n_builder = p_n8n_validate.add_argument("workflow", nargs="?")
     p_n8n_builder = sub.add_parser("n8n-builder")
     p_n8n_builder.add_argument("goal", nargs="*", default=[])
     p_n8n_builder.add_argument("--client", default="demo-client")
@@ -1873,6 +1875,13 @@ def main() -> int:
     if args.cmd == "capability-audit":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_capability_audit.py")])
 
+    if args.cmd == "n8n-validate":
+        script = Path(__file__).resolve().parent / "jarvis_n8n_workflow_validator.py"
+        cmdline = [sys.executable, str(script)]
+        workflow = getattr(args, "workflow", None)
+        if workflow:
+            cmdline.append(workflow)
+        return subprocess.call(cmdline)
     if args.cmd == "n8n-builder":
         cmd = [sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_workflow_builder.py")]
         goal = getattr(args, "goal", []) or []
