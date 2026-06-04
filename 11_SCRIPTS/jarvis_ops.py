@@ -1517,6 +1517,7 @@ def main() -> int:
     p_n8n_builder = p_n8n_validate = sub.add_parser("n8n-validate")
     p_n8n_builder = p_n8n_validate.add_argument("workflow", nargs="?")
     p_n8n_builder = sub.add_parser("n8n-builder")
+    sub.add_parser("n8n-export")
     p_n8n_builder.add_argument("goal", nargs="*", default=[])
     p_n8n_builder.add_argument("--client", default="demo-client")
 
@@ -1875,6 +1876,8 @@ def main() -> int:
     if args.cmd == "capability-audit":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_capability_audit.py")])
 
+    if args.cmd == "n8n-export":
+        return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_export_packager.py")])
     if args.cmd == "n8n-validate":
         script = Path(__file__).resolve().parent / "jarvis_n8n_workflow_validator.py"
         cmdline = [sys.executable, str(script)]
