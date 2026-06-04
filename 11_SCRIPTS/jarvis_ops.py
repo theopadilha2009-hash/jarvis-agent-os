@@ -1514,6 +1514,10 @@ def main() -> int:
     p_internet_investigate.add_argument("--max-results", type=int, default=5)
     p_internet_investigate.add_argument("--minutes", type=int, default=0)
 
+    p_n8n_builder = sub.add_parser("n8n-builder")
+    p_n8n_builder.add_argument("goal", nargs="*", default=[])
+    p_n8n_builder.add_argument("--client", default="demo-client")
+
     p_command_health = sub.add_parser("command-health")
     p_command_health.add_argument("action", choices=["run"], default="run")
 
@@ -1868,6 +1872,14 @@ def main() -> int:
         return execution_index(args.action)
     if args.cmd == "capability-audit":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_capability_audit.py")])
+
+    if args.cmd == "n8n-builder":
+        cmd = [sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_workflow_builder.py")]
+        goal = getattr(args, "goal", []) or []
+        cmd.extend(goal)
+        cmd.extend(["--client", str(getattr(args, "client", "demo-client"))])
+        return subprocess.call(cmd)
+
 
     if args.cmd == "internet-investigate":
         cmd = [sys.executable, str(Path(__file__).resolve().parent / "jarvis_internet_investigation.py")]
