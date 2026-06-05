@@ -1523,6 +1523,9 @@ def main() -> int:
     p_n8n_ready = sub.add_parser("n8n-ready")
     p_n8n_manual_guard = sub.add_parser("n8n-manual-guard")
     p_n8n_webhooks = sub.add_parser("n8n-webhooks")
+    p_n8n_testkit = sub.add_parser("n8n-testkit")
+    p_n8n_testkit.add_argument("--client", default="n8n-import-testkit")
+    p_n8n_testkit.add_argument("--base-url", default="https://YOUR_N8N_DOMAIN")
     p_n8n_runtime = sub.add_parser("n8n-runtime")
     p_n8n_runtime.add_argument("--client", default="runtime-smoke")
     p_research_n8n = sub.add_parser("research-n8n")
@@ -1890,6 +1893,9 @@ def main() -> int:
         return execution_index(args.action)
     if args.cmd == "capability-audit":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_capability_audit.py")])
+
+    if args.cmd == "n8n-testkit":
+        return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_import_testkit.py"), "--client", args.client, "--base-url", args.base_url])
 
     if args.cmd == "n8n-runtime":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_runtime_smoke.py"), "--client", args.client])
