@@ -1523,6 +1523,18 @@ def main() -> int:
     p_n8n_ready = sub.add_parser("n8n-ready")
     p_n8n_manual_guard = sub.add_parser("n8n-manual-guard")
     p_n8n_webhooks = sub.add_parser("n8n-webhooks")
+    p_n8n_verify_import = sub.add_parser("n8n-verify-import")
+    p_n8n_verify_import.add_argument("--client", default="manual-import")
+    p_n8n_verify_import.add_argument("--n8n-url", default="https://YOUR_N8N_DOMAIN")
+    p_n8n_verify_import.add_argument("--workflow-id", default="")
+    p_n8n_verify_import.add_argument("--execution-id", default="")
+    p_n8n_verify_import.add_argument("--webhook-path", default="")
+    p_n8n_verify_import.add_argument("--imported", action="store_true")
+    p_n8n_verify_import.add_argument("--manual-trigger-tested", action="store_true")
+    p_n8n_verify_import.add_argument("--curl-smoke-tested", action="store_true")
+    p_n8n_verify_import.add_argument("--credentials-connected", action="store_true")
+    p_n8n_verify_import.add_argument("--activated", action="store_true")
+    p_n8n_verify_import.add_argument("--notes", default="")
     p_n8n_latest = sub.add_parser("n8n-latest")
     p_n8n_latest.add_argument("--open-folder", action="store_true")
     p_n8n_latest.add_argument("--open-md", action="store_true")
@@ -1901,6 +1913,29 @@ def main() -> int:
         return execution_index(args.action)
     if args.cmd == "capability-audit":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_capability_audit.py")])
+
+    if args.cmd == "n8n-verify-import":
+        cmd = [
+            sys.executable,
+            str(Path(__file__).resolve().parent / "jarvis_n8n_manual_import_verifier.py"),
+            "--client", args.client,
+            "--n8n-url", args.n8n_url,
+            "--workflow-id", args.workflow_id,
+            "--execution-id", args.execution_id,
+            "--webhook-path", args.webhook_path,
+            "--notes", args.notes,
+        ]
+        if args.imported:
+            cmd.append("--imported")
+        if args.manual_trigger_tested:
+            cmd.append("--manual-trigger-tested")
+        if args.curl_smoke_tested:
+            cmd.append("--curl-smoke-tested")
+        if args.credentials_connected:
+            cmd.append("--credentials-connected")
+        if args.activated:
+            cmd.append("--activated")
+        return subprocess.call(cmd)
 
     if args.cmd == "n8n-latest":
         cmd = [sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_latest_import.py")]
