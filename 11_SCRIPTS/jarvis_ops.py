@@ -1523,6 +1523,9 @@ def main() -> int:
     p_n8n_ready = sub.add_parser("n8n-ready")
     p_n8n_manual_guard = sub.add_parser("n8n-manual-guard")
     p_n8n_webhooks = sub.add_parser("n8n-webhooks")
+    p_n8n_latest = sub.add_parser("n8n-latest")
+    p_n8n_latest.add_argument("--open-folder", action="store_true")
+    p_n8n_latest.add_argument("--open-md", action="store_true")
     p_n8n_session = sub.add_parser("n8n-session")
     p_n8n_session.add_argument("--client", default="n8n-import-session")
     p_n8n_session.add_argument("--n8n-url", default="https://YOUR_N8N_DOMAIN")
@@ -1898,6 +1901,14 @@ def main() -> int:
         return execution_index(args.action)
     if args.cmd == "capability-audit":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_capability_audit.py")])
+
+    if args.cmd == "n8n-latest":
+        cmd = [sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_latest_import.py")]
+        if args.open_folder:
+            cmd.append("--open-folder")
+        if args.open_md:
+            cmd.append("--open-md")
+        return subprocess.call(cmd)
 
     if args.cmd == "n8n-session":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_import_session.py"), "--client", args.client, "--n8n-url", args.n8n_url])
