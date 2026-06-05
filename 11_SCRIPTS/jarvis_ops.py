@@ -1523,6 +1523,8 @@ def main() -> int:
     p_n8n_ready = sub.add_parser("n8n-ready")
     p_n8n_manual_guard = sub.add_parser("n8n-manual-guard")
     p_n8n_webhooks = sub.add_parser("n8n-webhooks")
+    p_n8n_runtime = sub.add_parser("n8n-runtime")
+    p_n8n_runtime.add_argument("--client", default="runtime-smoke")
     p_research_n8n = sub.add_parser("research-n8n")
     p_research_n8n.add_argument("goal", nargs="?", default="Professional n8n WhatsApp AI SDR workflow with logs fallback human transfer dry-run safety and import checklist")
     p_research_n8n.add_argument("--query", default="")
@@ -1888,6 +1890,9 @@ def main() -> int:
         return execution_index(args.action)
     if args.cmd == "capability-audit":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_capability_audit.py")])
+
+    if args.cmd == "n8n-runtime":
+        return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_runtime_smoke.py"), "--client", args.client])
 
     if args.cmd == "research-n8n":
         cmd = [sys.executable, str(Path(__file__).resolve().parent / "jarvis_research_n8n_pipeline.py"), args.goal, "--client", args.client, "--max-results", str(args.max_results)]
