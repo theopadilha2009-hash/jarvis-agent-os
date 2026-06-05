@@ -1523,6 +1523,15 @@ def main() -> int:
     p_n8n_ready = sub.add_parser("n8n-ready")
     p_n8n_manual_guard = sub.add_parser("n8n-manual-guard")
     p_n8n_webhooks = sub.add_parser("n8n-webhooks")
+    p_n8n_evidence = sub.add_parser("n8n-evidence")
+    p_n8n_evidence.add_argument("action", choices=["add", "report"])
+    p_n8n_evidence.add_argument("--client", default="n8n-manual")
+    p_n8n_evidence.add_argument("--stage", default="local_ready")
+    p_n8n_evidence.add_argument("--verdict", default="pass")
+    p_n8n_evidence.add_argument("--workflow-id", default="")
+    p_n8n_evidence.add_argument("--execution-id", default="")
+    p_n8n_evidence.add_argument("--webhook-path", default="")
+    p_n8n_evidence.add_argument("--notes", default="")
     p_n8n_verify_import = sub.add_parser("n8n-verify-import")
     p_n8n_verify_import.add_argument("--client", default="manual-import")
     p_n8n_verify_import.add_argument("--n8n-url", default="https://YOUR_N8N_DOMAIN")
@@ -1913,6 +1922,22 @@ def main() -> int:
         return execution_index(args.action)
     if args.cmd == "capability-audit":
         return subprocess.call([sys.executable, str(Path(__file__).resolve().parent / "jarvis_capability_audit.py")])
+
+    if args.cmd == "n8n-evidence":
+        cmd = [sys.executable, str(Path(__file__).resolve().parent / "jarvis_n8n_evidence_ledger.py"), args.action]
+        cmd.extend(["--client", args.client])
+        if args.action == "add":
+            cmd.extend(["--stage", args.stage])
+            cmd.extend(["--verdict", args.verdict])
+            if args.workflow_id:
+                cmd.extend(["--workflow-id", args.workflow_id])
+            if args.execution_id:
+                cmd.extend(["--execution-id", args.execution_id])
+            if args.webhook_path:
+                cmd.extend(["--webhook-path", args.webhook_path])
+            if args.notes:
+                cmd.extend(["--notes", args.notes])
+        return subprocess.call(cmd)
 
     if args.cmd == "n8n-verify-import":
         cmd = [
