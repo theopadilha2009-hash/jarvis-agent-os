@@ -160,11 +160,19 @@ def add_record(
         "status_real": "local_evidence_ledger_only_no_n8n_action",
     }
 
-    with LEDGER.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    rejected_path = None
 
-    records = load_records()
-    write_csv(records)
+    if blockers:
+        rejected_dir = OUT / "rejected"
+        rejected_dir.mkdir(parents=True, exist_ok=True)
+        rejected_path = rejected_dir / f"REJECTED_{slug(client)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        rejected_path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+        records = load_records()
+    else:
+        with LEDGER.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        records = load_records()
+        write_csv(records)
 
     print("N8N_EVIDENCE_LEDGER_ADD_DONE")
     print(json.dumps({
@@ -172,6 +180,8 @@ def add_record(
         "stage": stage,
         "ledger": rel(LEDGER),
         "csv": rel(CSV_LEDGER),
+        "rejected_path": rel(rejected_path),
+        "written_to_ledger": not bool(blockers),
         "records": len(records),
         "blockers": blockers,
         "warnings": warnings,
