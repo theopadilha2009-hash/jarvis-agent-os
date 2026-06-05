@@ -32,11 +32,11 @@ def read_json(path: Path | None) -> dict[str, Any]:
 
 def find_latest_export() -> Path | None:
     candidates = [
+        latest_file("05_EXECUCAO/218_N8N_GUARDED_EXPORT/**/IMPORT_THIS_IN_N8N_GUARDED.json"),
         latest_file("05_EXECUCAO/207_N8N_EXPORT_PACKAGER/**/IMPORT_THIS_IN_N8N.json"),
         latest_file("05_EXECUCAO/204_N8N_WORKFLOW_BUILDER/**/workflow_skeleton.importable.json"),
     ]
     return next((p for p in candidates if p and p.exists()), None)
-
 
 def node_names(workflow: dict[str, Any]) -> list[str]:
     return [str(n.get("name", "")) for n in workflow.get("nodes", []) if isinstance(n, dict)]
