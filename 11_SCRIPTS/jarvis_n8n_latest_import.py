@@ -53,10 +53,17 @@ def run(open_folder: bool = False, open_md: bool = False) -> int:
     OUT.mkdir(parents=True, exist_ok=True)
 
     session_dir = latest_dir("05_EXECUCAO/219_N8N_IMPORT_SESSION/*")
-    session_json = latest_file("05_EXECUCAO/219_N8N_IMPORT_SESSION/**/N8N_IMPORT_SESSION.json")
-    session_md = latest_file("05_EXECUCAO/219_N8N_IMPORT_SESSION/**/OPEN_THIS_FOR_IMPORT.md")
-    import_file = latest_file("05_EXECUCAO/219_N8N_IMPORT_SESSION/**/IMPORT_THIS_IN_N8N_GUARDED.json")
-    curl_file = latest_file("05_EXECUCAO/219_N8N_IMPORT_SESSION/**/RUN_AFTER_IMPORT_CURL_SMOKE.sh")
+
+    if session_dir:
+        session_json = session_dir / "N8N_IMPORT_SESSION.json"
+        session_md = session_dir / "OPEN_THIS_FOR_IMPORT.md"
+        import_file = session_dir / "IMPORT_THIS_IN_N8N_GUARDED.json"
+        curl_file = session_dir / "RUN_AFTER_IMPORT_CURL_SMOKE.sh"
+    else:
+        session_json = latest_file("05_EXECUCAO/219_N8N_IMPORT_SESSION/**/N8N_IMPORT_SESSION.json")
+        session_md = latest_file("05_EXECUCAO/219_N8N_IMPORT_SESSION/**/OPEN_THIS_FOR_IMPORT.md")
+        import_file = latest_file("05_EXECUCAO/219_N8N_IMPORT_SESSION/**/IMPORT_THIS_IN_N8N_GUARDED.json")
+        curl_file = latest_file("05_EXECUCAO/219_N8N_IMPORT_SESSION/**/RUN_AFTER_IMPORT_CURL_SMOKE.sh")
 
     guarded = latest_file("05_EXECUCAO/218_N8N_GUARDED_EXPORT/**/N8N_GUARDED_EXPORT.json")
     testkit = latest_file("05_EXECUCAO/217_N8N_IMPORT_TESTKIT/**/N8N_IMPORT_TESTKIT.json")
