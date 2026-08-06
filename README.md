@@ -5,6 +5,27 @@
 
 JARVIS is Theo's personal local AI worker and terminal cockpit.
 
+## Cockpit web (preparado para Vercel)
+
+O repositório inclui um gateway Python serverless em `api/index.py`, um cockpit
+web compacto em `web/index.html` e a configuração em `vercel.json`. Ele publica status, capacidades,
+planejamento e chat opcional sem importar o backend local que escreve arquivos
+ou inicia processos.
+
+- Sem credencial, texto livre cai em um planejador local determinístico.
+- Com `OPENROUTER_API_KEY` configurada no ambiente da hospedagem, texto livre
+  usa `openrouter/free` (ou `OPENROUTER_MODEL`). Nunca coloque a chave no repo.
+- Print, voz, conversão e organização de arquivos retornam um comando de
+  handoff para `./jarvis do ...`, porque a Vercel não acessa o Mac.
+- O runtime web é stateless: histórico persistente exigirá um adaptador de
+  banco separado. Nenhuma migration faz parte deste gateway.
+
+Preview local do mesmo contrato HTTP:
+
+```bash
+python3 api/index.py --port 8790
+```
+
 Main foundation docs:
 
 - `00_IDENTITY/JARVIS_IDENTITY.md`

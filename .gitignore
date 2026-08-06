@@ -40,6 +40,7 @@
 .DS_Store
 __pycache__/
 *.pyc
+.vercel/
 
 # JARVIS old generated/runtime folders
 05_EXECUCAO/21_CLAUDE_MISSIONS/

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#080810">
+  <title>JARVIS · Theo</title>
+  <script type="importmap">
+    {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+  </script>
+  <style>
+    :root{color-scheme:dark;--bg:#080810;--panel:rgba(18,17,31,.76);--panel2:rgba(25,22,43,.82);--line:rgba(167,139,250,.18);--line2:rgba(167,139,250,.34);--text:#f5f3ff;--muted:#a9a3bd;--faint:#777086;--violet:#8b5cf6;--violet2:#c4b5fd;--cyan:#67e8f9;--green:#6ee7b7;--red:#fb7185;--shadow:0 28px 90px rgba(0,0,0,.48)}
+    *{box-sizing:border-box}html,body{height:100%;margin:0}body{overflow:hidden;background:radial-gradient(circle at 52% 14%,rgba(124,58,237,.18),transparent 34%),radial-gradient(circle at 90% 90%,rgba(14,165,233,.08),transparent 28%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(to bottom,#000,transparent 82%)}
+    button,input{font:inherit}button{color:inherit}.app{height:100%;display:grid;grid-template-rows:64px minmax(0,1fr)}
+    header{display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-bottom:1px solid var(--line);background:rgba(8,8,16,.74);backdrop-filter:blur(18px);z-index:10}.brand{display:flex;align-items:center;gap:12px}.mark{width:30px;height:30px;display:grid;place-items:center;border:1px solid var(--line2);border-radius:10px;background:radial-gradient(circle,var(--violet2) 0 8%,var(--violet) 9% 20%,rgba(139,92,246,.12) 21% 58%,transparent 60%);box-shadow:0 0 28px rgba(139,92,246,.42)}.brand b{font-size:13px;letter-spacing:.3em}.brand small{color:var(--faint);font:10px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em}.live{display:flex;align-items:center;gap:9px;color:var(--muted);font:11px ui-monospace,SFMono-Regular,Menlo,monospace}.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}.dot.on{background:var(--green);box-shadow:0 0 14px var(--green)}
+    .shell{min-height:0;display:grid;grid-template-columns:220px minmax(420px,1fr) 290px;gap:12px;padding:12px}.panel{min-height:0;border:1px solid var(--line);border-radius:20px;background:var(--panel);box-shadow:var(--shadow);backdrop-filter:blur(20px)}
+    aside{padding:15px;display:flex;flex-direction:column;gap:18px;overflow:auto}.label{color:var(--faint);font:9px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.2em;text-transform:uppercase;margin:0 5px 8px}.nav{display:grid;gap:7px}.nav button,.chip{border:1px solid var(--line);background:rgba(255,255,255,.025);border-radius:12px;padding:11px 12px;text-align:left;cursor:pointer;transition:.18s}.nav button:hover,.chip:hover{border-color:var(--line2);background:rgba(139,92,246,.11);transform:translateY(-1px)}.nav button span{float:right;color:var(--violet2)}.boundary{margin-top:auto;padding:12px;border:1px solid rgba(110,231,183,.16);border-radius:14px;background:rgba(110,231,183,.04);color:var(--muted);font-size:11px;line-height:1.55}.boundary b{display:block;color:var(--green);margin-bottom:4px}
+    main{min-height:0;display:grid;grid-template-rows:minmax(250px,42%) minmax(0,1fr);gap:12px}.hero{position:relative;overflow:hidden}.hero:after{content:"";position:absolute;inset:auto 8% 10% 8%;height:1px;background:linear-gradient(90deg,transparent,var(--line2),transparent)}#avatar{position:absolute;inset:0;width:100%;height:100%;z-index:2}.reactor{position:absolute;left:50%;top:48%;width:150px;height:150px;transform:translate(-50%,-50%) rotate(45deg);border:1px solid var(--line2);border-radius:28px;background:radial-gradient(circle at center,var(--text) 0 2%,var(--violet2) 3% 8%,var(--violet) 9% 16%,rgba(139,92,246,.16) 17% 45%,transparent 46%);box-shadow:inset 0 0 44px rgba(139,92,246,.2),0 0 72px rgba(139,92,246,.16);animation:pulse 4s ease-in-out infinite}.reactor:before,.reactor:after{content:"";position:absolute;inset:21px;border:1px solid var(--line);border-radius:18px}.reactor:after{inset:43px;background:rgba(139,92,246,.15)}@keyframes pulse{50%{filter:brightness(1.35);transform:translate(-50%,-50%) rotate(135deg) scale(1.04)}}.hero-copy{position:absolute;inset:22px;z-index:3;pointer-events:none}.eyebrow{color:var(--violet2);font:9px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.28em}.hero h1{position:absolute;left:22px;bottom:24px;margin:0;font-size:clamp(32px,6vw,82px);line-height:.8;letter-spacing:-.06em;color:rgba(255,255,255,.08)}.hero-status{position:absolute;right:22px;bottom:22px;text-align:right;color:var(--muted);font:10px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}.hero-status strong{display:block;color:var(--green);letter-spacing:.12em}
+    .console{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto}.console-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--line)}.console-head b{font-size:11px;letter-spacing:.12em}.mode{padding:5px 8px;border-radius:99px;border:1px solid var(--line);color:var(--violet2);font:9px ui-monospace,SFMono-Regular,Menlo,monospace}.feed{min-height:0;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}.welcome{margin:auto;text-align:center;max-width:460px;color:var(--muted);line-height:1.65}.welcome .orb{width:48px;height:48px;margin:0 auto 14px;border-radius:50%;background:radial-gradient(circle,var(--text),var(--violet) 20%,transparent 64%);box-shadow:0 0 32px rgba(139,92,246,.5)}.bubble{max-width:min(720px,90%);padding:12px 14px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.035);color:#ddd9e8;font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}.bubble.user{align-self:flex-end;background:linear-gradient(135deg,rgba(124,58,237,.36),rgba(91,33,182,.22));border-color:var(--line2)}.bubble.error{border-color:rgba(251,113,133,.35);color:#fecdd3}.bubble code{display:block;margin-top:9px;padding:10px;border-radius:10px;background:#090811;border:1px solid var(--line);color:var(--cyan);font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}.steps{display:grid;gap:7px;margin-top:10px}.step{display:grid;grid-template-columns:22px 1fr;gap:8px}.step i{width:20px;height:20px;border-radius:7px;display:grid;place-items:center;background:rgba(139,92,246,.18);color:var(--violet2);font:normal 9px ui-monospace,SFMono-Regular,Menlo,monospace}.composer{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px;border-top:1px solid var(--line)}.composer input{min-width:0;border:1px solid var(--line);background:rgba(0,0,0,.24);color:var(--text);border-radius:13px;padding:12px 14px;outline:none}.composer input:focus{border-color:var(--line2);box-shadow:0 0 0 3px rgba(139,92,246,.08)}.send{border:0;border-radius:13px;padding:0 18px;background:linear-gradient(135deg,var(--violet),#6d28d9);font-weight:750;cursor:pointer;box-shadow:0 8px 26px rgba(109,40,217,.28)}.send:disabled{opacity:.5;cursor:wait}
+    .right{padding:15px;display:flex;flex-direction:column;gap:14px;overflow:auto}.card{padding:13px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.025)}.card h3{margin:0 0 10px;font-size:10px;letter-spacing:.14em;text-transform:uppercase}.metric{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid rgba(255,255,255,.04);color:var(--muted);font-size:11px}.metric:first-of-type{border-top:0}.metric strong{color:var(--text);font-weight:600;text-align:right}.activity{font:10px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}.chips{display:flex;flex-wrap:wrap;gap:6px}.chip{padding:7px 9px;font-size:10px;text-align:center}.privacy{color:#fcd34d;font-size:10px;line-height:1.55}
+    @media(max-width:1050px){.shell{grid-template-columns:190px minmax(0,1fr)}.right{display:none}}@media(max-width:720px){body{overflow:auto}.app{height:auto;min-height:100%;grid-template-rows:58px auto}.brand small{display:none}.shell{display:block;padding:8px}.left{display:none}main{height:calc(100vh - 74px);grid-template-rows:33% minmax(0,1fr)}.hero h1{font-size:48px}.hero-status{display:none}.console{margin-top:8px}.bubble{max-width:96%}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><div class="mark"></div><b>JARVIS</b><small>THEO · PERSONAL AGENT OS</small></div>
+    <div class="live"><span class="dot" id="dot"></span><span id="liveText">conectando</span></div>
+  </header>
+  <div class="shell">
+    <aside class="panel left">
+      <section><p class="label">Inteligência</p><div class="nav">
+        <button data-get="/status">Status <span>→</span></button>
+        <button data-get="/capabilities">Capacidades <span>→</span></button>
+        <button data-get="/sources">Fontes <span>→</span></button>
+        <button data-post="/self-test">Self-test <span>→</span></button>
+      </div></section>
+      <section><p class="label">Atalhos</p><div class="nav">
+        <button data-prompt="organize minhas prioridades de hoje">Planejar hoje <span>↗</span></button>
+        <button data-prompt="ver arquivos grandes em downloads">Ver armazenamento <span>↗</span></button>
+        <button data-prompt="tirar um print da tela">Tirar print <span>↗</span></button>
+        <button data-prompt="ler em voz alta hora de focar">Falar <span>↗</span></button>
+      </div></section>
+      <div class="boundary"><b>WEB + WORKER LOCAL</b>O site conversa e planeja. Tela, voz e arquivos são encaminhados ao Jarvis no Mac.</div>
+    </aside>
+    <main>
+      <section class="panel hero">
+        <div class="reactor"></div><canvas id="avatar" aria-hidden="true"></canvas>
+        <div class="hero-copy"><div class="eyebrow">JARVIS CORE · WEB RUNTIME</div><h1>ALWAYS<br>READY</h1><div class="hero-status"><strong id="coreState">STARTING</strong><span id="modelState">visual core</span></div></div>
+      </section>
+      <section class="panel console">
+        <div class="console-head"><b>CONVERSA & COMANDOS</b><span class="mode" id="mode">WEB</span></div>
+        <div class="feed" id="feed" aria-live="polite"><div class="welcome" id="welcome"><div class="orb"></div><strong>JARVIS está acordando.</strong><br>Converse, planeje ou peça uma ação no seu Mac.</div></div>
+        <form class="composer" id="form"><input id="prompt" maxlength="8000" autocomplete="off" placeholder="Fala o que você quer fazer…"><button class="send" id="send">Enviar</button></form>
+      </section>
+    </main>
+    <aside class="panel right">
+      <section class="card"><h3>Runtime</h3><div class="metric"><span>Serviço</span><strong id="service">—</strong></div><div class="metric"><span>IA</span><strong id="ai">—</strong></div><div class="metric"><span>Modelo</span><strong id="model">—</strong></div></section>
+      <section class="card"><h3>Disponível</h3><div class="chips" id="capChips"><span class="chip">cockpit</span><span class="chip">planos</span><span class="chip">handoff local</span></div></section>
+      <section class="card"><h3>Última ação</h3><div class="activity" id="activity">Nenhuma ação nesta sessão.</div></section>
+      <section class="card privacy">Modelos gratuitos podem registrar prompts. Não envie senhas, tokens nem dados confidenciais.</section>
+    </aside>
+  </div>
+</div>
+<script>
+  const $=id=>document.getElementById(id),feed=$("feed"),prompt=$("prompt"),send=$("send");
+  const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  function bubble(content,type="jarvis",html=false){const w=$("welcome");if(w)w.remove();const el=document.createElement("div");el.className="bubble "+type;html?el.innerHTML=content:el.textContent=content;feed.appendChild(el);feed.scrollTop=feed.scrollHeight;return el}
+  function busy(on){send.disabled=on;send.textContent=on?"Pensando…":"Enviar";$("coreState").textContent=on?"PROCESSING":"ONLINE"}
+  async function api(path,options){const res=await fetch(path,options);let data;try{data=await res.json()}catch{data={ok:false,error:"Resposta inválida"}}if(!res.ok&&data.ok!==false)data.ok=false;return data}
+  function show(data){
+    if(!data||data.ok===false){bubble(data?.error||"Não consegui completar isso.","error");return}
+    let text=data.message||data.summary||data.next_action||data.status_real||"Pronto.";
+    let html=`<strong>${esc(text)}</strong>`;
+    if(data.steps?.length)html+=`<div class="steps">${data.steps.map((s,i)=>`<div class="step"><i>${i+1}</i><span>${esc(s.action||s.step||s)}</span></div>`).join("")}</div>`;
+    if(data.local_command)html+=`<code>${esc(data.local_command)}</code>`;
+    if(data.capabilities?.length)html+=`<div class="steps">${data.capabilities.map((c,i)=>`<div class="step"><i>${i+1}</i><span><b>${esc(c.name)}</b> · ${esc(c.status||c.what||"")}</span></div>`).join("")}</div>`;
+    if(data.sources?.length)html+=`<div class="steps">${data.sources.slice(0,8).map((s,i)=>`<div class="step"><i>${i+1}</i><span>${esc(s.name||s.path||s)}</span></div>`).join("")}</div>`;
+    bubble(html,"jarvis",true);$("activity").textContent=`${data.endpoint||"JARVIS"} · ${data.status_real||"ok"}`;
+  }
+  async function sendPrompt(value){value=String(value||"").trim();if(!value)return;bubble(value,"user");prompt.value="";busy(true);try{show(await api("/command",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({command:value})}))}catch{bubble("A conexão com o JARVIS caiu. Tente novamente.","error")}finally{busy(false);prompt.focus()}}
+  $("form").addEventListener("submit",e=>{e.preventDefault();sendPrompt(prompt.value)});
+  document.querySelectorAll("[data-prompt]").forEach(b=>b.onclick=()=>sendPrompt(b.dataset.prompt));
+  document.querySelectorAll("[data-get]").forEach(b=>b.onclick=async()=>{busy(true);try{show(await api(b.dataset.get))}finally{busy(false)}});
+  document.querySelectorAll("[data-post]").forEach(b=>b.onclick=async()=>{busy(true);try{show(await api(b.dataset.post,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}))}finally{busy(false)}});
+  async function boot(){try{const s=await api("/status");$("dot").classList.toggle("on",!!s.ok);$("liveText").textContent=s.ok?`online · ${location.host}`:"offline";$("service").textContent=s.service||"jarvis-web";$("ai").textContent=s.ai?.configured?"conectada":"fallback local";$("model").textContent=s.ai?.model||"—";$("mode").textContent=s.runtime?.includes("vercel")?"VERCEL":"LOCAL WEB";$("coreState").textContent="ONLINE";$("welcome").innerHTML='<div class="orb"></div><strong>JARVIS online.</strong><br>Converse, planeje ou peça uma ação no seu Mac.';if(s.capabilities?.length)$("capChips").innerHTML=s.capabilities.map(c=>`<span class="chip">${esc(c.name)}</span>`).join("")}catch{$("liveText").textContent="offline";$("coreState").textContent="OFFLINE"}}boot();
+</script>
+<script type="module">
+  const modelState=document.getElementById("modelState");modelState.textContent="loading visual core";
+  try{
+    const THREE=await import("three"),{GLTFLoader}=await import("three/addons/loaders/GLTFLoader.js"),canvas=document.getElementById("avatar"),host=canvas.parentElement,scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(32,1,.1,100),renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:"high-performance"});camera.position.set(0,.15,4.8);renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;scene.add(new THREE.HemisphereLight(0xded8ff,0x160d2b,2.2));const key=new THREE.DirectionalLight(0x9f7aea,4);key.position.set(3,4,5);scene.add(key);let model=null;
+    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb",g=>{model=g.scene;const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());model.position.sub(center);model.scale.setScalar(2.35/Math.max(size.x,size.y,size.z));model.position.y=-.2;scene.add(model);modelState.textContent="humanoid core loaded"},undefined,()=>{modelState.textContent="reactor fallback"});
+    function resize(){const r=host.getBoundingClientRect();camera.aspect=r.width/r.height;camera.updateProjectionMatrix();renderer.setSize(r.width,r.height,false)}new ResizeObserver(resize).observe(host);resize();
+    function frame(t){if(model){model.rotation.y=Math.sin(t*.00035)*.28;model.position.y=-.2+Math.sin(t*.001)*.025}renderer.render(scene,camera);requestAnimationFrame(frame)}requestAnimationFrame(frame);
+  }catch{modelState.textContent="reactor fallback"}
+</script>
+</body>
+</html>
