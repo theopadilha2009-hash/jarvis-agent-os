@@ -54,6 +54,8 @@ Storage: `05_EXECUCAO/63_DECISIONS/decisions.jsonl` (gitignored, JSONL append-on
 
 Todas recusam texto com aparência de segredo. Processos nativos são executados por lista de argumentos, sem shell. Saídas locais ficam gitignored; nenhuma ação de mensagem, organização ou limpeza é automática.
 
+O worker principal também reconhece essas intenções: `./jarvis do "tirar um print" --dry-run`, `./jarvis do "converter foto.heic para jpg" --dry-run`, `./jarvis do 'ler em voz alta "hora de focar"' --dry-run`, `./jarvis do 'mandar mensagem para 5511... "texto"' --dry-run` e `./jarvis do "arquivos grandes em downloads" --dry-run`.
+
 ## Project max-machine (v1.1)
 
 Trabalhos repetidos por projeto agora têm comandos diretos. Cada um respeita: sem deploy, sem push, sem PR, sem merge, sem .env, sem migrations, sem secrets.

@@ -69,6 +69,7 @@ INTENT_TASK_ADD = "task_add"
 INTENT_TASK_LIST = "task_list"
 INTENT_SCREEN_CAPTURE = "screen_capture"
 INTENT_IMAGE_TO_PDF = "image_to_pdf"
+INTENT_IMAGE_CONVERT = "image_convert"
 INTENT_SPEAK = "speak"
 INTENT_MESSAGE_DRAFT = "message_draft"
 INTENT_STORAGE_SCAN = "storage_scan"
@@ -213,6 +214,10 @@ INTENT_PATTERNS = [
     (INTENT_IMAGE_TO_PDF, re.compile(
         r"(?i)\b(imagem|foto|png|jpe?g|heic|tiff?|webp|svg)\b.*\b(para|em|virar|converter|transformar)\b.*\bpdf\b|"
         r"\b(converter|transformar)\b.*\b(imagem|foto|[^\s]+\.(?:png|jpe?g|heic|tiff?|webp|svg))\b.*\bpdf\b"
+    )),
+    (INTENT_IMAGE_CONVERT, re.compile(
+        r"(?i)\b(converter|transformar)\b.*\b(?:imagem|foto|[^\s]+\.(?:png|jpe?g|heic|tiff?|webp|svg))\b"
+        r".*\b(?:para|em)\b.*\b(png|jpe?g|tiff?)\b"
     )),
     (INTENT_SCREEN_CAPTURE, re.compile(
         r"(?i)\b(screenshot|captura de tela|tirar? (?:um )?print|print da tela)\b"
@@ -426,6 +431,17 @@ def _next_command_for(intent: str, project: str, text: str, copy_flag):
             SAFETY_LOCAL_PREP,
             bool(match),
         )
+    if intent == INTENT_IMAGE_CONVERT:
+        image_match = re.search(r"(?i)([^\s\"']+\.(?:png|jpe?g|heic|tiff?|webp|svg))", text)
+        format_match = re.search(r"(?i)\b(?:para|em)\s+(png|jpe?g|tiff?)\b", text)
+        image = image_match.group(1) if image_match else "<IMAGEM>"
+        output_format = format_match.group(1).lower() if format_match else "<FORMATO>"
+        return (
+            ["./jarvis", "image-convert", image, "--to", output_format, "--dry-run"],
+            f'./jarvis image-convert "{image}" --to {output_format} --dry-run',
+            SAFETY_LOCAL_PREP,
+            bool(image_match and format_match),
+        )
     if intent == INTENT_SPEAK:
         quoted = re.search(r'["“](.+?)["”]', text)
         speech = quoted.group(1) if quoted else text
@@ -631,6 +647,7 @@ def _explain_intent(intent: str) -> str:
         INTENT_TASK_LIST: "listar tarefas locais — roda task-list",
         INTENT_SCREEN_CAPTURE: "captura de tela local — sugere preview interativo",
         INTENT_IMAGE_TO_PDF: "conversão local de imagem para PDF — preserva o original",
+        INTENT_IMAGE_CONVERT: "conversão local entre formatos de imagem permitidos",
         INTENT_SPEAK: "síntese de voz local — sugere preview antes de falar",
         INTENT_MESSAGE_DRAFT: "rascunho de WhatsApp — nunca envia automaticamente",
         INTENT_STORAGE_SCAN: "inventário read-only de arquivos grandes — nunca apaga",

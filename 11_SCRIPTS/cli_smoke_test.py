@@ -1315,6 +1315,41 @@ CHECKS = [
         ],
     },
     {
+        "name": "do-screen-capture-dry-run",
+        "cmd": ["./jarvis", "do", "tirar um print da tela", "--dry-run"],
+        "expect": ["Worker Engine", "personal_tool", "screen_capture", "screen-capture --interactive", "nenhum comando foi executado"],
+    },
+    {
+        "name": "do-image-to-pdf-blocked-preview",
+        "cmd": ["./jarvis", "do", "converter 10_TESTES/FIXTURES/personal-tools-sample.svg para pdf", "--dry-run"],
+        "expect": ["Worker Engine", "personal_tool", "image_to_pdf", "image-to-pdf", "--dry-run"],
+    },
+    {
+        "name": "do-image-convert-dry-run",
+        "cmd": ["./jarvis", "do", "converter 10_TESTES/FIXTURES/personal-tools-sample.svg para png", "--dry-run"],
+        "expect": ["Worker Engine", "personal_tool", "image_convert", "image-convert", "nenhum comando foi executado"],
+    },
+    {
+        "name": "do-speak-dry-run",
+        "cmd": ["./jarvis", "do", "ler em voz alta", "teste de foco", "--dry-run"],
+        "expect": ["Worker Engine", "personal_tool", "speak", "./jarvis speak", "nenhum comando foi executado"],
+    },
+    {
+        "name": "do-message-draft-dry-run",
+        "cmd": ["./jarvis", "do", "mandar mensagem para 5511999999999", "teste local", "--dry-run"],
+        "expect": ["Worker Engine", "personal_tool", "message_draft", "message-draft", "nenhum comando foi executado"],
+    },
+    {
+        "name": "do-storage-scan-dry-run",
+        "cmd": ["./jarvis", "do", "ver arquivos grandes em downloads", "--dry-run"],
+        "expect": ["Worker Engine", "personal_tool", "storage_scan", "storage-scan", "nenhum comando foi executado"],
+    },
+    {
+        "name": "do-files-triage-dry-run",
+        "cmd": ["./jarvis", "do", "organizar arquivos de downloads", "--dry-run"],
+        "expect": ["Worker Engine", "personal_tool", "files_triage", "files-triage", "nenhum comando foi executado"],
+    },
+    {
         "name": "do-history",
         "cmd": ["./jarvis", "do-history", "--limit", "5"],
         "expect": [

@@ -47,6 +47,7 @@ TASKS_JSONL = ROOT / "05_EXECUCAO" / "34_TASKS" / "tasks.jsonl"
 ASK_UNCLEAR = ROOT / "05_EXECUCAO" / "32_ASK_LEARNING" / "UNCLEAR_REQUESTS.md"
 MISSIONS_DIR = ROOT / "05_EXECUCAO" / "21_CLAUDE_MISSIONS"
 BLUEPRINTS_DIR = ROOT / "05_EXECUCAO" / "40_BLUEPRINTS"
+PERSONAL_DIR = ROOT / "05_EXECUCAO" / "64_PERSONAL_TOOLS"
 
 # Reuse intents + secret detection from existing internal modules.
 sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
@@ -72,6 +73,13 @@ try:
         INTENT_LIMITS,
         INTENT_TASK_ADD,
         INTENT_TASK_LIST,
+        INTENT_SCREEN_CAPTURE,
+        INTENT_IMAGE_TO_PDF,
+        INTENT_IMAGE_CONVERT,
+        INTENT_SPEAK,
+        INTENT_MESSAGE_DRAFT,
+        INTENT_STORAGE_SCAN,
+        INTENT_FILES_TRIAGE,
         INTENT_UNCLEAR,
     )
     from secret_scan import SECRET_PATTERNS  # type: ignore
@@ -94,6 +102,13 @@ except Exception:
     INTENT_LIMITS = "limits"
     INTENT_TASK_ADD = "task_add"
     INTENT_TASK_LIST = "task_list"
+    INTENT_SCREEN_CAPTURE = "screen_capture"
+    INTENT_IMAGE_TO_PDF = "image_to_pdf"
+    INTENT_IMAGE_CONVERT = "image_convert"
+    INTENT_SPEAK = "speak"
+    INTENT_MESSAGE_DRAFT = "message_draft"
+    INTENT_STORAGE_SCAN = "storage_scan"
+    INTENT_FILES_TRIAGE = "files_triage"
     INTENT_UNCLEAR = "unclear"
 
     def _di(text): return INTENT_UNCLEAR
@@ -136,6 +151,13 @@ ALLOWED_PREFIXES = {
     ("./jarvis", "ask"),
     ("./jarvis", "plan"),
     ("./jarvis", "limits"),
+    ("./jarvis", "screen-capture"),
+    ("./jarvis", "image-to-pdf"),
+    ("./jarvis", "image-convert"),
+    ("./jarvis", "speak"),
+    ("./jarvis", "message-draft"),
+    ("./jarvis", "storage-scan"),
+    ("./jarvis", "files-triage"),
     # Sprint 8.1 — mission pack generators (write to gitignored 21_CLAUDE_MISSIONS).
     ("./jarvis", "goal-sprint"),
     ("./jarvis", "qa-sprint"),
@@ -549,6 +571,7 @@ ROUTE_SELF_EVOLVE = "self_evolve"
 ROUTE_NO_CLAUDE = "no_claude"
 ROUTE_CAPABILITY = "capability_check"
 ROUTE_HANDOFF = "handoff"
+ROUTE_PERSONAL = "personal_tool"
 ROUTE_UNCLEAR = "unclear"
 
 RISK_READ_ONLY = "read_only"
@@ -586,6 +609,17 @@ def choose_route(text, intent, project, capability_hint, mode, project_override=
         return (ROUTE_N8N, RISK_RUNTIME_WRITE)
     if intent == INTENT_CAPABILITY_CHECK:
         return (ROUTE_CAPABILITY, RISK_READ_ONLY)
+    if intent in (
+        INTENT_SCREEN_CAPTURE,
+        INTENT_IMAGE_TO_PDF,
+        INTENT_IMAGE_CONVERT,
+        INTENT_SPEAK,
+        INTENT_MESSAGE_DRAFT,
+        INTENT_STORAGE_SCAN,
+        INTENT_FILES_TRIAGE,
+    ):
+        risk = RISK_READ_ONLY if intent in (INTENT_IMAGE_TO_PDF, INTENT_STORAGE_SCAN, INTENT_FILES_TRIAGE) else RISK_RUNTIME_WRITE
+        return (ROUTE_PERSONAL, risk)
     if intent in (INTENT_PROJECT_FIX, INTENT_PROJECT_QA,
                   INTENT_BROWSER_QA, INTENT_FINAL_GATE, INTENT_OPEN_PROJECT):
         return (ROUTE_PROJECT, RISK_NEEDS_CLAUDE if project else RISK_READ_ONLY)
@@ -743,6 +777,76 @@ def plan_handoff(text, project, dry_run):
     return actions, next_cmd, None, extras
 
 
+def plan_personal(text, intent, dry_run):
+    if intent == INTENT_SCREEN_CAPTURE:
+        cmd = ["./jarvis", "screen-capture", "--interactive"]
+        if dry_run:
+            cmd.append("--dry-run")
+        return [("Captura interativa local", cmd, None)], "./jarvis screen-capture --interactive", None, {}
+
+    if intent == INTENT_IMAGE_TO_PDF:
+        match = re.search(r"(?i)([^\s\"']+\.(?:png|jpe?g|heic|tiff?|webp|svg))", text)
+        if not match:
+            return [], None, "Informe o caminho da imagem. PDF permanece bloqueado; só existe preview.", {}
+        source = match.group(1)
+        cmd = ["./jarvis", "image-to-pdf", source, "--dry-run"]
+        return [("Planejar imagem para PDF (bloqueado)", cmd, None)], "PDF bloqueado pelo AGENTS.md", None, {}
+
+    if intent == INTENT_IMAGE_CONVERT:
+        image_match = re.search(r"(?i)([^\s\"']+\.(?:png|jpe?g|heic|tiff?|webp|svg))", text)
+        format_match = re.search(r"(?i)\b(?:para|em)\s+(png|jpe?g|tiff?)\b", text)
+        if not image_match or not format_match:
+            return [], None, "Informe uma imagem e o formato png, jpg ou tiff.", {}
+        source = image_match.group(1)
+        output_format = format_match.group(1).lower()
+        extension = "jpg" if output_format in ("jpg", "jpeg") else "tiff" if output_format in ("tif", "tiff") else "png"
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        output = PERSONAL_DIR / "converted" / f"{_slugify(Path(source).stem, 36)}-{stamp}.{extension}"
+        cmd = ["./jarvis", "image-convert", source, "--to", output_format, "--output", str(output)]
+        if dry_run:
+            cmd.append("--dry-run")
+        return [("Converter imagem em runtime seguro", cmd, None)], f"open {output}", None, {}
+
+    if intent == INTENT_SPEAK:
+        quoted = re.search(r'["“](.+?)["”]', text)
+        speech = quoted.group(1) if quoted else re.sub(
+            r"(?i)^\s*(?:ler?|leia|diga|falar)\s+em\s+voz\s+alta\s*[:,-]?\s*", "", text
+        ).strip()
+        cmd = ["./jarvis", "speak", speech]
+        if dry_run:
+            cmd.append("--dry-run")
+        return [("Fala local", cmd, None)], f'./jarvis speak "{speech}"', None, {}
+
+    if intent == INTENT_MESSAGE_DRAFT:
+        phone_match = re.search(r"(?:\+?\d[\d\s().-]{6,}\d)", text)
+        if not phone_match:
+            return [], None, "Informe DDI + DDD + número. JARVIS nunca envia automaticamente.", {}
+        phone = "".join(char for char in phone_match.group(0) if char.isdigit())
+        quoted = re.search(r'["“](.+?)["”]', text)
+        body = quoted.group(1) if quoted else re.sub(re.escape(phone_match.group(0)), "", text).strip(" :-")
+        if not quoted:
+            body = re.sub(
+                r"(?i)^\s*(?:mandar?|enviar?)\s+mensagem(?:\s+(?:no|pelo)\s+whatsapp)?\s*(?:para)?\s*",
+                "",
+                body,
+            ).strip()
+        if not body:
+            return [], None, "Informe também o texto da mensagem. Nada foi enviado.", {}
+        cmd = ["./jarvis", "message-draft", "--phone", phone, body]
+        if dry_run:
+            cmd.append("--dry-run")
+        return [("Rascunho de WhatsApp (sem envio)", cmd, None)], "revise o link e envie manualmente", None, {}
+
+    scan_path = str(Path.home() / "Downloads") if "download" in text.lower() else "."
+    if intent == INTENT_STORAGE_SCAN:
+        cmd = ["./jarvis", "storage-scan", scan_path, "--top", "20"]
+        return [("Análise read-only de armazenamento", cmd, None)], f"./jarvis files-triage {scan_path}", None, {}
+    if intent == INTENT_FILES_TRIAGE:
+        cmd = ["./jarvis", "files-triage", scan_path, "--limit", "100"]
+        return [("Plano read-only de organização", cmd, None)], "revise o plano; nenhum arquivo foi movido", None, {}
+    return [], None, "Ferramenta pessoal não reconhecida.", {}
+
+
 _UNCLEAR_PATTERN_HINTS = [
     (re.compile(r"(?i)\b(deploy|push|merge|tag|prod(?:u(?:ção|cao))?)\b"),
      "parece pedido de ação restrita — JARVIS bloqueia. Veja ./jarvis limits."),
@@ -773,7 +877,7 @@ def plan_unclear(text, project, dry_run):
     return actions, next_cmd, None, extras
 
 
-def build_plan(route, text, project, mode, dry_run, capability_hint):
+def build_plan(route, text, project, mode, dry_run, capability_hint, intent):
     if route == ROUTE_RESUME:
         return plan_resume(text, project, dry_run)
     if route == ROUTE_RESEARCH:
@@ -790,6 +894,8 @@ def build_plan(route, text, project, mode, dry_run, capability_hint):
         return plan_capability(text, project, capability_hint, dry_run)
     if route == ROUTE_HANDOFF:
         return plan_handoff(text, project, dry_run)
+    if route == ROUTE_PERSONAL:
+        return plan_personal(text, intent, dry_run)
     return plan_unclear(text, project, dry_run)
 
 
@@ -1223,7 +1329,7 @@ def main():
     print("")
 
     actions, next_cmd, error, extras = build_plan(
-        route, text, project, mode, dry_run, capability_hint
+        route, text, project, mode, dry_run, capability_hint, intent
     )
     extras = extras or {}
 

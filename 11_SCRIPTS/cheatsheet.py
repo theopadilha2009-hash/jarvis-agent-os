@@ -23,7 +23,7 @@ Status real: leitura local. Nada foi editado.
   ./jarvis do "pedido" --dry-run        # preview sem executar nem gravar
 
   Rotas: resume, n8n_blueprint, project_fix_or_inspect, self_evolve,
-         no_claude, capability_check, handoff, unclear.
+         personal_tool, no_claude, capability_check, handoff, unclear.
 
 ## Lifecycle longo (quando "do" não basta)
   ./jarvis now                          # retomar (mesmo que ./jarvis do sem argumento)
