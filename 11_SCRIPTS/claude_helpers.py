@@ -46,6 +46,13 @@ def load_project(alias):
     return projects[alias]
 
 
+def resolve_project_path(project):
+    path = Path(str(project["path"])).expanduser()
+    if not path.is_absolute():
+        path = ROOT / path
+    return path.resolve()
+
+
 def find_latest_mission(alias=None):
     if not MISSIONS_DIR.exists():
         return None
@@ -144,7 +151,7 @@ def cmd_launch(argv):
     if not alias:
         fail("--project ALIAS é obrigatório para claude-launch.")
     project = load_project(alias)
-    path = project["path"]
+    path = resolve_project_path(project)
     print("JARVIS — Claude Launch (print-only; JARVIS não executa Claude)")
     print(f"Status real: imprimindo comandos. Nada foi executado por JARVIS.")
     print("")

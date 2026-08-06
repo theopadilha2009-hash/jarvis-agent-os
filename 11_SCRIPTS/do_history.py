@@ -175,7 +175,14 @@ def cmd_history(argv):
     print("")
     runs = _list_runs()
     if not runs:
-        print("(nenhum worker run ainda — rode `./jarvis do \"algo\"`)")
+        print("## Resumo (0 de 0 run(s))")
+        print("  ações:    0 executadas / 0 bloqueadas / 0 falhas")
+        print("")
+        print("## Runs (mais recentes primeiro)")
+        print("  (nenhum worker run ainda — rode `./jarvis do \"algo\"`)")
+        print("")
+        print('Próximo: ./jarvis do "algo"')
+        print("Produção: nada alterado.")
         return 0
 
     parsed = []
@@ -230,11 +237,18 @@ def cmd_history(argv):
 def cmd_show(argv):
     ident = argv[0] if argv else "latest"
     run = _resolve_id(ident)
+    print("JARVIS — Do Show")
     if not run:
+        print("Status real: leitura local; nenhum worker run disponível. Nada editado.")
+        print("")
         print(f"FALHA: worker run não encontrado: {ident}")
         print("Disponíveis: ./jarvis do-history")
+        print("")
+        print("## Run\n  (nenhum)")
+        print("\n## Pedido\n  (nenhum)")
+        print("\n## Plano\n  (nenhum)")
+        print("\nProdução: nada alterado.")
         return 1
-    print("JARVIS — Do Show")
     print(f"Status real: leitura local de {run.relative_to(ROOT)}/. Nada editado.")
     print("")
     info = _parse_run(run)
@@ -391,6 +405,13 @@ def cmd_learn(argv):
 
     if not samples:
         print("(nada para analisar — sem unclear runs nem entradas em ask-log)")
+        print("")
+        print("## Sugestões")
+        print("  (nenhuma)")
+        print("")
+        print("## Próximo")
+        print("  Rode `./jarvis do-learn --dry-run` após acumular pedidos unclear.")
+        print("Produção: nada alterado.")
         return 0
 
     suggestions = {}

@@ -23,7 +23,7 @@ Status real: leitura local. Nada foi editado.
   ./jarvis do "pedido" --dry-run        # preview sem executar nem gravar
 
   Rotas: resume, n8n_blueprint, project_fix_or_inspect, self_evolve,
-         no_claude, capability_check, handoff, unclear.
+         personal_tool, no_claude, capability_check, handoff, unclear.
 
 ## Lifecycle longo (quando "do" não basta)
   ./jarvis now                          # retomar (mesmo que ./jarvis do sem argumento)
@@ -55,6 +55,16 @@ Status real: leitura local. Nada foi editado.
 ## Limpeza
   ./jarvis run-prune --keep 20 --dry-run
   ./jarvis run-prune --keep 20 --apply
+
+## Utilidades pessoais
+  ./jarvis assistant-doctor             # verifica captura/imagem/voz/mensagem
+  ./jarvis screen-capture --interactive # seleciona uma área da tela
+  ./jarvis image-to-pdf foto.png --dry-run # plano; PDF bloqueado por AGENTS.md
+  ./jarvis image-convert foto.heic --to jpg # conversão permitida
+  ./jarvis speak "hora de focar"         # fala localmente no macOS
+  ./jarvis message-draft --phone 55... "oi" --open  # rascunho, sem autoenvio
+  ./jarvis storage-scan ~/Downloads     # acha arquivos grandes, sem apagar
+  ./jarvis files-triage ~/Downloads     # plano por tipo, sem mover
 
 ## Quando pedirem contexto / handoff
   ./jarvis handoff-self                 # snapshot do JARVIS (terminal)

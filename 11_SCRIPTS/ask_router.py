@@ -67,6 +67,15 @@ INTENT_CAPABILITY_CHECK = "capability_check"
 INTENT_LIMITS = "limits"
 INTENT_TASK_ADD = "task_add"
 INTENT_TASK_LIST = "task_list"
+INTENT_SCREEN_CAPTURE = "screen_capture"
+INTENT_IMAGE_TO_PDF = "image_to_pdf"
+INTENT_IMAGE_CONVERT = "image_convert"
+INTENT_SPEAK = "speak"
+INTENT_MESSAGE_DRAFT = "message_draft"
+INTENT_MESSAGE_SEND = "message_send"
+INTENT_MEMORY_SAVE = "memory_save"
+INTENT_STORAGE_SCAN = "storage_scan"
+INTENT_FILES_TRIAGE = "files_triage"
 INTENT_UNCLEAR = "unclear"
 
 SAFETY_READONLY = "readonly"
@@ -203,6 +212,40 @@ def _show_unclear_log():
 # "agenda" inside "bug da agenda" does NOT trigger calendar intent), then
 # generic fallbacks (open_project, unclear).
 INTENT_PATTERNS = [
+    # Personal tools are deterministic and more specific than project work.
+    (INTENT_IMAGE_TO_PDF, re.compile(
+        r"(?i)\b(imagem|foto|png|jpe?g|heic|tiff?|webp|svg)\b.*\b(para|em|virar|converter|transformar)\b.*\bpdf\b|"
+        r"\b(converter|transformar)\b.*\b(imagem|foto|[^\s]+\.(?:png|jpe?g|heic|tiff?|webp|svg))\b.*\bpdf\b"
+    )),
+    (INTENT_IMAGE_CONVERT, re.compile(
+        r"(?i)\b(converter|transformar)\b.*\b(?:imagem|foto|[^\s]+\.(?:png|jpe?g|heic|tiff?|webp|svg))\b"
+        r".*\b(?:para|em)\b.*\b(png|jpe?g|tiff?)\b"
+    )),
+    (INTENT_SCREEN_CAPTURE, re.compile(
+        r"(?i)\b(screenshot|captura de tela|tirar? (?:um )?print|print da tela)\b"
+    )),
+    (INTENT_SPEAK, re.compile(
+        r"(?i)\b(ler? em voz alta|leia em voz alta|diga em voz alta|falar em voz alta|"
+        r"sintetizar voz|text[-\s]?to[-\s]?speech|tts)\b"
+    )),
+    (INTENT_MESSAGE_DRAFT, re.compile(
+        r"(?i)\b(mensagem (?:no|pelo) whatsapp|whatsapp para|rascunho de mensagem)\b"
+    )),
+    (INTENT_MESSAGE_SEND, re.compile(
+        r"(?i)\b(mandar? mensagem|enviar? mensagem|manda(?:r)? (?:uma )?msg|envia(?:r)? (?:uma )?msg)\b"
+    )),
+    (INTENT_MEMORY_SAVE, re.compile(
+        r"(?i)\b(?:guarda(?:r)?|salva(?:r)?|registre?|grava(?:r)?|lembre(?:-se)?)\b.{0,90}\b(?:mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b|"
+        r"\b(?:mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b.{0,40}\b(?:guarda(?:r)?|salva(?:r)?|registre?|grava(?:r)?)\b"
+    )),
+    (INTENT_STORAGE_SCAN, re.compile(
+        r"(?i)\b(limpar? armazenamento|analisar? armazenamento|arquivos? grandes?|"
+        r"espaço em disco|espaco em disco|o que est[aá] ocupando)\b"
+    )),
+    (INTENT_FILES_TRIAGE, re.compile(
+        r"(?i)\b(organizar? arquivos?|arrumar? (?:a pasta|os arquivos|downloads)|"
+        r"organizar? downloads|triagem de arquivos|separar? arquivos? por tipo)\b"
+    )),
     # JARVIS foundation/docs/research routing.
     # Keeps requests about identity, modes, sources and architecture out of unclear.
     (INTENT_RESEARCH_PLAN, re.compile(
@@ -380,6 +423,81 @@ def _detect_capability_hint(text: str):
 def _next_command_for(intent: str, project: str, text: str, copy_flag):
     """Return (command_list, human_string, safety, dry_run_safe)."""
     want_copy = " --copy" if copy_flag else ""
+    if intent == INTENT_SCREEN_CAPTURE:
+        return (
+            ["./jarvis", "screen-capture", "--interactive", "--dry-run"],
+            "./jarvis screen-capture --interactive --dry-run",
+            SAFETY_LOCAL_PREP,
+            True,
+        )
+    if intent == INTENT_IMAGE_TO_PDF:
+        match = re.search(r"(?i)([^\s\"']+\.(?:png|jpe?g|heic|tiff?|webp|svg))", text)
+        image = match.group(1) if match else "<IMAGEM>"
+        return (
+            ["./jarvis", "image-to-pdf", image, "--dry-run"],
+            f'./jarvis image-to-pdf "{image}" --dry-run',
+            SAFETY_LOCAL_PREP,
+            bool(match),
+        )
+    if intent == INTENT_IMAGE_CONVERT:
+        image_match = re.search(r"(?i)([^\s\"']+\.(?:png|jpe?g|heic|tiff?|webp|svg))", text)
+        format_match = re.search(r"(?i)\b(?:para|em)\s+(png|jpe?g|tiff?)\b", text)
+        image = image_match.group(1) if image_match else "<IMAGEM>"
+        output_format = format_match.group(1).lower() if format_match else "<FORMATO>"
+        return (
+            ["./jarvis", "image-convert", image, "--to", output_format, "--dry-run"],
+            f'./jarvis image-convert "{image}" --to {output_format} --dry-run',
+            SAFETY_LOCAL_PREP,
+            bool(image_match and format_match),
+        )
+    if intent == INTENT_SPEAK:
+        quoted = re.search(r'["“](.+?)["”]', text)
+        speech = quoted.group(1) if quoted else text
+        return (
+            ["./jarvis", "speak", speech, "--dry-run"],
+            f'./jarvis speak "{speech}" --dry-run',
+            SAFETY_LOCAL_PREP,
+            True,
+        )
+    if intent == INTENT_MESSAGE_DRAFT:
+        phone_match = re.search(r"(?:\+?\d[\d\s().-]{6,}\d)", text)
+        phone = "".join(c for c in phone_match.group(0) if c.isdigit()) if phone_match else "<DDI_DDD_NUMERO>"
+        return (
+            ["./jarvis", "message-draft", "--phone", phone, "<TEXTO>", "--dry-run"],
+            f'./jarvis message-draft --phone {phone} "<TEXTO>" --dry-run',
+            SAFETY_LOCAL_PREP,
+            bool(phone_match),
+        )
+    if intent == INTENT_MESSAGE_SEND:
+        phone_match = re.search(r"(?:\+?\d[\d\s().-]{6,}\d)", text)
+        phone = "".join(c for c in phone_match.group(0) if c.isdigit()) if phone_match else "<DDI_DDD_NUMERO>"
+        return (
+            ["./jarvis", "message-send", "--phone", phone, "<TEXTO>", "--dry-run"],
+            f'./jarvis message-send --phone {phone} "<TEXTO>" --dry-run',
+            SAFETY_LOCAL_WRITE,
+            bool(phone_match),
+        )
+    if intent == INTENT_MEMORY_SAVE:
+        return (
+            ["./jarvis", "memory-save", text, "--dry-run"],
+            f'./jarvis memory-save "{text}" --dry-run',
+            SAFETY_LOCAL_WRITE,
+            True,
+        )
+    if intent == INTENT_STORAGE_SCAN:
+        return (
+            ["./jarvis", "storage-scan", ".", "--top", "20"],
+            "./jarvis storage-scan . --top 20",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_FILES_TRIAGE:
+        return (
+            ["./jarvis", "files-triage", ".", "--limit", "100"],
+            "./jarvis files-triage . --limit 100",
+            SAFETY_READONLY,
+            True,
+        )
     if intent == INTENT_SELF_EVOLVE:
         return (
             ["./jarvis", "self-evolve", "--goal", text] + (["--copy"] if copy_flag else []),
@@ -551,6 +669,15 @@ def _explain_intent(intent: str) -> str:
         INTENT_LIMITS: "explicar fronteira do robô — roda limits",
         INTENT_TASK_ADD: "adicionar tarefa à fila local — roda task-add",
         INTENT_TASK_LIST: "listar tarefas locais — roda task-list",
+        INTENT_SCREEN_CAPTURE: "captura de tela local — sugere preview interativo",
+        INTENT_IMAGE_TO_PDF: "conversão local de imagem para PDF — preserva o original",
+        INTENT_IMAGE_CONVERT: "conversão local entre formatos de imagem permitidos",
+        INTENT_SPEAK: "síntese de voz local — sugere preview antes de falar",
+        INTENT_MESSAGE_DRAFT: "rascunho de WhatsApp — nunca envia automaticamente",
+        INTENT_MESSAGE_SEND: "envio explícito pelo app Mensagens do macOS",
+        INTENT_MEMORY_SAVE: "memória operacional local e versionável",
+        INTENT_STORAGE_SCAN: "inventário read-only de arquivos grandes — nunca apaga",
+        INTENT_FILES_TRIAGE: "plano read-only de organização por tipo — nunca move",
         INTENT_UNCLEAR: "intent não classificada — caindo em self-cockpit como fallback (auto-logged)",
     }.get(intent, intent)
 

@@ -17,7 +17,8 @@ MISSION_PACK = ROOT / "11_SCRIPTS" / "project_mission_pack.py"
 
 # Phrases that must appear somewhere in each doc for doctrine consistency.
 AGENTS_REQUIRED = [
-    "Hard rules",
+    "Publicação em produção só pode acontecer com autorização",
+    "resultado reais",
     "Self-evolution",
     "./jarvis self-cockpit",
     "./jarvis self-evolve",

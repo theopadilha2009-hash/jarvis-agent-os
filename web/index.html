@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#03090f">
+  <meta name="description" content="JARVIS, assistente pessoal de Theo.">
+  <title>JARVIS · Theo</title>
+  <link rel="stylesheet" href="/ui/jarvis.css">
+  <script type="importmap">
+    {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+  </script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="identity">
+        <span class="identity-mark" aria-hidden="true"></span>
+        <b>JARVIS</b>
+        <small>THEO · AGENT OS</small>
+      </div>
+      <div class="connection">
+        <span class="connection-dot" id="connectionDot"></span>
+        <span id="connectionText">acordando</span>
+        <button class="quiet-button" id="detailsButton" type="button">Sistema</button>
+      </div>
+    </header>
+
+    <main class="stage" id="stage" data-state="idle">
+      <section class="presence" aria-label="Presença visual do JARVIS">
+        <div class="grid-plane" aria-hidden="true"></div>
+        <div class="fallback-core" aria-hidden="true"></div>
+        <div class="avatar" id="avatar3d" aria-hidden="true"></div>
+        <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
+
+        <aside class="hud-rail hud-left" aria-label="Contexto atual">
+          <section class="hud-surface signal-surface">
+            <div class="hud-label">VOICE LINK</div>
+            <strong id="voiceLink">aguardando</strong>
+            <div class="signal-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </section>
+          <section class="hud-surface request-surface" id="requestSurface">
+            <div class="hud-label">PEDIDO ATUAL</div>
+            <strong id="requestTitle">Pronto para você</strong>
+            <p id="requestText">Fale naturalmente. O JARVIS escolhe as ferramentas por trás.</p>
+          </section>
+          <section class="hud-surface compact-surface">
+            <div><span>CONTEXTO</span><b id="contextCount">0 turnos</b></div>
+            <div><span>RUNTIME</span><b id="runtimeLabel">local</b></div>
+          </section>
+        </aside>
+
+        <aside class="hud-rail hud-right" aria-label="Canvas de trabalho">
+          <section class="hud-surface mode-surface">
+            <div class="hud-label">MODO ATIVO</div>
+            <strong id="modeLabel">PRESENÇA</strong>
+            <p id="stateLabel">JARVIS está inicializando.</p>
+          </section>
+          <section class="hud-surface live-surface" id="liveSurface">
+            <div class="hud-label">LIVE CANVAS</div>
+            <div class="canvas-empty" id="canvasEmpty">Planos, ações e resultados aparecem aqui enquanto vocês conversam.</div>
+            <div class="canvas-content" id="canvasContent"></div>
+          </section>
+          <section class="hud-surface forge-surface">
+            <div class="hud-label">FORJA</div>
+            <strong>constrói pela conversa</strong>
+            <p>Diga “Forja” e descreva o que deve nascer.</p>
+          </section>
+        </aside>
+
+        <div class="presence-copy" aria-hidden="true">
+          <span>PERSONAL INTELLIGENCE</span>
+          <h1>JARVIS</h1>
+        </div>
+        <div class="spoken-caption" id="spokenCaption" aria-live="polite">Estou aqui.</div>
+      </section>
+
+      <section class="conversation" aria-label="Conversa com JARVIS">
+        <div class="conversation-feed" id="conversationFeed" aria-live="polite">
+          <div class="welcome" id="welcomeMessage">
+            <strong>JARVIS online.</strong>
+            <span>Fale comigo. Para criar ou melhorar algo, comece com “Forja”.</span>
+          </div>
+        </div>
+        <form class="composer" id="commandForm">
+          <button class="voice-button" id="voiceButton" type="button" aria-label="Falar com JARVIS">
+            <span aria-hidden="true"></span>
+          </button>
+          <input id="commandInput" maxlength="8000" autocomplete="off" placeholder="Fale ou diga o que quer…" aria-label="Pedido para JARVIS">
+          <button class="send-button" id="sendButton" type="submit">Enviar</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="systemDialog">
+    <div class="dialog-head">
+      <b>SISTEMA JARVIS</b>
+      <button id="closeDialog" type="button" aria-label="Fechar">×</button>
+    </div>
+    <div class="dialog-grid">
+      <section><span>Serviço</span><strong id="serviceValue">—</strong></section>
+      <section><span>Inteligência</span><strong id="aiValue">—</strong></section>
+      <section><span>Modelo</span><strong id="modelValue">—</strong></section>
+      <section><span>Voz</span><strong id="voiceValue">detectando</strong></section>
+      <section class="dialog-wide"><span>Presença</span><strong id="presenceValue">carregando modelo 3D</strong></section>
+      <section class="dialog-wide"><span>Última ação</span><strong id="activityValue">Nenhuma ação nesta sessão.</strong></section>
+    </div>
+  </dialog>
+
+  <script src="/ui/jarvis.js" defer></script>
+  <script type="module" src="/ui/jarvis-3d.js"></script>
+</body>
+</html>

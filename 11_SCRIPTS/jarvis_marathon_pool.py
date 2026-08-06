@@ -4,6 +4,7 @@ import argparse
 import json
 import py_compile
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -63,11 +64,6 @@ def missing_specs():
     return [spec for spec in generated_specs() if not feature_path(spec["slug"]).exists()]
 
 
-def is_clean():
-    status = run(["git", "status", "-sb"])
-    return status["output"].strip() == "## main...origin/main", status
-
-
 def source_for(spec):
     return f'''from __future__ import annotations
 
@@ -97,7 +93,7 @@ def run_cmd(cmd):
 
 
 def stats():
-    scripts = sorted(SCRIPTS.glob("jarvis_*.py")) + sorted(SCRIPTS.glob("jarvis_pool_*.py"))
+    scripts = sorted(SCRIPTS.glob("jarvis_*.py"))
     rows = []
     total_lines = 0
 
@@ -226,16 +222,7 @@ if __name__ == "__main__":
 '''
 
 
-def build_one(spec, push):
-    clean, status = is_clean()
-    if not clean:
-        return {
-            "slug": spec["slug"],
-            "ok": False,
-            "stage": "pre_clean_check",
-            "git_status": status["output"],
-        }
-
+def build_one(spec):
     path = feature_path(spec["slug"])
     if path.exists():
         return {
@@ -252,31 +239,16 @@ def build_one(spec, push):
     except Exception as exc:
         return {"slug": spec["slug"], "ok": False, "stage": "py_compile", "error": str(exc)}
 
-    feature_run = run(["py", "-3", str(path.relative_to(REPO)), "report"])
+    feature_run = run([sys.executable, str(path.relative_to(REPO)), "report"])
     if feature_run["exit_code"] != 0:
         return {"slug": spec["slug"], "ok": False, "stage": "feature_run", "result": feature_run}
-
-    add = run(["git", "add", str(path.relative_to(REPO))])
-    if add["exit_code"] != 0:
-        return {"slug": spec["slug"], "ok": False, "stage": "git_add", "result": add}
-
-    commit = run(["git", "commit", "-m", f"feat: add Jarvis pool feature {spec['slug'].replace('_', '-')}"])
-    if commit["exit_code"] != 0:
-        return {"slug": spec["slug"], "ok": False, "stage": "git_commit", "result": commit}
-
-    push_result = None
-    if push:
-        push_result = run(["git", "push", "origin", "main"])
-        if push_result["exit_code"] != 0:
-            return {"slug": spec["slug"], "ok": False, "stage": "git_push", "result": push_result}
 
     return {
         "slug": spec["slug"],
         "ok": True,
-        "stage": "built_committed_pushed" if push else "built_committed",
+        "stage": "built_local",
         "path": str(path.relative_to(REPO)),
         "feature_run_seconds": feature_run["seconds"],
-        "commit_output": commit["output"],
     }
 
 
@@ -294,7 +266,7 @@ def plan():
     return 0
 
 
-def run_pool(minutes, max_features, push):
+def run_pool(minutes, max_features):
     started = time.perf_counter()
     deadline = started + max(0.1, minutes * 60)
     OUT.mkdir(parents=True, exist_ok=True)
@@ -307,7 +279,7 @@ def run_pool(minutes, max_features, push):
         if not missing:
             break
 
-        result = build_one(missing[0], push=push)
+        result = build_one(missing[0])
         results.append(result)
 
         if not result.get("ok"):
@@ -322,8 +294,8 @@ def run_pool(minutes, max_features, push):
         "verdict": "pass" if not blockers else "block",
         "minutes_requested": minutes,
         "max_features": max_features,
-        "push": push,
-        "built_count": len([item for item in results if item.get("stage") in ("built_committed", "built_committed_pushed")]),
+        "push": False,
+        "built_count": len([item for item in results if item.get("stage") == "built_local"]),
         "results": results,
         "blockers": blockers,
         "remaining_count": len(missing_specs()),
@@ -393,7 +365,11 @@ def main():
         return plan()
 
     if args.action == "run":
-        return run_pool(args.minutes, args.max_features, args.push)
+        if args.push:
+            print("MARATHON_POOL_BLOCKED")
+            print("--push desativado: o pool gera artefatos locais e nunca publica automaticamente.")
+            return 2
+        return run_pool(args.minutes, args.max_features)
 
     return 0
 

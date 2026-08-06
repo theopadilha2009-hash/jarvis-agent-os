@@ -1315,7 +1315,8 @@ async function call(path, opts, label){
 
 /* ---------- right panel + topbar ---------- */
 function setApiDot(on){
-  $("apiDot").className="d "+(on?"on":"off"); $("apiTxt").textContent=on?"online · 127.0.0.1":"offline";
+  const runtimeHost=(location&&location.hostname)?location.host:"127.0.0.1";
+  $("apiDot").className="d "+(on?"on":"off"); $("apiTxt").textContent=on?("online · "+runtimeHost):"offline";
   const led=$("rcApiLed"); led.className="led "+(on?"ok":"bad"); led.textContent=on?"● online":"● offline";
 }
 function setLed(id,cls,txt){ const e=$(id); e.className="led "+cls; e.textContent="● "+txt; }
@@ -2947,17 +2948,18 @@ else boot();
       document.body.appendChild(box);
     }
     const active = !!window.JARVIS_OWNER_DEV.active;
+    const isWeb = !!(window.JARVIS_OWNER_DEV.data && window.JARVIS_OWNER_DEV.data.runtime === "web");
     box.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <b style="font-size:12px;letter-spacing:.08em;">${active ? "OWNER DEV MODE ON" : "OWNER DEV MODE OFF"}</b>
         <span style="width:9px;height:9px;border-radius:99px;background:${active ? "#7dffbf" : "#ffbf69"};display:inline-block;"></span>
       </div>
       <div style="opacity:.78;line-height:1.35;margin-bottom:10px;">
-        Localhost only. Commit, push, deploy, .env, secrets and free shell stay locked.
+        ${isWeb ? "Web pessoal: chat, planos e handoff local disponíveis. Ações no Mac rodam pelo worker local." : "Localhost: ações de desenvolvimento local disponíveis. Segredos e shell livre ficam bloqueados."}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-        <button onclick="jarvisOwnerDevOn()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">ON</button>
-        <button onclick="jarvisOwnerDevOff()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">OFF</button>
+        <button onclick="jarvisOwnerDevOn()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">${isWeb ? "WEB" : "ON"}</button>
+        <button onclick="jarvisOwnerDevOff()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">${isWeb ? "LOCAL" : "OFF"}</button>
         <button onclick="jarvisOwnerDevSelfTest()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">Self-Test</button>
         <button onclick="jarvisOwnerDevStatus()" style="padding:8px;border-radius:10px;border:0;font-weight:800;cursor:pointer;">Status</button>
       </div>
