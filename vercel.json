@@ -7,6 +7,10 @@
   },
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/api/index?jarvis_path=/"
+    },
+    {
       "source": "/:path*",
       "destination": "/api/index?jarvis_path=/:path*"
     }
