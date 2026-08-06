@@ -10,7 +10,7 @@ back to the local worker explicitly.
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
 import argparse
 import json
@@ -29,6 +29,9 @@ UI_FILE = WEB_DIR / "index.html"
 UI_ASSET_DIR = ROOT / "11_SCRIPTS" / "jarvis_ui_assets"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openrouter/free"
+ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+DEFAULT_ELEVENLABS_VOICE_ID = "tS45q0QcrDHqHoaWdCDR"
+DEFAULT_ELEVENLABS_MODEL = "eleven_v3"
 MAX_BODY_BYTES = 32_768
 MAX_PROMPT_CHARS = 8_000
 
@@ -46,7 +49,7 @@ ASSET_TYPES = {
     ".webp": "image/webp",
 }
 
-WEB_CAPABILITIES = [
+BASE_WEB_CAPABILITIES = [
     {
         "name": "cockpit_web",
         "status": "available",
@@ -58,9 +61,9 @@ WEB_CAPABILITIES = [
         "what": "Conversa via OpenRouter usando o roteador de modelos gratuitos.",
     },
     {
-        "name": "browser_voice",
+        "name": "assistant_voice",
         "status": "available",
-        "what": "Entrada e resposta por voz usando recursos nativos do navegador.",
+        "what": "Entrada por voz no navegador e resposta por ElevenLabs com fallback nativo.",
     },
     {
         "name": "feature_planning",
@@ -82,6 +85,11 @@ WEB_CAPABILITIES = [
         "status": "available_on_local_worker",
         "what": "Envia mensagens explícitas pelo app Mensagens do macOS.",
     },
+    {
+        "name": "n8n_agenda",
+        "status": "needs_environment",
+        "what": "Agenda e tarefas por webhook n8n configurado pelo operador.",
+    },
 ]
 
 LOCAL_INTENTS = (
@@ -92,6 +100,7 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(mand(?:a|ar)|envi(?:a|ar)|escrev(?:a|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|ar)|salv(?:a|ar)|registr(?:a|ar)|grav(?:a|ar)|lembr(?:a|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
     (re.compile(r"\b(coloc(?:a|ar)|adicion(?:a|ar)|marc(?:a|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
+    (re.compile(r"\b(ver|mostr(?:a|ar)|list(?:a|ar)|consult(?:a|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
     (re.compile(r"\b(anot(?:a|ar)|captur(?:a|ar)|registr(?:a|ar))\b.{0,100}\b(ideia|inbox|nota)\b", re.I), "capture_note"),
     (re.compile(r"\b(adicion(?:a|ar)|cri(?:a|ar))\b.{0,60}\b(tarefa|task)\b", re.I), "task_add"),
     (re.compile(r"\b(abr(?:e|ir))\b.{0,40}\b(projeto|oficina|jarvis|gc|ls)\b", re.I), "open_project"),
@@ -123,10 +132,6 @@ PLANNING_PATHS = {
     "/acceptance-checklist",
     "/autopilot-run",
     "/feature-autopilot",
-    "/forge-batch",
-    "/forge-plan",
-    "/forge-run",
-    "/forge-workshop",
     "/operator-brief",
     "/spec-to-tasks",
 }
@@ -139,6 +144,22 @@ def has_secret_like_text(value):
 
 def clean_text(value, limit=MAX_PROMPT_CHARS):
     return str(value or "").replace("\x00", "").strip()[:limit]
+
+
+def web_capabilities():
+    rows = [dict(row) for row in BASE_WEB_CAPABILITIES]
+    configured = {
+        "assistant_chat": bool(os.environ.get("OPENROUTER_API_KEY")),
+        "assistant_voice": bool(os.environ.get("ELEVENLABS_API_KEY")),
+        "n8n_agenda": bool(os.environ.get("N8N_WEBHOOK_URL")),
+    }
+    for row in rows:
+        if row["name"] in configured:
+            if row["name"] == "assistant_voice" and not configured[row["name"]]:
+                row["status"] = "browser_fallback"
+            else:
+                row["status"] = "configured" if configured[row["name"]] else "needs_environment"
+    return rows
 
 
 def request_route(raw_path):
@@ -196,6 +217,8 @@ def memory_tree_payload():
 
 def status_payload():
     ai_ready = bool(os.environ.get("OPENROUTER_API_KEY"))
+    elevenlabs_ready = bool(os.environ.get("ELEVENLABS_API_KEY"))
+    n8n_ready = bool(os.environ.get("N8N_WEBHOOK_URL"))
     return {
         "ok": True,
         "endpoint": "GET /status",
@@ -209,7 +232,17 @@ def status_payload():
             "configured": ai_ready,
             "privacy": "Prompts sent to free models may be retained by their providers; do not send secrets.",
         },
-        "capabilities": WEB_CAPABILITIES,
+        "voice": {
+            "provider": "elevenlabs" if elevenlabs_ready else "browser",
+            "configured": elevenlabs_ready,
+            "voice_id": os.environ.get("ELEVENLABS_VOICE_ID", DEFAULT_ELEVENLABS_VOICE_ID),
+            "model": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
+            "fallback": "speech_synthesis",
+        },
+        "automations": {
+            "n8n": {"configured": n8n_ready, "agenda": n8n_ready},
+        },
+        "capabilities": web_capabilities(),
         "device_actions": "local_worker_required",
         "blocked": ["arbitrary_shell", "secret_exposure", "silent_external_side_effects"],
         "production_touched": False,
@@ -330,6 +363,116 @@ def local_handoff(command, intent, execute=False):
         "copy_command": safe_command,
         "why": "Uma função na Vercel não tem acesso à tela, voz, WhatsApp ou arquivos do seu computador.",
     }
+
+
+def n8n_automation(command, intent):
+    webhook_url = clean_text(os.environ.get("N8N_WEBHOOK_URL"), 2_000)
+    parsed = urlparse(webhook_url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "n8n_not_configured",
+            "visual_state": "error",
+            "error": "O webhook HTTPS do n8n ainda não está configurado.",
+            "intent": intent,
+        }, 503
+
+    request_body = json.dumps({
+        "source": "jarvis-web",
+        "operator": "theo",
+        "intent": intent,
+        "command": command,
+    }, ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json", "X-Jarvis-Source": "web"}
+    token = os.environ.get("N8N_WEBHOOK_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        req = Request(webhook_url, data=request_body, headers=headers, method="POST")
+        with urlopen(req, timeout=20) as response:
+            raw = response.read(1_000_000).decode("utf-8", errors="replace")
+        try:
+            result = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            result = {"result": raw}
+        result_message = ""
+        if isinstance(result, dict):
+            result_message = result.get("message") or result.get("output") or ""
+        message = clean_text(result_message, 2_000) or (
+            "Agenda atualizada pelo n8n."
+            if intent == "agenda_note"
+            else "Agenda consultada pelo n8n."
+        )
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "n8n_automation_completed",
+            "visual_state": "success",
+            "message": message,
+            "intent": intent,
+            "provider": "n8n",
+            "result": result,
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "n8n_automation_failed",
+            "visual_state": "error",
+            "error": f"O n8n recusou a automação (HTTP {error.code}).",
+            "intent": intent,
+        }, 502
+    except (URLError, TimeoutError):
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "n8n_automation_timeout",
+            "visual_state": "error",
+            "error": "O n8n não respondeu a tempo.",
+            "intent": intent,
+        }, 504
+
+
+def elevenlabs_speech(body):
+    text = clean_text(body.get("text") or body.get("message"), 2_200)
+    if not text:
+        return {"ok": False, "error": "Texto vazio para síntese de voz."}, 400
+    if has_secret_like_text(text):
+        return {"ok": False, "error": "Não envio credenciais para síntese de voz."}, 400
+    api_key = os.environ.get("ELEVENLABS_API_KEY")
+    if not api_key:
+        return {
+            "ok": False,
+            "status_real": "browser_voice_fallback_required",
+            "error": "ElevenLabs ainda não está configurado.",
+            "fallback": "speech_synthesis",
+        }, 503
+    voice_id = clean_text(os.environ.get("ELEVENLABS_VOICE_ID") or DEFAULT_ELEVENLABS_VOICE_ID, 100)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
+        return {"ok": False, "error": "Voice ID inválido."}, 500
+    payload = json.dumps({
+        "text": text,
+        "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
+        "language_code": "pt",
+    }, ensure_ascii=False).encode("utf-8")
+    url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
+    headers = {
+        "xi-api-key": api_key,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+    }
+    try:
+        req = Request(url, data=payload, headers=headers, method="POST")
+        with urlopen(req, timeout=25) as response:
+            audio = response.read(8_000_000)
+        if not audio:
+            raise ValueError("empty audio")
+        return audio, 200
+    except HTTPError as error:
+        return {"ok": False, "error": f"ElevenLabs recusou a voz (HTTP {error.code}).", "fallback": "speech_synthesis"}, 502
+    except (URLError, TimeoutError, ValueError):
+        return {"ok": False, "error": "ElevenLabs não respondeu com áudio válido.", "fallback": "speech_synthesis"}, 504
 
 
 def normalize_messages(body):
@@ -458,17 +601,6 @@ def command_payload(body, origin="", local_execute=False):
             "error": "O comando parece conter uma credencial. Remova o segredo e tente novamente.",
         }, 400
 
-    forge_match = re.match(r"^/?(?:forja|forge)\b[:\s-]*(.*)$", command, re.IGNORECASE)
-    if forge_match:
-        goal = clean_text(forge_match.group(1)) or "uma nova capacidade para o JARVIS"
-        payload, status = planning_payload("/forge-run", {"goal": goal})
-        payload.update({
-            "message": f"Forja ativada para: {goal}",
-            "mode": "forge",
-            "visual_state": "forge",
-        })
-        return payload, status
-
     if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.IGNORECASE):
         payload = memory_tree_payload()
         payload.update({
@@ -480,6 +612,8 @@ def command_payload(body, origin="", local_execute=False):
 
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(command):
+            if intent in {"agenda_note", "agenda_view", "task_add"} and os.environ.get("N8N_WEBHOOK_URL"):
+                return n8n_automation(command, intent)
             return local_handoff(command, intent, execute=local_execute), 200
 
     clean = command.lstrip("/").strip()
@@ -617,7 +751,7 @@ class handler(BaseHTTPRequestHandler):
                 "ok": True,
                 "endpoint": f"GET {path}",
                 "status_real": "web_capabilities",
-                "capabilities": WEB_CAPABILITIES,
+                "capabilities": web_capabilities(),
                 "device_actions": [intent for _, intent in LOCAL_INTENTS],
             })
         if path in {"/sources", "/sources-data", "/sources-dashboard"}:
@@ -634,7 +768,7 @@ class handler(BaseHTTPRequestHandler):
             })
         if path == "/memory-tree":
             return self.send_json(200, memory_tree_payload())
-        if path in {"/next", "/latest", "/feature-backlog", "/forge-dashboard", "/autopilot-dashboard"}:
+        if path in {"/next", "/latest", "/feature-backlog", "/autopilot-dashboard"}:
             return self.send_json(200, {
                 "ok": True,
                 "endpoint": f"GET {path}",
@@ -681,6 +815,11 @@ class handler(BaseHTTPRequestHandler):
             payload, status = assistant_response(body, origin=origin)
             payload.setdefault("endpoint", f"POST {path}")
             return self.send_json(status, payload)
+        if path == "/speech":
+            payload, status = elevenlabs_speech(body)
+            if isinstance(payload, bytes):
+                return self.send_bytes(status, payload, "audio/mpeg", "no-store")
+            return self.send_json(status, payload)
         if path in {"/owner-dev/on", "/owner-dev/off", "/owner-dev/toggle"}:
             payload = owner_mode_payload()
             payload["message"] = "O modo web pessoal já está ativo; funções serverless não mantêm toggles locais."
@@ -691,6 +830,8 @@ class handler(BaseHTTPRequestHandler):
                 {"name": "model_asset", "ok": (UI_ASSET_DIR / "models" / "jarvis-humanoid.glb").is_file()},
                 {"name": "stateless_gateway", "ok": True},
                 {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},
+                {"name": "elevenlabs_configured", "ok": bool(os.environ.get("ELEVENLABS_API_KEY")), "required": False},
+                {"name": "n8n_configured", "ok": bool(os.environ.get("N8N_WEBHOOK_URL")), "required": False},
             ]
             return self.send_json(200, {
                 "ok": all(row["ok"] for row in checks if row.get("required", True)),
@@ -711,7 +852,7 @@ class handler(BaseHTTPRequestHandler):
                     "device actions require local worker",
                 ],
             })
-        if path in PLANNING_PATHS or path.startswith(("/forge-", "/feature-", "/context-", "/jarvis-brief")):
+        if path in PLANNING_PATHS or path.startswith(("/feature-", "/context-", "/jarvis-brief")):
             payload, status = planning_payload(path, body)
             return self.send_json(status, payload)
         return self.send_json(404, {

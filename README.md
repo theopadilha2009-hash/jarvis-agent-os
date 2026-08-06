@@ -12,10 +12,15 @@ web compacto em `web/index.html` e a configuração em `vercel.json`. Ele public
 planejamento e chat opcional sem importar o backend local que escreve arquivos
 ou inicia processos.
 
-- Sem credencial, texto livre cai em um planejador local determinístico.
+- Sem credencial, texto livre cai em uma resposta local explícita, sem fingir
+  que executou integrações externas.
 - Com `OPENROUTER_API_KEY` configurada no ambiente da hospedagem, texto livre
   usa `openrouter/free` (ou `OPENROUTER_MODEL`). Nunca coloque a chave no repo.
-- Print, voz, conversão e organização de arquivos retornam um comando de
+- Com `ELEVENLABS_API_KEY`, a rota `/speech` usa a voz
+  `tS45q0QcrDHqHoaWdCDR`; sem ela, o navegador fala pela voz nativa.
+- Com `N8N_WEBHOOK_URL` (e opcionalmente `N8N_WEBHOOK_TOKEN`), pedidos de
+  agenda e tarefas são executados pelo webhook n8n.
+- Print, conversão e organização de arquivos retornam um comando de
   handoff para `./jarvis do ...`, porque a Vercel não acessa o Mac.
 - O runtime web é stateless: histórico persistente exigirá um adaptador de
   banco separado. Nenhuma migration faz parte deste gateway.
@@ -44,8 +49,8 @@ Private GitHub is sync, not a secret vault.
 
 
 Creator / Owner: Theo Padilha  
-Status real: laboratório local em construção  
-Produção: não  
+Status real: cockpit local + runtime web em evolução  
+Produção: Vercel pessoal do Theo  
 Credenciais: não armazenar aqui  
 Ações perigosas: sempre exigem aprovação humana
 
@@ -55,8 +60,10 @@ JARVIS é um AI Operations Worker criado por Theo Padilha para transformar pedid
 ## Como funciona agora
 No estado atual, JARVIS já possui estrutura local de laboratório, inbox para entradas, CLI local, criação automática de tasks, scan/processamento de inbox, logs, arquivo morto para entradas processadas e memória inicial de projetos.
 
-## O que ainda não é
-JARVIS ainda não é automação de produção, sistema conectado a n8n, agente conectado a Claude/Gemini, aplicativo com interface, voz, deploy ou produto comercial final.
+## Limites atuais
+O runtime na Vercel não controla o Mac diretamente. Ações do computador usam o
+worker local; ElevenLabs e n8n só ficam ativos quando suas variáveis de ambiente
+estão configuradas no projeto Vercel.
 
 ## Regra principal
 Nada de produção, token, senha, API key, QR Code, .env, deploy, push/main, envio real, banco real ou VPS real sem aprovação humana.
