@@ -2563,8 +2563,7 @@ def claude_helper_command(sub, args=None):
 
 def doctrine_check_command():
     """./jarvis doctrine-check — verifies AGENTS/CATALOG/help/registry/mission templates sync."""
-    import subprocess
-    subprocess.run(["python3", "11_SCRIPTS/doctrine_check.py"], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/doctrine_check.py", [])
 
 def _run_py_propagate(script, args):
     """Run a Python script and propagate its returncode through sys.exit.
@@ -3882,12 +3881,12 @@ def handoff_open_command():
     subprocess.run(["python3", "11_SCRIPTS/handoff_open.py"], cwd=ROOT, check=False)
 
 def smoke_test_command():
-    import subprocess
-    subprocess.run(["python3", "11_SCRIPTS/cli_smoke_test.py"], cwd=ROOT, check=False)
+    """Run the CLI smoke suite and make a failed gate fail `./jarvis`."""
+    _run_py_propagate("11_SCRIPTS/cli_smoke_test.py", [])
 
 def release_check_command():
-    import subprocess
-    subprocess.run(["python3", "11_SCRIPTS/release_check.py"], cwd=ROOT, check=False)
+    """Run the release suite and propagate its status to callers and CI."""
+    _run_py_propagate("11_SCRIPTS/release_check.py", [])
 
 def handoff_print_command():
     import subprocess
