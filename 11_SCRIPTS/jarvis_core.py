@@ -3077,16 +3077,13 @@ def report_policy_command():
     subprocess.run(["python3", "11_SCRIPTS/report_policy.py"], cwd=ROOT, check=False)
 
 def storage_health_command():
-    import subprocess
-    subprocess.run(["python3", "11_SCRIPTS/storage_health.py"], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/storage_health.py", [])
 
 def secret_scan_command():
-    import subprocess
-    subprocess.run(["python3", "11_SCRIPTS/secret_scan.py"], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/secret_scan.py", [])
 
 def safety_gate_command():
-    import subprocess
-    subprocess.run(["python3", "11_SCRIPTS/safety_gate.py"], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/safety_gate.py", [])
 
 def mode_plan_command(text: str = ""):
     import subprocess
@@ -3115,8 +3112,7 @@ def readonly_run_latest_command():
     subprocess.run(["python3", "11_SCRIPTS/readonly_run_latest.py"], cwd=ROOT, check=False)
 
 def command_audit_command():
-    import subprocess
-    subprocess.run(["python3", "11_SCRIPTS/command_audit.py"], cwd=ROOT, check=False)
+    _run_py_propagate("11_SCRIPTS/command_audit.py", [])
 
 def local_exec_plan_command(text: str = ""):
     import subprocess

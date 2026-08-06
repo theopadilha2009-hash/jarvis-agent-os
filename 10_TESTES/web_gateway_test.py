@@ -214,6 +214,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertFalse(payload["ok"])
 
     def test_vercel_rewrite_path_and_asset_traversal(self):
+        vercel_config = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            vercel_config["rewrites"][0],
+            {"source": "/", "destination": "/api/index?jarvis_path=/"},
+        )
+
         status, _, payload = self.json_request(
             "/api/index?jarvis_path=/capabilities"
         )
