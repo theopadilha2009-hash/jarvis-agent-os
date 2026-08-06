@@ -2825,6 +2825,13 @@ def assistant_doctor_command(args=None):
     """./jarvis assistant-doctor — verifica utilidades pessoais locais."""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["doctor", *(args or [])])
 
+def web_command(args=None):
+    """./jarvis web [--host IP] [--port N] [--no-open|--check]"""
+    try:
+        _run_py_propagate("api/index.py", list(args or []))
+    except KeyboardInterrupt:
+        print("JARVIS web encerrado.")
+
 def screen_capture_command(args=None):
     """./jarvis screen-capture [--interactive] [--output P] [--dry-run]"""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["screen-capture", *(args or [])])
@@ -2844,6 +2851,14 @@ def speak_command(args=None):
 def message_draft_command(args=None):
     """./jarvis message-draft --phone NUMERO texto [--open|--copy|--dry-run]"""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["message-draft", *(args or [])])
+
+def message_send_command(args=None):
+    """./jarvis message-send --phone NUMERO texto [--dry-run]"""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["message-send", *(args or [])])
+
+def memory_save_command(args=None):
+    """./jarvis memory-save texto [--kind learning|decision|preference] [--dry-run]"""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["memory-save", *(args or [])])
 
 def storage_scan_command(args=None):
     """./jarvis storage-scan [PASTA] [--top N] [--min-mb N]"""
@@ -3229,7 +3244,10 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
   ./jarvis image-to-pdf IMAGEM --dry-run     planeja; PDF bloqueado pela doutrina
   ./jarvis image-convert IMAGEM --to jpg     converte preservando original
   ./jarvis speak "bom dia" --dry-run         fala local com a voz do macOS
-  ./jarvis message-draft --phone NUM "oi"    rascunho; nunca envia sozinho
+  ./jarvis message-draft --phone NUM "oi"    abre/copia rascunho de WhatsApp
+  ./jarvis message-send --phone NUM "oi"     envia pelo app Mensagens do Mac
+  ./jarvis memory-save "texto"               grava na memória local versionável
+  ./jarvis web                                abre o JARVIS visual ligado ao worker local
   ./jarvis storage-scan PASTA                mostra arquivos grandes, sem apagar
   ./jarvis files-triage PASTA                plano de organização, sem mover
 
@@ -3344,6 +3362,9 @@ def _help_full():
   ./jarvis image-convert IMAGEM --to png|jpg|tiff [--output P] [--dry-run]  conversão permitida
   ./jarvis speak "texto" [--voice VOZ] [--output audio.aiff] [--dry-run]  voz local
   ./jarvis message-draft --phone NUM "texto" [--open|--copy|--dry-run]  WhatsApp sem autoenvio
+  ./jarvis message-send --phone NUM "texto" [--dry-run]  envio explícito pelo app Mensagens
+  ./jarvis memory-save "texto" [--kind learning|decision|preference] [--dry-run]  memória local
+  ./jarvis web [--no-open|--check]  cockpit visual + OpenRouter + worker local
   ./jarvis storage-scan [PASTA] [--top N] [--min-mb N]  inventário read-only de arquivos grandes
   ./jarvis files-triage [PASTA] [--limit N]  plano de organização por tipo; não move nada
   ./jarvis blueprint --type T --goal "..."  blueprint local (n8n|app|automation|research)
@@ -3548,6 +3569,8 @@ def main():
         decision_show_command(sys.argv[2:])
     elif cmd == "assistant-doctor":
         assistant_doctor_command(sys.argv[2:])
+    elif cmd == "web":
+        web_command(sys.argv[2:])
     elif cmd == "screen-capture":
         screen_capture_command(sys.argv[2:])
     elif cmd == "image-to-pdf":
@@ -3558,6 +3581,10 @@ def main():
         speak_command(sys.argv[2:])
     elif cmd == "message-draft":
         message_draft_command(sys.argv[2:])
+    elif cmd == "message-send":
+        message_send_command(sys.argv[2:])
+    elif cmd == "memory-save":
+        memory_save_command(sys.argv[2:])
     elif cmd == "storage-scan":
         storage_scan_command(sys.argv[2:])
     elif cmd == "files-triage":

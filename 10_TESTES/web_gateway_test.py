@@ -68,10 +68,25 @@ class WebGatewayTest(unittest.TestCase):
         status, _, html = self.request("/")
         self.assertEqual(status, 200)
         self.assertIn(b"JARVIS", html)
-        self.assertIn(b'id="mic"', html)
+        self.assertIn(b'id="voiceButton"', html)
         self.assertIn(b'id="avatar3d"', html)
-        self.assertIn(b'id="hudMode"', html)
-        self.assertIn(b"SpeechRecognition", html)
+        self.assertIn(b'id="liveSurface"', html)
+
+        status, headers, app_js = self.request("/ui/jarvis.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"SpeechRecognition", app_js)
+
+        status, headers, visual_js = self.request("/ui/jarvis-3d.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"drawForge", visual_js)
+        self.assertIn(b"drawMemory", visual_js)
+
+        status, headers, css = self.request("/ui/jarvis.css")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/css")
+        self.assertIn(b".hud-rail", css)
 
         status, _, favicon = self.request("/favicon.ico")
         self.assertEqual(status, 200)
@@ -108,6 +123,32 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["status_real"], "local_action_executed")
         run.assert_called_once()
 
+    def test_message_send_routes_to_local_worker(self):
+        payload, status = MODULE.command_payload(
+            {"command": "mandar mensagem para 5511999999999 dizendo teste local"},
+            local_execute=False,
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["intent"], "message_send")
+        self.assertTrue(payload["requires_local_worker"])
+
+    def test_memory_save_executes_and_opens_memory_visual(self):
+        completed = MODULE.subprocess.CompletedProcess(
+            args=["./jarvis", "do", "guarda isso na mem\u00f3ria"],
+            returncode=0,
+            stdout="Mem\u00f3ria criada: 03_MEMORIA/01_APRENDIZADOS/item.md",
+            stderr="",
+        )
+        with patch.object(MODULE.subprocess, "run", return_value=completed):
+            payload, status = MODULE.command_payload(
+                {"command": "guarda isso na mem\u00f3ria"},
+                local_execute=True,
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["intent"], "memory_save")
+        self.assertEqual(payload["visual_state"], "memory")
+        self.assertTrue(payload["executed_locally"])
+
     def test_unconfigured_ai_uses_deterministic_plan(self):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": ""}, clear=False):
             status, _, payload = self.json_request(
@@ -116,6 +157,28 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertFalse(payload["ai_configured"])
         self.assertGreaterEqual(len(payload["steps"]), 4)
+
+    def test_openrouter_response_returns_to_speaking_visual(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Resposta conectada."}}],
+                }).encode("utf-8")
+
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeResponse()):
+                payload, status = MODULE.assistant_response({"command": "converse comigo"})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "openrouter")
+        self.assertEqual(payload["visual_state"], "response")
+        self.assertEqual(payload["message"], "Resposta conectada.")
 
     def test_forge_is_a_conversational_visual_mode(self):
         status, _, payload = self.json_request(
@@ -126,6 +189,21 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["visual_state"], "forge")
         self.assertEqual(payload["goal"], "uma mem\u00f3ria melhor")
         self.assertGreaterEqual(len(payload["steps"]), 4)
+
+    def test_memory_tree_is_read_only_and_structured(self):
+        status, _, payload = self.json_request("/memory-tree")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["visual_state"], "memory")
+        self.assertFalse(payload["persistent_write"])
+        self.assertIsInstance(payload["nodes"], list)
+        self.assertIsInstance(payload["edges"], list)
+
+        status, _, payload = self.json_request(
+            "/command", "POST", {"command": "mostra minhas mem\u00f3rias"}
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["mode"], "memory")
+        self.assertEqual(payload["visual_state"], "memory")
 
     def test_secret_like_prompt_is_refused(self):
         fake = "sk-" + "or-" + "v1-" + ("x" * 20)
@@ -143,6 +221,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["endpoint"], "GET /capabilities")
 
         status, _, payload = self.json_request("/asset/../../README.md")
+        self.assertIn(status, {403, 404})
+        self.assertFalse(payload["ok"])
+
+        status, _, payload = self.json_request("/ui/../../README.md")
         self.assertIn(status, {403, 404})
         self.assertFalse(payload["ok"])
 

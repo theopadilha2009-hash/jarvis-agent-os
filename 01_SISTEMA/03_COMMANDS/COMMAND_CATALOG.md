@@ -43,18 +43,21 @@ Storage: `05_EXECUCAO/63_DECISIONS/decisions.jsonl` (gitignored, JSONL append-on
 
 ## Utilidades pessoais locais
 
+- `./jarvis web [--no-open|--check]` — inicia o cockpit visual, abre o navegador e conecta conversa/voz ao worker local; usa OpenRouter quando `OPENROUTER_API_KEY` estiver disponível no processo.
 - `./jarvis assistant-doctor` — verifica se o macOS oferece captura, conversão, voz, abertura e clipboard.
 - `./jarvis screen-capture [--interactive] [--output PATH] [--dry-run]` — captura somente quando chamado; o padrão salva em `05_EXECUCAO/64_PERSONAL_TOOLS/screenshots/`.
 - `./jarvis image-to-pdf IMAGEM --dry-run` — mostra o plano, mas recusa gerar PDF enquanto `AGENTS.md` mantiver esse formato bloqueado.
 - `./jarvis image-convert IMAGEM --to png|jpg|tiff [--output PATH] [--dry-run]` — usa `sips`, preserva o original e recusa sobrescrever o destino.
 - `./jarvis speak "texto" [--voice VOZ] [--rate N] [--output audio.aiff] [--dry-run]` — fala ou gera AIFF localmente com `say`.
 - `./jarvis message-draft --phone DDI_DDD_NUMERO "texto" [--open|--copy|--dry-run]` — prepara WhatsApp; nunca clica em Enviar.
+- `./jarvis message-send --phone DDI_DDD_NUMERO "texto" [--dry-run]` — envia explicitamente pelo app Mensagens do macOS; requer conta iMessage ativa.
+- `./jarvis memory-save "texto" [--kind learning|decision|preference] [--dry-run]` — grava memória Markdown local em `03_MEMORIA/`, pronta para aparecer na constelação e ser versionada.
 - `./jarvis storage-scan [PASTA] [--top N] [--min-mb N]` — inventário read-only dos maiores arquivos; não lê conteúdo e não move/apaga nada.
 - `./jarvis files-triage [PASTA] [--limit N]` — classifica arquivos soltos por extensão e mostra origem → destino; não possui `--apply`.
 
-Todas recusam texto com aparência de segredo. Processos nativos são executados por lista de argumentos, sem shell. Saídas locais ficam gitignored; nenhuma ação de mensagem, organização ou limpeza é automática.
+Todas recusam texto com aparência de segredo. Processos nativos são executados por lista de argumentos, sem shell. Somente `message-send`, chamado de forma explícita e com destino/texto completos, envia uma mensagem; organização e limpeza continuam sem aplicação automática.
 
-O worker principal também reconhece essas intenções: `./jarvis do "tirar um print" --dry-run`, `./jarvis do "converter foto.heic para jpg" --dry-run`, `./jarvis do 'ler em voz alta "hora de focar"' --dry-run`, `./jarvis do 'mandar mensagem para 5511... "texto"' --dry-run` e `./jarvis do "arquivos grandes em downloads" --dry-run`.
+O worker principal também reconhece essas intenções: `./jarvis do "tirar um print" --dry-run`, `./jarvis do "converter foto.heic para jpg" --dry-run`, `./jarvis do 'ler em voz alta "hora de focar"' --dry-run`, `./jarvis do 'mandar mensagem para 5511... "texto"' --dry-run`, `./jarvis do "guarda que prefiro respostas curtas na memória" --dry-run` e `./jarvis do "arquivos grandes em downloads" --dry-run`.
 
 ## Project max-machine (v1.1)
 

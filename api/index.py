@@ -19,10 +19,13 @@ import os
 import re
 import shlex
 import subprocess
+import threading
+import webbrowser
 
 
 ROOT = Path(__file__).resolve().parents[1]
-UI_FILE = ROOT / "web" / "index.html"
+WEB_DIR = ROOT / "web"
+UI_FILE = WEB_DIR / "index.html"
 UI_ASSET_DIR = ROOT / "11_SCRIPTS" / "jarvis_ui_assets"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openrouter/free"
@@ -69,13 +72,29 @@ WEB_CAPABILITIES = [
         "status": "available",
         "what": "Transforma pedidos de dispositivo em comandos explícitos para o worker local.",
     },
+    {
+        "name": "persistent_memory",
+        "status": "available_on_local_worker",
+        "what": "Grava memória Markdown local e atualiza a constelação visual.",
+    },
+    {
+        "name": "mac_messages",
+        "status": "available_on_local_worker",
+        "what": "Envia mensagens explícitas pelo app Mensagens do macOS.",
+    },
 ]
 
 LOCAL_INTENTS = (
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
     (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
     (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
-    (re.compile(r"\b(mand(?:a|ar)|envi(?:a|ar)|escrev(?:a|er))\b.{0,40}\b(mensagem|whatsapp|msg)\b", re.I), "message_draft"),
+    (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|whatsapp\s+para|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
+    (re.compile(r"\b(mand(?:a|ar)|envi(?:a|ar)|escrev(?:a|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
+    (re.compile(r"\b(guard(?:a|ar)|salv(?:a|ar)|registr(?:a|ar)|grav(?:a|ar)|lembr(?:a|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
+    (re.compile(r"\b(coloc(?:a|ar)|adicion(?:a|ar)|marc(?:a|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
+    (re.compile(r"\b(anot(?:a|ar)|captur(?:a|ar)|registr(?:a|ar))\b.{0,100}\b(ideia|inbox|nota)\b", re.I), "capture_note"),
+    (re.compile(r"\b(adicion(?:a|ar)|cri(?:a|ar))\b.{0,60}\b(tarefa|task)\b", re.I), "task_add"),
+    (re.compile(r"\b(abr(?:e|ir))\b.{0,40}\b(projeto|oficina|jarvis|gc|ls)\b", re.I), "open_project"),
     (re.compile(r"\b(ver|listar|encontrar|procurar)\b.{0,40}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
     (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
 )
@@ -142,6 +161,37 @@ def public_sources():
         {"name": "LOCAL WORKER", "path": "local/jarvis-do", "category": "device"},
         {"name": "CAPABILITIES", "path": "web/capabilities", "category": "system"},
     ]
+
+
+def memory_tree_payload():
+    memory_root = ROOT / "03_MEMORIA"
+    nodes = []
+    edges = []
+    if memory_root.is_dir():
+        for path in sorted(memory_root.rglob("*.md"), reverse=True)[:80]:
+            relative = path.relative_to(memory_root)
+            category = relative.parts[0] if len(relative.parts) > 1 else "MEMORIA"
+            node_id = str(relative).replace(os.sep, "/")
+            label = path.stem.replace("_", " ").replace("-", " ")[:80]
+            nodes.append({
+                "id": node_id,
+                "label": label,
+                "category": category,
+                "path": f"03_MEMORIA/{node_id}",
+            })
+            edges.append({"source": category, "target": node_id})
+    categories = sorted({node["category"] for node in nodes})
+    return {
+        "ok": True,
+        "endpoint": "GET /memory-tree",
+        "status_real": "local_memory_index_read",
+        "visual_state": "memory",
+        "nodes": nodes,
+        "edges": edges,
+        "categories": categories,
+        "count": len(nodes),
+        "persistent_write": False,
+    }
 
 
 def status_payload():
@@ -242,12 +292,17 @@ def local_handoff(command, intent, execute=False):
                 env=os.environ.copy(),
             )
             output = (result.stdout or result.stderr or "").strip()[-8_000:]
+            success_messages = {
+                "memory_save": "Guardei isso na memória local.",
+                "message_send": "Mensagem entregue ao app Mensagens do Mac.",
+                "screen_capture": "Captura concluída no seu Mac.",
+            }
             return {
                 "ok": result.returncode == 0,
                 "endpoint": "POST /command",
                 "status_real": "local_action_executed" if result.returncode == 0 else "local_action_failed",
-                "visual_state": "success" if result.returncode == 0 else "error",
-                "message": "Feito no seu Mac." if result.returncode == 0 else "Tentei fazer no Mac, mas a ferramenta retornou um erro.",
+                "visual_state": "memory" if result.returncode == 0 and intent == "memory_save" else "success" if result.returncode == 0 else "error",
+                "message": success_messages.get(intent, "Feito no seu Mac.") if result.returncode == 0 else "Tentei fazer no Mac, mas a ferramenta retornou um erro.",
                 "intent": intent,
                 "executed_locally": True,
                 "exit_code": result.returncode,
@@ -414,6 +469,15 @@ def command_payload(body, origin="", local_execute=False):
         })
         return payload, status
 
+    if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.IGNORECASE):
+        payload = memory_tree_payload()
+        payload.update({
+            "message": f"Abri sua constelação com {payload['count']} memórias locais.",
+            "mode": "memory",
+            "sources": payload["nodes"][:12],
+        })
+        return payload, 200
+
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(command):
             return local_handoff(command, intent, execute=local_execute), 200
@@ -510,6 +574,21 @@ class handler(BaseHTTPRequestHandler):
         except OSError:
             return self.send_json(404, {"ok": False, "error": "asset not found"})
 
+    def serve_web_asset(self, relative):
+        try:
+            base = WEB_DIR.resolve()
+            target = (base / unquote(relative).lstrip("/")).resolve()
+            if target != base and base not in target.parents:
+                return self.send_json(403, {"ok": False, "error": "web asset path not allowed"})
+            if not target.is_file() or target == UI_FILE.resolve():
+                return self.send_json(404, {"ok": False, "error": "web asset not found"})
+            content_type = ASSET_TYPES.get(target.suffix.lower())
+            if not content_type:
+                content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+            return self.send_bytes(200, target.read_bytes(), content_type)
+        except OSError:
+            return self.send_json(404, {"ok": False, "error": "web asset not found"})
+
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Allow", "GET, POST, OPTIONS")
@@ -523,6 +602,8 @@ class handler(BaseHTTPRequestHandler):
             return self.serve_ui()
         if path == "/favicon.ico":
             return self.send_bytes(200, b"", "image/x-icon", "public, max-age=86400")
+        if path.startswith("/ui/"):
+            return self.serve_web_asset(path[len("/ui/"):])
         if path.startswith("/asset/"):
             return self.serve_asset(path[len("/asset/"):])
         if path in {"/health", "/status", "/runtime"}:
@@ -551,6 +632,8 @@ class handler(BaseHTTPRequestHandler):
                 "total_sources": len(sources),
                 "returned": len(sources),
             })
+        if path == "/memory-tree":
+            return self.send_json(200, memory_tree_payload())
         if path in {"/next", "/latest", "/feature-backlog", "/forge-dashboard", "/autopilot-dashboard"}:
             return self.send_json(200, {
                 "ok": True,
@@ -646,11 +729,32 @@ def main():
     parser = argparse.ArgumentParser(description="JARVIS web gateway preview")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8790)
+    parser.add_argument("--no-open", action="store_true")
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
+    required = [UI_FILE, WEB_DIR / "jarvis.css", WEB_DIR / "jarvis.js", WEB_DIR / "jarvis-3d.js", UI_ASSET_DIR / "models" / "jarvis-humanoid.glb"]
+    missing = [str(path.relative_to(ROOT)) for path in required if not path.is_file()]
+    if args.check:
+        print("JARVIS Web Check")
+        print("Status real: arquivos locais do cockpit verificados.")
+        if missing:
+            print("FALHA: " + ", ".join(missing))
+            print("Produção: nada alterado.")
+            return 1
+        print(f"OK — {len(required)} componentes presentes.")
+        print("Produção: nada alterado.")
+        return 0
+    if missing:
+        print("FALHA: cockpit incompleto: " + ", ".join(missing))
+        print("Produção: nada alterado.")
+        return 1
     server = ThreadingHTTPServer((args.host, args.port), handler)
+    url = f"http://{args.host}:{args.port}"
     print("JARVIS web gateway")
-    print(f"Status real: local preview at http://{args.host}:{args.port}")
+    print(f"Status real: local preview at {url}")
     print("Produção: nada alterado.")
+    if not args.no_open:
+        threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

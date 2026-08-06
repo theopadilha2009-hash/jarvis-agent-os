@@ -1,15 +1,16 @@
 """Small, deterministic personal tools for the local-first JARVIS.
 
 The module intentionally uses Python's standard library plus native macOS
-commands.  It never invokes a shell, reads environment files, deletes files,
-overwrites outputs, sends a message automatically, or generates PDF (blocked
-by the repository doctrine).
+commands. It never invokes a shell, reads environment files, deletes files,
+or overwrites outputs. Messages are sent only by the explicit `message-send`
+command; `message-draft` remains a non-sending WhatsApp handoff.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,7 @@ from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DIR = ROOT / "05_EXECUCAO" / "64_PERSONAL_TOOLS"
+MEMORY_DIR = ROOT / "03_MEMORIA"
 SCREENSHOT_DIR = RUNTIME_DIR / "screenshots"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".tif", ".tiff", ".webp", ".svg"}
 IMAGE_OUTPUT_FORMATS = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "tif": "tiff", "tiff": "tiff"}
@@ -95,6 +97,12 @@ def _run_native(argv: list[str]) -> None:
         _fail(f"comando nativo terminou com código {result.returncode}.")
 
 
+def _slug(value: str, limit: int = 54) -> str:
+    normalized = value.lower()
+    normalized = re.sub(r"[^a-z0-9à-ÿ]+", "-", normalized).strip("-")
+    return normalized[:limit].rstrip("-") or "memoria"
+
+
 def cmd_doctor(_args: argparse.Namespace) -> None:
     print("JARVIS — Assistant Doctor")
     print("Status real: inspeção local de ferramentas. Nada foi editado.")
@@ -105,6 +113,7 @@ def cmd_doctor(_args: argparse.Namespace) -> None:
         "say": "fala e áudio",
         "open": "abrir rascunho de mensagem",
         "pbcopy": "copiar rascunho",
+        "osascript": "enviar pelo app Mensagens",
     }
     available = 0
     for binary, purpose in tools.items():
@@ -113,7 +122,7 @@ def cmd_doctor(_args: argparse.Namespace) -> None:
         print(f"{'OK' if path else 'AUSENTE':7} {purpose:28} {path or binary}")
     print("")
     print(f"Disponíveis: {available}/{len(tools)}")
-    print("Regra: nenhuma mensagem é enviada e nenhum arquivo é apagado automaticamente.")
+    print("Regra: somente message-send envia sob pedido explícito; nenhum arquivo é apagado automaticamente.")
     print("Produção: nada alterado.")
 
 
@@ -249,6 +258,94 @@ def cmd_message_draft(args: argparse.Namespace) -> None:
     if not acted:
         print(f"link: {url}")
         print("Use --open para abrir ou --copy para copiar. Nada foi enviado.")
+    print("Produção: nada alterado.")
+
+
+def cmd_message_send(args: argparse.Namespace) -> None:
+    text = " ".join(args.text).strip()
+    phone = "".join(char for char in args.phone if char.isdigit())
+    if not text:
+        _fail("mensagem vazia.")
+    if _looks_secret_like(text):
+        _fail("a mensagem parece conter segredo; nada foi enviado.", 2)
+    if not 8 <= len(phone) <= 15:
+        _fail("telefone inválido; informe DDI + DDD + número.")
+    print("JARVIS — Message Send")
+    print("Status real: envio explícito pelo app Mensagens do macOS.")
+    print(f"destino final: ...{phone[-4:]}")
+    print(f"caracteres: {len(text)}")
+    if args.dry_run:
+        print("Modo: --dry-run (nenhuma mensagem enviada).")
+        print("Produção: nada alterado.")
+        return
+    binary = _require_binary("osascript")
+    script = """
+on run argv
+  set targetPhone to item 1 of argv
+  set messageText to item 2 of argv
+  tell application "Messages"
+    set targetService to first service whose service type = iMessage
+    set targetBuddy to buddy targetPhone of targetService
+    send messageText to targetBuddy
+  end tell
+end run
+""".strip()
+    result = subprocess.run(
+        [binary, "-e", script, phone, text],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        _fail("o app Mensagens recusou o envio; confirme que a conta está ativa e o destino usa iMessage.")
+    print("OK — mensagem entregue ao app Mensagens para envio.")
+    print("Produção: nada alterado.")
+
+
+def cmd_memory_save(args: argparse.Namespace) -> None:
+    text = " ".join(args.text).strip()
+    if not text:
+        _fail("memória vazia.")
+    if _looks_secret_like(text):
+        _fail("a memória parece conter segredo; nada foi salvo.", 2)
+    categories = {
+        "learning": "01_APRENDIZADOS",
+        "decision": "02_DECISOES",
+        "preference": "03_PREFERENCIAS",
+    }
+    category = categories[args.kind]
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    target = MEMORY_DIR / category / f"{stamp}_{_slug(text)}.md"
+    print("JARVIS — Memory Save")
+    print("Status real: memória operacional local e versionável.")
+    print(f"tipo: {args.kind}")
+    if args.dry_run:
+        print(f"destino previsto: {_safe_path(target)}")
+        print("Modo: --dry-run (nenhuma memória gravada).")
+        print("Produção: nada alterado.")
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        "\n".join([
+            f"# Memória — {args.kind}",
+            "",
+            "## Conteúdo",
+            text,
+            "",
+            "## Origem",
+            "Conversa explícita com Theo pelo JARVIS.",
+            "",
+            "## Data",
+            datetime.now().astimezone().isoformat(timespec="seconds"),
+            "",
+            "## Produção",
+            "Nada alterado.",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    print(f"Memória criada: {_safe_path(target)}")
     print("Produção: nada alterado.")
 
 
@@ -415,6 +512,16 @@ def build_parser() -> argparse.ArgumentParser:
     message.add_argument("--copy", action="store_true")
     message.add_argument("--dry-run", action="store_true")
 
+    message_send = sub.add_parser("message-send")
+    message_send.add_argument("--phone", required=True)
+    message_send.add_argument("text", nargs="+")
+    message_send.add_argument("--dry-run", action="store_true")
+
+    memory = sub.add_parser("memory-save")
+    memory.add_argument("text", nargs="+")
+    memory.add_argument("--kind", choices=("learning", "decision", "preference"), default="learning")
+    memory.add_argument("--dry-run", action="store_true")
+
     storage = sub.add_parser("storage-scan")
     storage.add_argument("path", nargs="?", default=".")
     storage.add_argument("--top", type=int, default=20, choices=range(1, 101))
@@ -437,6 +544,8 @@ def main() -> None:
         "image-convert": cmd_image_convert,
         "speak": cmd_speak,
         "message-draft": cmd_message_draft,
+        "message-send": cmd_message_send,
+        "memory-save": cmd_memory_save,
         "storage-scan": cmd_storage_scan,
         "files-triage": cmd_files_triage,
     }

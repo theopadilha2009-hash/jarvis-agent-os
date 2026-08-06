@@ -627,7 +627,12 @@ CHECKS = [
     {
         "name": "assistant-doctor",
         "cmd": ["./jarvis", "assistant-doctor"],
-        "expect": ["Assistant Doctor", "captura de tela", "nenhuma mensagem é enviada", "Produção: nada alterado"],
+        "expect": ["Assistant Doctor", "captura de tela", "somente message-send envia", "Produção: nada alterado"],
+    },
+    {
+        "name": "web-check",
+        "cmd": ["./jarvis", "web", "--check"],
+        "expect": ["JARVIS Web Check", "componentes presentes", "Produção: nada alterado"],
     },
     {
         "name": "screen-capture-dry-run",
@@ -653,6 +658,16 @@ CHECKS = [
         "name": "message-draft-dry-run",
         "cmd": ["./jarvis", "message-draft", "--phone", "5511999999999", "mensagem de teste", "--dry-run"],
         "expect": ["Message Draft", "nunca envia", "nada aberto ou copiado", "Produção: nada alterado"],
+    },
+    {
+        "name": "message-send-dry-run",
+        "cmd": ["./jarvis", "message-send", "--phone", "5511999999999", "mensagem de teste", "--dry-run"],
+        "expect": ["Message Send", "envio explícito", "nenhuma mensagem enviada", "Produção: nada alterado"],
+    },
+    {
+        "name": "memory-save-dry-run",
+        "cmd": ["./jarvis", "memory-save", "Theo prefere respostas diretas", "--kind", "preference", "--dry-run"],
+        "expect": ["Memory Save", "memória operacional", "nenhuma memória gravada", "Produção: nada alterado"],
     },
     {
         "name": "storage-scan-read-only",
@@ -1336,8 +1351,18 @@ CHECKS = [
     },
     {
         "name": "do-message-draft-dry-run",
-        "cmd": ["./jarvis", "do", "mandar mensagem para 5511999999999", "teste local", "--dry-run"],
+        "cmd": ["./jarvis", "do", "mensagem no whatsapp para 5511999999999", "teste local", "--dry-run"],
         "expect": ["Worker Engine", "personal_tool", "message_draft", "message-draft", "nenhum comando foi executado"],
+    },
+    {
+        "name": "do-message-send-dry-run",
+        "cmd": ["./jarvis", "do", "mandar mensagem para 5511999999999", "teste local", "--dry-run"],
+        "expect": ["Worker Engine", "personal_tool", "message_send", "message-send", "nenhum comando foi executado"],
+    },
+    {
+        "name": "do-memory-save-dry-run",
+        "cmd": ["./jarvis", "do", "guarda Theo prefere respostas diretas na memória", "--dry-run"],
+        "expect": ["Worker Engine", "personal_tool", "memory_save", "memory-save", "nenhum comando foi executado"],
     },
     {
         "name": "do-storage-scan-dry-run",

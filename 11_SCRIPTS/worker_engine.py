@@ -78,6 +78,8 @@ try:
         INTENT_IMAGE_CONVERT,
         INTENT_SPEAK,
         INTENT_MESSAGE_DRAFT,
+        INTENT_MESSAGE_SEND,
+        INTENT_MEMORY_SAVE,
         INTENT_STORAGE_SCAN,
         INTENT_FILES_TRIAGE,
         INTENT_UNCLEAR,
@@ -107,6 +109,8 @@ except Exception:
     INTENT_IMAGE_CONVERT = "image_convert"
     INTENT_SPEAK = "speak"
     INTENT_MESSAGE_DRAFT = "message_draft"
+    INTENT_MESSAGE_SEND = "message_send"
+    INTENT_MEMORY_SAVE = "memory_save"
     INTENT_STORAGE_SCAN = "storage_scan"
     INTENT_FILES_TRIAGE = "files_triage"
     INTENT_UNCLEAR = "unclear"
@@ -156,6 +160,8 @@ ALLOWED_PREFIXES = {
     ("./jarvis", "image-convert"),
     ("./jarvis", "speak"),
     ("./jarvis", "message-draft"),
+    ("./jarvis", "message-send"),
+    ("./jarvis", "memory-save"),
     ("./jarvis", "storage-scan"),
     ("./jarvis", "files-triage"),
     # Sprint 8.1 — mission pack generators (write to gitignored 21_CLAUDE_MISSIONS).
@@ -615,6 +621,8 @@ def choose_route(text, intent, project, capability_hint, mode, project_override=
         INTENT_IMAGE_CONVERT,
         INTENT_SPEAK,
         INTENT_MESSAGE_DRAFT,
+        INTENT_MESSAGE_SEND,
+        INTENT_MEMORY_SAVE,
         INTENT_STORAGE_SCAN,
         INTENT_FILES_TRIAGE,
     ):
@@ -836,6 +844,41 @@ def plan_personal(text, intent, dry_run):
         if dry_run:
             cmd.append("--dry-run")
         return [("Rascunho de WhatsApp (sem envio)", cmd, None)], "revise o link e envie manualmente", None, {}
+
+    if intent == INTENT_MESSAGE_SEND:
+        phone_match = re.search(r"(?:\+?\d[\d\s().-]{6,}\d)", text)
+        if not phone_match:
+            return [], None, "Informe DDI + DDD + número para enviar pelo app Mensagens.", {}
+        phone = "".join(char for char in phone_match.group(0) if char.isdigit())
+        quoted = re.search(r'["“](.+?)["”]', text)
+        body = quoted.group(1) if quoted else re.sub(re.escape(phone_match.group(0)), "", text).strip(" :-")
+        if not quoted:
+            body = re.sub(
+                r"(?i)^\s*(?:mandar?|enviar?|manda|envia)\s+(?:uma\s+)?(?:mensagem|msg)\s*(?:para)?\s*",
+                "",
+                body,
+            ).strip()
+        if not body:
+            return [], None, "Informe também o texto exato da mensagem.", {}
+        cmd = ["./jarvis", "message-send", "--phone", phone, body]
+        if dry_run:
+            cmd.append("--dry-run")
+        return [("Enviar pelo app Mensagens", cmd, None)], "mensagem enviada pelo Mac", None, {}
+
+    if intent == INTENT_MEMORY_SAVE:
+        body = re.sub(
+            r"(?i)^\s*(?:guarda(?:r)?|salva(?:r)?|registre?|grava(?:r)?|lembre(?:-se)?)\s*",
+            "",
+            text,
+        ).strip(" :-")
+        body = re.sub(r"(?i)\s+(?:na|como)\s+(?:mem[oó]ria|aprendizado|decis[aã]o|prefer[eê]ncia)\s*$", "", body).strip()
+        if not body:
+            return [], None, "Diga o conteúdo que deve entrar na memória.", {}
+        kind = "preference" if re.search(r"(?i)prefer[eê]ncia", text) else "decision" if re.search(r"(?i)decis[aã]o", text) else "learning"
+        cmd = ["./jarvis", "memory-save", body, "--kind", kind]
+        if dry_run:
+            cmd.append("--dry-run")
+        return [("Gravar memória operacional", cmd, None)], "memória disponível na constelação local", None, {"memory_kind": kind}
 
     scan_path = str(Path.home() / "Downloads") if "download" in text.lower() else "."
     if intent == INTENT_STORAGE_SCAN:
