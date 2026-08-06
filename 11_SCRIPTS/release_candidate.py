@@ -312,11 +312,13 @@ def cmd_freeze(argv):
     if state == "NOT READY":
         print("FALHA: rc-freeze não congela com NOT READY.")
         print("Próximo: ./jarvis rc-status   # ver pendências")
+        print("Produção: nada alterado.")
         sys.exit(1)
 
     if state == "READY WITH WARNINGS" and not skip_gates:
         print("AVISO: nenhum gate-run registrado.")
         print("Sugestão: ./jarvis gates  (ou re-rode com --skip-gates para forçar)")
+        print("Produção: nada alterado.")
         sys.exit(1)
 
     snap = _snapshot_text(info)

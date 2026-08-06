@@ -76,6 +76,13 @@ def load_project(alias):
     return projects[alias]
 
 
+def resolve_project_path(project):
+    path = Path(str(project["path"])).expanduser()
+    if not path.is_absolute():
+        path = ROOT / path
+    return path.resolve()
+
+
 def _pbcopy(text: str) -> bool:
     if not shutil.which("pbcopy"):
         return False
@@ -90,7 +97,7 @@ def _pbcopy(text: str) -> bool:
 def main():
     alias, mode = parse_args(sys.argv[1:])
     project = load_project(alias)
-    path = project["path"]
+    path = resolve_project_path(project)
 
     print("JARVIS — Project Open (apenas instruções; nada executado)")
     print(f"Status real: leitura local. Nada foi editado.")
