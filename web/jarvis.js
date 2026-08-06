@@ -13,9 +13,12 @@
     listening: false,
     speaking: false,
     working: false,
+    elevenlabs: false,
     responseState: "",
     history: [],
   };
+  let currentAudio = null;
+  let currentAudioUrl = "";
 
   const stateLabels = {
     idle: ["PRESENÇA", "aguardando você"],
@@ -24,7 +27,6 @@
     planning: ["PLANO", "organizando a execução"],
     speaking: ["RESPOSTA", "falando com você"],
     response: ["RESPOSTA", "resultado disponível"],
-    forge: ["FORJA", "construindo uma nova capacidade"],
     memory: ["MEMÓRIA", "indexando conhecimento local"],
     local: ["WORKER LOCAL", "ação preparada no Mac"],
     success: ["CONCLUÍDO", "ação finalizada"],
@@ -73,7 +75,7 @@
   }
 
   function setRequest(command) {
-    byId("requestTitle").textContent = command.toLowerCase().startsWith("forja") ? "Nova construção" : "Entendendo intenção";
+    byId("requestTitle").textContent = "Executando pedido";
     byId("requestText").textContent = command;
     byId("spokenCaption").textContent = command;
     byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
@@ -118,26 +120,53 @@
       || voices.find((voice) => voice.lang?.startsWith("pt"));
   }
 
-  function speak(text) {
-    if (!("speechSynthesis" in window) || !text) return;
-    const clean = String(text).replace(/\s+/g, " ").slice(0, 2200);
+  function beginSpeaking(clean) {
+    session.speaking = true;
+    byId("spokenCaption").textContent = clean;
+    settleState();
+  }
+
+  function finishSpeaking() {
+    session.speaking = false;
+    settleState();
+  }
+
+  function speakInBrowser(clean) {
+    if (!("speechSynthesis" in window) || !clean) return;
     const utterance = new SpeechSynthesisUtterance(clean);
     const voice = chooseVoice();
     if (voice) utterance.voice = voice;
     utterance.lang = "pt-BR";
     utterance.rate = 1.02;
     utterance.pitch = 0.87;
-    utterance.onstart = () => {
-      session.speaking = true;
-      byId("spokenCaption").textContent = clean;
-      settleState();
-    };
-    utterance.onend = utterance.onerror = () => {
-      session.speaking = false;
-      settleState();
-    };
+    utterance.onstart = () => beginSpeaking(clean);
+    utterance.onend = utterance.onerror = finishSpeaking;
     speechSynthesis.cancel();
     speechSynthesis.speak(utterance);
+  }
+
+  async function speak(text) {
+    if (!text) return;
+    const clean = String(text).replace(/\s+/g, " ").slice(0, 2200);
+    if (!session.elevenlabs) return speakInBrowser(clean);
+    try {
+      currentAudio?.pause();
+      if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
+      const response = await fetch("/speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: clean }),
+      });
+      if (!response.ok) throw new Error("elevenlabs unavailable");
+      currentAudioUrl = URL.createObjectURL(await response.blob());
+      currentAudio = new Audio(currentAudioUrl);
+      currentAudio.onplay = () => beginSpeaking(clean);
+      currentAudio.onended = currentAudio.onerror = finishSpeaking;
+      await currentAudio.play();
+    } catch {
+      finishSpeaking();
+      speakInBrowser(clean);
+    }
   }
 
   function showResponse(data) {
@@ -167,7 +196,7 @@
       copy.textContent = "Copiado";
     });
     byId("activityValue").textContent = data.executed_locally ? `Executado localmente · ${data.intent || "ação"}` : answer;
-    byId("requestTitle").textContent = data.mode === "forge" ? "Forja em andamento" : data.executed_locally ? "Ação local" : "Resposta pronta";
+    byId("requestTitle").textContent = data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
     renderLiveCanvas(data);
     if (session.responseState === "memory") window.dispatchEvent(new CustomEvent("jarvis-memory-refresh"));
     settleState();
@@ -248,6 +277,18 @@
       byId("serviceValue").textContent = status.service || "jarvis-web";
       byId("aiValue").textContent = status.ai?.configured ? "OpenRouter conectado" : "OpenRouter não configurado";
       byId("modelValue").textContent = status.ai?.model || "—";
+      session.elevenlabs = Boolean(status.voice?.configured);
+      byId("voiceValue").textContent = session.elevenlabs ? "ElevenLabs + microfone" : "voz nativa + microfone";
+      const ready = [
+        status.ai?.configured ? "IA" : "",
+        status.voice?.configured ? "ElevenLabs" : "voz nativa",
+        status.automations?.n8n?.configured ? "n8n" : "",
+        status.runtime === "local_web_preview" ? "worker local" : "",
+      ].filter(Boolean);
+      byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
+      byId("integrationHint").textContent = status.automations?.n8n?.configured
+        ? "Agenda e tarefas conectadas ao n8n."
+        : "Agenda aguarda o webhook n8n; ações do Mac usam o worker local.";
       byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
       setVisualState(status.ok ? "idle" : "offline");
     } catch {

@@ -61,6 +61,8 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, payload = self.json_request("/status")
         self.assertEqual(status, 200)
         self.assertEqual(payload["service"], "jarvis-web")
+        self.assertIn("voice", payload)
+        self.assertIn("n8n", payload["automations"])
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["X-Frame-Options"], "DENY")
 
@@ -71,6 +73,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="voiceButton"', html)
         self.assertIn(b'id="avatar3d"', html)
         self.assertIn(b'id="liveSurface"', html)
+        self.assertIn(b'/ui/vendor/three.module.js', html)
+        self.assertNotIn(b'unpkg.com', html)
 
         status, headers, app_js = self.request("/ui/jarvis.js")
         self.assertEqual(status, 200)
@@ -80,8 +84,12 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, visual_js = self.request("/ui/jarvis-3d.js")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
-        self.assertIn(b"drawForge", visual_js)
         self.assertIn(b"drawMemory", visual_js)
+
+        status, headers, three_js = self.request("/ui/vendor/three.module.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertGreater(len(three_js), 1_000_000)
 
         status, headers, css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
@@ -180,15 +188,45 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["visual_state"], "response")
         self.assertEqual(payload["message"], "Resposta conectada.")
 
-    def test_forge_is_a_conversational_visual_mode(self):
-        status, _, payload = self.json_request(
-            "/command", "POST", {"command": "forja uma mem\u00f3ria melhor"}
-        )
+    def test_elevenlabs_speech_returns_audio_without_exposing_key(self):
+        class FakeAudioResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, *_args):
+                return b"ID3-test-audio"
+
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key"}, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeAudioResponse()) as request:
+                audio, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
         self.assertEqual(status, 200)
-        self.assertEqual(payload["mode"], "forge")
-        self.assertEqual(payload["visual_state"], "forge")
-        self.assertEqual(payload["goal"], "uma mem\u00f3ria melhor")
-        self.assertGreaterEqual(len(payload["steps"]), 4)
+        self.assertTrue(audio.startswith(b"ID3"))
+        sent_request = request.call_args.args[0]
+        self.assertEqual(sent_request.headers["Xi-api-key"], "private-test-key")
+
+    def test_agenda_routes_to_configured_n8n_webhook(self):
+        class FakeN8nResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, *_args):
+                return json.dumps({"message": "Evento criado na agenda."}).encode("utf-8")
+
+        env = {"N8N_WEBHOOK_URL": "https://n8n.example.test/webhook/jarvis"}
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeN8nResponse()):
+                payload, status = MODULE.command_payload(
+                    {"command": "adiciona reunião amanhã na agenda"}
+                )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "n8n")
+        self.assertEqual(payload["message"], "Evento criado na agenda.")
 
     def test_memory_tree_is_read_only_and_structured(self):
         status, _, payload = self.json_request("/memory-tree")

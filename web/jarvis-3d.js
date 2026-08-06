@@ -14,7 +14,6 @@ const COLORS = {
   planning: 0x8b5cf6,
   speaking: 0x67e8f9,
   response: 0x67e8f9,
-  forge: 0xd26bff,
   memory: 0x7fb6ff,
   local: 0xfbbf24,
   success: 0x6ee7b7,
@@ -47,23 +46,6 @@ function makeEffectCanvas() {
   return canvas;
 }
 
-function buildForgeParticles() {
-  const shards = [];
-  const sparks = [];
-  for (let index = 0; index < 30; index += 1) {
-    shards.push({
-      angle: Math.random() * Math.PI * 2,
-      radius: 0.38 + Math.random() * 0.23,
-      phase: Math.random() * Math.PI * 2,
-      size: 6 + Math.random() * 15,
-    });
-  }
-  for (let index = 0; index < 48; index += 1) {
-    sparks.push({ angle: Math.random() * Math.PI * 2, radius: Math.random(), speed: 0.3 + Math.random() * 0.7 });
-  }
-  return { shards, sparks };
-}
-
 async function loadMemoryLabels() {
   try {
     const response = await fetch("/memory-tree");
@@ -71,74 +53,8 @@ async function loadMemoryLabels() {
     const data = await response.json();
     return (data.nodes || []).slice(0, 28).map((node) => String(node.label || node.name || "MEMORY").slice(0, 18).toUpperCase());
   } catch {
-    return ["DECISIONS", "LEARNINGS", "PROJECTS", "CONTEXT", "TASKS", "FORGE", "THEO"];
+    return ["DECISIONS", "LEARNINGS", "PROJECTS", "CONTEXT", "TASKS", "ACTIONS", "THEO"];
   }
-}
-
-function drawForge(ctx, width, height, time, forge) {
-  const centerX = width * 0.58;
-  const centerY = height * 0.47;
-  const radius = Math.min(width, height);
-  const convergence = 0.5 + 0.5 * Math.sin(time * 1.15);
-
-  ctx.save();
-  ctx.strokeStyle = "rgba(210,107,255,.18)";
-  ctx.lineWidth = 1;
-  for (let ring = 1; ring <= 5; ring += 1) {
-    const ringRadius = ring * 0.072 * radius;
-    ctx.beginPath();
-    for (let side = 0; side <= 6; side += 1) {
-      const angle = (side / 6) * Math.PI * 2 + time * 0.15 * ring;
-      const x = centerX + Math.cos(angle) * ringRadius;
-      const y = centerY + Math.sin(angle) * ringRadius * 0.86;
-      if (side) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-    }
-    ctx.closePath();
-    ctx.stroke();
-  }
-
-  forge.shards.forEach((shard) => {
-    const distance = shard.radius * (0.38 + 0.62 * (1 - convergence)) * radius;
-    const angle = shard.angle + time * 0.28;
-    const x = centerX + Math.cos(angle) * distance;
-    const y = centerY + Math.sin(angle) * distance * 0.86;
-    ctx.strokeStyle = `rgba(210,107,255,${0.06 + convergence * 0.13})`;
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(shard.phase + time * 1.2);
-    ctx.fillStyle = `rgba(222,150,255,${0.28 + convergence * 0.5})`;
-    ctx.beginPath();
-    ctx.moveTo(0, -shard.size);
-    ctx.lineTo(shard.size * 0.5, shard.size * 0.5);
-    ctx.lineTo(-shard.size * 0.5, shard.size * 0.5);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  });
-
-  const coreRadius = 12 + convergence * 24;
-  const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius * 2.5);
-  gradient.addColorStop(0, `rgba(255,240,255,${0.75 + convergence * 0.2})`);
-  gradient.addColorStop(0.45, `rgba(210,107,255,${0.32 + convergence * 0.24})`);
-  gradient.addColorStop(1, "rgba(210,107,255,0)");
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, coreRadius * 2.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  forge.sparks.forEach((spark) => {
-    spark.radius -= 0.012 * spark.speed;
-    if (spark.radius < 0) spark.radius = 1;
-    const x = centerX + Math.cos(spark.angle) * spark.radius * radius * 0.43;
-    const y = centerY + Math.sin(spark.angle) * spark.radius * radius * 0.36;
-    ctx.fillStyle = `rgba(255,230,255,${(1 - spark.radius) * 0.82})`;
-    ctx.fillRect(x, y, 2, 2);
-  });
-  ctx.restore();
 }
 
 function drawMemory(ctx, width, height, time, labels) {
@@ -223,7 +139,7 @@ async function start() {
   const effectContext = effectCanvas.getContext("2d");
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
-  camera.position.set(0, 0.03, 4.55);
+  camera.position.set(0, 0.02, 5.1);
 
   try {
     const pmrem = new THREE.PMREMGenerator(renderer);
@@ -244,42 +160,36 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const gltf = await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("model load timeout")), 10000);
-    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb", (result) => {
-      clearTimeout(timeout);
-      resolve(result);
-    }, undefined, (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
+    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260806-real", resolve, undefined, reject);
   });
 
   const model = gltf.scene || gltf.scenes[0];
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
-  const scale = 2.82 / (Math.max(size.x, size.y, size.z) || 1);
+  const scale = 2.42 / (Math.max(size.x, size.y, size.z) || 1);
   model.scale.setScalar(scale);
   model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
   root.add(model);
 
   const shellMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x06131b,
-    flatShading: true,
-    metalness: 0.64,
-    roughness: 0.2,
-    transmission: 0.1,
-    thickness: 0.72,
+    color: 0x0d1720,
+    metalness: 0.52,
+    roughness: 0.29,
+    clearcoat: 0.68,
+    clearcoatRoughness: 0.24,
+    transmission: 0.04,
+    thickness: 0.48,
     ior: 1.32,
-    emissive: 0x052b36,
-    emissiveIntensity: 0.36,
+    emissive: 0x062b36,
+    emissiveIntensity: 0.28,
     envMapIntensity: 1.25,
     transparent: true,
-    opacity: 0.97,
+    opacity: 0.92,
     side: THREE.DoubleSide,
   });
   const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb6f7ff, transparent: true, opacity: 0.96, blending: THREE.AdditiveBlending });
-  const wireMaterial = new THREE.MeshBasicMaterial({ color: COLORS.idle, wireframe: true, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false });
+  const wireMaterial = new THREE.MeshBasicMaterial({ color: COLORS.idle, wireframe: true, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false });
   const overlays = [];
   model.traverse((object) => {
     if (!object.isMesh || !object.geometry) return;
@@ -313,7 +223,6 @@ async function start() {
   const particles = new THREE.Points(particleGeometry, particleMaterial);
   scene.add(particles);
 
-  const forge = buildForgeParticles();
   let memoryLabels = await loadMemoryLabels();
   window.addEventListener("jarvis-memory-refresh", async () => {
     memoryLabels = await loadMemoryLabels();
@@ -356,12 +265,12 @@ async function start() {
   resize();
 
   stage.classList.add("model-ready");
-  presenceValue.textContent = "rosto 3D + modos vivos";
+  presenceValue.textContent = "humanoide 3D local + modos vivos";
 
   function render(timeMs) {
     const time = timeMs * 0.001;
     const activeColor = COLORS[visualState] || COLORS.idle;
-    const isWorking = ["thinking", "planning", "forge", "memory"].includes(visualState);
+    const isWorking = ["thinking", "planning", "memory"].includes(visualState);
     const sideMode = isWorking;
     targetColor.setHex(activeColor);
     currentColor.lerp(targetColor, 0.065);
@@ -380,14 +289,13 @@ async function start() {
     const speakingPulse = visualState === "speaking" ? (Math.sin(time * 10) + 1) * 0.12 : 0;
     root.scale.setScalar(1 + speakingPulse * 0.035);
     visor.position.y = 0.3 + Math.sin(time * (isWorking ? 1.8 : 0.7)) * 0.57;
-    visorMaterial.opacity = (visualState === "listening" ? 0.52 : visualState === "forge" ? 0.58 : 0.32) + speakingPulse;
-    wireMaterial.opacity = visualState === "forge" ? 0.23 : isWorking ? 0.2 : 0.14 + speakingPulse * 0.3;
-    particleMaterial.opacity = visualState === "forge" ? 0.6 : isWorking ? 0.46 : 0.32 + speakingPulse;
+    visorMaterial.opacity = (visualState === "listening" ? 0.52 : 0.32) + speakingPulse;
+    wireMaterial.opacity = isWorking ? 0.16 : 0.09 + speakingPulse * 0.24;
+    particleMaterial.opacity = isWorking ? 0.46 : 0.32 + speakingPulse;
     particles.rotation.y += 0.0012 * (isWorking ? 2 : 1);
 
     effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
-    if (visualState === "forge") drawForge(effectContext, canvasWidth, canvasHeight, time, forge);
-    else if (visualState === "memory") drawMemory(effectContext, canvasWidth, canvasHeight, time, memoryLabels);
+    if (visualState === "memory") drawMemory(effectContext, canvasWidth, canvasHeight, time, memoryLabels);
     else if (["thinking", "planning"].includes(visualState)) drawThinking(effectContext, canvasWidth, canvasHeight, time);
 
     renderer.render(scene, camera);
@@ -400,6 +308,6 @@ async function start() {
 
 start().catch((error) => {
   stage.classList.remove("model-ready");
-  presenceValue.textContent = "núcleo holográfico de contingência";
+  presenceValue.textContent = "busto holográfico de contingência";
   console.warn("JARVIS 3D fallback", error);
 });
