@@ -22,6 +22,8 @@ SPEC.loader.exec_module(MODULE)
 class WebGatewayTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.previous_local_exec = os.environ.get("JARVIS_WEB_LOCAL_EXEC")
+        os.environ["JARVIS_WEB_LOCAL_EXEC"] = "0"
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), MODULE.handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
@@ -32,6 +34,10 @@ class WebGatewayTest(unittest.TestCase):
         cls.server.shutdown()
         cls.server.server_close()
         cls.thread.join(timeout=3)
+        if cls.previous_local_exec is None:
+            os.environ.pop("JARVIS_WEB_LOCAL_EXEC", None)
+        else:
+            os.environ["JARVIS_WEB_LOCAL_EXEC"] = cls.previous_local_exec
 
     def request(self, path, method="GET", payload=None):
         body = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -62,6 +68,10 @@ class WebGatewayTest(unittest.TestCase):
         status, _, html = self.request("/")
         self.assertEqual(status, 200)
         self.assertIn(b"JARVIS", html)
+        self.assertIn(b'id="mic"', html)
+        self.assertIn(b'id="avatar3d"', html)
+        self.assertIn(b'id="hudMode"', html)
+        self.assertIn(b"SpeechRecognition", html)
 
         status, _, favicon = self.request("/favicon.ico")
         self.assertEqual(status, 200)
@@ -81,6 +91,23 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(payload["requires_local_worker"])
         self.assertTrue(payload["local_command"].startswith("./jarvis do "))
 
+    def test_local_device_request_can_execute_allowlisted_worker(self):
+        completed = MODULE.subprocess.CompletedProcess(
+            args=["./jarvis", "do", "tirar um print da tela"],
+            returncode=0,
+            stdout="Status real: captura concluída",
+            stderr="",
+        )
+        with patch.object(MODULE.subprocess, "run", return_value=completed) as run:
+            payload, status = MODULE.command_payload(
+                {"command": "tirar um print da tela"},
+                local_execute=True,
+            )
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["executed_locally"])
+        self.assertEqual(payload["status_real"], "local_action_executed")
+        run.assert_called_once()
+
     def test_unconfigured_ai_uses_deterministic_plan(self):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": ""}, clear=False):
             status, _, payload = self.json_request(
@@ -88,6 +115,16 @@ class WebGatewayTest(unittest.TestCase):
             )
         self.assertEqual(status, 200)
         self.assertFalse(payload["ai_configured"])
+        self.assertGreaterEqual(len(payload["steps"]), 4)
+
+    def test_forge_is_a_conversational_visual_mode(self):
+        status, _, payload = self.json_request(
+            "/command", "POST", {"command": "forja uma mem\u00f3ria melhor"}
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["mode"], "forge")
+        self.assertEqual(payload["visual_state"], "forge")
+        self.assertEqual(payload["goal"], "uma mem\u00f3ria melhor")
         self.assertGreaterEqual(len(payload["steps"]), 4)
 
     def test_secret_like_prompt_is_refused(self):

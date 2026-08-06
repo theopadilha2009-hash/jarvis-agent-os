@@ -18,6 +18,7 @@ import mimetypes
 import os
 import re
 import shlex
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,11 @@ WEB_CAPABILITIES = [
         "what": "Conversa via OpenRouter usando o roteador de modelos gratuitos.",
     },
     {
+        "name": "browser_voice",
+        "status": "available",
+        "what": "Entrada e resposta por voz usando recursos nativos do navegador.",
+    },
+    {
         "name": "feature_planning",
         "status": "available",
         "what": "Planos, briefs, checklists e triagem sem escrita persistente.",
@@ -66,12 +72,12 @@ WEB_CAPABILITIES = [
 ]
 
 LOCAL_INTENTS = (
-    (re.compile(r"\b(print|screenshot|captur(?:a|ar)|tela)\b", re.I), "screen_capture"),
-    (re.compile(r"\b(falar|fala|voz|audio|áudio|ler em voz alta)\b", re.I), "speak"),
-    (re.compile(r"\b(converter|imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
-    (re.compile(r"\b(whatsapp|mensagem|mandar msg|enviar msg)\b", re.I), "message_draft"),
-    (re.compile(r"\b(armazenamento|arquivos grandes|limpar disco|espaço em disco)\b", re.I), "storage_scan"),
-    (re.compile(r"\b(organizar arquivos|arrumar arquivos|triagem de arquivos)\b", re.I), "files_triage"),
+    (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
+    (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
+    (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
+    (re.compile(r"\b(mand(?:a|ar)|envi(?:a|ar)|escrev(?:a|er))\b.{0,40}\b(mensagem|whatsapp|msg)\b", re.I), "message_draft"),
+    (re.compile(r"\b(ver|listar|encontrar|procurar)\b.{0,40}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
+    (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
 )
 
 SECRET_PATTERNS = (
@@ -207,6 +213,7 @@ def planning_payload(path, body):
         "ok": True,
         "endpoint": f"POST {path}",
         "status_real": "web_plan_generated_no_persistent_write",
+        "visual_state": "planning",
         "goal": goal,
         "title": "JARVIS execution brief",
         "summary": f"Plano direto para: {goal}",
@@ -222,12 +229,45 @@ def planning_payload(path, body):
     }, 200
 
 
-def local_handoff(command, intent):
+def local_handoff(command, intent, execute=False):
     safe_command = "./jarvis do " + shlex.quote(command)
+    if execute:
+        try:
+            result = subprocess.run(
+                ["./jarvis", "do", command],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                timeout=90,
+                env=os.environ.copy(),
+            )
+            output = (result.stdout or result.stderr or "").strip()[-8_000:]
+            return {
+                "ok": result.returncode == 0,
+                "endpoint": "POST /command",
+                "status_real": "local_action_executed" if result.returncode == 0 else "local_action_failed",
+                "visual_state": "success" if result.returncode == 0 else "error",
+                "message": "Feito no seu Mac." if result.returncode == 0 else "Tentei fazer no Mac, mas a ferramenta retornou um erro.",
+                "intent": intent,
+                "executed_locally": True,
+                "exit_code": result.returncode,
+                "result": output,
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "local_action_timeout",
+                "visual_state": "error",
+                "message": "A ação no Mac demorou mais do que o esperado e foi interrompida.",
+                "intent": intent,
+                "executed_locally": True,
+            }
     return {
         "ok": True,
         "endpoint": "POST /command",
         "status_real": "web_to_local_handoff",
+        "visual_state": "local",
         "message": "Esse pedido precisa rodar no Mac. O handoff está pronto para o worker local.",
         "intent": intent,
         "requires_local_worker": True,
@@ -254,7 +294,7 @@ def normalize_messages(body):
     return messages[-12:]
 
 
-def assistant_response(body, origin=""):
+def assistant_response(body, origin="", local_execute=False):
     messages = normalize_messages(body)
     if not messages:
         return {"ok": False, "error": "Escreva uma mensagem para o JARVIS."}, 400
@@ -268,15 +308,14 @@ def assistant_response(body, origin=""):
     latest = messages[-1]["content"]
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
-            return local_handoff(latest, intent), 200
+            return local_handoff(latest, intent, execute=local_execute), 200
 
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         payload, status = planning_payload("/assistant", {"goal": latest})
         payload.update({
-            "message": "O cérebro web ainda não tem OPENROUTER_API_KEY configurada; gerei um plano local como fallback.",
+            "message": "A IA online ainda não está conectada; organizei um plano direto como alternativa.",
             "ai_configured": False,
-            "setup_variable": "OPENROUTER_API_KEY",
         })
         return payload, status
 
@@ -323,6 +362,7 @@ def assistant_response(body, origin=""):
             "ok": True,
             "endpoint": "POST /assistant",
             "status_real": "assistant_response_from_openrouter",
+            "visual_state": "response",
             "message": content,
             "content": content,
             "model": clean_text(result.get("model") or DEFAULT_MODEL, 200),
@@ -352,7 +392,7 @@ def assistant_response(body, origin=""):
         }, 502
 
 
-def command_payload(body, origin=""):
+def command_payload(body, origin="", local_execute=False):
     command = clean_text(body.get("command") or body.get("prompt"))
     if not command:
         return {"ok": False, "error": "Comando vazio."}, 400
@@ -363,9 +403,20 @@ def command_payload(body, origin=""):
             "error": "O comando parece conter uma credencial. Remova o segredo e tente novamente.",
         }, 400
 
+    forge_match = re.match(r"^/?(?:forja|forge)\b[:\s-]*(.*)$", command, re.IGNORECASE)
+    if forge_match:
+        goal = clean_text(forge_match.group(1)) or "uma nova capacidade para o JARVIS"
+        payload, status = planning_payload("/forge-run", {"goal": goal})
+        payload.update({
+            "message": f"Forja ativada para: {goal}",
+            "mode": "forge",
+            "visual_state": "forge",
+        })
+        return payload, status
+
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(command):
-            return local_handoff(command, intent), 200
+            return local_handoff(command, intent, execute=local_execute), 200
 
     clean = command.lstrip("/").strip()
     first = clean.split(maxsplit=1)[0].lower() if clean else ""
@@ -387,7 +438,11 @@ def command_payload(body, origin=""):
         payload["command"] = command
         return payload, status
 
-    return assistant_response({"command": command}, origin=origin)
+    return assistant_response(
+        {"command": command, "messages": body.get("messages")},
+        origin=origin,
+        local_execute=local_execute,
+    )
 
 
 class handler(BaseHTTPRequestHandler):
@@ -531,7 +586,13 @@ class handler(BaseHTTPRequestHandler):
 
         origin = clean_text(self.headers.get("Origin") or self.headers.get("Referer"), 200)
         if path == "/command":
-            payload, status = command_payload(body, origin=origin)
+            client = str((self.client_address or [""])[0]).lower()
+            local_execute = (
+                not bool(os.environ.get("VERCEL"))
+                and os.environ.get("JARVIS_WEB_LOCAL_EXEC", "1") != "0"
+                and client in {"127.0.0.1", "::1", "localhost"}
+            )
+            payload, status = command_payload(body, origin=origin, local_execute=local_execute)
             return self.send_json(status, payload)
         if path in {"/assistant", "/chat"}:
             payload, status = assistant_response(body, origin=origin)
