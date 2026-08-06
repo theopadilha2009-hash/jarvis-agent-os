@@ -18,7 +18,10 @@ SKIP_SUFFIXES = {
 SECRET_PATTERNS = [
     ("private_key_block", re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |DSA |PGP )?PRIVATE KEY-----")),
     ("openai_key", re.compile(r"\bsk-[A-Za-z0-9]{20,}\b")),
+    ("openrouter_key", re.compile(r"\bsk-or-v1-[A-Za-z0-9]{20,}\b")),
     ("anthropic_key", re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}\b")),
+    ("supabase_personal_token", re.compile(r"\bsbp_[A-Za-z0-9]{20,}\b")),
+    ("vercel_token", re.compile(r"\bvcp_[A-Za-z0-9]{20,}\b")),
     ("github_token", re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b")),
     ("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9\-]{20,}\b")),
     ("jwt_like", re.compile(r"\beyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{10,}\b")),

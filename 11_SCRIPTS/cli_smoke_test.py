@@ -603,6 +603,73 @@ CHECKS = [
         ],
     },
     {
+        "name": "decision-add-dry-run",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "decision-add", "usar log append-only", "--project", "jarvis-core", "--reason", "manter contexto auditável", "--dry-run"],
+        "expect": [
+            "Decision Add",
+            "63_DECISIONS/decisions.jsonl",
+            "Modo: PREVIEW",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "decision-list",
+        "cmd": ["./jarvis", "decision-list", "--limit", "3"],
+        "expect": [
+            "Decision Log",
+            "decisões exibidas:",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "decision-show-latest-or-empty",
+        "cmd": ["./jarvis", "decision-show", "latest"],
+        "expect": [
+            "Decision Show",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "assistant-doctor",
+        "cmd": ["./jarvis", "assistant-doctor"],
+        "expect": ["Assistant Doctor", "captura de tela", "nenhuma mensagem é enviada", "Produção: nada alterado"],
+    },
+    {
+        "name": "screen-capture-dry-run",
+        "cmd": ["./jarvis", "screen-capture", "--dry-run"],
+        "expect": ["Screen Capture", "Modo: --dry-run", "nenhuma captura realizada", "Produção: nada alterado"],
+    },
+    {
+        "name": "image-to-pdf-dry-run",
+        "cmd": ["./jarvis", "image-to-pdf", "10_TESTES/FIXTURES/personal-tools-sample.svg", "--dry-run"],
+        "expect": ["Image to PDF", "geração de PDF bloqueada", "nenhum PDF criado", "Produção: nada alterado"],
+    },
+    {
+        "name": "image-convert-dry-run",
+        "cmd": ["./jarvis", "image-convert", "10_TESTES/FIXTURES/personal-tools-sample.svg", "--to", "png", "--dry-run"],
+        "expect": ["Image Convert", "original preservado", "nenhuma imagem criada", "Produção: nada alterado"],
+    },
+    {
+        "name": "speak-dry-run",
+        "cmd": ["./jarvis", "speak", "teste de voz local", "--dry-run"],
+        "expect": ["JARVIS — Speak", "síntese local", "nenhum áudio", "Produção: nada alterado"],
+    },
+    {
+        "name": "message-draft-dry-run",
+        "cmd": ["./jarvis", "message-draft", "--phone", "5511999999999", "mensagem de teste", "--dry-run"],
+        "expect": ["Message Draft", "nunca envia", "nada aberto ou copiado", "Produção: nada alterado"],
+    },
+    {
+        "name": "storage-scan-read-only",
+        "cmd": ["./jarvis", "storage-scan", ".", "--top", "3", "--min-mb", "999999"],
+        "expect": ["Storage Scan", "somente metadados", "Nenhuma limpeza foi executada", "Produção: nada alterado"],
+    },
+    {
+        "name": "files-triage-read-only",
+        "cmd": ["./jarvis", "files-triage", "10_TESTES/FIXTURES", "--limit", "10"],
+        "expect": ["Files Triage", "plano read-only", "não possui --apply", "Produção: nada alterado"],
+    },
+    {
         "name": "run-list",
         "cmd": ["./jarvis", "run-list"],
         "expect": [

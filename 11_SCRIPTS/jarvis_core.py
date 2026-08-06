@@ -741,7 +741,8 @@ def self_test():
 
     # Git
     git_dir = ROOT / ".git"
-    add_check("git inicializado", git_dir.is_dir())
+    # A linked worktree stores .git as a pointer file, not a directory.
+    add_check("git inicializado", git_dir.exists())
 
     ok_all = all(ok for _, ok, _ in checks)
 
@@ -2808,6 +2809,50 @@ def task_block_command(args=None):
     """./jarvis task-block ID --reason '...' — marca task como blocked."""
     _run_py_propagate("11_SCRIPTS/task_queue.py", ["block", *(args or [])])
 
+def decision_add_command(args=None):
+    """./jarvis decision-add "escolha" [--project A] [--context X] [--reason Y]"""
+    _run_py_propagate("11_SCRIPTS/decision_log.py", ["add", *(args or [])])
+
+def decision_list_command(args=None):
+    """./jarvis decision-list [--project A] [--limit N]"""
+    _run_py_propagate("11_SCRIPTS/decision_log.py", ["list", *(args or [])])
+
+def decision_show_command(args=None):
+    """./jarvis decision-show latest|ID"""
+    _run_py_propagate("11_SCRIPTS/decision_log.py", ["show", *(args or [])])
+
+def assistant_doctor_command(args=None):
+    """./jarvis assistant-doctor — verifica utilidades pessoais locais."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["doctor", *(args or [])])
+
+def screen_capture_command(args=None):
+    """./jarvis screen-capture [--interactive] [--output P] [--dry-run]"""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["screen-capture", *(args or [])])
+
+def image_to_pdf_command(args=None):
+    """./jarvis image-to-pdf IMAGEM --dry-run — planejamento; PDF bloqueado."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["image-to-pdf", *(args or [])])
+
+def image_convert_command(args=None):
+    """./jarvis image-convert IMAGEM --to png|jpg|tiff [--output P] [--dry-run]"""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["image-convert", *(args or [])])
+
+def speak_command(args=None):
+    """./jarvis speak texto [--voice VOZ] [--output audio.aiff] [--dry-run]"""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["speak", *(args or [])])
+
+def message_draft_command(args=None):
+    """./jarvis message-draft --phone NUMERO texto [--open|--copy|--dry-run]"""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["message-draft", *(args or [])])
+
+def storage_scan_command(args=None):
+    """./jarvis storage-scan [PASTA] [--top N] [--min-mb N]"""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["storage-scan", *(args or [])])
+
+def files_triage_command(args=None):
+    """./jarvis files-triage [PASTA] [--limit N] — plano read-only."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["files-triage", *(args or [])])
+
 def run_list_command(args=None):
     """./jarvis run-list — lista run packages gerados por `go`."""
     _run_py_propagate("11_SCRIPTS/run_log.py", ["list", *(args or [])])
@@ -3172,9 +3217,21 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
 
 ## Diário / saúde
   ./jarvis daily                             dashboard de uma tela
+  ./jarvis decision-list                     decisões operacionais recentes
+  ./jarvis decision-add "escolha" --dry-run  preview append-only
   ./jarvis cheatsheet                        atalhos essenciais
   ./jarvis health                            doctor-agent
   ./jarvis first-run-check                   ambiente local OK?
+
+## Ações pessoais locais
+  ./jarvis assistant-doctor                  verifica captura/imagem/voz/mensagem
+  ./jarvis screen-capture --dry-run          prepara captura de tela
+  ./jarvis image-to-pdf IMAGEM --dry-run     planeja; PDF bloqueado pela doutrina
+  ./jarvis image-convert IMAGEM --to jpg     converte preservando original
+  ./jarvis speak "bom dia" --dry-run         fala local com a voz do macOS
+  ./jarvis message-draft --phone NUM "oi"    rascunho; nunca envia sozinho
+  ./jarvis storage-scan PASTA                mostra arquivos grandes, sem apagar
+  ./jarvis files-triage PASTA                plano de organização, sem mover
 
 ## Lifecycle longo (quando `do` não basta)
   ./jarvis start "pedido"                    inicia sessão
@@ -3281,6 +3338,14 @@ def _help_full():
   ./jarvis inbox                  exibe inbox local
   ./jarvis agenda-add "tarefa"    anexa item à agenda local (05_EXECUCAO/31_AGENDA)
   ./jarvis agenda                 exibe agenda local
+  ./jarvis assistant-doctor       verifica comandos nativos para utilidades pessoais
+  ./jarvis screen-capture [--interactive] [--output P] [--dry-run]  captura local sob comando
+  ./jarvis image-to-pdf IMAGEM --dry-run  planeja; PDF permanece bloqueado pelo AGENTS.md
+  ./jarvis image-convert IMAGEM --to png|jpg|tiff [--output P] [--dry-run]  conversão permitida
+  ./jarvis speak "texto" [--voice VOZ] [--output audio.aiff] [--dry-run]  voz local
+  ./jarvis message-draft --phone NUM "texto" [--open|--copy|--dry-run]  WhatsApp sem autoenvio
+  ./jarvis storage-scan [PASTA] [--top N] [--min-mb N]  inventário read-only de arquivos grandes
+  ./jarvis files-triage [PASTA] [--limit N]  plano de organização por tipo; não move nada
   ./jarvis blueprint --type T --goal "..."  blueprint local (n8n|app|automation|research)
   ./jarvis research-digest [--goal "..."]  digest local dos deep research + plano de evolução
   ./jarvis project-open --project A [--print-only|--copy-cd|--code]  abre projeto local com segurança
@@ -3293,6 +3358,9 @@ def _help_full():
   ./jarvis task-show ID           events da task
   ./jarvis task-done ID           marca task done (append-only)
   ./jarvis task-block ID --reason "..."  marca task blocked
+  ./jarvis decision-add "escolha" [--project A] [--context X] [--reason Y] [--dry-run]  registra decisão local
+  ./jarvis decision-list [--project A] [--limit N]  lista decisões recentes
+  ./jarvis decision-show latest|ID  exibe uma decisão
   ./jarvis run-list               lista run packages (gerados por go)
   ./jarvis run-show latest|ID     imprime arquivos de um run package
   ./jarvis run-latest             alias de run-show latest
@@ -3472,6 +3540,28 @@ def main():
         task_done_command(sys.argv[2:])
     elif cmd == "task-block":
         task_block_command(sys.argv[2:])
+    elif cmd == "decision-add":
+        decision_add_command(sys.argv[2:])
+    elif cmd == "decision-list":
+        decision_list_command(sys.argv[2:])
+    elif cmd == "decision-show":
+        decision_show_command(sys.argv[2:])
+    elif cmd == "assistant-doctor":
+        assistant_doctor_command(sys.argv[2:])
+    elif cmd == "screen-capture":
+        screen_capture_command(sys.argv[2:])
+    elif cmd == "image-to-pdf":
+        image_to_pdf_command(sys.argv[2:])
+    elif cmd == "image-convert":
+        image_convert_command(sys.argv[2:])
+    elif cmd == "speak":
+        speak_command(sys.argv[2:])
+    elif cmd == "message-draft":
+        message_draft_command(sys.argv[2:])
+    elif cmd == "storage-scan":
+        storage_scan_command(sys.argv[2:])
+    elif cmd == "files-triage":
+        files_triage_command(sys.argv[2:])
     elif cmd == "run-list":
         run_list_command(sys.argv[2:])
     elif cmd == "run-show":

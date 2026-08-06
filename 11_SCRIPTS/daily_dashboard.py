@@ -13,6 +13,8 @@ import json
 import subprocess
 import sys
 
+from decision_log import read_decisions
+
 ROOT = Path(__file__).resolve().parents[1]
 GATES_LATEST = ROOT / "05_EXECUCAO" / "37_GATES" / "latest.json"
 CURRENT_SESSION = ROOT / "05_EXECUCAO" / "36_WORK_SESSIONS" / "current.json"
@@ -178,7 +180,18 @@ def main():
         print(f"  {tid}  {text[:80]}{'…' if len(text) > 80 else ''}")
     print("")
 
-    print("## 6. Latest Run")
+    print("## 6. Recent Decisions")
+    decisions = read_decisions()[-3:]
+    if not decisions:
+        print("  (nenhuma — use `./jarvis decision-add \"...\" --dry-run` para preview)")
+    else:
+        for decision in reversed(decisions):
+            text = str(decision.get("decision", ""))
+            project = decision.get("project") or "-"
+            print(f"  {decision.get('id', '?')}  project={project}  {text[:80]}{'…' if len(text) > 80 else ''}")
+    print("")
+
+    print("## 7. Latest Run")
     r = _latest_run()
     if not r:
         print("  (nenhum)")
@@ -186,7 +199,11 @@ def main():
         print(f"  {r.relative_to(ROOT)}")
     print("")
 
-    print("## 7. Useful Commands")
+    print("## 8. Useful Commands")
+    print("  ./jarvis decision-list                    # decisões operacionais recentes")
+    print("  ./jarvis assistant-doctor                 # captura/imagem/voz/mensagem")
+    print("  ./jarvis storage-scan ~/Downloads         # arquivos grandes, sem apagar")
+    print("  ./jarvis files-triage ~/Downloads         # organização em preview")
     print("  ./jarvis cheatsheet                       # atalhos essenciais")
     print("  ./jarvis recipe-list                      # golden paths")
     print('  ./jarvis no-claude "pedido"               # offline mode')

@@ -56,6 +56,16 @@ Status real: leitura local. Nada foi editado.
   ./jarvis run-prune --keep 20 --dry-run
   ./jarvis run-prune --keep 20 --apply
 
+## Utilidades pessoais
+  ./jarvis assistant-doctor             # verifica captura/imagem/voz/mensagem
+  ./jarvis screen-capture --interactive # seleciona uma área da tela
+  ./jarvis image-to-pdf foto.png --dry-run # plano; PDF bloqueado por AGENTS.md
+  ./jarvis image-convert foto.heic --to jpg # conversão permitida
+  ./jarvis speak "hora de focar"         # fala localmente no macOS
+  ./jarvis message-draft --phone 55... "oi" --open  # rascunho, sem autoenvio
+  ./jarvis storage-scan ~/Downloads     # acha arquivos grandes, sem apagar
+  ./jarvis files-triage ~/Downloads     # plano por tipo, sem mover
+
 ## Quando pedirem contexto / handoff
   ./jarvis handoff-self                 # snapshot do JARVIS (terminal)
   ./jarvis handoff-self --save          # grava em 39_HANDOFFS/

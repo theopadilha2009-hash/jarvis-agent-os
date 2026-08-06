@@ -33,6 +33,27 @@ Catálogo local de comandos. Não é produção.
 - `./jarvis task-status`
 - `./jarvis checkpoint`
 
+## Decision log local (append-only)
+
+- `./jarvis decision-add "escolha" [--project ALIAS] [--context "..."] [--reason "..."] [--dry-run]` — registra uma decisão operacional; `JARVIS_NO_REPORT=1` força preview.
+- `./jarvis decision-list [--project ALIAS] [--limit N]` — lista decisões recentes sem editar estado.
+- `./jarvis decision-show latest|ID` — exibe uma decisão por ID completo/prefixo ou a mais recente.
+
+Storage: `05_EXECUCAO/63_DECISIONS/decisions.jsonl` (gitignored, JSONL append-only). Entradas com aparência de segredo são recusadas antes de qualquer eco ou gravação. O dashboard `./jarvis daily` mostra as três decisões seguras mais recentes.
+
+## Utilidades pessoais locais
+
+- `./jarvis assistant-doctor` — verifica se o macOS oferece captura, conversão, voz, abertura e clipboard.
+- `./jarvis screen-capture [--interactive] [--output PATH] [--dry-run]` — captura somente quando chamado; o padrão salva em `05_EXECUCAO/64_PERSONAL_TOOLS/screenshots/`.
+- `./jarvis image-to-pdf IMAGEM --dry-run` — mostra o plano, mas recusa gerar PDF enquanto `AGENTS.md` mantiver esse formato bloqueado.
+- `./jarvis image-convert IMAGEM --to png|jpg|tiff [--output PATH] [--dry-run]` — usa `sips`, preserva o original e recusa sobrescrever o destino.
+- `./jarvis speak "texto" [--voice VOZ] [--rate N] [--output audio.aiff] [--dry-run]` — fala ou gera AIFF localmente com `say`.
+- `./jarvis message-draft --phone DDI_DDD_NUMERO "texto" [--open|--copy|--dry-run]` — prepara WhatsApp; nunca clica em Enviar.
+- `./jarvis storage-scan [PASTA] [--top N] [--min-mb N]` — inventário read-only dos maiores arquivos; não lê conteúdo e não move/apaga nada.
+- `./jarvis files-triage [PASTA] [--limit N]` — classifica arquivos soltos por extensão e mostra origem → destino; não possui `--apply`.
+
+Todas recusam texto com aparência de segredo. Processos nativos são executados por lista de argumentos, sem shell. Saídas locais ficam gitignored; nenhuma ação de mensagem, organização ou limpeza é automática.
+
 ## Project max-machine (v1.1)
 
 Trabalhos repetidos por projeto agora têm comandos diretos. Cada um respeita: sem deploy, sem push, sem PR, sem merge, sem .env, sem migrations, sem secrets.
