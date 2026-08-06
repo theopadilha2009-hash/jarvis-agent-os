@@ -100,3 +100,5 @@ __pycache__/
 # JARVIS generated research digests
 05_EXECUCAO/62_RESEARCH_DIGEST/*
 !05_EXECUCAO/62_RESEARCH_DIGEST/.gitkeep
+.vercel
+.env*
