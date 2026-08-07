@@ -104,6 +104,7 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(anot(?:a|ar)|captur(?:a|ar)|registr(?:a|ar))\b.{0,100}\b(ideia|inbox|nota)\b", re.I), "capture_note"),
     (re.compile(r"\b(adicion(?:a|ar)|cri(?:a|ar))\b.{0,60}\b(tarefa|task)\b", re.I), "task_add"),
     (re.compile(r"\b(abr(?:e|ir))\b.{0,40}\b(projeto|oficina|jarvis|gc|ls)\b", re.I), "open_project"),
+    (re.compile(r"(?:\b(computador|mac|mem[oó]ria|ram)\b.{0,80}\b(trav(?:a|ando)|lent[oa]|pesad[oa]|limp(?:a|ar))\b|\b(limp(?:a|ar)|fech(?:a|ar)|trav(?:a|ando))\b.{0,80}\b(computador|mac|mem[oó]ria|ram|processos?\s+(?:tempor[aá]rios?\s+)?(?:do\s+)?jarvis)\b)", re.I), "system_memory"),
     (re.compile(r"\b(ver|listar|encontrar|procurar)\b.{0,40}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
     (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
 )
@@ -360,7 +361,17 @@ def memory_write_command(command):
 
 
 def local_handoff(command, intent, execute=False):
-    command_args = memory_write_command(command) if intent == "memory_save" else ["./jarvis", "do", command]
+    if intent == "memory_save":
+        command_args = memory_write_command(command)
+    elif intent == "system_memory":
+        cleanup_requested = bool(
+            re.search(r"\b(limp(?:a|e|ar)|fech(?:a|e|ar))\b.{0,100}\b(jarvis|tempor[aá]rios?|processos?)\b", command, re.I)
+        )
+        command_args = ["./jarvis", "system-memory"]
+        if cleanup_requested:
+            command_args.append("--cleanup-jarvis")
+    else:
+        command_args = ["./jarvis", "do", command]
     if not command_args:
         return {
             "ok": False,
@@ -390,6 +401,7 @@ def local_handoff(command, intent, execute=False):
                 "memory_save": "Guardei isso na memória local.",
                 "message_send": "Mensagem entregue ao app Mensagens do Mac.",
                 "screen_capture": "Captura concluída no seu Mac.",
+                "system_memory": "Diagnóstico do Mac concluído; somente temporários do JARVIS foram elegíveis para limpeza.",
             }
             return {
                 "ok": action_succeeded,

@@ -11,9 +11,11 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import signal
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
@@ -422,6 +424,152 @@ def cmd_storage_scan(args: argparse.Namespace) -> None:
     print("Produção: nada alterado.")
 
 
+def _process_rows() -> list[dict[str, object]]:
+    ps = _require_binary("ps")
+    result = subprocess.run(
+        [ps, "-axo", "pid=,ppid=,rss=,command="],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        _fail("não foi possível ler a lista de processos.")
+    rows: list[dict[str, object]] = []
+    for raw in result.stdout.splitlines():
+        parts = raw.strip().split(maxsplit=3)
+        if len(parts) != 4:
+            continue
+        try:
+            pid, ppid, rss_kb = (int(parts[0]), int(parts[1]), int(parts[2]))
+        except ValueError:
+            continue
+        rows.append({"pid": pid, "ppid": ppid, "rss_kb": rss_kb, "command": parts[3]})
+    return rows
+
+
+def _ancestor_pids(rows: list[dict[str, object]]) -> set[int]:
+    parents = {int(row["pid"]): int(row["ppid"]) for row in rows}
+    ancestors = {os.getpid()}
+    current = os.getpid()
+    while current in parents and parents[current] > 0 and parents[current] not in ancestors:
+        current = parents[current]
+        ancestors.add(current)
+    return ancestors
+
+
+def _jarvis_temporary_process(row: dict[str, object], ancestors: set[int]) -> str | None:
+    pid = int(row["pid"])
+    if pid in ancestors:
+        return None
+    command = str(row["command"])
+    lowered = command.casefold()
+    root_marker = str(ROOT).casefold()
+    if "api/index.py" in lowered and root_marker in lowered:
+        return "servidor web JARVIS fora desta sessão"
+    if "agent-browser" in lowered and (
+        "chrome-headless-shell" in lowered
+        or "/agent-browser/" in lowered
+        or "agent-browser daemon" in lowered
+    ):
+        return "navegador temporário de teste JARVIS"
+    return None
+
+
+def _memory_free_percentage() -> int | None:
+    binary = shutil.which("memory_pressure")
+    if not binary:
+        return None
+    result = subprocess.run([binary], text=True, capture_output=True, check=False)
+    match = re.search(r"System-wide memory free percentage:\s*(\d+)%", result.stdout)
+    return int(match.group(1)) if match else None
+
+
+def _display_process(command: str) -> str:
+    lowered = command.casefold()
+    known = (
+        "Google Chrome Helper (Renderer)",
+        "Google Chrome Helper (GPU)",
+        "Google Chrome Helper",
+        "Google Chrome",
+        "WindowServer",
+        "next-server",
+        "Orca Helper (Renderer)",
+        "Orca Helper",
+        "Orca",
+        "Claude",
+        "Codex",
+    )
+    for label in known:
+        if label.casefold() in lowered:
+            return label
+    executable = command.split(maxsplit=1)[0]
+    return Path(executable).name[:48] or "processo"
+
+
+def cmd_system_memory(args: argparse.Namespace) -> None:
+    rows = _process_rows()
+    ancestors = _ancestor_pids(rows)
+    candidates = []
+    for row in rows:
+        reason = _jarvis_temporary_process(row, ancestors)
+        if reason:
+            candidates.append((row, reason))
+
+    print("JARVIS — System Memory")
+    print("Status real: diagnóstico da memória e processos do Mac; nada pessoal é encerrado.")
+    free_percentage = _memory_free_percentage()
+    if free_percentage is not None:
+        pressure = "alta" if free_percentage < 15 else "moderada" if free_percentage < 30 else "normal"
+        print(f"memória livre do sistema: {free_percentage}% (pressão {pressure})")
+    else:
+        print("memória livre do sistema: indisponível neste ambiente")
+    print("")
+    print("## Processos com maior memória residente")
+    for row in sorted(rows, key=lambda item: int(item["rss_kb"]), reverse=True)[:8]:
+        rss_mb = int(row["rss_kb"]) / 1024
+        print(f"- PID {int(row['pid']):>6}  {rss_mb:>8.1f} MB  {_display_process(str(row['command']))}")
+    print("")
+    print("## Temporários controláveis pelo JARVIS")
+    if not candidates:
+        print("(nenhum processo temporário órfão encontrado)")
+    for row, reason in candidates:
+        print(f"- PID {int(row['pid'])}: {reason} ({int(row['rss_kb']) / 1024:.1f} MB)")
+
+    if not args.cleanup_jarvis:
+        print("")
+        print("Somente diagnóstico: nenhum processo encerrado. Use --cleanup-jarvis para fechar apenas temporários do JARVIS.")
+    elif args.dry_run:
+        print("")
+        print("Modo: --dry-run; nenhum processo encerrado.")
+    else:
+        requested = []
+        for row, reason in candidates:
+            pid = int(row["pid"])
+            try:
+                os.kill(pid, signal.SIGTERM)
+                requested.append((pid, reason))
+            except ProcessLookupError:
+                continue
+            except PermissionError:
+                print(f"AVISO: sem permissão para encerrar PID {pid}.")
+        if requested:
+            time.sleep(0.15)
+        print("")
+        if not requested:
+            print("Limpeza concluída: nada precisou ser encerrado.")
+        for pid, reason in requested:
+            try:
+                os.kill(pid, 0)
+                state = "encerramento solicitado"
+            except ProcessLookupError:
+                state = "encerrado"
+            except PermissionError:
+                state = "encerramento solicitado"
+            print(f"- PID {pid}: {state} — {reason}")
+    print("Chrome, Claude, Orca, Codex, WindowServer e outros processos pessoais foram preservados.")
+    print("Produção: nada alterado.")
+
+
 def _file_category(path: Path) -> str:
     suffix = path.suffix.lower()
     for category, suffixes in FILE_CATEGORIES.items():
@@ -529,6 +677,10 @@ def build_parser() -> argparse.ArgumentParser:
     storage.add_argument("--max-files", type=int, default=200000)
     storage.add_argument("--include-hidden", action="store_true")
 
+    system_memory = sub.add_parser("system-memory")
+    system_memory.add_argument("--cleanup-jarvis", action="store_true")
+    system_memory.add_argument("--dry-run", action="store_true")
+
     triage = sub.add_parser("files-triage")
     triage.add_argument("path", nargs="?", default=".")
     triage.add_argument("--limit", type=int, default=100, choices=range(1, 1001))
@@ -547,6 +699,7 @@ def main() -> None:
         "message-send": cmd_message_send,
         "memory-save": cmd_memory_save,
         "storage-scan": cmd_storage_scan,
+        "system-memory": cmd_system_memory,
         "files-triage": cmd_files_triage,
     }
     handlers[args.command](args)

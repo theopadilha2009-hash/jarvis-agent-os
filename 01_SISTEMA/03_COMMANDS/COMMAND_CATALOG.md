@@ -53,6 +53,7 @@ Storage: `05_EXECUCAO/63_DECISIONS/decisions.jsonl` (gitignored, JSONL append-on
 - `./jarvis message-send --phone DDI_DDD_NUMERO "texto" [--dry-run]` — envia explicitamente pelo app Mensagens do macOS; requer conta iMessage ativa.
 - `./jarvis memory-save "texto" [--kind learning|decision|preference] [--dry-run]` — grava memória Markdown local em `03_MEMORIA/`, pronta para aparecer na constelação e ser versionada.
 - `./jarvis storage-scan [PASTA] [--top N] [--min-mb N]` — inventário read-only dos maiores arquivos; não lê conteúdo e não move/apaga nada.
+- `./jarvis system-memory [--cleanup-jarvis] [--dry-run]` — mede pressão de memória, lista os processos mais pesados e pode encerrar somente previews/servidores temporários do próprio JARVIS; preserva Chrome, Claude, Orca, Codex e demais apps pessoais.
 - `./jarvis files-triage [PASTA] [--limit N]` — classifica arquivos soltos por extensão e mostra origem → destino; não possui `--apply`.
 
 Todas recusam texto com aparência de segredo. Processos nativos são executados por lista de argumentos, sem shell. Somente `message-send`, chamado de forma explícita e com destino/texto completos, envia uma mensagem; organização e limpeza continuam sem aplicação automática.

@@ -77,6 +77,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
+        self.assertNotIn(b"fallback-core", html)
         self.assertNotIn(b'unpkg.com', html)
 
         status, headers, app_js = self.request("/ui/jarvis.js")
@@ -94,6 +95,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"makeCoreEntity", visual_js)
         self.assertIn(b"MEMORY CONSTELLATION", visual_js)
         self.assertIn(b"visualModeForState", visual_js)
+        self.assertIn(b"AnimationMixer", visual_js)
+        self.assertIn(b"20260807-mech3", visual_js)
         self.assertIn(b"FRAME_INTERVAL_MS", visual_js)
         self.assertIn(b"document.hidden", visual_js)
 
@@ -115,7 +118,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "model/gltf-binary")
         self.assertEqual(headers["Cache-Control"], "public, max-age=31536000, immutable")
-        self.assertGreater(len(model), 100_000)
+        self.assertGreater(len(model), 8_000_000)
+        self.assertLess(len(model), 10_000_000)
 
     def test_local_device_request_becomes_handoff(self):
         status, _, payload = self.json_request(
@@ -151,6 +155,27 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["intent"], "message_send")
         self.assertTrue(payload["requires_local_worker"])
+
+    def test_slow_mac_routes_to_real_memory_diagnostic(self):
+        payload, status = MODULE.command_payload(
+            {"command": "meu computador está travando, olha a memória"},
+            local_execute=False,
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["intent"], "system_memory")
+        self.assertEqual(payload["local_command"], "./jarvis system-memory")
+
+    def test_explicit_jarvis_cleanup_stays_scoped(self):
+        payload, status = MODULE.command_payload(
+            {"command": "limpa os processos temporários do jarvis"},
+            local_execute=False,
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["intent"], "system_memory")
+        self.assertEqual(
+            payload["local_command"],
+            "./jarvis system-memory --cleanup-jarvis",
+        )
 
     def test_memory_save_executes_and_opens_memory_visual(self):
         completed = MODULE.subprocess.CompletedProcess(

@@ -675,6 +675,11 @@ CHECKS = [
         "expect": ["Storage Scan", "somente metadados", "Nenhuma limpeza foi executada", "Produção: nada alterado"],
     },
     {
+        "name": "system-memory-dry-run",
+        "cmd": ["./jarvis", "system-memory", "--cleanup-jarvis", "--dry-run"],
+        "expect": ["System Memory", "Temporários controláveis", "nenhum processo encerrado", "processos pessoais foram preservados", "Produção: nada alterado"],
+    },
+    {
         "name": "files-triage-read-only",
         "cmd": ["./jarvis", "files-triage", "10_TESTES/FIXTURES", "--limit", "10"],
         "expect": ["Files Triage", "plano read-only", "não possui --apply", "Produção: nada alterado"],
