@@ -98,7 +98,7 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
     (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|whatsapp\s+para|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
     (re.compile(r"\b(mand(?:a|ar)|envi(?:a|ar)|escrev(?:a|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
-    (re.compile(r"\b(guard(?:a|ar)|salv(?:a|ar)|registr(?:a|ar)|grav(?:a|ar)|lembr(?:a|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
+    (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
     (re.compile(r"\b(coloc(?:a|ar)|adicion(?:a|ar)|marc(?:a|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
     (re.compile(r"\b(ver|mostr(?:a|ar)|list(?:a|ar)|consult(?:a|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
     (re.compile(r"\b(anot(?:a|ar)|captur(?:a|ar)|registr(?:a|ar))\b.{0,100}\b(ideia|inbox|nota)\b", re.I), "capture_note"),
@@ -106,6 +106,13 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(abr(?:e|ir))\b.{0,40}\b(projeto|oficina|jarvis|gc|ls)\b", re.I), "open_project"),
     (re.compile(r"\b(ver|listar|encontrar|procurar)\b.{0,40}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
     (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
+)
+
+MEMORY_SIGNAL_PATTERNS = (
+    re.compile(r"\b(eu\s+prefir[oa]|minha\s+prefer[eê]ncia)\b", re.I),
+    re.compile(r"\b(eu\s+sempre|eu\s+nunca|a\s+partir\s+de\s+agora)\b", re.I),
+    re.compile(r"\b(decidi|decidimos)\s+que\b", re.I),
+    re.compile(r"\b(meu\s+objetivo(?:\s+principal)?\s+[eé]|quero\s+que\s+(?:voc[eê]|o\s+jarvis)\s+sempre)\b", re.I),
 )
 
 SECRET_PATTERNS = (
@@ -144,6 +151,13 @@ def has_secret_like_text(value):
 
 def clean_text(value, limit=MAX_PROMPT_CHARS):
     return str(value or "").replace("\x00", "").strip()[:limit]
+
+
+def memory_suggestion(value):
+    text = clean_text(value, 600)
+    if len(text) < 12:
+        return ""
+    return text if any(pattern.search(text) for pattern in MEMORY_SIGNAL_PATTERNS) else ""
 
 
 def web_capabilities():
@@ -312,12 +326,56 @@ def planning_payload(path, body):
     }, 200
 
 
+def memory_write_command(command):
+    text = clean_text(command, 600)
+    kind = "preference" if re.search(r"\bprefer[eê]ncia\b", text, re.I) else "decision" if re.search(r"\bdecis[aã]o\b", text, re.I) else "learning"
+    body = re.sub(
+        r"^\s*(?:guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\s*",
+        "",
+        text,
+        flags=re.I,
+    ).strip(" :-")
+    body = re.sub(
+        r"^(?:isso\s+)?(?:na\s+mem[oó]ria)(?:\s+como\s+(?:prefer[eê]ncia|aprendizado|decis[aã]o))?\s*",
+        "",
+        body,
+        flags=re.I,
+    ).strip(" :-")
+    body = re.sub(
+        r"^como\s+(?:prefer[eê]ncia|aprendizado|decis[aã]o)\s*",
+        "",
+        body,
+        flags=re.I,
+    ).strip(" :-")
+    body = re.sub(
+        r"\s+(?:na|como)\s+(?:mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\s*$",
+        "",
+        body,
+        flags=re.I,
+    ).strip(" :-")
+    body = re.sub(r"^que\s+", "", body, flags=re.I).strip()
+    if len(body) < 3 or body.casefold() in {"isso", "isto", "essa", "esta", "aquilo"}:
+        return None
+    return ["./jarvis", "memory-save", body, "--kind", kind]
+
+
 def local_handoff(command, intent, execute=False):
-    safe_command = "./jarvis do " + shlex.quote(command)
+    command_args = memory_write_command(command) if intent == "memory_save" else ["./jarvis", "do", command]
+    if not command_args:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "memory_content_missing",
+            "visual_state": "error",
+            "message": "Diga exatamente o que devo guardar; não vou fingir que salvei um ‘isso’ sem contexto.",
+            "intent": intent,
+            "executed_locally": False,
+        }
+    safe_command = shlex.join(command_args)
     if execute:
         try:
             result = subprocess.run(
-                ["./jarvis", "do", command],
+                command_args,
                 cwd=ROOT,
                 text=True,
                 capture_output=True,
@@ -325,17 +383,20 @@ def local_handoff(command, intent, execute=False):
                 env=os.environ.copy(),
             )
             output = (result.stdout or result.stderr or "").strip()[-8_000:]
+            action_succeeded = result.returncode == 0
+            if intent == "memory_save":
+                action_succeeded = action_succeeded and "Memória criada:" in output
             success_messages = {
                 "memory_save": "Guardei isso na memória local.",
                 "message_send": "Mensagem entregue ao app Mensagens do Mac.",
                 "screen_capture": "Captura concluída no seu Mac.",
             }
             return {
-                "ok": result.returncode == 0,
+                "ok": action_succeeded,
                 "endpoint": "POST /command",
-                "status_real": "local_action_executed" if result.returncode == 0 else "local_action_failed",
-                "visual_state": "memory" if result.returncode == 0 and intent == "memory_save" else "success" if result.returncode == 0 else "error",
-                "message": success_messages.get(intent, "Feito no seu Mac.") if result.returncode == 0 else "Tentei fazer no Mac, mas a ferramenta retornou um erro.",
+                "status_real": "local_action_executed" if action_succeeded else "local_action_failed",
+                "visual_state": "memory" if action_succeeded and intent == "memory_save" else "success" if action_succeeded else "error",
+                "message": success_messages.get(intent, "Feito no seu Mac.") if action_succeeded else "Tentei fazer no Mac, mas não recebi evidência de conclusão.",
                 "intent": intent,
                 "executed_locally": True,
                 "exit_code": result.returncode,
@@ -355,8 +416,8 @@ def local_handoff(command, intent, execute=False):
         "ok": True,
         "endpoint": "POST /command",
         "status_real": "web_to_local_handoff",
-        "visual_state": "local",
-        "message": "Esse pedido precisa rodar no Mac. O handoff está pronto para o worker local.",
+        "visual_state": "memory" if intent == "memory_save" else "local",
+        "message": "A memória está preparada para o worker local do Mac." if intent == "memory_save" else "Esse pedido precisa rodar no Mac. O handoff está pronto para o worker local.",
         "intent": intent,
         "requires_local_worker": True,
         "local_command": safe_command,
@@ -515,6 +576,8 @@ def assistant_response(body, origin="", local_execute=False):
         if pattern.search(latest):
             return local_handoff(latest, intent, execute=local_execute), 200
 
+    suggested_memory = memory_suggestion(latest)
+
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         payload, status = planning_payload("/assistant", {"goal": latest})
@@ -571,17 +634,20 @@ def assistant_response(body, origin="", local_execute=False):
         content = clean_text(content, 20_000)
         if not content:
             raise ValueError("empty model response")
-        return {
+        payload = {
             "ok": True,
             "endpoint": "POST /assistant",
             "status_real": "assistant_response_from_openrouter",
-            "visual_state": "response",
+            "visual_state": "memory" if suggested_memory else "response",
             "message": content,
             "content": content,
             "model": clean_text(result.get("model") or DEFAULT_MODEL, 200),
             "provider": "openrouter",
             "external_processing": True,
-        }, 200
+        }
+        if suggested_memory:
+            payload["memory_suggestion"] = suggested_memory
+        return payload, 200
     except HTTPError as error:
         return {
             "ok": False,
