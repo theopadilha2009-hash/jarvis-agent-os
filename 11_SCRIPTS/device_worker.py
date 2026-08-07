@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "4"
+WORKER_VERSION = "5"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -50,6 +50,7 @@ ALLOWED_ACTIONS = {
     "screen_capture",
     "storage_scan",
     "system_memory",
+    "self_edit",
 }
 TARGET_PATTERN = re.compile(r"^[\wÀ-ÿ ._-]{0,120}$")
 JARVIS_CLEANUP_PATTERN = re.compile(
@@ -278,6 +279,11 @@ def command_argv(job: dict) -> list[str]:
         raise WorkerError("Ação recebida fora do allowlist.")
     if not TARGET_PATTERN.fullmatch(target):
         raise WorkerError("Aplicativo recebido com nome inválido.")
+    if action == "self_edit":
+        request_text = str(job.get("request_text") or "")[:2_000].strip()
+        if len(request_text) < 12 or contains_secret(request_text):
+            raise WorkerError("Autoedição recebida sem objetivo seguro e explícito.")
+        return [str(ROOT / "jarvis"), "self-edit", request_text]
     if action == "system_memory":
         argv = [str(ROOT / "jarvis"), "system-memory"]
         request_text = str(job.get("request_text") or "")[:8_000]
@@ -363,11 +369,11 @@ def execute_job(job: dict) -> tuple[bool, str]:
             text=True,
             capture_output=True,
             check=False,
-            timeout=90,
+            timeout=1_200 if str(job.get("action") or "") == "self_edit" else 90,
             env=os.environ.copy(),
         )
     except subprocess.TimeoutExpired:
-        return False, "A ação local excedeu 90 segundos e foi interrompida."
+        return False, "A ação local excedeu o tempo máximo e foi interrompida."
     output = (result.stdout or result.stderr or "").strip()
     return result.returncode == 0, output or f"Processo finalizado com exit code {result.returncode}."
 

@@ -41,6 +41,7 @@
 __pycache__/
 *.pyc
 .vercel/
+supabase/.temp/
 09_LOGS/device-worker.log
 09_LOGS/device-worker-error.log
 

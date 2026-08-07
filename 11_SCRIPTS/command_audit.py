@@ -97,6 +97,7 @@ CRITICAL_COMMANDS = [
     "system-memory",
     "computer",
     "computer-worker",
+    "self-edit",
     "files-triage",
     "run-list",
     "run-show",

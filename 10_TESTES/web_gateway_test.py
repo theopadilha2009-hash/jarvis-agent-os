@@ -104,6 +104,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"revealLatest", app_js)
         self.assertIn(b"saveOwnerToken", app_js)
         self.assertIn(b"ElevenLabs sem cr\xc3\xa9ditos", app_js)
+        self.assertIn(b"new AbortController()", app_js)
+        self.assertIn(b"signal: controller.signal", app_js)
+        self.assertIn(b"currentSpeechController?.abort()", app_js)
+        self.assertIn(b'error?.name === "AbortError"', app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
 
         status, headers, visual_js = self.request("/ui/jarvis-3d.js")
@@ -223,6 +227,91 @@ class WebGatewayTest(unittest.TestCase):
         sent_request = request.call_args.args[0]
         self.assertEqual(sent_request.method, "POST")
         self.assertIn("/rest/v1/jarvis_device_commands", sent_request.full_url)
+
+    def test_self_edit_routes_only_to_paired_local_worker(self):
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            blocked, blocked_status = MODULE.command_payload(
+                {"command": "melhore seus próprios scripts de diagnóstico"},
+                owner_authenticated=False,
+            )
+            self.assertEqual(blocked_status, 401)
+            self.assertTrue(blocked["pairing_required"])
+            with patch.object(MODULE, "supabase_device_enqueue", return_value=({
+                "ok": True,
+                "intent": "self_edit",
+                "status_real": "device_command_queued",
+            }, 202)) as enqueue:
+                payload, status = MODULE.command_payload(
+                    {"command": "melhore seus próprios scripts de diagnóstico"},
+                    owner_authenticated=True,
+                )
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["intent"], "self_edit")
+        enqueue.assert_called_once_with("melhore seus próprios scripts de diagnóstico", "self_edit")
+
+    def test_voice_design_requires_pairing_and_routes_to_real_provider(self):
+        env = {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}
+        command = "crie uma voz própria para você"
+        with patch.dict(os.environ, env, clear=False):
+            blocked, blocked_status = MODULE.command_payload(
+                {"command": command}, owner_authenticated=False
+            )
+            self.assertEqual(blocked_status, 401)
+            self.assertTrue(blocked["pairing_required"])
+            expected = {
+                "ok": True,
+                "status_real": "elevenlabs_voice_created",
+                "intent": "voice_design",
+            }
+            with patch.object(MODULE, "elevenlabs_voice_design", return_value=(expected, 201)) as design:
+                payload, status = MODULE.command_payload(
+                    {"command": command}, owner_authenticated=True
+                )
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["status_real"], "elevenlabs_voice_created")
+        design.assert_called_once_with(command)
+
+    def test_voice_design_creates_and_persists_returned_voice_id(self):
+        class FakeJsonResponse:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, *_args):
+                return json.dumps(self.payload).encode("utf-8")
+
+        env = {
+            "ELEVENLABS_API_KEY": "elevenlabs-test-key-value",
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        responses = [
+            FakeJsonResponse({"previews": [{"generated_voice_id": "generated_voice_123"}]}),
+            FakeJsonResponse({"voice_id": "created_voice_456"}),
+        ]
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "supabase_request", return_value=[]
+        ), patch.object(MODULE, "urlopen", side_effect=responses) as provider, patch.object(
+            MODULE, "persist_active_voice", return_value={}
+        ) as persist:
+            payload, status = MODULE.elevenlabs_voice_design("crie uma voz própria para você")
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["voice"]["id"], "created_voice_456")
+        self.assertEqual(provider.call_count, 2)
+        self.assertEqual(provider.call_args_list[0].args[0].full_url, MODULE.ELEVENLABS_VOICE_DESIGN_URL)
+        self.assertEqual(provider.call_args_list[1].args[0].full_url, MODULE.ELEVENLABS_VOICE_CREATE_URL)
+        persist.assert_called_once()
+        self.assertEqual(persist.call_args.args[0], "created_voice_456")
 
     def test_device_command_status_uses_persisted_result(self):
         class FakeSupabaseResponse:
