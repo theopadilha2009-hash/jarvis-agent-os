@@ -685,6 +685,16 @@ CHECKS = [
         "expect": ["Device Worker", "ponte local allowlisted", "nenhum heartbeat ou comando foi gravado", "Produção: nenhum deploy alterado"],
     },
     {
+        "name": "self-edit-dry-run",
+        "cmd": ["./jarvis", "self-edit", "melhorar os próprios scripts com evidência", "--dry-run"],
+        "expect": [
+            "JARVIS Self Edit",
+            "autoedição isolada preparada",
+            "Modo preview",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "files-triage-read-only",
         "cmd": ["./jarvis", "files-triage", "10_TESTES/FIXTURES", "--limit", "10"],
         "expect": ["Files Triage", "plano read-only", "não possui --apply", "Produção: nada alterado"],

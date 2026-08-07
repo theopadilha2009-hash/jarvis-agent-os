@@ -36,6 +36,7 @@
   };
   let currentAudio = null;
   let currentAudioUrl = "";
+  let currentSpeechController = null;
   let speechGeneration = 0;
   let voiceFailureNotified = false;
 
@@ -240,6 +241,8 @@
 
   function stopSpeechOutput() {
     speechGeneration += 1;
+    currentSpeechController?.abort();
+    currentSpeechController = null;
     currentAudio?.pause();
     currentAudio = null;
     if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
@@ -274,32 +277,45 @@
     if (session.muted) return false;
     const generation = speechGeneration;
     if (!session.elevenlabs) return false;
+    const controller = new AbortController();
+    currentSpeechController = controller;
     try {
       const response = await fetch("/speech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: clean }),
+        signal: controller.signal,
       });
+      if (generation !== speechGeneration || controller !== currentSpeechController) return false;
       if (!response.ok) {
         const failure = await response.json().catch(() => ({}));
         throw new Error(failure.error_code || "elevenlabs_unavailable");
       }
-      currentAudioUrl = URL.createObjectURL(await response.blob());
-      currentAudio = new Audio(currentAudioUrl);
-      currentAudio.onplay = () => {
+      const audioBlob = await response.blob();
+      if (generation !== speechGeneration || controller !== currentSpeechController) return false;
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      currentAudioUrl = audioUrl;
+      currentAudio = audio;
+      audio.onplay = () => {
         if (generation === speechGeneration) beginSpeaking(clean);
       };
-      currentAudio.onended = () => {
+      audio.onended = () => {
         if (generation === speechGeneration) finishSpeaking();
       };
-      currentAudio.onerror = () => {
+      audio.onerror = () => {
         if (generation === speechGeneration) finishSpeaking();
       };
-      await currentAudio.play();
+      if (generation !== speechGeneration || controller !== currentSpeechController) {
+        URL.revokeObjectURL(audioUrl);
+        return false;
+      }
+      await audio.play();
       session.voiceError = "";
       voiceFailureNotified = false;
       return true;
     } catch (error) {
+      if (error?.name === "AbortError") return false;
       if (generation === speechGeneration) {
         finishSpeaking();
         const errorCode = error?.message;
@@ -311,6 +327,8 @@
         reportVoiceFailure(status, ["elevenlabs_quota", "elevenlabs_authorization"].includes(errorCode));
       }
       return false;
+    } finally {
+      if (controller === currentSpeechController) currentSpeechController = null;
     }
   }
 

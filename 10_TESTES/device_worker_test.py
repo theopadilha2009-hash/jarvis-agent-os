@@ -37,6 +37,15 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(memory, [str(ROOT / "jarvis"), "system-memory"])
         self.assertEqual(cleanup, [str(ROOT / "jarvis"), "system-memory", "--cleanup-jarvis"])
         self.assertEqual(broad_cleanup, [str(ROOT / "jarvis"), "system-memory"])
+        self_edit = MODULE.command_argv({
+            "action": "self_edit",
+            "target": "",
+            "request_text": "melhore seus próprios scripts de diagnóstico",
+        })
+        self.assertEqual(
+            self_edit,
+            [str(ROOT / "jarvis"), "self-edit", "melhore seus próprios scripts de diagnóstico"],
+        )
 
         capture = MODULE.command_argv({"action": "screen_capture", "target": ""})
         storage = MODULE.command_argv({"action": "storage_scan", "target": "downloads"})
@@ -74,6 +83,12 @@ class DeviceWorkerTest(unittest.TestCase):
                 "target": "5511999999999",
                 "request_text": "mande mensagem para 5511999999999 token=placeholdervalue123456",
             })
+        with self.assertRaises(MODULE.WorkerError):
+            MODULE.command_argv({
+                "action": "self_edit",
+                "target": "",
+                "request_text": "edite scripts token=placeholdervalue123456",
+            })
 
     def test_run_once_claims_executes_and_finishes_persisted_job(self):
         pending = {"id": 17, "action": "open_application", "target": "Calculator"}
@@ -94,7 +109,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
-        self.assertEqual(kwargs["body"]["version"], "4")
+        self.assertEqual(kwargs["body"]["version"], "5")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):
@@ -121,16 +136,18 @@ class DeviceWorkerTest(unittest.TestCase):
         stale = [
             {"id": 31, "action": "screen_capture"},
             {"id": 32, "action": "message_send"},
+            {"id": 33, "action": "self_edit"},
         ]
-        with patch.object(MODULE, "rest_request", side_effect=[stale, [], []]) as request:
+        with patch.object(MODULE, "rest_request", side_effect=[stale, [], [], []]) as request:
             requeued, failed = MODULE.recover_stale_commands()
-        self.assertEqual((requeued, failed), (1, 1))
+        self.assertEqual((requeued, failed), (1, 2))
         retry_body = request.call_args_list[1].kwargs["body"]
         message_body = request.call_args_list[2].kwargs["body"]
         self.assertEqual(retry_body["status"], "pending")
         self.assertIsNone(retry_body["claimed_at"])
         self.assertEqual(message_body["status"], "failed")
         self.assertIn("não foi repetida", message_body["result"])
+        self.assertEqual(request.call_args_list[3].kwargs["body"]["status"], "failed")
         recovery_query = request.call_args_list[0].kwargs["query"]
         self.assertIn("%2B00:00", recovery_query)
         self.assertNotIn("+00:00", recovery_query)

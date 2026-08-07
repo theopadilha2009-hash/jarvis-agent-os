@@ -22,6 +22,7 @@ import re
 import shlex
 import subprocess
 import threading
+import time
 import unicodedata
 import webbrowser
 from zoneinfo import ZoneInfo
@@ -34,6 +35,8 @@ UI_ASSET_DIR = ROOT / "11_SCRIPTS" / "jarvis_ui_assets"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openrouter/free"
 ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+ELEVENLABS_VOICE_DESIGN_URL = "https://api.elevenlabs.io/v1/text-to-voice/design"
+ELEVENLABS_VOICE_CREATE_URL = "https://api.elevenlabs.io/v1/text-to-voice"
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
 DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
 MAX_BODY_BYTES = 32_768
@@ -43,6 +46,7 @@ SUPABASE_DEVICE_COMMANDS_TABLE = "jarvis_device_commands"
 SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
 SUPABASE_CONTACTS_TABLE = "jarvis_contacts"
 SUPABASE_AGENDA_TABLE = "jarvis_agenda_items"
+SUPABASE_SETTINGS_TABLE = "jarvis_settings"
 SUPABASE_ARTIFACTS_BUCKET = "jarvis-artifacts"
 REMOTE_DEVICE_INTENTS = {
     "open_application",
@@ -51,6 +55,7 @@ REMOTE_DEVICE_INTENTS = {
     "screen_capture",
     "storage_scan",
     "system_memory",
+    "self_edit",
 }
 MEMORY_KIND_LABELS = {
     "learning": "APRENDIZADOS",
@@ -144,6 +149,7 @@ JARVIS_CLEANUP_PATTERN = re.compile(
 )
 
 LOCAL_INTENTS = (
+    (re.compile(r"\b(?:auto[-\s]?(?:edit(?:e|ar)|melhor(?:e|ar))|(?:edit(?:e|ar)|mex(?:a|er)|alter(?:e|ar)|modifiqu(?:e|ar)|melhor(?:e|ar)|arrum(?:e|ar)|corrij(?:a|ir))\b.{0,100}\b(?:seus|nos\s+seus|pr[oó]prios?)\b.{0,50}\b(?:scripts?|c[oó]digo|arquivos?)\b)", re.I), "self_edit"),
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
     (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
     (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
@@ -165,6 +171,14 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(ver|list(?:a|e|ar)|encontr(?:a|e|ar)|procur(?:a|e|ar)|mostr(?:a|e|ar)|analis(?:a|e|ar))\b.{0,60}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
     (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
 )
+
+VOICE_DESIGN_PATTERN = re.compile(
+    r"\b(?:cri(?:a|e|ar)|invent(?:a|e|ar)|desenh(?:a|e|ar)|ger(?:a|e|ar))\b"
+    r".{0,70}\b(?:(?:sua\s+pr[oó]pria|uma\s+nova|uma)\s+voz|voz\s+pr[oó]pria|voz\s+do\s+jarvis)\b",
+    re.I,
+)
+
+_ACTIVE_VOICE_CACHE = {"voice_id": "", "name": "", "expires_at": 0.0}
 
 MEMORY_SIGNAL_PATTERNS = (
     re.compile(r"\b(eu\s+prefir[oa]|minha\s+prefer[eê]ncia)\b", re.I),
@@ -301,6 +315,7 @@ def supabase_request(method="GET", query="", body=None, prefer="", table=SUPABAS
         SUPABASE_DEVICE_WORKERS_TABLE,
         SUPABASE_CONTACTS_TABLE,
         SUPABASE_AGENDA_TABLE,
+        SUPABASE_SETTINGS_TABLE,
     }:
         raise ValueError("supabase table not allowed")
     url = f"{base_url}/rest/v1/{table}"
@@ -319,6 +334,76 @@ def supabase_request(method="GET", query="", body=None, prefer="", table=SUPABAS
     with urlopen(request, timeout=15) as response:
         raw = response.read(1_000_000)
     return json.loads(raw.decode("utf-8")) if raw else []
+
+
+def active_voice_setting(force=False):
+    """Resolve the persisted active voice without exposing Supabase credentials."""
+    now = time.monotonic()
+    if not force and _ACTIVE_VOICE_CACHE["voice_id"] and now < _ACTIVE_VOICE_CACHE["expires_at"]:
+        return dict(_ACTIVE_VOICE_CACHE)
+    fallback = {
+        "voice_id": clean_text(
+            os.environ.get("ELEVENLABS_VOICE_ID") or DEFAULT_ELEVENLABS_VOICE_ID,
+            100,
+        ),
+        "name": "ElevenLabs",
+        "source": "environment",
+    }
+    if supabase_configured():
+        try:
+            rows = supabase_request(
+                query="select=value&owner_id=eq.theo&key=eq.active_voice&limit=1",
+                table=SUPABASE_SETTINGS_TABLE,
+            )
+            value = rows[0].get("value") if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+            voice_id = clean_text(value.get("voice_id"), 100) if isinstance(value, dict) else ""
+            if re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
+                fallback = {
+                    "voice_id": voice_id,
+                    "name": clean_text(value.get("name") or "JARVIS Theo", 120),
+                    "source": "supabase",
+                }
+        except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+            pass
+    _ACTIVE_VOICE_CACHE.update({
+        "voice_id": fallback["voice_id"],
+        "name": fallback["name"],
+        "source": fallback["source"],
+        "expires_at": now + 60.0,
+    })
+    return dict(_ACTIVE_VOICE_CACHE)
+
+
+def persist_active_voice(voice_id, name, description):
+    safe_voice_id = clean_text(voice_id, 100)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", safe_voice_id):
+        raise ValueError("invalid voice id")
+    value = {
+        "voice_id": safe_voice_id,
+        "name": clean_text(name, 120),
+        "description": clean_text(description, 1_000),
+        "provider": "elevenlabs_voice_design",
+        "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    supabase_request(
+        "POST",
+        query="on_conflict=owner_id,key",
+        body={
+            "owner_id": "theo",
+            "key": "active_voice",
+            "value": value,
+            "updated_at": value["created_at"],
+        },
+        prefer="resolution=merge-duplicates,return=representation",
+        table=SUPABASE_SETTINGS_TABLE,
+    )
+    _ACTIVE_VOICE_CACHE.update({
+        "voice_id": safe_voice_id,
+        "name": value["name"],
+        "source": "supabase",
+        "expires_at": time.monotonic() + 60.0,
+    })
+    return value
 
 
 def supabase_storage_request(object_path, body):
@@ -1162,6 +1247,7 @@ def status_payload(owner_authenticated=False):
     ai_ready = bool(os.environ.get("OPENROUTER_API_KEY"))
     elevenlabs_ready = bool(os.environ.get("ELEVENLABS_API_KEY"))
     n8n_ready = bool(os.environ.get("N8N_WEBHOOK_URL"))
+    active_voice = active_voice_setting()
     return {
         "ok": True,
         "endpoint": "GET /status",
@@ -1178,7 +1264,9 @@ def status_payload(owner_authenticated=False):
         "voice": {
             "provider": "elevenlabs" if elevenlabs_ready else "browser",
             "configured": elevenlabs_ready,
-            "voice_id": os.environ.get("ELEVENLABS_VOICE_ID", DEFAULT_ELEVENLABS_VOICE_ID),
+            "voice_id": active_voice.get("voice_id"),
+            "name": active_voice.get("name"),
+            "source": active_voice.get("source"),
             "model": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
             "fallback": "text_only",
         },
@@ -1589,6 +1677,127 @@ def n8n_automation(command, intent):
         }, 504
 
 
+def elevenlabs_voice_design(command=""):
+    """Create and persist a real ElevenLabs Voice Design voice for JARVIS."""
+    if has_secret_like_text(command):
+        return {"ok": False, "error": "Remova credenciais do pedido de voz."}, 400
+    api_key = clean_text(os.environ.get("ELEVENLABS_API_KEY"), 2_000)
+    if not api_key:
+        return {
+            "ok": False,
+            "status_real": "elevenlabs_key_required",
+            "error": "A chave ElevenLabs não está configurada no runtime.",
+        }, 503
+    if not supabase_configured():
+        return {
+            "ok": False,
+            "status_real": "voice_persistence_required",
+            "error": "O Supabase privado precisa estar conectado para guardar a nova voz ativa.",
+        }, 503
+
+    description = (
+        "Voz masculina adulta brasileira, humana e natural, com timbre grave e quente, presença calma, "
+        "dicção precisa e elegante. Confiança serena de assistente tecnológico sofisticado, ritmo moderado, "
+        "humor seco sutil e inteligência contida. Português brasileiro nativo, sem sotaque estrangeiro, sem "
+        "efeito robótico, sem teatralidade exagerada, com áudio limpo de estúdio e emoção realista."
+    )
+    preview_text = (
+        "Theo, sistemas online. Já revisei o cenário e separei o que realmente importa. "
+        "Posso executar o próximo passo quando você mandar. E, desta vez, sem transformar uma tarefa simples "
+        "numa reunião que poderia ter sido uma mensagem."
+    )
+    headers = {
+        "xi-api-key": api_key,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    try:
+        # Preflight persistence before consuming voice-design credits or a voice slot.
+        supabase_request(
+            query="select=key&owner_id=eq.theo&limit=1",
+            table=SUPABASE_SETTINGS_TABLE,
+        )
+        design_request = Request(
+            ELEVENLABS_VOICE_DESIGN_URL,
+            data=json.dumps({
+                "voice_description": description,
+                "text": preview_text,
+                "model_id": "eleven_ttv_v3",
+            }, ensure_ascii=False).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        with urlopen(design_request, timeout=45) as response:
+            design = json.loads(response.read(16_000_000).decode("utf-8"))
+        previews = design.get("previews") if isinstance(design, dict) else None
+        preview = previews[0] if isinstance(previews, list) and previews and isinstance(previews[0], dict) else None
+        generated_voice_id = clean_text(preview.get("generated_voice_id"), 200) if preview else ""
+        if not generated_voice_id:
+            raise ValueError("missing generated voice preview")
+
+        voice_name = f"JARVIS Theo {datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%Y-%m-%d %H%M')}"
+        create_request = Request(
+            ELEVENLABS_VOICE_CREATE_URL,
+            data=json.dumps({
+                "voice_name": voice_name,
+                "voice_description": description,
+                "generated_voice_id": generated_voice_id,
+                "labels": {"language": "pt-BR", "use_case": "conversational"},
+            }, ensure_ascii=False).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        with urlopen(create_request, timeout=30) as response:
+            created = json.loads(response.read(1_000_000).decode("utf-8"))
+        voice_id = clean_text(created.get("voice_id"), 100) if isinstance(created, dict) else ""
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
+            raise ValueError("missing created voice id")
+        persist_active_voice(voice_id, voice_name, description)
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "elevenlabs_voice_created",
+            "visual_state": "success",
+            "intent": "voice_design",
+            "provider": "elevenlabs_voice_design",
+            "message": (
+                f"Criei e ativei minha voz própria, {voice_name}. "
+                "Ela já será usada nas próximas respostas e ficou salva no Supabase privado."
+            ),
+            "voice": {
+                "id": voice_id,
+                "name": voice_name,
+                "language": "pt-BR",
+                "persistent": True,
+            },
+        }, 201
+    except HTTPError as error:
+        messages = {
+            401: "A ElevenLabs recusou a chave configurada.",
+            402: "A ElevenLabs exige créditos ou plano compatível para criar esta voz.",
+            403: "A conta ElevenLabs não autorizou Voice Design.",
+            422: "A ElevenLabs recusou a descrição da voz.",
+            429: "A ElevenLabs atingiu o limite temporário de criação de voz.",
+        }
+        return {
+            "ok": False,
+            "status_real": "elevenlabs_voice_creation_failed",
+            "error": messages.get(error.code, f"A ElevenLabs recusou a criação da voz (HTTP {error.code})."),
+        }, 502
+    except (URLError, TimeoutError):
+        return {
+            "ok": False,
+            "status_real": "elevenlabs_voice_creation_timeout",
+            "error": "A criação da voz não respondeu a tempo; nenhuma ativação foi confirmada.",
+        }, 504
+    except (ValueError, KeyError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "status_real": "elevenlabs_voice_creation_invalid",
+            "error": "A ElevenLabs não confirmou uma voz válida; nenhuma ativação foi inventada.",
+        }, 502
+
+
 def elevenlabs_speech(body):
     text = clean_text(body.get("text") or body.get("message"), 2_200)
     if not text:
@@ -1603,7 +1812,7 @@ def elevenlabs_speech(body):
             "error": "ElevenLabs ainda não está configurado.",
             "fallback": "text_only",
         }, 503
-    voice_id = clean_text(os.environ.get("ELEVENLABS_VOICE_ID") or DEFAULT_ELEVENLABS_VOICE_ID, 100)
+    voice_id = clean_text(active_voice_setting().get("voice_id"), 100)
     if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
         return {"ok": False, "error": "Voice ID inválido."}, 500
     payload = json.dumps({
@@ -1692,6 +1901,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         }, 400
 
     latest = messages[-1]["content"]
+    if VOICE_DESIGN_PATTERN.search(latest):
+        if owner_pairing_required() and not owner_authenticated:
+            return pairing_required_payload()
+        return elevenlabs_voice_design(latest)
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
             if owner_pairing_required() and not owner_authenticated and intent in {
@@ -1845,6 +2058,11 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             "endpoint": "POST /command",
             "error": "O comando parece conter uma credencial. Remova o segredo e tente novamente.",
         }, 400
+
+    if VOICE_DESIGN_PATTERN.search(command):
+        if owner_pairing_required() and not owner_authenticated:
+            return pairing_required_payload()
+        return elevenlabs_voice_design(command)
 
     if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.IGNORECASE):
         if owner_pairing_required() and not owner_authenticated:

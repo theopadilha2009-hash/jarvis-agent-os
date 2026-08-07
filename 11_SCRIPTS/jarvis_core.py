@@ -2875,6 +2875,10 @@ def computer_worker_command(args=None):
     """./jarvis computer-worker [--once|--watch|--install|--status|--uninstall] [--dry-run]"""
     _run_py_propagate("11_SCRIPTS/device_worker.py", args or [])
 
+def self_edit_command(args=None):
+    """./jarvis self-edit "melhoria" [--dry-run] — Codex local em worktree isolado."""
+    _run_py_propagate("11_SCRIPTS/self_edit.py", args or [])
+
 def files_triage_command(args=None):
     """./jarvis files-triage [PASTA] [--limit N] — plano read-only."""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["files-triage", *(args or [])])
@@ -3379,6 +3383,7 @@ def _help_full():
   ./jarvis system-memory [--cleanup-jarvis] [--dry-run]  RAM + limpeza restrita a temporários JARVIS
   ./jarvis computer list|inspect|open|close [APP] [--dry-run]  Computer Use local via Orca
   ./jarvis computer-worker [--once|--watch|--install|--status|--uninstall] [--dry-run]  fila allowlisted Vercel → Mac
+  ./jarvis self-edit "melhoria" [--dry-run]  altera scripts via Codex local em branch/worktree isolado e validado
   ./jarvis files-triage [PASTA] [--limit N]  plano de organização por tipo; não move nada
   ./jarvis blueprint --type T --goal "..."  blueprint local (n8n|app|automation|research)
   ./jarvis research-digest [--goal "..."]  digest local dos deep research + plano de evolução
@@ -3606,6 +3611,8 @@ def main():
         computer_command(sys.argv[2:])
     elif cmd == "computer-worker":
         computer_worker_command(sys.argv[2:])
+    elif cmd == "self-edit":
+        self_edit_command(sys.argv[2:])
     elif cmd == "files-triage":
         files_triage_command(sys.argv[2:])
     elif cmd == "run-list":
