@@ -13,7 +13,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hmac
 import json
 import mimetypes
@@ -24,6 +24,7 @@ import subprocess
 import threading
 import unicodedata
 import webbrowser
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -141,9 +142,12 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
     (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|whatsapp\s+para|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
     (re.compile(r"\b(salv(?:a|e|ar)|adicion(?:a|e|ar)|cri(?:a|e|ar)|cadastr(?:a|e|ar))\b.{0,40}\bcontato\b", re.I), "contact_save"),
+    (re.compile(r"\b(remov(?:a|e|er)|apag(?:a|e|ar)|arquiv(?:a|e|ar)|esquec(?:a|e|er))\b.{0,40}\bcontato\b", re.I), "contact_archive"),
+    (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,60}\bcontatos?\b", re.I), "contact_view"),
     (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
     (re.compile(r"\b(coloc(?:a|ar)|adicion(?:a|ar)|marc(?:a|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
+    (re.compile(r"\b(conclu(?:a|i|ir)|finaliz(?:a|e|ar)|marc(?:a|e|ar))\b.{0,60}\b(?:item|tarefa|lembrete|agenda)\s*#?\s*\d+\b", re.I), "agenda_complete"),
     (re.compile(r"\b(ver|mostr(?:a|ar)|list(?:a|ar)|consult(?:a|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
     (re.compile(r"\b(anot(?:a|ar)|captur(?:a|ar)|registr(?:a|ar))\b.{0,100}\b(ideia|inbox|nota)\b", re.I), "capture_note"),
     (re.compile(r"\b(adicion(?:a|ar)|cri(?:a|ar))\b.{0,60}\b(tarefa|task)\b", re.I), "task_add"),
@@ -413,7 +417,12 @@ def supabase_contact_save(command):
             "error": "Diga o nome do contato e o telefone completo com DDI e DDD.",
             "intent": "contact_save",
         }, 400
-    row = {"owner_id": "theo", **contact, "updated_at": datetime.now(timezone.utc).isoformat()}
+    row = {
+        "owner_id": "theo",
+        **contact,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "archived_at": None,
+    }
     try:
         result = supabase_request(
             "POST",
@@ -482,10 +491,59 @@ def supabase_contact(alias):
         return None
     query = (
         "select=id,alias,display_name,phone"
-        f"&owner_id=eq.theo&alias=eq.{quote(safe_alias, safe='')}&limit=1"
+        f"&owner_id=eq.theo&alias=eq.{quote(safe_alias, safe='')}&archived_at=is.null&limit=1"
     )
     rows = supabase_request(query=query, table=SUPABASE_CONTACTS_TABLE)
     return rows[0] if isinstance(rows, list) and rows else None
+
+
+def contact_alias_from_command(command):
+    match = re.search(r"\bcontato\s+(?:d[oa]\s+)?(?P<name>[\wÀ-ÿ ._-]{1,80})[.!?]*\s*$", clean_text(command, 300), re.I)
+    return normalize_alias(match.group("name")) if match else ""
+
+
+def supabase_contact_archive(command):
+    alias = contact_alias_from_command(command)
+    if not alias:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "contact_alias_missing",
+            "visual_state": "error",
+            "error": "Diga exatamente qual contato devo arquivar.",
+            "intent": "contact_archive",
+        }, 400
+    try:
+        rows = supabase_request(
+            "PATCH",
+            query=f"owner_id=eq.theo&alias=eq.{quote(alias, safe='')}&archived_at=is.null",
+            body={"archived_at": datetime.now(timezone.utc).isoformat()},
+            prefer="return=representation",
+            table=SUPABASE_CONTACTS_TABLE,
+        )
+        saved = rows[0] if isinstance(rows, list) and rows else None
+        if not isinstance(saved, dict):
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "contact_not_found",
+                "visual_state": "error",
+                "error": "Não encontrei esse contato ativo.",
+                "intent": "contact_archive",
+            }, 404
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "supabase_contact_archived",
+            "visual_state": "memory",
+            "message": f"Contato {clean_text(saved.get('display_name'), 120) or alias} arquivado sem apagar o histórico.",
+            "intent": "contact_archive",
+            "provider": "supabase",
+        }, 200
+    except HTTPError as error:
+        return {"ok": False, "endpoint": "POST /command", "error": f"Supabase recusou o arquivamento (HTTP {error.code})."}, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {"ok": False, "endpoint": "POST /command", "error": "O arquivamento do contato não foi confirmado."}, 504
 
 
 def agenda_title(command):
@@ -501,12 +559,70 @@ def agenda_title(command):
     return title if len(title) >= 3 else ""
 
 
+def agenda_schedule(command, now=None):
+    text = clean_text(command, 1_000).casefold()
+    local_tz = ZoneInfo("America/Sao_Paulo")
+    current = now or datetime.now(local_tz)
+    current = current.replace(tzinfo=local_tz) if current.tzinfo is None else current.astimezone(local_tz)
+    selected_date = None
+
+    iso_match = re.search(r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b", text)
+    br_match = re.search(r"\b(\d{1,2})/(\d{1,2})(?:/(20\d{2}))?\b", text)
+    try:
+        if iso_match:
+            selected_date = datetime(
+                int(iso_match.group(1)), int(iso_match.group(2)), int(iso_match.group(3)), tzinfo=local_tz
+            ).date()
+        elif br_match:
+            selected_date = datetime(
+                int(br_match.group(3) or current.year), int(br_match.group(2)), int(br_match.group(1)), tzinfo=local_tz
+            ).date()
+        elif re.search(r"\bamanh[aã]\b", text):
+            selected_date = (current + timedelta(days=1)).date()
+        elif re.search(r"\bhoje\b", text):
+            selected_date = current.date()
+        else:
+            weekdays = {
+                "segunda": 0, "terca": 1, "terça": 1, "quarta": 2,
+                "quinta": 3, "sexta": 4, "sabado": 5, "sábado": 5, "domingo": 6,
+            }
+            for label, weekday in weekdays.items():
+                if re.search(rf"\b{label}(?:-feira)?\b", text):
+                    delta = (weekday - current.weekday()) % 7
+                    selected_date = (current + timedelta(days=delta or 7)).date()
+                    break
+    except ValueError:
+        return ""
+
+    time_match = re.search(r"\b(?:as|às|a)\s+([01]?\d|2[0-3])(?:(?::|h)([0-5]\d))?\b", text)
+    if not time_match:
+        time_match = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", text)
+    if not time_match:
+        time_match = re.search(r"\b([01]?\d|2[0-3])h([0-5]\d)?\b", text)
+    hour = int(time_match.group(1)) if time_match else 9
+    minute = int(time_match.group(2) or 0) if time_match else 0
+    if selected_date is None and time_match:
+        selected_date = current.date()
+        candidate = datetime.combine(selected_date, datetime.min.time(), local_tz).replace(hour=hour, minute=minute)
+        if candidate <= current:
+            selected_date = (current + timedelta(days=1)).date()
+    if selected_date is None:
+        return ""
+    scheduled = datetime.combine(selected_date, datetime.min.time(), local_tz).replace(hour=hour, minute=minute)
+    return scheduled.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def agenda_item_id(command):
+    match = re.search(r"\b(?:item|tarefa|lembrete|agenda)\s*#?\s*(\d{1,18})\b", clean_text(command, 300), re.I)
+    return match.group(1) if match else ""
+
+
 def supabase_agenda_rows(limit=20):
     safe_limit = max(1, min(int(limit), 50))
     query = (
         "select=id,title,status,scheduled_for,source,created_at,completed_at"
         "&owner_id=eq.theo&status=eq.pending"
-        f"&order=created_at.desc&limit={safe_limit}"
+        f"&order=scheduled_for.asc.nullslast,created_at.desc&limit={safe_limit}"
     )
     rows = supabase_request(query=query, table=SUPABASE_AGENDA_TABLE)
     return rows if isinstance(rows, list) else []
@@ -525,9 +641,15 @@ def supabase_agenda_command(command, intent):
                     "error": "Diga qual tarefa ou lembrete devo guardar.",
                     "intent": intent,
                 }, 400
+            scheduled_for = agenda_schedule(command)
             result = supabase_request(
                 "POST",
-                body={"owner_id": "theo", "title": title, "source": "jarvis-web"},
+                body={
+                    "owner_id": "theo",
+                    "title": title,
+                    "source": "jarvis-web",
+                    "scheduled_for": scheduled_for or None,
+                },
                 prefer="return=representation",
                 table=SUPABASE_AGENDA_TABLE,
             )
@@ -539,7 +661,7 @@ def supabase_agenda_command(command, intent):
                 "endpoint": "POST /command",
                 "status_real": "supabase_agenda_persisted",
                 "visual_state": "planning",
-                "message": "Guardei na agenda privada do JARVIS.",
+                "message": "Guardei na agenda privada do JARVIS com horário confirmado." if scheduled_for else "Guardei na agenda privada do JARVIS.",
                 "intent": intent,
                 "provider": "supabase_agenda",
                 "agenda": [{
@@ -549,6 +671,49 @@ def supabase_agenda_command(command, intent):
                     "scheduled_for": clean_text(saved.get("scheduled_for"), 80),
                 }],
             }, 201
+        if intent == "agenda_complete":
+            item_id = agenda_item_id(command)
+            if not item_id:
+                return {
+                    "ok": False,
+                    "endpoint": "POST /command",
+                    "status_real": "agenda_item_id_missing",
+                    "visual_state": "error",
+                    "error": "Informe o número exato do item da agenda.",
+                    "intent": intent,
+                }, 400
+            rows = supabase_request(
+                "PATCH",
+                query=f"owner_id=eq.theo&id=eq.{item_id}&status=eq.pending",
+                body={"status": "done", "completed_at": datetime.now(timezone.utc).isoformat()},
+                prefer="return=representation",
+                table=SUPABASE_AGENDA_TABLE,
+            )
+            saved = rows[0] if isinstance(rows, list) and rows else None
+            if not isinstance(saved, dict):
+                return {
+                    "ok": False,
+                    "endpoint": "POST /command",
+                    "status_real": "agenda_item_not_found",
+                    "visual_state": "error",
+                    "error": "Esse item pendente não foi encontrado.",
+                    "intent": intent,
+                }, 404
+            return {
+                "ok": True,
+                "endpoint": "POST /command",
+                "status_real": "supabase_agenda_completed",
+                "visual_state": "success",
+                "message": f"Item {item_id} concluído: {clean_text(saved.get('title'), 1_000)}",
+                "intent": intent,
+                "provider": "supabase_agenda",
+                "agenda": [{
+                    "id": saved.get("id"),
+                    "title": clean_text(saved.get("title"), 1_000),
+                    "status": "done",
+                    "scheduled_for": clean_text(saved.get("scheduled_for"), 80),
+                }],
+            }, 200
         rows = supabase_agenda_rows(20)
         return {
             "ok": True,
@@ -587,7 +752,7 @@ def contacts_payload(limit=50):
         rows = supabase_request(
             query=(
                 "select=id,alias,display_name,phone,updated_at"
-                f"&owner_id=eq.theo&order=display_name.asc&limit={safe_limit}"
+                f"&owner_id=eq.theo&archived_at=is.null&order=display_name.asc&limit={safe_limit}"
             ),
             table=SUPABASE_CONTACTS_TABLE,
         )
@@ -1523,15 +1688,22 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
             if owner_pairing_required() and not owner_authenticated and intent in {
-                "memory_save", "contact_save", "agenda_note", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
+                "memory_save", "contact_save", "contact_archive", "contact_view",
+                "agenda_note", "agenda_complete", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
             }:
                 return pairing_required_payload()
             if intent == "memory_save" and supabase_configured():
                 return supabase_memory_save(latest)
             if intent == "contact_save" and supabase_configured():
                 return supabase_contact_save(latest)
+            if intent == "contact_archive" and supabase_configured():
+                return supabase_contact_archive(latest)
+            if intent == "contact_view" and supabase_configured():
+                return contacts_payload(50)
             if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
                 return supabase_device_enqueue(latest, intent)
+            if intent == "agenda_complete" and supabase_configured():
+                return supabase_agenda_command(latest, intent)
             if intent in {"agenda_note", "agenda_view", "task_add"}:
                 if os.environ.get("N8N_WEBHOOK_URL"):
                     return n8n_automation(latest, intent)
@@ -1687,15 +1859,22 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(command):
             if owner_pairing_required() and not owner_authenticated and intent in {
-                "memory_save", "contact_save", "agenda_note", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
+                "memory_save", "contact_save", "contact_archive", "contact_view",
+                "agenda_note", "agenda_complete", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
             }:
                 return pairing_required_payload()
             if intent == "memory_save" and supabase_configured():
                 return supabase_memory_save(command)
             if intent == "contact_save" and supabase_configured():
                 return supabase_contact_save(command)
+            if intent == "contact_archive" and supabase_configured():
+                return supabase_contact_archive(command)
+            if intent == "contact_view" and supabase_configured():
+                return contacts_payload(50)
             if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
                 return supabase_device_enqueue(command, intent)
+            if intent == "agenda_complete" and supabase_configured():
+                return supabase_agenda_command(command, intent)
             if intent in {"agenda_note", "agenda_view", "task_add"}:
                 if os.environ.get("N8N_WEBHOOK_URL"):
                     return n8n_automation(command, intent)

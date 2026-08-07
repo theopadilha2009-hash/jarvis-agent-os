@@ -134,6 +134,19 @@
     }).join("");
   }
 
+  function agendaDate(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  }
+
   function renderLiveCanvas(data) {
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
@@ -150,9 +163,11 @@
       if (data.job.result) html += `<div class="canvas-result">${escapeHtml(data.job.result).slice(0, 1800)}</div>`;
     }
     else if (Array.isArray(data.agenda) && data.agenda.length) {
-      html = data.agenda.slice(0, 8).map((item, index) => (
-        `<div class="canvas-row"><i>${index + 1}</i><span>${escapeHtml(item.title || "item da agenda")}</span></div>`
-      )).join("");
+      html = data.agenda.slice(0, 8).map((item) => {
+        const scheduled = agendaDate(item.scheduled_for);
+        const label = scheduled ? `${item.title || "item da agenda"} · ${scheduled}` : item.title || "item da agenda";
+        return `<div class="canvas-row"><i>${escapeHtml(item.id || "·")}</i><span>${escapeHtml(label)}</span></div>`;
+      }).join("");
     }
     else if (Array.isArray(data.contacts) && data.contacts.length) {
       html = data.contacts.slice(0, 8).map((item, index) => (
@@ -181,11 +196,15 @@
     }).join("");
   }
 
-  async function refreshActionHistory() {
+  async function refreshActionHistory(options = {}) {
     if (!session.paired || !session.deviceBridge) return renderActionHistory([]);
     try {
       const data = await request("/device-history?limit=8");
       renderActionHistory(data.history || []);
+      if (options.revealLatest) {
+        const artifact = (data.history || []).find((item) => item.artifact_url);
+        if (artifact) renderLiveCanvas({ job: artifact });
+      }
     } catch {
       renderActionHistory([]);
     }
@@ -514,7 +533,7 @@
         workerValue.textContent = worker.online
           ? `Mac conectado · ${worker.hostname || "worker local"}`
           : "Mac offline · abra ou instale o worker local";
-        await refreshActionHistory();
+        await refreshActionHistory({ revealLatest: true });
       } else {
         session.deviceOnline = status.runtime === "local_web_preview";
         workerValue.textContent = session.paired
