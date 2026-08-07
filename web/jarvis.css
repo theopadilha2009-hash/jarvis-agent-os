@@ -61,8 +61,7 @@ button {
   justify-content: space-between;
   padding: 0 20px;
   border-bottom: 1px solid var(--line);
-  background: rgba(2, 8, 13, 0.76);
-  backdrop-filter: blur(18px);
+  background: rgba(2, 8, 13, 0.96);
 }
 
 .identity,
@@ -247,6 +246,8 @@ button {
 
 .model-ready .fallback-core {
   opacity: 0;
+  visibility: hidden;
+  animation: none;
 }
 
 @keyframes core-pulse {
@@ -311,8 +312,7 @@ button {
   padding: 12px 14px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--state) 22%, transparent);
-  background: linear-gradient(110deg, color-mix(in srgb, var(--state) 7%, rgba(2, 13, 21, 0.72)), rgba(2, 10, 17, 0.18));
-  backdrop-filter: blur(8px);
+  background: linear-gradient(110deg, color-mix(in srgb, var(--state) 7%, rgba(2, 13, 21, 0.94)), rgba(2, 10, 17, 0.84));
   transition: border-color 350ms ease, background 350ms ease, transform 350ms ease;
 }
 
@@ -522,9 +522,8 @@ button {
   transform: translateX(-50%);
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(2, 9, 15, 0.72);
+  background: rgba(2, 9, 15, 0.94);
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(18px);
 }
 
 .conversation-feed {

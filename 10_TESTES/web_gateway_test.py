@@ -76,6 +76,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="avatar3d"', html)
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
+        self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b'unpkg.com', html)
 
         status, headers, app_js = self.request("/ui/jarvis.js")
@@ -88,6 +89,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b"drawMemory", visual_js)
+        self.assertIn(b"FRAME_INTERVAL_MS", visual_js)
+        self.assertIn(b"document.hidden", visual_js)
 
         status, headers, three_js = self.request("/ui/vendor/three.module.js")
         self.assertEqual(status, 200)
@@ -106,6 +109,7 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, model = self.request("/asset/models/jarvis-humanoid.glb")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "model/gltf-binary")
+        self.assertEqual(headers["Cache-Control"], "public, max-age=31536000, immutable")
         self.assertGreater(len(model), 100_000)
 
     def test_local_device_request_becomes_handoff(self):
