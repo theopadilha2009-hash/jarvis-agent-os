@@ -34,6 +34,13 @@ DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
 DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
 MAX_BODY_BYTES = 32_768
 MAX_PROMPT_CHARS = 8_000
+SUPABASE_MEMORY_TABLE = "jarvis_memories"
+MEMORY_KIND_LABELS = {
+    "learning": "APRENDIZADOS",
+    "decision": "DECISOES",
+    "preference": "PREFERENCIAS",
+    "context": "CONTEXTO",
+}
 
 ASSET_TYPES = {
     ".css": "text/css; charset=utf-8",
@@ -78,7 +85,7 @@ BASE_WEB_CAPABILITIES = [
     {
         "name": "persistent_memory",
         "status": "available_on_local_worker",
-        "what": "Grava memória Markdown local e atualiza a constelação visual.",
+        "what": "Grava memória local ou persistente no Supabase e atualiza a constelação visual.",
     },
     {
         "name": "mac_messages",
@@ -92,6 +99,26 @@ BASE_WEB_CAPABILITIES = [
     },
 ]
 
+APPLICATION_INTENT_PATTERNS = {
+    "open_application": re.compile(
+        r"^\s*(?:jarvis[,\s]+)?(?:abr(?:a|e|ir)|inici(?:a|e|ar))\s+(?:o\s+|a\s+)?(?:app(?:licativo)?\s+)?(?P<app>[\wÀ-ÿ ._-]{2,80}?)(?:\s+(?:por\s+favor|pra\s+mim|para\s+mim))?[.!?]*\s*$",
+        re.I,
+    ),
+    "close_application": re.compile(
+        r"^\s*(?:jarvis[,\s]+)?(?:fech(?:a|e|ar)|encerr(?:a|e|ar)|sai(?:a|r)\s+d[oa])\s+(?:o\s+|a\s+)?(?:app(?:licativo)?\s+)?(?P<app>[\wÀ-ÿ ._-]{2,80}?)(?:\s+(?:por\s+favor|pra\s+mim|para\s+mim))?[.!?]*\s*$",
+        re.I,
+    ),
+}
+
+APPLICATION_ALIASES = {
+    "chrome": "Google Chrome",
+    "google chrome": "Google Chrome",
+    "vscode": "Visual Studio Code",
+    "vs code": "Visual Studio Code",
+    "código": "Visual Studio Code",
+    "mensagens": "Messages",
+}
+
 LOCAL_INTENTS = (
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
     (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
@@ -104,6 +131,8 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(anot(?:a|ar)|captur(?:a|ar)|registr(?:a|ar))\b.{0,100}\b(ideia|inbox|nota)\b", re.I), "capture_note"),
     (re.compile(r"\b(adicion(?:a|ar)|cri(?:a|ar))\b.{0,60}\b(tarefa|task)\b", re.I), "task_add"),
     (re.compile(r"\b(abr(?:e|ir))\b.{0,40}\b(projeto|oficina|jarvis|gc|ls)\b", re.I), "open_project"),
+    (APPLICATION_INTENT_PATTERNS["open_application"], "open_application"),
+    (APPLICATION_INTENT_PATTERNS["close_application"], "close_application"),
     (re.compile(r"(?:\b(computador|mac|mem[oó]ria|ram)\b.{0,80}\b(trav(?:a|ando)|lent[oa]|pesad[oa]|limp(?:a|ar))\b|\b(limp(?:a|ar)|fech(?:a|ar)|trav(?:a|ando))\b.{0,80}\b(computador|mac|mem[oó]ria|ram|processos?\s+(?:tempor[aá]rios?\s+)?(?:do\s+)?jarvis)\b)", re.I), "system_memory"),
     (re.compile(r"\b(ver|listar|encontrar|procurar)\b.{0,40}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
     (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
@@ -154,6 +183,13 @@ def clean_text(value, limit=MAX_PROMPT_CHARS):
     return str(value or "").replace("\x00", "").strip()[:limit]
 
 
+def supabase_configured():
+    url = clean_text(os.environ.get("SUPABASE_URL"), 500).rstrip("/")
+    key = clean_text(os.environ.get("SUPABASE_SERVICE_ROLE_KEY"), 2_000)
+    parsed = urlparse(url)
+    return bool(parsed.scheme == "https" and parsed.netloc and key)
+
+
 def memory_suggestion(value):
     text = clean_text(value, 600)
     if len(text) < 12:
@@ -169,6 +205,9 @@ def web_capabilities():
         "n8n_agenda": bool(os.environ.get("N8N_WEBHOOK_URL")),
     }
     for row in rows:
+        if row["name"] == "persistent_memory":
+            row["status"] = "configured" if supabase_configured() else "available_on_local_worker"
+            continue
         if row["name"] in configured:
             if row["name"] == "assistant_voice" and not configured[row["name"]]:
                 row["status"] = "input_only_requires_elevenlabs_key"
@@ -199,7 +238,41 @@ def public_sources():
     ]
 
 
-def memory_tree_payload():
+def supabase_request(method="GET", query="", body=None, prefer=""):
+    if not supabase_configured():
+        raise ValueError("supabase not configured")
+    base_url = clean_text(os.environ.get("SUPABASE_URL"), 500).rstrip("/")
+    api_key = clean_text(os.environ.get("SUPABASE_SERVICE_ROLE_KEY"), 2_000)
+    url = f"{base_url}/rest/v1/{SUPABASE_MEMORY_TABLE}"
+    if query:
+        url = f"{url}?{query}"
+    headers = {
+        "apikey": api_key,
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    if prefer:
+        headers["Prefer"] = prefer
+    data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
+    request = Request(url, data=data, headers=headers, method=method)
+    with urlopen(request, timeout=15) as response:
+        raw = response.read(1_000_000)
+    return json.loads(raw.decode("utf-8")) if raw else []
+
+
+def supabase_memory_rows(limit=80):
+    safe_limit = max(1, min(int(limit), 80))
+    query = (
+        "select=id,kind,content,source,created_at"
+        "&owner_id=eq.theo&archived_at=is.null"
+        f"&order=created_at.desc&limit={safe_limit}"
+    )
+    rows = supabase_request(query=query)
+    return rows if isinstance(rows, list) else []
+
+
+def local_memory_tree_payload():
     memory_root = ROOT / "03_MEMORIA"
     nodes = []
     edges = []
@@ -227,6 +300,77 @@ def memory_tree_payload():
         "categories": categories,
         "count": len(nodes),
         "persistent_write": False,
+        "provider": "local_markdown",
+    }
+
+
+def memory_tree_payload():
+    if not supabase_configured():
+        return local_memory_tree_payload()
+    try:
+        rows = supabase_memory_rows(80)
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "GET /memory-tree",
+            "status_real": "supabase_memory_read_failed",
+            "visual_state": "error",
+            "error": f"O Supabase recusou a leitura da memória (HTTP {error.code}).",
+            "nodes": [],
+            "edges": [],
+            "categories": [],
+            "count": 0,
+            "persistent_write": True,
+            "provider": "supabase",
+        }
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "GET /memory-tree",
+            "status_real": "supabase_memory_read_unavailable",
+            "visual_state": "error",
+            "error": "A memória do Supabase não respondeu a tempo.",
+            "nodes": [],
+            "edges": [],
+            "categories": [],
+            "count": 0,
+            "persistent_write": True,
+            "provider": "supabase",
+        }
+
+    nodes = []
+    edges = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        memory_id = clean_text(row.get("id"), 100)
+        content = clean_text(row.get("content"), 4_000)
+        kind = clean_text(row.get("kind"), 40).lower()
+        if not memory_id or not content:
+            continue
+        category = MEMORY_KIND_LABELS.get(kind, "MEMORIA")
+        node_id = f"supabase:{memory_id}"
+        nodes.append({
+            "id": node_id,
+            "label": content[:120],
+            "content": content,
+            "category": category,
+            "path": f"supabase/{SUPABASE_MEMORY_TABLE}/{memory_id}",
+            "created_at": clean_text(row.get("created_at"), 80),
+        })
+        edges.append({"source": category, "target": node_id})
+    categories = sorted({node["category"] for node in nodes})
+    return {
+        "ok": True,
+        "endpoint": "GET /memory-tree",
+        "status_real": "supabase_memory_index_read",
+        "visual_state": "memory",
+        "nodes": nodes,
+        "edges": edges,
+        "categories": categories,
+        "count": len(nodes),
+        "persistent_write": True,
+        "provider": "supabase",
     }
 
 
@@ -256,6 +400,11 @@ def status_payload():
         },
         "automations": {
             "n8n": {"configured": n8n_ready, "agenda": n8n_ready},
+        },
+        "memory": {
+            "provider": "supabase" if supabase_configured() else "local_markdown",
+            "configured": supabase_configured(),
+            "persistent": supabase_configured(),
         },
         "capabilities": web_capabilities(),
         "device_actions": "local_worker_required",
@@ -327,7 +476,7 @@ def planning_payload(path, body):
     }, 200
 
 
-def memory_write_command(command):
+def memory_details(command):
     text = clean_text(command, 600)
     kind = "preference" if re.search(r"\bprefer[eê]ncia\b", text, re.I) else "decision" if re.search(r"\bdecis[aã]o\b", text, re.I) else "learning"
     body = re.sub(
@@ -357,12 +506,104 @@ def memory_write_command(command):
     body = re.sub(r"^que\s+", "", body, flags=re.I).strip()
     if len(body) < 3 or body.casefold() in {"isso", "isto", "essa", "esta", "aquilo"}:
         return None
-    return ["./jarvis", "memory-save", body, "--kind", kind]
+    return {"content": body, "kind": kind}
+
+
+def memory_write_command(command):
+    memory = memory_details(command)
+    if not memory:
+        return None
+    return ["./jarvis", "memory-save", memory["content"], "--kind", memory["kind"]]
+
+
+def supabase_memory_save(command):
+    memory = memory_details(command)
+    if not memory:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "memory_content_missing",
+            "visual_state": "error",
+            "message": "Diga exatamente o que devo guardar; não vou fingir que salvei um ‘isso’ sem contexto.",
+            "intent": "memory_save",
+        }, 400
+    if has_secret_like_text(memory["content"]):
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "memory_secret_refused",
+            "visual_state": "error",
+            "error": "Não salvo credenciais na memória.",
+            "intent": "memory_save",
+        }, 400
+    row = {
+        "owner_id": "theo",
+        "kind": memory["kind"],
+        "content": memory["content"],
+        "source": "jarvis-web",
+        "metadata": {"schema_version": 1},
+    }
+    try:
+        result = supabase_request("POST", body=row, prefer="return=representation")
+        saved = result[0] if isinstance(result, list) and result else None
+        if not isinstance(saved, dict) or not saved.get("id"):
+            raise ValueError("missing persisted row")
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "supabase_memory_persisted",
+            "visual_state": "memory",
+            "message": "Guardei isso na memória permanente.",
+            "intent": "memory_save",
+            "provider": "supabase",
+            "persistent_write": True,
+            "memory": {
+                "id": saved["id"],
+                "kind": clean_text(saved.get("kind"), 40),
+                "content": clean_text(saved.get("content"), 4_000),
+                "created_at": clean_text(saved.get("created_at"), 80),
+            },
+        }, 201
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "supabase_memory_write_failed",
+            "visual_state": "error",
+            "error": f"O Supabase recusou a gravação da memória (HTTP {error.code}).",
+            "intent": "memory_save",
+            "provider": "supabase",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "supabase_memory_write_unavailable",
+            "visual_state": "error",
+            "error": "A memória do Supabase não confirmou a gravação.",
+            "intent": "memory_save",
+            "provider": "supabase",
+        }, 504
+
+
+def computer_app_command(command, intent):
+    pattern = APPLICATION_INTENT_PATTERNS.get(intent)
+    match = pattern.fullmatch(clean_text(command, 300)) if pattern else None
+    if not match:
+        return None
+    app = re.sub(r"\s+", " ", match.group("app")).strip(" .")
+    app = APPLICATION_ALIASES.get(app.casefold(), app)
+    if app.casefold() in {"projeto", "arquivo", "pasta", "memória", "memoria"}:
+        return None
+    action = "open" if intent == "open_application" else "close"
+    return ["./jarvis", "computer", action, app]
 
 
 def local_handoff(command, intent, execute=False):
     if intent == "memory_save":
         command_args = memory_write_command(command)
+    elif intent in {"open_application", "close_application"}:
+        command_args = computer_app_command(command, intent)
     elif intent == "system_memory":
         cleanup_requested = bool(
             re.search(r"\b(limp(?:a|e|ar)|fech(?:a|e|ar))\b.{0,100}\b(jarvis|tempor[aá]rios?|processos?)\b", command, re.I)
@@ -373,12 +614,17 @@ def local_handoff(command, intent, execute=False):
     else:
         command_args = ["./jarvis", "do", command]
     if not command_args:
+        application_intent = intent in {"open_application", "close_application"}
         return {
             "ok": False,
             "endpoint": "POST /command",
-            "status_real": "memory_content_missing",
+            "status_real": "application_target_missing" if application_intent else "memory_content_missing",
             "visual_state": "error",
-            "message": "Diga exatamente o que devo guardar; não vou fingir que salvei um ‘isso’ sem contexto.",
+            "message": (
+                "Diga exatamente qual aplicativo devo abrir ou fechar."
+                if application_intent
+                else "Diga exatamente o que devo guardar; não vou fingir que salvei um ‘isso’ sem contexto."
+            ),
             "intent": intent,
             "executed_locally": False,
         }
@@ -402,6 +648,8 @@ def local_handoff(command, intent, execute=False):
                 "message_send": "Mensagem entregue ao app Mensagens do Mac.",
                 "screen_capture": "Captura concluída no seu Mac.",
                 "system_memory": "Diagnóstico do Mac concluído; somente temporários do JARVIS foram elegíveis para limpeza.",
+                "open_application": "Aplicativo aberto no seu Mac.",
+                "close_application": "Aplicativo fechado no seu Mac.",
             }
             return {
                 "ok": action_succeeded,
@@ -612,9 +860,17 @@ def assistant_response(body, origin="", local_execute=False):
     latest = messages[-1]["content"]
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
+            if intent == "memory_save" and supabase_configured():
+                return supabase_memory_save(latest)
             return local_handoff(latest, intent, execute=local_execute), 200
 
     suggested_memory = memory_suggestion(latest)
+    memory_context = []
+    if supabase_configured():
+        try:
+            memory_context = supabase_memory_rows(12)
+        except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+            memory_context = []
 
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
@@ -644,6 +900,17 @@ def assistant_response(body, origin="", local_execute=False):
             "dessa voz: nunca diga que não possui voz, que seu som só existe em texto ou que pode apenas imitar "
             "uma voz. Se Theo pedir para ouvir você, responda com uma frase curta, natural e boa de falar; não "
             "explique a infraestrutura. A própria interface comunica qualquer falha real do áudio."
+            + (
+                "\n\nMemórias persistentes fornecidas por Theo; use somente quando forem relevantes e "
+                "não invente informações além delas:\n"
+                + "\n".join(
+                    f"- [{clean_text(row.get('kind'), 40)}] {clean_text(row.get('content'), 600)}"
+                    for row in memory_context
+                    if isinstance(row, dict) and clean_text(row.get("content"), 600)
+                )[:4_000]
+                if memory_context
+                else ""
+            )
         ),
     }
     request_body = json.dumps(
@@ -686,6 +953,7 @@ def assistant_response(body, origin="", local_execute=False):
             "model": clean_text(result.get("model") or DEFAULT_MODEL, 200),
             "provider": "openrouter",
             "external_processing": True,
+            "memory_context_count": len(memory_context),
         }
         if suggested_memory:
             payload["memory_suggestion"] = suggested_memory
@@ -727,14 +995,22 @@ def command_payload(body, origin="", local_execute=False):
     if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.IGNORECASE):
         payload = memory_tree_payload()
         payload.update({
-            "message": f"Abri sua constelação com {payload['count']} memórias locais.",
+            "message": (
+                f"Abri sua constelação com {payload['count']} memórias persistentes."
+                if payload.get("ok") and payload.get("provider") == "supabase"
+                else f"Abri sua constelação com {payload['count']} memórias locais."
+                if payload.get("ok")
+                else payload.get("error", "A memória não está disponível.")
+            ),
             "mode": "memory",
             "sources": payload["nodes"][:12],
         })
-        return payload, 200
+        return payload, 200 if payload.get("ok") else 503
 
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(command):
+            if intent == "memory_save" and supabase_configured():
+                return supabase_memory_save(command)
             if intent in {"agenda_note", "agenda_view", "task_add"} and os.environ.get("N8N_WEBHOOK_URL"):
                 return n8n_automation(command, intent)
             return local_handoff(command, intent, execute=local_execute), 200
@@ -890,7 +1166,8 @@ class handler(BaseHTTPRequestHandler):
                 "returned": len(sources),
             })
         if path == "/memory-tree":
-            return self.send_json(200, memory_tree_payload())
+            payload = memory_tree_payload()
+            return self.send_json(200 if payload.get("ok") else 503, payload)
         if path in {"/next", "/latest", "/feature-backlog", "/autopilot-dashboard"}:
             return self.send_json(200, {
                 "ok": True,
@@ -898,7 +1175,7 @@ class handler(BaseHTTPRequestHandler):
                 "status_real": "web_runtime_stateless",
                 "message": "Digite um objetivo no cockpit; o JARVIS conversa, planeja ou encaminha ao worker local.",
                 "next_action": "Use a barra central com um pedido em linguagem natural.",
-                "persistent_history": False,
+                "persistent_history": supabase_configured(),
             })
         if path in {"/artifact", "/source", "/source-search", "/sources-search", "/sources-insight", "/sources-health"}:
             term = clean_text((query.get("q") or [""])[0], 200)
@@ -954,6 +1231,7 @@ class handler(BaseHTTPRequestHandler):
                 {"name": "stateless_gateway", "ok": True},
                 {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},
                 {"name": "elevenlabs_configured", "ok": bool(os.environ.get("ELEVENLABS_API_KEY")), "required": False},
+                {"name": "supabase_memory_configured", "ok": supabase_configured(), "required": False},
                 {"name": "n8n_configured", "ok": bool(os.environ.get("N8N_WEBHOOK_URL")), "required": False},
             ]
             return self.send_json(200, {

@@ -16,14 +16,19 @@ ou inicia processos.
   que executou integrações externas.
 - Com `OPENROUTER_API_KEY` configurada no ambiente da hospedagem, texto livre
   usa `openrouter/free` (ou `OPENROUTER_MODEL`). Nunca coloque a chave no repo.
-- Com `ELEVENLABS_API_KEY`, a rota `/speech` usa a voz
-  `tS45q0QcrDHqHoaWdCDR`; sem ela, o navegador fala pela voz nativa.
+- Com `ELEVENLABS_API_KEY`, a rota `/speech` usa a voz definida por
+  `ELEVENLABS_VOICE_ID`; sem cota disponível, a interface continua em texto e
+  informa a falha real.
+- Com `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`, pedidos explícitos para
+  guardar algo escrevem em `public.jarvis_memories`, `/memory-tree` lê a
+  constelação persistente e o OpenRouter recebe as memórias recentes como
+  contexto. A chave server-side nunca é enviada ao navegador.
 - Com `N8N_WEBHOOK_URL` (e opcionalmente `N8N_WEBHOOK_TOKEN`), pedidos de
   agenda e tarefas são executados pelo webhook n8n.
 - Print, conversão e organização de arquivos retornam um comando de
   handoff para `./jarvis do ...`, porque a Vercel não acessa o Mac.
-- O runtime web é stateless: histórico persistente exigirá um adaptador de
-  banco separado. Nenhuma migration faz parte deste gateway.
+- Sem Supabase, o preview local continua lendo as memórias Markdown do Mac; na
+  Vercel, a memória persistente depende das duas variáveis acima.
 
 Preview local do mesmo contrato HTTP:
 
@@ -63,7 +68,8 @@ No estado atual, JARVIS já possui estrutura local de laboratório, inbox para e
 ## Limites atuais
 O runtime na Vercel não controla o Mac diretamente. Ações do computador usam o
 worker local; ElevenLabs e n8n só ficam ativos quando suas variáveis de ambiente
-estão configuradas no projeto Vercel.
+estão configuradas no projeto Vercel. A memória web usa Supabase e não concede
+acesso ao computador local.
 
 ## Regra principal
 Nada de produção, token, senha, API key, QR Code, .env, deploy, push/main, envio real, banco real ou VPS real sem aprovação humana.
