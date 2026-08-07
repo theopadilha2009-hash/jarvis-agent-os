@@ -115,10 +115,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"20260807-voicecyan1", visual_js)
         self.assertIn(b"installCyanRemap", visual_js)
         self.assertIn(b"jarvisRedMask", visual_js)
-        self.assertIn(b'FRAME_INTERVAL_MS = 1000 / (compactViewport ? 24 : 30)', visual_js)
+        self.assertIn(b"BASE_FRAME_INTERVAL_MS", visual_js)
+        self.assertIn(b"adaptive-lite-18fps", visual_js)
+        self.assertIn(b"slowFrameWindows", visual_js)
         self.assertIn(b'renderer.setPixelRatio(1)', visual_js)
         self.assertIn(b'GPU 3D desativada', visual_js)
-        self.assertIn(b"FRAME_INTERVAL_MS", visual_js)
+        self.assertIn(b"frameIntervalMs", visual_js)
         self.assertIn(b"document.hidden", visual_js)
         self.assertIn(b"X-Jarvis-Owner-Token", visual_js)
 
@@ -256,6 +258,66 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(payload["owner_pairing"]["required"])
         self.assertTrue(payload["owner_pairing"]["authenticated"])
         self.assertNotIn("owner-pairing-test-value", json.dumps(payload))
+
+    def test_paired_personal_tools_enter_allowlisted_queue(self):
+        class FakeSupabaseResponse:
+            next_id = 120
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, *_args):
+                FakeSupabaseResponse.next_id += 1
+                return json.dumps([{
+                    "id": FakeSupabaseResponse.next_id,
+                    "status": "pending",
+                }]).encode("utf-8")
+
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        commands = {
+            "screen_capture": "tira um print da tela",
+            "storage_scan": "mostra os arquivos grandes do armazenamento",
+            "message_send": 'mande mensagem para 5511999999999 "teste real"',
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(MODULE, "urlopen", side_effect=lambda *_args, **_kwargs: FakeSupabaseResponse()) as request:
+                results = {
+                    intent: MODULE.command_payload(
+                        {"command": command},
+                        owner_authenticated=True,
+                    )
+                    for intent, command in commands.items()
+                }
+        for intent, (payload, status) in results.items():
+            self.assertEqual(status, 202)
+            self.assertEqual(payload["intent"], intent)
+            self.assertEqual(payload["status_real"], "device_command_queued")
+        self.assertEqual(results["storage_scan"][0]["job"]["target"], "Downloads")
+        self.assertEqual(results["message_send"][0]["job"]["target"], "…9999")
+        message_request = request.call_args_list[-1].args[0]
+        stored = json.loads(message_request.data.decode("utf-8"))
+        self.assertEqual(stored["target"], "5511999999999")
+
+    def test_message_queue_requires_exact_phone_and_body(self):
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            payload, status = MODULE.command_payload(
+                {"command": "mande mensagem dizendo oi"},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["status_real"], "message_details_missing")
 
     def test_open_app_can_execute_local_computer_adapter(self):
         completed = MODULE.subprocess.CompletedProcess(

@@ -156,6 +156,38 @@ def _orca_apps() -> list[dict]:
     return [row for row in apps if isinstance(row, dict)]
 
 
+def _orca_window_capture(output: Path) -> bool:
+    binary = shutil.which("orca")
+    if not binary or output.suffix.lower() != ".png":
+        return False
+    result = subprocess.run(
+        [
+            binary,
+            "computer",
+            "get-app-state",
+            "--app",
+            "com.google.Chrome",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        payload = json.loads(result.stdout)
+        source = Path(payload.get("result", {}).get("screenshot", {}).get("path", ""))
+    except (AttributeError, TypeError, json.JSONDecodeError):
+        return False
+    if not source.is_file() or source.suffix.lower() != ".png":
+        return False
+    output.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, output)
+    return output.is_file() and output.stat().st_size > 0
+
+
 def _app_identity(raw: str) -> tuple[str, str | None]:
     target = re.sub(r"\s+", " ", str(raw or "")).strip(" .")
     if not target or len(target) > 80 or not re.fullmatch(r"[\wÀ-ÿ ._-]+", target):
@@ -313,7 +345,17 @@ def cmd_screen_capture(args: argparse.Namespace) -> None:
     binary = _require_binary("screencapture")
     output.parent.mkdir(parents=True, exist_ok=True)
     flags = ["-i"] if args.interactive else ["-x"]
-    _run_native([binary, *flags, str(output)])
+    result = subprocess.run(
+        [binary, *flags, str(output)],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        if args.interactive or not _orca_window_capture(output):
+            _fail(f"comando nativo terminou com código {result.returncode}.")
+        print("AVISO: captura nativa indisponível; usei a janela do Chrome via Orca.")
     if not output.exists():
         _fail("captura cancelada ou arquivo não criado.")
     print("OK — captura criada localmente.")

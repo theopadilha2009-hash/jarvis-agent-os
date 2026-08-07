@@ -25,11 +25,33 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(closed, [str(ROOT / "jarvis"), "computer", "close", "Spotify"])
         self.assertEqual(memory, [str(ROOT / "jarvis"), "system-memory"])
 
+        capture = MODULE.command_argv({"action": "screen_capture", "target": ""})
+        storage = MODULE.command_argv({"action": "storage_scan", "target": "downloads"})
+        message = MODULE.command_argv({
+            "action": "message_send",
+            "target": "5511999999999",
+            "request_text": 'mande mensagem para 5511999999999 "teste real"',
+        })
+        self.assertEqual(capture, [str(ROOT / "jarvis"), "screen-capture"])
+        self.assertEqual(storage[:3], [str(ROOT / "jarvis"), "storage-scan", str(Path.home() / "Downloads")])
+        self.assertEqual(
+            message,
+            [str(ROOT / "jarvis"), "message-send", "--phone", "5511999999999", "teste real"],
+        )
+
     def test_command_argv_rejects_arbitrary_shell_and_invalid_target(self):
         with self.assertRaises(MODULE.WorkerError):
             MODULE.command_argv({"action": "shell", "target": "rm -rf"})
         with self.assertRaises(MODULE.WorkerError):
             MODULE.command_argv({"action": "open_application", "target": "Calculator; echo nope"})
+        with self.assertRaises(MODULE.WorkerError):
+            MODULE.command_argv({"action": "storage_scan", "target": "/"})
+        with self.assertRaises(MODULE.WorkerError):
+            MODULE.command_argv({
+                "action": "message_send",
+                "target": "5511999999999",
+                "request_text": "mande mensagem para 5511999999999 token=placeholdervalue123456",
+            })
 
     def test_run_once_claims_executes_and_finishes_persisted_job(self):
         pending = {"id": 17, "action": "open_application", "target": "Calculator"}
@@ -56,6 +78,11 @@ class DeviceWorkerTest(unittest.TestCase):
         args = MODULE.build_parser().parse_args(["--watch"])
         self.assertEqual(args.interval, 3.0)
         self.assertGreaterEqual(MODULE.HEARTBEAT_INTERVAL_SECONDS, 15.0)
+
+    def test_launch_agent_path_includes_orca_install_locations(self):
+        path = MODULE.launch_payload()["EnvironmentVariables"]["PATH"]
+        self.assertIn("/usr/local/bin", path)
+        self.assertIn("/opt/homebrew/bin", path)
 
 
 if __name__ == "__main__":

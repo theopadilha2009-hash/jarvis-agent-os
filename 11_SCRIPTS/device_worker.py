@@ -28,7 +28,14 @@ HEARTBEAT_INTERVAL_SECONDS = 15.0
 LAUNCH_LABEL = "ai.theopadilha.jarvis-device-worker"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = ROOT / "09_LOGS"
-ALLOWED_ACTIONS = {"open_application", "close_application", "system_memory"}
+ALLOWED_ACTIONS = {
+    "open_application",
+    "close_application",
+    "message_send",
+    "screen_capture",
+    "storage_scan",
+    "system_memory",
+}
 TARGET_PATTERN = re.compile(r"^[\wÀ-ÿ ._-]{0,120}$")
 
 try:
@@ -118,6 +125,10 @@ def redact_secrets(value: str) -> str:
     return safe
 
 
+def contains_secret(value: str) -> bool:
+    return any(pattern.search(str(value or "")) for _name, pattern in SECRET_PATTERNS)
+
+
 def heartbeat() -> None:
     row = {
         "worker_id": WORKER_ID,
@@ -180,10 +191,66 @@ def command_argv(job: dict) -> list[str]:
         raise WorkerError("Aplicativo recebido com nome inválido.")
     if action == "system_memory":
         return [str(ROOT / "jarvis"), "system-memory"]
+    if action == "screen_capture":
+        return [str(ROOT / "jarvis"), "screen-capture"]
+    if action == "storage_scan":
+        if target != "downloads":
+            raise WorkerError("Destino de armazenamento fora do allowlist.")
+        return [
+            str(ROOT / "jarvis"),
+            "storage-scan",
+            str(Path.home() / "Downloads"),
+            "--top",
+            "20",
+            "--min-mb",
+            "50",
+        ]
+    if action == "message_send":
+        details = message_details(str(job.get("request_text") or ""), target)
+        if not details:
+            raise WorkerError("Mensagem recebida sem telefone e texto válidos.")
+        return [
+            str(ROOT / "jarvis"),
+            "message-send",
+            "--phone",
+            details["phone"],
+            details["text"],
+        ]
     if not target:
         raise WorkerError("A ação de aplicativo chegou sem alvo.")
     verb = "open" if action == "open_application" else "close"
     return [str(ROOT / "jarvis"), "computer", verb, target]
+
+
+def message_details(request_text: str, expected_phone: str) -> dict | None:
+    text = str(request_text or "")[:8_000]
+    phone_match = re.search(r"(?:\+?\d[\d\s().-]{6,}\d)", text)
+    if not phone_match:
+        return None
+    phone = "".join(char for char in phone_match.group(0) if char.isdigit())
+    if phone != expected_phone or not 8 <= len(phone) <= 15:
+        return None
+    quoted = re.search(r'["“](.+?)["”]', text)
+    body = quoted.group(1).strip() if quoted else re.sub(
+        re.escape(phone_match.group(0)), "", text, count=1
+    ).strip(" :-")
+    if not quoted:
+        body = re.sub(
+            r"^\s*(?:jarvis[,\s]+)?(?:mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\s+"
+            r"(?:uma\s+)?(?:mensagem|msg)\s*(?:para)?\s*",
+            "",
+            body,
+            flags=re.I,
+        ).strip(" :-")
+        body = re.sub(
+            r"^(?:dizendo|falando|com\s+(?:o\s+)?texto|texto)\s*",
+            "",
+            body,
+            flags=re.I,
+        ).strip(" :-")
+    if not body or len(body) > 4_000 or contains_secret(body):
+        return None
+    return {"phone": phone, "text": body}
 
 
 def execute_job(job: dict) -> tuple[bool, str]:
@@ -229,8 +296,8 @@ def launch_domain() -> str:
     return f"gui/{os.getuid()}"
 
 
-def install_agent(preview: bool = False) -> None:
-    payload = {
+def launch_payload() -> dict:
+    return {
         "Label": LAUNCH_LABEL,
         "ProgramArguments": [
             sys.executable,
@@ -244,10 +311,17 @@ def install_agent(preview: bool = False) -> None:
         "KeepAlive": True,
         "ThrottleInterval": 10,
         "ProcessType": "Background",
-        "EnvironmentVariables": {"PYTHONUNBUFFERED": "1"},
+        "EnvironmentVariables": {
+            "PYTHONUNBUFFERED": "1",
+            "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        },
         "StandardOutPath": str(LOG_DIR / "device-worker.log"),
         "StandardErrorPath": str(LOG_DIR / "device-worker-error.log"),
     }
+
+
+def install_agent(preview: bool = False) -> None:
+    payload = launch_payload()
     if preview:
         print(f"Preview: criaria {LAUNCH_AGENT} e ativaria {LAUNCH_LABEL}.")
         return

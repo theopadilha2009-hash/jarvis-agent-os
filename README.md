@@ -26,12 +26,13 @@ ou inicia processos.
 - Com `JARVIS_OWNER_TOKEN`, memória, agenda e comandos do Mac exigem pareamento
   no painel Sistema. O valor fica somente no armazenamento local do navegador.
 - `./jarvis computer-worker --install` mantém uma ponte leve entre a fila
-  privada do Supabase e o Mac. O worker aceita apenas abrir aplicativo, fechar
-  aplicativo e diagnosticar memória; não aceita shell arbitrário.
+  privada do Supabase e o Mac. O worker aceita apenas abrir/fechar aplicativo,
+  capturar a janela do Chrome, analisar Downloads, diagnosticar memória e
+  enviar mensagem com número/texto explícitos; não aceita shell ou caminho arbitrário.
 - Com `N8N_WEBHOOK_URL` (e opcionalmente `N8N_WEBHOOK_TOKEN`), pedidos de
   agenda e tarefas são executados pelo webhook n8n.
-- Print, conversão e organização de arquivos retornam um comando de
-  handoff para `./jarvis do ...`, porque a Vercel não acessa o Mac.
+- Print e análise de armazenamento usam a fila privada do worker. Conversões e
+  organização de arquivos ainda retornam um handoff explícito para o Mac.
 - Sem Supabase, o preview local continua lendo as memórias Markdown do Mac; na
   Vercel, a memória persistente depende das duas variáveis acima.
 
