@@ -111,7 +111,10 @@
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
     let html = "";
-    if (Array.isArray(data.steps) && data.steps.length) html = canvasRows(data.steps);
+    if (data.memory_suggestion) {
+      html = `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
+    }
+    else if (Array.isArray(data.steps) && data.steps.length) html = canvasRows(data.steps);
     else if (Array.isArray(data.sources) && data.sources.length) html = canvasRows(data.sources);
     else if (data.result) html = `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
     else if (data.local_command) html = `<div class="canvas-row"><i>→</i><span>Worker local preparado</span></div><div class="canvas-result">${escapeHtml(data.local_command)}</div>`;
@@ -207,8 +210,11 @@
     session.responseState = data.visual_state || (data.executed_locally ? "success" : "response");
     const answer = data.message || data.summary || data.next_action || data.status_real || "Pronto.";
     let extra = "";
+    if (data.memory_suggestion) {
+      extra = `<button class="memory-command" type="button">Guardar na memória</button>`;
+    }
     if (data.local_command) {
-      extra = `<button class="copy-command" type="button">Copiar comando local</button><details><summary>ver comando</summary><code>${escapeHtml(data.local_command)}</code></details>`;
+      extra += `<button class="copy-command" type="button">Copiar comando local</button><details><summary>ver comando</summary><code>${escapeHtml(data.local_command)}</code></details>`;
     }
     if (data.result) {
       extra += `<details><summary>ver resultado completo</summary><code>${escapeHtml(data.result)}</code></details>`;
@@ -219,8 +225,14 @@
       await navigator.clipboard.writeText(data.local_command);
       copy.textContent = "Copiado";
     });
+    const memory = message.querySelector(".memory-command");
+    if (memory) memory.addEventListener("click", () => {
+      memory.disabled = true;
+      memory.textContent = "Preparando memória…";
+      sendCommand(`guarde na memória como preferência: ${data.memory_suggestion}`);
+    });
     byId("activityValue").textContent = data.executed_locally ? `Executado localmente · ${data.intent || "ação"}` : answer;
-    byId("requestTitle").textContent = data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
+    byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
     renderLiveCanvas(data);
     if (session.responseState === "memory") window.dispatchEvent(new CustomEvent("jarvis-memory-refresh"));
     settleState();

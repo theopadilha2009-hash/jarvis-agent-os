@@ -83,12 +83,17 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b"SpeechRecognition", app_js)
+        self.assertIn(b"memory-command", app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
 
         status, headers, visual_js = self.request("/ui/jarvis-3d.js")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b"drawMemory", visual_js)
+        self.assertIn(b"drawForge", visual_js)
+        self.assertIn(b"makeCoreEntity", visual_js)
+        self.assertIn(b"MEMORY CONSTELLATION", visual_js)
+        self.assertIn(b"visualModeForState", visual_js)
         self.assertIn(b"FRAME_INTERVAL_MS", visual_js)
         self.assertIn(b"document.hidden", visual_js)
 
@@ -149,20 +154,53 @@ class WebGatewayTest(unittest.TestCase):
 
     def test_memory_save_executes_and_opens_memory_visual(self):
         completed = MODULE.subprocess.CompletedProcess(
-            args=["./jarvis", "do", "guarda isso na mem\u00f3ria"],
+            args=["./jarvis", "memory-save", "o busto deve continuar na frente", "--kind", "learning"],
             returncode=0,
             stdout="Mem\u00f3ria criada: 03_MEMORIA/01_APRENDIZADOS/item.md",
             stderr="",
         )
-        with patch.object(MODULE.subprocess, "run", return_value=completed):
+        with patch.object(MODULE.subprocess, "run", return_value=completed) as run:
             payload, status = MODULE.command_payload(
-                {"command": "guarda isso na mem\u00f3ria"},
+                {"command": "guarde na mem\u00f3ria que o busto deve continuar na frente"},
                 local_execute=True,
             )
         self.assertEqual(status, 200)
         self.assertEqual(payload["intent"], "memory_save")
         self.assertEqual(payload["visual_state"], "memory")
         self.assertTrue(payload["executed_locally"])
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0], completed.args)
+
+    def test_memory_save_handoff_opens_memory_visual(self):
+        payload, status = MODULE.command_payload(
+            {"command": "guarde na memória como preferência: respostas curtas"},
+            local_execute=False,
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["intent"], "memory_save")
+        self.assertEqual(payload["visual_state"], "memory")
+        self.assertTrue(payload["requires_local_worker"])
+        self.assertEqual(
+            payload["local_command"],
+            "./jarvis memory-save 'respostas curtas' --kind preference",
+        )
+
+    def test_memory_save_never_claims_success_without_file_evidence(self):
+        completed = MODULE.subprocess.CompletedProcess(
+            args=["./jarvis", "memory-save", "respostas curtas", "--kind", "learning"],
+            returncode=0,
+            stdout="Comando finalizado sem arquivo.",
+            stderr="",
+        )
+        with patch.object(MODULE.subprocess, "run", return_value=completed):
+            payload, status = MODULE.command_payload(
+                {"command": "guarde na memória que respostas devem ser curtas"},
+                local_execute=True,
+            )
+        self.assertEqual(status, 200)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status_real"], "local_action_failed")
+        self.assertEqual(payload["visual_state"], "error")
 
     def test_unconfigured_ai_uses_deterministic_plan(self):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": ""}, clear=False):
@@ -201,6 +239,30 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("humor seco", system_prompt)
         self.assertIn("pedir humor explicitamente", system_prompt)
         self.assertIn("confiança em porcentagem", system_prompt)
+
+    def test_openrouter_can_suggest_real_memory_without_saving_it(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Entendido. Vou manter isso em mente."}}],
+                }).encode("utf-8")
+
+        preference = "Eu prefiro respostas curtas e diretas."
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeResponse()):
+                payload, status = MODULE.assistant_response({"command": preference})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "openrouter")
+        self.assertEqual(payload["visual_state"], "memory")
+        self.assertEqual(payload["memory_suggestion"], preference)
+        self.assertNotIn("executed_locally", payload)
 
     def test_elevenlabs_speech_returns_audio_without_exposing_key(self):
         class FakeAudioResponse:

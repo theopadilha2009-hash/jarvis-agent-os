@@ -867,10 +867,16 @@ def plan_personal(text, intent, dry_run):
 
     if intent == INTENT_MEMORY_SAVE:
         body = re.sub(
-            r"(?i)^\s*(?:guarda(?:r)?|salva(?:r)?|registre?|grava(?:r)?|lembre(?:-se)?)\s*",
+            r"(?i)^\s*(?:guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar)(?:-se)?)\s*",
             "",
             text,
         ).strip(" :-")
+        body = re.sub(
+            r"(?i)^(?:isso\s+)?na\s+mem[oó]ria(?:\s+como\s+(?:prefer[eê]ncia|aprendizado|decis[aã]o))?\s*",
+            "",
+            body,
+        ).strip(" :-")
+        body = re.sub(r"(?i)^que\s+", "", body).strip()
         body = re.sub(r"(?i)\s+(?:na|como)\s+(?:mem[oó]ria|aprendizado|decis[aã]o|prefer[eê]ncia)\s*$", "", body).strip()
         if not body:
             return [], None, "Diga o conteúdo que deve entrar na memória.", {}

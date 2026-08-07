@@ -592,8 +592,10 @@ button {
   font: 9px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.copy-command {
+.copy-command,
+.memory-command {
   margin-top: 8px;
+  margin-right: 6px;
   padding: 6px 8px;
   border: 1px solid var(--line-hot);
   border-radius: 8px;
@@ -601,6 +603,17 @@ button {
   color: var(--cyan-hot);
   font-size: 9px;
   cursor: pointer;
+}
+
+.memory-command {
+  border-color: rgba(167, 139, 250, 0.38);
+  background: rgba(124, 58, 237, 0.13);
+  color: #ddd6fe;
+}
+
+.memory-command:disabled {
+  cursor: wait;
+  opacity: 0.64;
 }
 
 .composer {

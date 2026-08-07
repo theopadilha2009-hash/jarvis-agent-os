@@ -235,8 +235,8 @@ INTENT_PATTERNS = [
         r"(?i)\b(mandar? mensagem|enviar? mensagem|manda(?:r)? (?:uma )?msg|envia(?:r)? (?:uma )?msg)\b"
     )),
     (INTENT_MEMORY_SAVE, re.compile(
-        r"(?i)\b(?:guarda(?:r)?|salva(?:r)?|registre?|grava(?:r)?|lembre(?:-se)?)\b.{0,90}\b(?:mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b|"
-        r"\b(?:mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b.{0,40}\b(?:guarda(?:r)?|salva(?:r)?|registre?|grava(?:r)?)\b"
+        r"(?i)\b(?:guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar)(?:-se)?)\b.{0,90}\b(?:mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b|"
+        r"\b(?:mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b.{0,40}\b(?:guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar))\b"
     )),
     (INTENT_STORAGE_SCAN, re.compile(
         r"(?i)\b(limpar? armazenamento|analisar? armazenamento|arquivos? grandes?|"
