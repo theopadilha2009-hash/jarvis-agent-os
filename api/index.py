@@ -136,6 +136,13 @@ APPLICATION_ALIASES = {
     "mensagens": "Messages",
 }
 
+JARVIS_CLEANUP_PATTERN = re.compile(
+    r"\b(?:limp(?:a|e|ar)|fech(?:a|e|ar)|encerr(?:a|e|ar))\b.{0,120}"
+    r"\b(?:processos?\s+(?:tempor[aá]rios?\s+)?(?:do\s+)?jarvis|"
+    r"tempor[aá]rios?\s+(?:do\s+)?jarvis)\b",
+    re.I,
+)
+
 LOCAL_INTENTS = (
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
     (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
@@ -824,6 +831,8 @@ def supabase_device_enqueue(command, intent):
         target = details["phone"]
     elif intent == "storage_scan":
         target = "downloads"
+    elif intent == "system_memory" and JARVIS_CLEANUP_PATTERN.search(command):
+        target = "jarvis-temporaries"
     row = {
         "owner_id": "theo",
         "action": intent,
@@ -1432,9 +1441,7 @@ def local_handoff(command, intent, execute=False):
     elif intent in {"open_application", "close_application"}:
         command_args = computer_app_command(command, intent)
     elif intent == "system_memory":
-        cleanup_requested = bool(
-            re.search(r"\b(limp(?:a|e|ar)|fech(?:a|e|ar))\b.{0,100}\b(jarvis|tempor[aá]rios?|processos?)\b", command, re.I)
-        )
+        cleanup_requested = bool(JARVIS_CLEANUP_PATTERN.search(command))
         command_args = ["./jarvis", "system-memory"]
         if cleanup_requested:
             command_args.append("--cleanup-jarvis")

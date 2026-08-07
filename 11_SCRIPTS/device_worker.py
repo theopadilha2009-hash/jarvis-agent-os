@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "3"
+WORKER_VERSION = "4"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -52,6 +52,12 @@ ALLOWED_ACTIONS = {
     "system_memory",
 }
 TARGET_PATTERN = re.compile(r"^[\wÀ-ÿ ._-]{0,120}$")
+JARVIS_CLEANUP_PATTERN = re.compile(
+    r"\b(?:limp(?:a|e|ar)|fech(?:a|e|ar)|encerr(?:a|e|ar))\b.{0,120}"
+    r"\b(?:processos?\s+(?:tempor[aá]rios?\s+)?(?:do\s+)?jarvis|"
+    r"tempor[aá]rios?\s+(?:do\s+)?jarvis)\b",
+    re.I,
+)
 
 try:
     sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
@@ -273,7 +279,11 @@ def command_argv(job: dict) -> list[str]:
     if not TARGET_PATTERN.fullmatch(target):
         raise WorkerError("Aplicativo recebido com nome inválido.")
     if action == "system_memory":
-        return [str(ROOT / "jarvis"), "system-memory"]
+        argv = [str(ROOT / "jarvis"), "system-memory"]
+        request_text = str(job.get("request_text") or "")[:8_000]
+        if JARVIS_CLEANUP_PATTERN.search(request_text):
+            argv.append("--cleanup-jarvis")
+        return argv
     if action == "screen_capture":
         return [str(ROOT / "jarvis"), "screen-capture"]
     if action == "storage_scan":

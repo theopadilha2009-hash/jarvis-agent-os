@@ -22,9 +22,21 @@ class DeviceWorkerTest(unittest.TestCase):
         opened = MODULE.command_argv({"action": "open_application", "target": "Calculator"})
         closed = MODULE.command_argv({"action": "close_application", "target": "Spotify"})
         memory = MODULE.command_argv({"action": "system_memory", "target": ""})
+        cleanup = MODULE.command_argv({
+            "action": "system_memory",
+            "target": "jarvis-temporaries",
+            "request_text": "limpa os processos temporários do jarvis",
+        })
+        broad_cleanup = MODULE.command_argv({
+            "action": "system_memory",
+            "target": "",
+            "request_text": "limpa os processos do Mac",
+        })
         self.assertEqual(opened, [str(ROOT / "jarvis"), "computer", "open", "Calculator"])
         self.assertEqual(closed, [str(ROOT / "jarvis"), "computer", "close", "Spotify"])
         self.assertEqual(memory, [str(ROOT / "jarvis"), "system-memory"])
+        self.assertEqual(cleanup, [str(ROOT / "jarvis"), "system-memory", "--cleanup-jarvis"])
+        self.assertEqual(broad_cleanup, [str(ROOT / "jarvis"), "system-memory"])
 
         capture = MODULE.command_argv({"action": "screen_capture", "target": ""})
         storage = MODULE.command_argv({"action": "storage_scan", "target": "downloads"})
@@ -82,6 +94,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
+        self.assertEqual(kwargs["body"]["version"], "4")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):
