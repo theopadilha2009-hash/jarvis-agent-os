@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "5"
+WORKER_VERSION = "6"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -35,6 +35,14 @@ LAUNCH_LABEL = "ai.theopadilha.jarvis-device-worker"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = ROOT / "09_LOGS"
 SCREENSHOT_DIR = ROOT / "05_EXECUCAO" / "64_PERSONAL_TOOLS" / "screenshots"
+SELF_EDIT_RESTART_MARKER = (
+    Path.home()
+    / "Library"
+    / "Application Support"
+    / "JARVIS"
+    / "self-edits"
+    / "restart-device-worker"
+)
 ARTIFACTS_BUCKET = "jarvis-artifacts"
 RETRYABLE_STALE_ACTIONS = {
     "open_application",
@@ -59,6 +67,22 @@ JARVIS_CLEANUP_PATTERN = re.compile(
     r"tempor[aá]rios?\s+(?:do\s+)?jarvis)\b",
     re.I,
 )
+SELF_PUBLISH_PATTERN = re.compile(
+    r"\b(?:public(?:a|ar|ação)|publiqu(?:e|ar)|sub(?:a|ir)|push|envi(?:a|e|ar)\s+(?:pro|para\s+o)\s+github|"
+    r"merge|mescl(?:a|e|ar)|deploy|produção|producao)\b",
+    re.I,
+)
+SELF_PUBLISH_DENY_PATTERN = re.compile(
+    r"\b(?:n[aã]o|nunca|sem)\b.{0,24}\b(?:public(?:a|ar|ação)|publiqu(?:e|ar)|"
+    r"sub(?:a|ir)|push|merge|mescl(?:a|e|ar)|deploy|produção|producao)\b|"
+    r"\b(?:somente|apenas|s[oó])\s+local\b",
+    re.I,
+)
+
+
+def self_publish_requested(request_text: str) -> bool:
+    text = str(request_text or "")[:2_000]
+    return bool(SELF_PUBLISH_PATTERN.search(text) and not SELF_PUBLISH_DENY_PATTERN.search(text))
 
 try:
     sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
@@ -283,7 +307,10 @@ def command_argv(job: dict) -> list[str]:
         request_text = str(job.get("request_text") or "")[:2_000].strip()
         if len(request_text) < 12 or contains_secret(request_text):
             raise WorkerError("Autoedição recebida sem objetivo seguro e explícito.")
-        return [str(ROOT / "jarvis"), "self-edit", request_text]
+        argv = [str(ROOT / "jarvis"), "self-edit", request_text]
+        if self_publish_requested(request_text):
+            argv.append("--publish")
+        return argv
     if action == "system_memory":
         argv = [str(ROOT / "jarvis"), "system-memory"]
         request_text = str(job.get("request_text") or "")[:8_000]
@@ -369,7 +396,7 @@ def execute_job(job: dict) -> tuple[bool, str]:
             text=True,
             capture_output=True,
             check=False,
-            timeout=1_200 if str(job.get("action") or "") == "self_edit" else 90,
+            timeout=2_400 if str(job.get("action") or "") == "self_edit" else 90,
             env=os.environ.copy(),
         )
     except subprocess.TimeoutExpired:
@@ -655,6 +682,14 @@ def main() -> int:
                         message = run_once()
                         if not message.startswith("Fila vazia"):
                             print(message, flush=True)
+                        if SELF_EDIT_RESTART_MARKER.is_file():
+                            SELF_EDIT_RESTART_MARKER.unlink()
+                            print(
+                                "Autoedição publicada: reiniciando o worker para carregar o código novo.",
+                                flush=True,
+                            )
+                            running = False
+                            continue
                     except WorkerError as error:
                         print(f"Worker aguardando reconexão: {error}", flush=True)
                     time.sleep(max(1.0, min(args.interval, 30.0)))

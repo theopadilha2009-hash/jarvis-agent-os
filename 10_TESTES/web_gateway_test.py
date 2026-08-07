@@ -255,6 +255,30 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["intent"], "self_edit")
         enqueue.assert_called_once_with("melhore seus próprios scripts de diagnóstico", "self_edit")
 
+    def test_create_in_jarvis_and_deploy_routes_to_self_edit_worker(self):
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        command = "crie um painel de diagnóstico no jarvis, publique e faça deploy"
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE,
+            "supabase_device_enqueue",
+            return_value=({
+                "ok": True,
+                "intent": "self_edit",
+                "status_real": "device_command_queued",
+            }, 202),
+        ) as enqueue:
+            payload, status = MODULE.command_payload(
+                {"command": command},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["intent"], "self_edit")
+        enqueue.assert_called_once_with(command, "self_edit")
+
     def test_voice_design_requires_pairing_and_routes_to_real_provider(self):
         env = {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}
         command = "crie uma voz própria para você"
