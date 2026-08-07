@@ -188,12 +188,18 @@ class WebGatewayTest(unittest.TestCase):
                 }).encode("utf-8")
 
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False):
-            with patch.object(MODULE, "urlopen", return_value=FakeResponse()):
+            with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
                 payload, status = MODULE.assistant_response({"command": "converse comigo"})
         self.assertEqual(status, 200)
         self.assertEqual(payload["provider"], "openrouter")
         self.assertEqual(payload["visual_state"], "response")
         self.assertEqual(payload["message"], "Resposta conectada.")
+        sent_request = request.call_args.args[0]
+        sent_payload = json.loads(sent_request.data.decode("utf-8"))
+        self.assertEqual(sent_payload["temperature"], 0.5)
+        system_prompt = sent_payload["messages"][0]["content"]
+        self.assertIn("humor seco", system_prompt)
+        self.assertIn("confiança em porcentagem", system_prompt)
 
     def test_elevenlabs_speech_returns_audio_without_exposing_key(self):
         class FakeAudioResponse:
@@ -213,6 +219,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(audio.startswith(b"ID3"))
         sent_request = request.call_args.args[0]
         self.assertEqual(sent_request.headers["Xi-api-key"], "private-test-key")
+        sent_payload = json.loads(sent_request.data.decode("utf-8"))
+        self.assertEqual(sent_payload["language_code"], "pt")
+        self.assertEqual(sent_payload["voice_settings"]["stability"], 0.42)
+        self.assertTrue(sent_payload["voice_settings"]["use_speaker_boost"])
 
     def test_missing_elevenlabs_key_stays_text_only(self):
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):

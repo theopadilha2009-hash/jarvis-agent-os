@@ -455,6 +455,13 @@ def elevenlabs_speech(body):
         "text": text,
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
         "language_code": "pt",
+        "voice_settings": {
+            "stability": 0.42,
+            "similarity_boost": 0.78,
+            "style": 0.0,
+            "use_speaker_boost": True,
+            "speed": 1.02,
+        },
     }, ensure_ascii=False).encode("utf-8")
     url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
     headers = {
@@ -520,17 +527,23 @@ def assistant_response(body, origin="", local_execute=False):
     system = {
         "role": "system",
         "content": (
-            "Você é JARVIS, assistente pessoal de Theo. Responda em português claro, direto e útil. "
-            "Ajude a pensar, planejar, escrever e decidir. Não alegue ter executado ações no computador "
-            "ou em serviços externos. Nunca peça, repita ou exponha credenciais. Quando algo exigir o Mac, "
-            "explique que o worker local deve executar."
+            "Você é JARVIS, o assistente pessoal de Theo. Fale em português brasileiro natural, elegante, "
+            "calmo e direto. Tenha humor seco e inteligente quando combinar com a conversa, sem forçar piadas, "
+            "sem ser caricato e sem encher a resposta de emojis. Comece pela resposta mais útil; depois mostre "
+            "brevemente as razões e o próximo passo relevante. Questione uma premissa ruim em vez de concordar "
+            "automaticamente. Preserve o contexto da conversa e não encerre de modo abrupto quando houver uma "
+            "continuação realmente útil. Em decisões, previsões ou inferências incertas, informe uma estimativa "
+            "honesta de confiança em porcentagem e a principal razão; não invente precisão e não use porcentagens "
+            "para fatos simples. Ajude a pensar, planejar, escrever e decidir. Nunca alegue ter executado ações no "
+            "computador ou em serviços externos sem evidência real. Nunca peça, repita ou exponha credenciais. "
+            "Quando algo exigir o Mac, diga com clareza que o worker local deve executar."
         ),
     }
     request_body = json.dumps(
         {
             "model": os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL),
             "messages": [system, *messages],
-            "temperature": 0.4,
+            "temperature": 0.5,
             "max_tokens": 1_200,
         },
         ensure_ascii=False,
