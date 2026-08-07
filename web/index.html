@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260807-mech4lite">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260807-voicecyan1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -84,7 +84,11 @@
         </div>
         <form class="composer" id="commandForm">
           <button class="voice-button" id="voiceButton" type="button" aria-label="Falar com JARVIS">
-            <span aria-hidden="true"></span>
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"></path>
+              <path d="M6.5 11.5v.5a5.5 5.5 0 0 0 11 0v-.5M12 17.5V21M9.5 21h5"></path>
+            </svg>
+            <b>Falar</b>
           </button>
           <input id="commandInput" maxlength="8000" autocomplete="off" placeholder="Fale ou diga o que quer…" aria-label="Pedido para JARVIS">
           <button class="send-button" id="sendButton" type="submit">Enviar</button>
@@ -108,9 +112,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260807-mech4lite" defer></script>
+  <script src="/ui/jarvis.js?v=20260807-voicecyan1" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260807-mech4lite");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260807-voicecyan1");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

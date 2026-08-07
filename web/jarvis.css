@@ -87,12 +87,37 @@ button {
 }
 
 .identity-mark {
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--line-hot);
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border: 1px solid rgba(182, 247, 255, 0.58);
   border-radius: 50%;
-  background: radial-gradient(circle, white 0 5%, var(--cyan) 6% 14%, transparent 15% 42%, rgba(103, 232, 249, 0.18) 43% 60%, transparent 61%);
-  box-shadow: 0 0 24px rgba(34, 211, 238, 0.32);
+  background:
+    radial-gradient(circle, #f6feff 0 5%, #7df5ff 6% 12%, #07334b 13% 23%, transparent 24%),
+    repeating-conic-gradient(from 8deg, rgba(182, 247, 255, 0.9) 0 5deg, transparent 5deg 28deg),
+    radial-gradient(circle, rgba(8, 145, 178, 0.58) 0 53%, rgba(2, 12, 20, 0.96) 54% 100%);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.34), inset 0 0 10px rgba(103, 232, 249, 0.3);
+}
+
+.identity-mark::before,
+.identity-mark::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.identity-mark::before {
+  inset: 5px;
+  border: 1px solid rgba(182, 247, 255, 0.72);
+  box-shadow: inset 0 0 7px rgba(103, 232, 249, 0.52);
+}
+
+.identity-mark::after {
+  inset: 11px;
+  background: #e9fdff;
+  box-shadow: 0 0 9px #67e8f9;
 }
 
 .connection {
@@ -577,6 +602,22 @@ button {
   color: #fecdd3;
 }
 
+.message.voice-status {
+  align-self: center;
+  border-color: rgba(96, 165, 250, 0.32);
+  background: rgba(30, 64, 175, 0.12);
+  color: #bfdbfe;
+}
+
+.message.user.voice::before {
+  content: "VOZ";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--cyan);
+  font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+}
+
 .message details {
   margin-top: 8px;
   color: var(--faint);
@@ -591,7 +632,8 @@ button {
 }
 
 .copy-command,
-.memory-command {
+.memory-command,
+.speak-command {
   margin-top: 8px;
   margin-right: 6px;
   padding: 6px 8px;
@@ -609,6 +651,17 @@ button {
   color: #ddd6fe;
 }
 
+.speak-command {
+  border-color: rgba(96, 165, 250, 0.42);
+  background: rgba(37, 99, 235, 0.13);
+  color: #dbeafe;
+}
+
+.speak-command:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
 .memory-command:disabled {
   cursor: wait;
   opacity: 0.64;
@@ -616,7 +669,7 @@ button {
 
 .composer {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-columns: 70px minmax(0, 1fr) auto;
   gap: 8px;
   padding: 9px;
   border-top: 1px solid var(--line);
@@ -645,33 +698,50 @@ button {
 }
 
 .voice-button {
-  display: grid;
+  display: flex;
+  gap: 7px;
+  padding: 0 10px;
+  align-items: center;
+  justify-content: center;
   place-items: center;
   border: 1px solid var(--line);
   background: rgba(34, 211, 238, 0.06);
+  color: var(--cyan-hot);
 }
 
-.voice-button span {
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--cyan);
-  border-radius: 50%;
-  box-shadow: 0 0 12px rgba(103, 232, 249, 0.4);
+.voice-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 5px rgba(103, 232, 249, 0.5));
+}
+
+.voice-button b {
+  font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .voice-button.listening {
-  border-color: rgba(251, 113, 133, 0.6);
-  background: rgba(251, 113, 133, 0.1);
+  border-color: rgba(96, 165, 250, 0.72);
+  background: rgba(37, 99, 235, 0.16);
 }
 
-.voice-button.listening span {
-  border-color: var(--red);
-  border-radius: 2px;
+.voice-button.listening svg {
+  color: #bfdbfe;
   animation: listen-pulse 0.8s ease-in-out infinite;
 }
 
+.voice-button.listening b::after {
+  content: "…";
+}
+
 @keyframes listen-pulse {
-  50% { transform: scale(0.7); box-shadow: 0 0 20px var(--red); }
+  50% { transform: scale(0.7); box-shadow: 0 0 20px #60a5fa; }
 }
 
 .send-button {
@@ -773,6 +843,9 @@ dialog::backdrop {
   .spoken-caption { bottom: calc(46% + 14px); width: calc(100% - 30px); font-size: 12px; }
   .conversation { bottom: 8px; width: calc(100% - 16px); height: 45%; min-height: 280px; }
   .message { max-width: 94%; }
+  .composer { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .voice-button { padding: 0; }
+  .voice-button b { display: none; }
   .send-button { padding: 0 13px; }
 }
 

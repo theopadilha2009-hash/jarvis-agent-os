@@ -72,6 +72,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"JARVIS", html)
         self.assertIn(b'id="voiceButton"', html)
+        self.assertIn(b'<svg aria-hidden="true" viewBox="0 0 24 24">', html)
         self.assertIn(b'id="muteButton"', html)
         self.assertIn(b'id="avatar3d"', html)
         self.assertIn(b'id="liveSurface"', html)
@@ -84,6 +85,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b"SpeechRecognition", app_js)
+        self.assertIn(b'input_mode: options.source || "text"', app_js)
+        self.assertIn("Áudio não reproduzido".encode(), app_js)
         self.assertIn(b"memory-command", app_js)
         self.assertIn(b"ElevenLabs sem cr\xc3\xa9ditos", app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
@@ -97,7 +100,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"MEMORY CONSTELLATION", visual_js)
         self.assertIn(b"visualModeForState", visual_js)
         self.assertIn(b"AnimationMixer", visual_js)
-        self.assertIn(b"20260807-mech4lite", visual_js)
+        self.assertIn(b"20260807-voicecyan1", visual_js)
+        self.assertIn(b"installCyanRemap", visual_js)
+        self.assertIn(b"jarvisRedMask", visual_js)
         self.assertIn(b'FRAME_INTERVAL_MS = 1000 / (compactViewport ? 24 : 30)', visual_js)
         self.assertIn(b'renderer.setPixelRatio(1)', visual_js)
         self.assertIn(b'GPU 3D desativada', visual_js)
@@ -113,6 +118,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
         self.assertIn(b".hud-rail", css)
+        self.assertIn(b".message.user.voice", css)
 
         status, _, favicon = self.request("/favicon.ico")
         self.assertEqual(status, 200)
@@ -268,6 +274,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("humor seco", system_prompt)
         self.assertIn("pedir humor explicitamente", system_prompt)
         self.assertIn("confiança em porcentagem", system_prompt)
+        self.assertIn("nunca diga que não possui voz", system_prompt)
 
     def test_openrouter_can_suggest_real_memory_without_saving_it(self):
         class FakeResponse:

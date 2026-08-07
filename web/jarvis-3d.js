@@ -320,6 +320,29 @@ function makeCoreEntity(scene) {
   return { group, update };
 }
 
+function installCyanRemap(material) {
+  if (!material || material.userData.jarvisCyanRemap) return;
+  material.userData.jarvisCyanRemap = true;
+  const previousCompile = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (previousCompile) previousCompile(shader, renderer);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <opaque_fragment>",
+      `
+        float jarvisRedLead = outgoingLight.r - max(outgoingLight.g, outgoingLight.b);
+        float jarvisRedMask = smoothstep(0.035, 0.28, jarvisRedLead)
+          * smoothstep(0.08, 0.34, outgoingLight.r);
+        float jarvisEnergy = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
+        vec3 jarvisCyan = vec3(jarvisEnergy * 0.05, jarvisEnergy * 0.92, jarvisEnergy * 1.28);
+        outgoingLight = mix(outgoingLight, jarvisCyan, jarvisRedMask * 0.96);
+        #include <opaque_fragment>
+      `,
+    );
+  };
+  material.customProgramCacheKey = () => "jarvis-cyan-remap-v1";
+  material.needsUpdate = true;
+}
+
 async function start() {
   const renderer = new THREE.WebGLRenderer({
     alpha: true,
@@ -347,7 +370,7 @@ async function start() {
   const key = new THREE.DirectionalLight(0x67e8f9, 2.3);
   key.position.set(2.6, 3.4, 4.2);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x8b5cf6, 1.7);
+  const rim = new THREE.DirectionalLight(0x60a5fa, 1.85);
   rim.position.set(-3, 1.3, -2);
   scene.add(rim);
   const coreEntity = makeCoreEntity(scene);
@@ -355,7 +378,7 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const gltf = await new Promise((resolve, reject) => {
-    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-mech4lite", resolve, undefined, reject);
+    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-voicecyan1", resolve, undefined, reject);
   });
 
   const model = gltf.scene || gltf.scenes[0];
@@ -373,6 +396,7 @@ async function start() {
     object.frustumCulled = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     materials.filter(Boolean).forEach((material) => {
+      installCyanRemap(material);
       if ("envMapIntensity" in material) material.envMapIntensity = 1.15;
       if (material.emissive && /glow|emissive/i.test(material.name || "")) {
         material.userData.jarvisBaseEmissive = material.emissive.clone();

@@ -19,6 +19,7 @@
     speaking: false,
     working: false,
     elevenlabs: false,
+    voiceError: "",
     muted: (() => {
       try {
         return localStorage.getItem("jarvis-voice-muted") === "1";
@@ -32,6 +33,7 @@
   let currentAudio = null;
   let currentAudioUrl = "";
   let speechGeneration = 0;
+  let voiceFailureNotified = false;
 
   const stateLabels = {
     idle: ["PRESENÇA", "aguardando você"],
@@ -57,6 +59,8 @@
       ? "recebendo voz"
       : normalized === "speaking"
         ? "transmitindo resposta"
+        : session.voiceError
+          ? session.voiceError
         : voiceSupport.input || session.elevenlabs
           ? "link disponível"
           : "indisponível neste navegador";
@@ -81,6 +85,17 @@
     return String(value ?? "").replace(/[&<>"']/g, (char) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     })[char]);
+  }
+
+  function speechText(value) {
+    return String(value ?? "")
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1")
+      .replace(/[*_#>|~]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 2200);
   }
 
   function addMessage(text, type = "jarvis", extraHtml = "") {
@@ -161,9 +176,22 @@
     muteButton.title = session.muted ? "Ativar a voz do JARVIS" : "Mutar a voz do JARVIS";
   }
 
+  function reportVoiceFailure(status) {
+    session.voiceError = status;
+    byId("voiceValue").textContent = status;
+    byId("voiceLink").textContent = status.toLowerCase();
+    byId("integrationValue").textContent = `IA · ${status}`;
+    byId("integrationHint").textContent = "A conversa continua em texto; a saída humana aguarda cota válida da ElevenLabs.";
+    if (!voiceFailureNotified) {
+      voiceFailureNotified = true;
+      addMessage(`Áudio não reproduzido: ${status}. A resposta em texto continua funcionando.`, "voice-status");
+    }
+  }
+
   async function speak(text) {
     if (!text) return;
-    const clean = String(text).replace(/\s+/g, " ").slice(0, 2200);
+    const clean = speechText(text);
+    if (!clean) return false;
     stopSpeechOutput();
     if (session.muted) return false;
     const generation = speechGeneration;
@@ -190,6 +218,9 @@
         if (generation === speechGeneration) finishSpeaking();
       };
       await currentAudio.play();
+      session.voiceError = "";
+      voiceFailureNotified = false;
+      return true;
     } catch (error) {
       if (generation === speechGeneration) {
         finishSpeaking();
@@ -198,10 +229,10 @@
           elevenlabs_authorization: "ElevenLabs sem autorização",
           elevenlabs_rate_limit: "ElevenLabs no limite",
         }[error?.message] || "ElevenLabs indisponível";
-        byId("voiceValue").textContent = status;
+        reportVoiceFailure(status);
       }
+      return false;
     }
-    return true;
   }
 
   function showResponse(data) {
@@ -227,6 +258,9 @@
     if (data.result) {
       extra += `<details><summary>ver resultado completo</summary><code>${escapeHtml(data.result)}</code></details>`;
     }
+    if (session.elevenlabs) {
+      extra += `<button class="speak-command" type="button">Ouvir resposta</button>`;
+    }
     const message = addMessage(answer, "jarvis", extra);
     const copy = message.querySelector(".copy-command");
     if (copy) copy.addEventListener("click", async () => {
@@ -239,6 +273,14 @@
       memory.textContent = "Preparando memória…";
       sendCommand(`guarde na memória como preferência: ${data.memory_suggestion}`);
     });
+    const replay = message.querySelector(".speak-command");
+    if (replay) replay.addEventListener("click", async () => {
+      replay.disabled = true;
+      replay.textContent = "Gerando áudio…";
+      const played = await speak(answer);
+      replay.disabled = false;
+      replay.textContent = played ? "Reproduzir novamente" : "Tentar voz novamente";
+    });
     byId("activityValue").textContent = data.executed_locally ? `Executado localmente · ${data.intent || "ação"}` : answer;
     byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
     renderLiveCanvas(data);
@@ -247,11 +289,11 @@
     speak(answer);
   }
 
-  async function sendCommand(rawValue) {
+  async function sendCommand(rawValue, options = {}) {
     const command = String(rawValue || "").trim();
     if (!command) return;
     session.responseState = "";
-    addMessage(command, "user");
+    addMessage(command, options.source === "voice" ? "user voice" : "user");
     input.value = "";
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-12);
@@ -261,7 +303,7 @@
       const data = await request("/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, messages: session.history }),
+        body: JSON.stringify({ command, messages: session.history, input_mode: options.source || "text" }),
       });
       showResponse(data);
       const answer = data.message || data.summary;
@@ -300,7 +342,7 @@
       if (!submitted && rows.at(-1)?.isFinal && transcript) {
         submitted = true;
         recognition.stop();
-        sendCommand(transcript);
+        sendCommand(transcript, { source: "voice" });
       }
     };
     recognition.onerror = (event) => {
@@ -326,6 +368,7 @@
         addMessage("O microfone já está iniciando. Aguarde um instante.", "error");
       }
     });
+    voiceButton.title = "Clique, fale normalmente e o comando será enviado quando você terminar.";
     byId("voiceValue").textContent = "ouvir e responder";
   }
 
@@ -338,6 +381,7 @@
       byId("aiValue").textContent = status.ai?.configured ? "OpenRouter conectado" : "OpenRouter não configurado";
       byId("modelValue").textContent = status.ai?.model || "—";
       session.elevenlabs = Boolean(status.voice?.configured);
+      session.voiceError = "";
       byId("voiceValue").textContent = session.elevenlabs
         ? `ElevenLabs${voiceSupport.input ? " + microfone" : ""}`
         : voiceSupport.input
