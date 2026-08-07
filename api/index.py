@@ -63,7 +63,7 @@ BASE_WEB_CAPABILITIES = [
     {
         "name": "assistant_voice",
         "status": "available",
-        "what": "Entrada por voz no navegador e resposta por ElevenLabs com fallback nativo.",
+        "what": "Entrada por voz no navegador e saída ElevenLabs quando a chave estiver configurada.",
     },
     {
         "name": "feature_planning",
@@ -156,7 +156,7 @@ def web_capabilities():
     for row in rows:
         if row["name"] in configured:
             if row["name"] == "assistant_voice" and not configured[row["name"]]:
-                row["status"] = "browser_fallback"
+                row["status"] = "input_only_requires_elevenlabs_key"
             else:
                 row["status"] = "configured" if configured[row["name"]] else "needs_environment"
     return rows
@@ -237,7 +237,7 @@ def status_payload():
             "configured": elevenlabs_ready,
             "voice_id": os.environ.get("ELEVENLABS_VOICE_ID", DEFAULT_ELEVENLABS_VOICE_ID),
             "model": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
-            "fallback": "speech_synthesis",
+            "fallback": "text_only",
         },
         "automations": {
             "n8n": {"configured": n8n_ready, "agenda": n8n_ready},
@@ -446,7 +446,7 @@ def elevenlabs_speech(body):
             "ok": False,
             "status_real": "browser_voice_fallback_required",
             "error": "ElevenLabs ainda não está configurado.",
-            "fallback": "speech_synthesis",
+            "fallback": "text_only",
         }, 503
     voice_id = clean_text(os.environ.get("ELEVENLABS_VOICE_ID") or DEFAULT_ELEVENLABS_VOICE_ID, 100)
     if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
@@ -470,9 +470,9 @@ def elevenlabs_speech(body):
             raise ValueError("empty audio")
         return audio, 200
     except HTTPError as error:
-        return {"ok": False, "error": f"ElevenLabs recusou a voz (HTTP {error.code}).", "fallback": "speech_synthesis"}, 502
+        return {"ok": False, "error": f"ElevenLabs recusou a voz (HTTP {error.code}).", "fallback": "text_only"}, 502
     except (URLError, TimeoutError, ValueError):
-        return {"ok": False, "error": "ElevenLabs não respondeu com áudio válido.", "fallback": "speech_synthesis"}, 504
+        return {"ok": False, "error": "ElevenLabs não respondeu com áudio válido.", "fallback": "text_only"}, 504
 
 
 def normalize_messages(body):

@@ -7,18 +7,31 @@
   const input = byId("commandInput");
   const sendButton = byId("sendButton");
   const voiceButton = byId("voiceButton");
+  const muteButton = byId("muteButton");
   const dialog = byId("systemDialog");
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const voiceSupport = {
+    input: Boolean(Recognition),
+  };
 
   const session = {
     listening: false,
     speaking: false,
     working: false,
     elevenlabs: false,
+    muted: (() => {
+      try {
+        return localStorage.getItem("jarvis-voice-muted") === "1";
+      } catch {
+        return false;
+      }
+    })(),
     responseState: "",
     history: [],
   };
   let currentAudio = null;
   let currentAudioUrl = "";
+  let speechGeneration = 0;
 
   const stateLabels = {
     idle: ["PRESENÇA", "aguardando você"],
@@ -40,7 +53,13 @@
     stage.dataset.state = normalized;
     byId("modeLabel").textContent = mode;
     byId("stateLabel").textContent = label;
-    byId("voiceLink").textContent = normalized === "listening" ? "recebendo voz" : normalized === "speaking" ? "transmitindo resposta" : "link disponível";
+    byId("voiceLink").textContent = normalized === "listening"
+      ? "recebendo voz"
+      : normalized === "speaking"
+        ? "transmitindo resposta"
+        : voiceSupport.input || session.elevenlabs
+          ? "link disponível"
+          : "indisponível neste navegador";
     window.dispatchEvent(new CustomEvent("jarvis-state", { detail: { state: normalized } }));
   }
 
@@ -113,13 +132,6 @@
     return data;
   }
 
-  function chooseVoice() {
-    const voices = speechSynthesis.getVoices();
-    return voices.find((voice) => voice.lang === "pt-BR" && /felipe|daniel|thiago|antonio|antônio|google/i.test(voice.name))
-      || voices.find((voice) => voice.lang === "pt-BR")
-      || voices.find((voice) => voice.lang?.startsWith("pt"));
-  }
-
   function beginSpeaking(clean) {
     session.speaking = true;
     byId("spokenCaption").textContent = clean;
@@ -131,27 +143,29 @@
     settleState();
   }
 
-  function speakInBrowser(clean) {
-    if (!("speechSynthesis" in window) || !clean) return;
-    const utterance = new SpeechSynthesisUtterance(clean);
-    const voice = chooseVoice();
-    if (voice) utterance.voice = voice;
-    utterance.lang = "pt-BR";
-    utterance.rate = 1.02;
-    utterance.pitch = 0.87;
-    utterance.onstart = () => beginSpeaking(clean);
-    utterance.onend = utterance.onerror = finishSpeaking;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(utterance);
+  function stopSpeechOutput() {
+    speechGeneration += 1;
+    currentAudio?.pause();
+    currentAudio = null;
+    if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
+    currentAudioUrl = "";
+    if (session.speaking) finishSpeaking();
+  }
+
+  function renderMuteState() {
+    muteButton.textContent = session.muted ? "Fala muda" : "Fala ligada";
+    muteButton.setAttribute("aria-pressed", String(session.muted));
+    muteButton.title = session.muted ? "Ativar a voz do JARVIS" : "Mutar a voz do JARVIS";
   }
 
   async function speak(text) {
     if (!text) return;
     const clean = String(text).replace(/\s+/g, " ").slice(0, 2200);
-    if (!session.elevenlabs) return speakInBrowser(clean);
+    stopSpeechOutput();
+    if (session.muted) return false;
+    const generation = speechGeneration;
+    if (!session.elevenlabs) return false;
     try {
-      currentAudio?.pause();
-      if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
       const response = await fetch("/speech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,13 +174,23 @@
       if (!response.ok) throw new Error("elevenlabs unavailable");
       currentAudioUrl = URL.createObjectURL(await response.blob());
       currentAudio = new Audio(currentAudioUrl);
-      currentAudio.onplay = () => beginSpeaking(clean);
-      currentAudio.onended = currentAudio.onerror = finishSpeaking;
+      currentAudio.onplay = () => {
+        if (generation === speechGeneration) beginSpeaking(clean);
+      };
+      currentAudio.onended = () => {
+        if (generation === speechGeneration) finishSpeaking();
+      };
+      currentAudio.onerror = () => {
+        if (generation === speechGeneration) finishSpeaking();
+      };
       await currentAudio.play();
     } catch {
-      finishSpeaking();
-      speakInBrowser(clean);
+      if (generation === speechGeneration) {
+        finishSpeaking();
+        byId("voiceValue").textContent = "ElevenLabs indisponível";
+      }
     }
+    return true;
   }
 
   function showResponse(data) {
@@ -231,7 +255,6 @@
   }
 
   function installVoiceInput() {
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition) {
       voiceButton.disabled = true;
       byId("voiceValue").textContent = "resposta apenas";
@@ -241,7 +264,9 @@
     recognition.lang = "pt-BR";
     recognition.interimResults = true;
     recognition.continuous = false;
+    let submitted = false;
     recognition.onstart = () => {
+      submitted = false;
       session.listening = true;
       voiceButton.classList.add("listening");
       byId("spokenCaption").textContent = "Estou ouvindo…";
@@ -252,7 +277,11 @@
       const transcript = rows.map((row) => row[0].transcript).join(" ").trim();
       input.value = transcript;
       byId("spokenCaption").textContent = transcript || "Estou ouvindo…";
-      if (rows.at(-1)?.isFinal && transcript) sendCommand(transcript);
+      if (!submitted && rows.at(-1)?.isFinal && transcript) {
+        submitted = true;
+        recognition.stop();
+        sendCommand(transcript);
+      }
     };
     recognition.onerror = (event) => {
       if (!["aborted", "no-speech"].includes(event.error)) {
@@ -265,7 +294,18 @@
       voiceButton.classList.remove("listening");
       settleState();
     };
-    voiceButton.addEventListener("click", () => session.listening ? recognition.abort() : recognition.start());
+    voiceButton.addEventListener("click", () => {
+      if (session.listening) {
+        recognition.abort();
+        return;
+      }
+      stopSpeechOutput();
+      try {
+        recognition.start();
+      } catch {
+        addMessage("O microfone já está iniciando. Aguarde um instante.", "error");
+      }
+    });
     byId("voiceValue").textContent = "ouvir e responder";
   }
 
@@ -278,10 +318,14 @@
       byId("aiValue").textContent = status.ai?.configured ? "OpenRouter conectado" : "OpenRouter não configurado";
       byId("modelValue").textContent = status.ai?.model || "—";
       session.elevenlabs = Boolean(status.voice?.configured);
-      byId("voiceValue").textContent = session.elevenlabs ? "ElevenLabs + microfone" : "voz nativa + microfone";
+      byId("voiceValue").textContent = session.elevenlabs
+        ? `ElevenLabs${voiceSupport.input ? " + microfone" : ""}`
+        : voiceSupport.input
+          ? "microfone ativo · saída aguarda ElevenLabs"
+          : "ElevenLabs aguarda chave";
       const ready = [
         status.ai?.configured ? "IA" : "",
-        status.voice?.configured ? "ElevenLabs" : "voz nativa",
+        status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
         status.automations?.n8n?.configured ? "n8n" : "",
         status.runtime === "local_web_preview" ? "worker local" : "",
       ].filter(Boolean);
@@ -303,11 +347,22 @@
     sendCommand(input.value);
   });
   byId("detailsButton").addEventListener("click", () => dialog.showModal());
+  muteButton.addEventListener("click", () => {
+    session.muted = !session.muted;
+    try {
+      localStorage.setItem("jarvis-voice-muted", session.muted ? "1" : "0");
+    } catch {
+      // The control still works for this session when storage is unavailable.
+    }
+    if (session.muted) stopSpeechOutput();
+    renderMuteState();
+  });
   byId("closeDialog").addEventListener("click", () => dialog.close());
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
 
+  renderMuteState();
   installVoiceInput();
   boot();
 })();

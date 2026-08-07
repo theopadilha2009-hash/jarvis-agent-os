@@ -62,6 +62,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["service"], "jarvis-web")
         self.assertIn("voice", payload)
+        self.assertEqual(payload["voice"]["fallback"], "text_only")
         self.assertIn("n8n", payload["automations"])
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["X-Frame-Options"], "DENY")
@@ -71,6 +72,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"JARVIS", html)
         self.assertIn(b'id="voiceButton"', html)
+        self.assertIn(b'id="muteButton"', html)
         self.assertIn(b'id="avatar3d"', html)
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
@@ -80,6 +82,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b"SpeechRecognition", app_js)
+        self.assertNotIn(b"speechSynthesis", app_js)
 
         status, headers, visual_js = self.request("/ui/jarvis-3d.js")
         self.assertEqual(status, 200)
@@ -206,6 +209,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(audio.startswith(b"ID3"))
         sent_request = request.call_args.args[0]
         self.assertEqual(sent_request.headers["Xi-api-key"], "private-test-key")
+
+    def test_missing_elevenlabs_key_stays_text_only(self):
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):
+            payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
+        self.assertEqual(status, 503)
+        self.assertEqual(payload["fallback"], "text_only")
 
     def test_agenda_routes_to_configured_n8n_webhook(self):
         class FakeN8nResponse:
