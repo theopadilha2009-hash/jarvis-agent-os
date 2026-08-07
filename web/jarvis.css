@@ -495,6 +495,28 @@ button {
   white-space: pre-wrap;
 }
 
+.artifact-link {
+  display: block;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--state) 32%, transparent);
+  border-radius: 8px;
+  background: #02070b;
+}
+
+.artifact-preview {
+  display: block;
+  width: 100%;
+  max-height: 190px;
+  object-fit: cover;
+  opacity: 0.92;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.artifact-link:hover .artifact-preview {
+  opacity: 1;
+  transform: scale(1.015);
+}
+
 .presence-copy {
   position: absolute;
   z-index: 8;
@@ -869,6 +891,63 @@ dialog::backdrop {
   color: var(--muted);
   font-size: 9px;
   line-height: 1.45;
+}
+
+.history-panel {
+  max-height: 210px;
+  overflow: hidden;
+}
+
+.history-list {
+  display: grid;
+  gap: 6px;
+  overflow: auto;
+}
+
+.history-list > small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding-top: 6px;
+  border-top: 1px solid rgba(103, 232, 249, 0.08);
+}
+
+.history-row > i {
+  width: 6px;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px currentColor;
+}
+
+.history-row[data-status="succeeded"] > i { background: var(--green); }
+.history-row[data-status="failed"] > i { background: var(--red); }
+
+.history-row span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  color: #b9d3dc;
+  font-size: 9px;
+}
+
+.history-row b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.history-row small {
+  color: var(--faint);
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @media (max-width: 980px) {

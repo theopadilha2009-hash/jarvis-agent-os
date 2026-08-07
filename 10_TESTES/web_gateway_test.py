@@ -619,6 +619,93 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["provider"], "n8n")
         self.assertEqual(payload["message"], "Evento criado na agenda.")
 
+    def test_agenda_uses_private_supabase_fallback_without_n8n(self):
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "N8N_WEBHOOK_URL": "",
+        }
+        saved = [{"id": 7, "title": "comprar ração amanhã", "status": "pending"}]
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "supabase_request", return_value=saved
+        ) as request:
+            payload, status = MODULE.command_payload(
+                {"command": "coloca na agenda comprar ração amanhã"}
+            )
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["provider"], "supabase_agenda")
+        self.assertEqual(payload["agenda"][0]["title"], "comprar ração amanhã")
+        self.assertEqual(request.call_args.kwargs["table"], MODULE.SUPABASE_AGENDA_TABLE)
+
+    def test_contact_alias_is_persisted_and_resolved_for_message_queue(self):
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        contact_row = [{
+            "id": 3,
+            "alias": "arthur",
+            "display_name": "Arthur",
+            "phone": "5511999999999",
+        }]
+        queued_row = [{"id": 131, "status": "pending"}]
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "supabase_request", side_effect=[contact_row, queued_row]
+        ) as request:
+            payload, status = MODULE.command_payload(
+                {"command": "manda mensagem para Arthur dizendo estou chegando"},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["job"]["target"], "…9999")
+        queued = request.call_args_list[1].kwargs["body"]
+        self.assertEqual(queued["target"], "5511999999999")
+        self.assertNotIn("5511999999999", json.dumps(payload))
+
+    def test_contact_save_masks_phone_in_public_payload(self):
+        saved = [{"id": 3, "alias": "arthur", "display_name": "Arthur", "phone": "5511999999999"}]
+        with patch.object(MODULE, "supabase_request", return_value=saved):
+            payload, status = MODULE.supabase_contact_save(
+                "salva o contato Arthur 5511999999999"
+            )
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["contact"]["phone"], "…9999")
+        self.assertNotIn("5511999999999", json.dumps(payload))
+
+    def test_device_command_returns_only_short_lived_signed_artifact(self):
+        row = [{
+            "id": 99,
+            "action": "screen_capture",
+            "target": "",
+            "status": "succeeded",
+            "result": "captura confirmada",
+            "artifact_path": "theo/99-screen.png",
+            "artifact_mime": "image/png",
+        }]
+        with patch.object(MODULE, "supabase_request", return_value=row), patch.object(
+            MODULE, "signed_artifact_url", return_value="https://signed.example/preview"
+        ) as signer:
+            payload, status = MODULE.supabase_device_command("99")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["job"]["artifact_url"], "https://signed.example/preview")
+        self.assertNotIn("artifact_path", payload["job"])
+        signer.assert_called_once_with("theo/99-screen.png")
+
+    def test_device_history_masks_message_target(self):
+        rows = [{
+            "id": 12,
+            "action": "message_send",
+            "target": "5511999999999",
+            "status": "succeeded",
+            "result": "mensagem enviada",
+        }]
+        with patch.object(MODULE, "supabase_request", return_value=rows):
+            payload, status = MODULE.device_history_payload(8)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["history"][0]["target"], "…9999")
+        self.assertNotIn("5511999999999", json.dumps(payload))
+
     def test_memory_tree_is_read_only_and_structured(self):
         status, _, payload = self.json_request("/memory-tree")
         self.assertEqual(status, 200)
