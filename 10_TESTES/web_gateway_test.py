@@ -97,7 +97,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"MEMORY CONSTELLATION", visual_js)
         self.assertIn(b"visualModeForState", visual_js)
         self.assertIn(b"AnimationMixer", visual_js)
-        self.assertIn(b"20260807-mech3", visual_js)
+        self.assertIn(b"20260807-mech4lite", visual_js)
+        self.assertIn(b'FRAME_INTERVAL_MS = 1000 / (compactViewport ? 24 : 30)', visual_js)
+        self.assertIn(b'renderer.setPixelRatio(1)', visual_js)
+        self.assertIn(b'GPU 3D desativada', visual_js)
         self.assertIn(b"FRAME_INTERVAL_MS", visual_js)
         self.assertIn(b"document.hidden", visual_js)
 
@@ -119,8 +122,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "model/gltf-binary")
         self.assertEqual(headers["Cache-Control"], "public, max-age=31536000, immutable")
-        self.assertGreater(len(model), 8_000_000)
-        self.assertLess(len(model), 10_000_000)
+        self.assertGreater(len(model), 4_000_000)
+        self.assertLess(len(model), 4_500_000)
 
     def test_local_device_request_becomes_handoff(self):
         status, _, payload = self.json_request(
