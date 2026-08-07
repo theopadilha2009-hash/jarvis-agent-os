@@ -1,11 +1,12 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const mount = document.getElementById("avatar3d");
 const stage = document.getElementById("stage");
 const presenceValue = document.getElementById("presenceValue");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const compactViewport = matchMedia("(max-width: 900px)").matches;
+const FRAME_INTERVAL_MS = 1000 / 30;
 
 const COLORS = {
   idle: 0x46e6ff,
@@ -124,12 +125,12 @@ function drawThinking(ctx, width, height, time) {
 async function start() {
   if (!webglAvailable()) throw new Error("WebGL unavailable");
 
-  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !compactViewport, powerPreference: "high-performance" });
   renderer.domElement.style.position = "absolute";
   renderer.domElement.style.inset = "0";
   renderer.domElement.style.zIndex = "1";
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, compactViewport ? 1 : 1.35));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.92;
@@ -140,14 +141,6 @@ async function start() {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   camera.position.set(0, 0.02, 5.1);
-
-  try {
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmrem.dispose();
-  } catch {
-    // Direct lights below keep the model usable without an environment map.
-  }
 
   scene.add(new THREE.AmbientLight(0x071723, 0.75));
   const key = new THREE.DirectionalLight(0x67e8f9, 2.3);
@@ -223,9 +216,15 @@ async function start() {
   const particles = new THREE.Points(particleGeometry, particleMaterial);
   scene.add(particles);
 
-  let memoryLabels = await loadMemoryLabels();
-  window.addEventListener("jarvis-memory-refresh", async () => {
+  let memoryLabels = ["DECISIONS", "LEARNINGS", "PROJECTS", "CONTEXT", "TASKS", "ACTIONS", "THEO"];
+  let memoryLabelsLoaded = false;
+  async function refreshMemoryLabels() {
     memoryLabels = await loadMemoryLabels();
+    memoryLabelsLoaded = true;
+  }
+  window.addEventListener("jarvis-memory-refresh", refreshMemoryLabels);
+  window.addEventListener("jarvis-state", () => {
+    if (visualState === "memory" && !memoryLabelsLoaded) refreshMemoryLabels();
   });
   let pointerX = 0;
   let pointerY = 0;
@@ -254,7 +253,7 @@ async function start() {
     camera.aspect = canvasWidth / canvasHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(canvasWidth, canvasHeight, false);
-    const density = Math.min(devicePixelRatio || 1, 2);
+    const density = Math.min(devicePixelRatio || 1, compactViewport ? 1 : 1.35);
     effectCanvas.width = canvasWidth * density;
     effectCanvas.height = canvasHeight * density;
     effectCanvas.style.width = `${canvasWidth}px`;
@@ -267,7 +266,12 @@ async function start() {
   stage.classList.add("model-ready");
   presenceValue.textContent = "humanoide 3D local + modos vivos";
 
+  let previousFrameMs = 0;
+  let effectVisible = false;
   function render(timeMs) {
+    requestAnimationFrame(render);
+    if (document.hidden || timeMs - previousFrameMs < FRAME_INTERVAL_MS) return;
+    previousFrameMs = timeMs;
     const time = timeMs * 0.001;
     const activeColor = COLORS[visualState] || COLORS.idle;
     const isWorking = ["thinking", "planning", "memory"].includes(visualState);
@@ -294,12 +298,20 @@ async function start() {
     particleMaterial.opacity = isWorking ? 0.46 : 0.32 + speakingPulse;
     particles.rotation.y += 0.0012 * (isWorking ? 2 : 1);
 
-    effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
-    if (visualState === "memory") drawMemory(effectContext, canvasWidth, canvasHeight, time, memoryLabels);
-    else if (["thinking", "planning"].includes(visualState)) drawThinking(effectContext, canvasWidth, canvasHeight, time);
+    if (visualState === "memory") {
+      effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
+      drawMemory(effectContext, canvasWidth, canvasHeight, time, memoryLabels);
+      effectVisible = true;
+    } else if (["thinking", "planning"].includes(visualState)) {
+      effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
+      drawThinking(effectContext, canvasWidth, canvasHeight, time);
+      effectVisible = true;
+    } else if (effectVisible) {
+      effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
+      effectVisible = false;
+    }
 
     renderer.render(scene, camera);
-    requestAnimationFrame(render);
   }
 
   if (reducedMotion) renderer.render(scene, camera);
