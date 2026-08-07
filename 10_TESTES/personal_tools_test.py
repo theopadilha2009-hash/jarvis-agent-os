@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 import importlib.util
 import io
+import json
 import unittest
 
 
@@ -68,6 +69,24 @@ class PersonalToolsTest(unittest.TestCase):
                 ))
         run.assert_not_called()
         self.assertIn("nenhuma mensagem enviada", output.getvalue())
+
+    def test_orca_capture_fallback_copies_real_png(self):
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "orca-source.png"
+            target = Path(directory) / "jarvis-capture.png"
+            source.write_bytes(b"\x89PNG\r\n\x1a\nreal-pixels")
+            completed = MODULE.subprocess.CompletedProcess(
+                args=["orca"],
+                returncode=0,
+                stdout=json.dumps({"result": {"screenshot": {"path": str(source)}}}),
+                stderr="",
+            )
+            with patch.object(MODULE.shutil, "which", return_value="/usr/local/bin/orca"), patch.object(
+                MODULE.subprocess, "run", return_value=completed
+            ):
+                copied = MODULE._orca_window_capture(target)
+            self.assertTrue(copied)
+            self.assertEqual(target.read_bytes(), source.read_bytes())
 
 
 if __name__ == "__main__":

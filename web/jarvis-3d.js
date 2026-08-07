@@ -6,7 +6,10 @@ const stage = document.getElementById("stage");
 const presenceValue = document.getElementById("presenceValue");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
-const FRAME_INTERVAL_MS = 1000 / (compactViewport ? 24 : 30);
+const constrainedHardware = (navigator.deviceMemory && navigator.deviceMemory <= 4)
+  || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+const BASE_TARGET_FPS = compactViewport || constrainedHardware ? 20 : 30;
+const BASE_FRAME_INTERVAL_MS = 1000 / BASE_TARGET_FPS;
 
 const COLORS = {
   idle: 0x46e6ff,
@@ -420,7 +423,7 @@ async function start() {
   stage.dataset.modelAnimationSeconds = gltf.animations[0]?.duration?.toFixed(1) || "0";
   stage.dataset.renderProfile = "low-memory";
 
-  const particleCount = compactViewport ? 28 : 48;
+  const particleCount = compactViewport || constrainedHardware ? 24 : 42;
   const particlePositions = new Float32Array(particleCount * 3);
   for (let index = 0; index < particleCount; index += 1) {
     const angle = Math.random() * Math.PI * 2;
@@ -491,15 +494,29 @@ async function start() {
   let currentScale = 1;
   let sampledFrames = 0;
   let fpsWindowStart = performance.now();
+  let frameIntervalMs = BASE_FRAME_INTERVAL_MS;
+  let slowFrameWindows = 0;
   let lastVisualMode = "";
   function render(timeMs) {
     requestAnimationFrame(render);
-    if (document.hidden || timeMs - previousFrameMs < FRAME_INTERVAL_MS - 1) return;
+    if (document.hidden || timeMs - previousFrameMs < frameIntervalMs - 1) return;
     const deltaSeconds = previousFrameMs ? Math.min((timeMs - previousFrameMs) / 1000, 0.1) : 0;
     previousFrameMs = timeMs;
     sampledFrames += 1;
     if (timeMs - fpsWindowStart >= 1000) {
-      stage.dataset.renderFps = String(Math.round(sampledFrames * 1000 / (timeMs - fpsWindowStart)));
+      const measuredFps = Math.round(sampledFrames * 1000 / (timeMs - fpsWindowStart));
+      stage.dataset.renderFps = String(measuredFps);
+      const currentTargetFps = 1000 / frameIntervalMs;
+      slowFrameWindows = measuredFps < currentTargetFps * 0.72
+        ? slowFrameWindows + 1
+        : Math.max(0, slowFrameWindows - 1);
+      if (slowFrameWindows >= 5) {
+        frameIntervalMs = 1000 / 12;
+        stage.dataset.renderProfile = "adaptive-lite-12fps";
+      } else if (slowFrameWindows >= 2 && frameIntervalMs < 1000 / 18) {
+        frameIntervalMs = 1000 / 18;
+        stage.dataset.renderProfile = "adaptive-lite-18fps";
+      }
       sampledFrames = 0;
       fpsWindowStart = timeMs;
     }
@@ -535,7 +552,7 @@ async function start() {
     currentScale += (targetScale - currentScale) * 0.055;
     root.scale.setScalar(currentScale);
     particleMaterial.opacity = isWorking ? 0.32 : 0.2 + speakingPulse * 0.35;
-    particles.rotation.y += 0.0012 * (isWorking ? 2 : 1);
+    particles.rotation.y += (frameIntervalMs > BASE_FRAME_INTERVAL_MS ? 0.0007 : 0.0012) * (isWorking ? 2 : 1);
     coreEntity.update(time, visualMode === "core");
 
     if (visualMode === "source") {

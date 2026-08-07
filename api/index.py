@@ -39,7 +39,14 @@ MAX_PROMPT_CHARS = 8_000
 SUPABASE_MEMORY_TABLE = "jarvis_memories"
 SUPABASE_DEVICE_COMMANDS_TABLE = "jarvis_device_commands"
 SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
-REMOTE_DEVICE_INTENTS = {"open_application", "close_application", "system_memory"}
+REMOTE_DEVICE_INTENTS = {
+    "open_application",
+    "close_application",
+    "message_send",
+    "screen_capture",
+    "storage_scan",
+    "system_memory",
+}
 MEMORY_KIND_LABELS = {
     "learning": "APRENDIZADOS",
     "decision": "DECISOES",
@@ -129,7 +136,7 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
     (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
     (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|whatsapp\s+para|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
-    (re.compile(r"\b(mand(?:a|ar)|envi(?:a|ar)|escrev(?:a|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
+    (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
     (re.compile(r"\b(coloc(?:a|ar)|adicion(?:a|ar)|marc(?:a|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
     (re.compile(r"\b(ver|mostr(?:a|ar)|list(?:a|ar)|consult(?:a|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
@@ -139,7 +146,7 @@ LOCAL_INTENTS = (
     (APPLICATION_INTENT_PATTERNS["open_application"], "open_application"),
     (APPLICATION_INTENT_PATTERNS["close_application"], "close_application"),
     (re.compile(r"(?:\b(computador|mac|mem[oó]ria|ram)\b.{0,80}\b(trav(?:a|ando)|lent[oa]|pesad[oa]|limp(?:a|ar))\b|\b(limp(?:a|ar)|fech(?:a|ar)|trav(?:a|ando))\b.{0,80}\b(computador|mac|mem[oó]ria|ram|processos?\s+(?:tempor[aá]rios?\s+)?(?:do\s+)?jarvis)\b)", re.I), "system_memory"),
-    (re.compile(r"\b(ver|listar|encontrar|procurar)\b.{0,40}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
+    (re.compile(r"\b(ver|list(?:a|e|ar)|encontr(?:a|e|ar)|procur(?:a|e|ar)|mostr(?:a|e|ar)|analis(?:a|e|ar))\b.{0,60}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
     (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
 )
 
@@ -318,6 +325,20 @@ def supabase_device_enqueue(command, intent):
                 "intent": intent,
             }, 400
         target = clean_text(command_args[-1], 120)
+    elif intent == "message_send":
+        details = message_send_details(command)
+        if not details:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "message_details_missing",
+                "visual_state": "error",
+                "error": "Informe DDI + DDD + número e o texto exato da mensagem.",
+                "intent": intent,
+            }, 400
+        target = details["phone"]
+    elif intent == "storage_scan":
+        target = "downloads"
     row = {
         "owner_id": "theo",
         "action": intent,
@@ -347,7 +368,7 @@ def supabase_device_enqueue(command, intent):
                 "id": saved["id"],
                 "status": "pending",
                 "action": intent,
-                "target": target,
+                "target": public_device_target(intent, target),
             },
         }, 202
     except HTTPError as error:
@@ -411,7 +432,10 @@ def supabase_device_command(command_id):
             "job": {
                 "id": row.get("id"),
                 "action": clean_text(row.get("action"), 60),
-                "target": clean_text(row.get("target"), 120),
+                "target": public_device_target(
+                    clean_text(row.get("action"), 60),
+                    clean_text(row.get("target"), 120),
+                ),
                 "status": status,
                 "result": clean_text(row.get("result"), 8_000),
                 "created_at": clean_text(row.get("created_at"), 80),
@@ -805,6 +829,46 @@ def computer_app_command(command, intent):
         return None
     action = "open" if intent == "open_application" else "close"
     return ["./jarvis", "computer", action, app]
+
+
+def message_send_details(command):
+    text = clean_text(command, 8_000)
+    phone_match = re.search(r"(?:\+?\d[\d\s().-]{6,}\d)", text)
+    if not phone_match:
+        return None
+    phone = "".join(char for char in phone_match.group(0) if char.isdigit())
+    if not 8 <= len(phone) <= 15:
+        return None
+    quoted = re.search(r'["“](.+?)["”]', text)
+    body = quoted.group(1).strip() if quoted else re.sub(
+        re.escape(phone_match.group(0)), "", text, count=1
+    ).strip(" :-")
+    if not quoted:
+        body = re.sub(
+            r"^\s*(?:jarvis[,\s]+)?(?:mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\s+"
+            r"(?:uma\s+)?(?:mensagem|msg)\s*(?:para)?\s*",
+            "",
+            body,
+            flags=re.I,
+        ).strip(" :-")
+        body = re.sub(
+            r"^(?:dizendo|falando|com\s+(?:o\s+)?texto|texto)\s*",
+            "",
+            body,
+            flags=re.I,
+        ).strip(" :-")
+    if not body or has_secret_like_text(body):
+        return None
+    return {"phone": phone, "text": clean_text(body, 4_000)}
+
+
+def public_device_target(action, target):
+    safe_target = clean_text(target, 120)
+    if action == "message_send" and safe_target:
+        return f"…{safe_target[-4:]}"
+    if action == "storage_scan" and safe_target == "downloads":
+        return "Downloads"
+    return safe_target
 
 
 def local_handoff(command, intent, execute=False):
