@@ -18,6 +18,7 @@
   const session = {
     listening: false,
     speaking: false,
+    voicePending: false,
     working: false,
     elevenlabs: false,
     voiceError: "",
@@ -52,6 +53,7 @@
     idle: ["PRESENÇA", "aguardando você"],
     listening: ["ESCUTA", "ouvindo sua voz"],
     thinking: ["RACIOCÍNIO", "conectando contexto e ferramentas"],
+    voice: ["VOZ", "preparando uma resposta natural"],
     planning: ["PLANO", "organizando a execução"],
     speaking: ["RESPOSTA", "falando com você"],
     response: ["RESPOSTA", "resultado disponível"],
@@ -68,6 +70,7 @@
     stage.dataset.state = normalized;
     byId("modeLabel").textContent = mode;
     byId("stateLabel").textContent = label;
+    byId("conversationState").textContent = label;
     byId("voiceLink").textContent = normalized === "listening"
       ? "recebendo voz"
       : normalized === "speaking"
@@ -83,6 +86,7 @@
   function settleState() {
     if (session.listening) return setVisualState("listening");
     if (session.speaking) return setVisualState("speaking");
+    if (session.voicePending) return setVisualState("voice");
     if (session.working) return setVisualState("thinking");
     setVisualState(session.responseState || "idle");
   }
@@ -101,21 +105,39 @@
   }
 
   function speechText(value) {
-    return String(value ?? "")
+    const clean = String(value ?? "")
       .replace(/```[\s\S]*?```/g, " ")
       .replace(/`([^`]+)`/g, "$1")
       .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1")
       .replace(/[*_#>|~]/g, " ")
       .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 2200);
+      .trim();
+    if (clean.length <= 900) return clean;
+    const excerpt = clean.slice(0, 900);
+    const naturalEnd = Math.max(excerpt.lastIndexOf(". "), excerpt.lastIndexOf("! "), excerpt.lastIndexOf("? "));
+    return `${excerpt.slice(0, naturalEnd > 520 ? naturalEnd + 1 : 900).trim()}…`;
+  }
+
+  function compactCaption(value, fallback = "Pronto quando você estiver.") {
+    const clean = speechText(value);
+    if (!clean) return fallback;
+    const sentence = clean.match(/^.{1,150}?[.!?](?=\s|$)/)?.[0] || clean.slice(0, 148);
+    return clean.length > sentence.length && !/[.!?]$/.test(sentence)
+      ? `${sentence.trim()}…`
+      : sentence.trim();
+  }
+
+  function messageHtml(value) {
+    return escapeHtml(value)
+      .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/`([^`\n]+)`/g, "<code class=\"inline-code\">$1</code>");
   }
 
   function addMessage(text, type = "jarvis", extraHtml = "") {
     byId("welcomeMessage")?.remove();
     const message = document.createElement("div");
     message.className = `message ${type}`;
-    message.innerHTML = `<span>${escapeHtml(text)}</span>${extraHtml}`;
+    message.innerHTML = `<span>${messageHtml(text)}</span>${extraHtml}`;
     feed.appendChild(message);
     feed.scrollTop = feed.scrollHeight;
     return message;
@@ -124,7 +146,7 @@
   function setRequest(command) {
     byId("requestTitle").textContent = "Executando pedido";
     byId("requestText").textContent = command;
-    byId("spokenCaption").textContent = command;
+    byId("spokenCaption").textContent = compactCaption(command, "Entendi. Deixe comigo.");
     byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
   }
 
@@ -179,7 +201,8 @@
     else if (Array.isArray(data.sources) && data.sources.length) html = canvasRows(data.sources);
     else if (data.result) html = `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
     else if (data.local_command) html = `<div class="canvas-row"><i>→</i><span>Worker local preparado</span></div><div class="canvas-result">${escapeHtml(data.local_command)}</div>`;
-    else if (data.message) html = `<div class="canvas-result">${escapeHtml(data.message).slice(0, 900)}</div>`;
+    else if (data.provider === "openrouter") html = `<div class="canvas-row"><i>✓</i><span>Resposta pronta para você</span></div>`;
+    else if (data.message) html = `<div class="canvas-result">${escapeHtml(data.message).slice(0, 320)}</div>`;
     content.innerHTML = html;
     empty.hidden = Boolean(html);
   }
@@ -229,8 +252,9 @@
   }
 
   function beginSpeaking(clean) {
+    session.voicePending = false;
     session.speaking = true;
-    byId("spokenCaption").textContent = clean;
+    byId("spokenCaption").textContent = compactCaption(clean);
     settleState();
   }
 
@@ -241,6 +265,7 @@
 
   function stopSpeechOutput() {
     speechGeneration += 1;
+    session.voicePending = false;
     currentSpeechController?.abort();
     currentSpeechController = null;
     currentAudio?.pause();
@@ -277,6 +302,9 @@
     if (session.muted) return false;
     const generation = speechGeneration;
     if (!session.elevenlabs) return false;
+    session.voicePending = true;
+    byId("spokenCaption").textContent = "Preparando voz…";
+    settleState();
     const controller = new AbortController();
     currentSpeechController = controller;
     try {
@@ -328,6 +356,10 @@
       }
       return false;
     } finally {
+      if (generation === speechGeneration) {
+        session.voicePending = false;
+        settleState();
+      }
       if (controller === currentSpeechController) currentSpeechController = null;
     }
   }
@@ -390,7 +422,7 @@
       extra += `<details><summary>ver resultado completo</summary><code>${escapeHtml(data.result)}</code></details>`;
     }
     if (session.elevenlabs) {
-      extra += `<button class="speak-command" type="button">Ouvir resposta</button>`;
+      extra += `<button class="speak-command" type="button">Ouvir</button>`;
     }
     const message = addMessage(answer, "jarvis", extra);
     const copy = message.querySelector(".copy-command");

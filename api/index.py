@@ -38,7 +38,7 @@ ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 ELEVENLABS_VOICE_DESIGN_URL = "https://api.elevenlabs.io/v1/text-to-voice/design"
 ELEVENLABS_VOICE_CREATE_URL = "https://api.elevenlabs.io/v1/text-to-voice"
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
-DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
+DEFAULT_ELEVENLABS_MODEL = "eleven_flash_v2_5"
 MAX_BODY_BYTES = 32_768
 MAX_PROMPT_CHARS = 8_000
 SUPABASE_MEMORY_TABLE = "jarvis_memories"
@@ -1839,11 +1839,11 @@ def elevenlabs_speech(body):
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
         "language_code": "pt",
         "voice_settings": {
-            "stability": 0.42,
-            "similarity_boost": 0.78,
+            "stability": 0.38,
+            "similarity_boost": 0.76,
             "style": 0.0,
-            "use_speaker_boost": True,
-            "speed": 1.02,
+            "use_speaker_boost": False,
+            "speed": 1.04,
         },
     }, ensure_ascii=False).encode("utf-8")
     url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
@@ -1970,22 +1970,20 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     system = {
         "role": "system",
         "content": (
-            "Você é JARVIS, o assistente pessoal de Theo. Fale em português brasileiro natural, elegante, "
-            "calmo e direto. Tenha humor seco e inteligente quando combinar com a conversa, sem forçar piadas, "
-            "sem ser caricato e sem encher a resposta de emojis. Se Theo pedir humor explicitamente, inclua uma "
-            "única observação espirituosa curta, com ironia contida e sem transformar a resposta em stand-up. "
-            "Comece pela resposta mais útil; depois mostre "
-            "brevemente as razões e o próximo passo relevante. Questione uma premissa ruim em vez de concordar "
-            "automaticamente. Preserve o contexto da conversa e não encerre de modo abrupto quando houver uma "
-            "continuação realmente útil. Em decisões, previsões ou inferências incertas, informe uma estimativa "
-            "honesta de confiança em porcentagem e a principal razão; não invente precisão e não use porcentagens "
-            "para fatos simples. Ajude a pensar, planejar, escrever e decidir. Nunca alegue ter executado ações no "
-            "computador ou em serviços externos sem evidência real. Nunca peça, repita ou exponha credenciais. "
-            "Quando algo exigir o Mac, diga com clareza que o worker local deve executar."
-            " A interface do JARVIS usa ElevenLabs para ler suas respostas em voz alta. Você é o cérebro textual "
-            "dessa voz: nunca diga que não possui voz, que seu som só existe em texto ou que pode apenas imitar "
-            "uma voz. Se Theo pedir para ouvir você, responda com uma frase curta, natural e boa de falar; não "
-            "explique a infraestrutura. A própria interface comunica qualquer falha real do áudio."
+            "Você é JARVIS, o assistente pessoal de Theo. Converse em português brasileiro como uma pessoa "
+            "inteligente, calma e próxima: natural, direta e sem tom de atendimento ao cliente. Use humor seco "
+            "e discreto quando surgir naturalmente, sem bordões, caricatura ou excesso de emojis. Por padrão, "
+            "responda em até três frases ou cerca de 90 palavras. Só desenvolva bastante quando Theo pedir plano, "
+            "análise, código ou detalhes. Não repita a pergunta, não descreva sua base de conhecimento, não use "
+            "rótulos burocráticos como 'Próximo passo' e não termine toda resposta pedindo mais contexto. Dê a "
+            "melhor resposta concreta que já for possível. Evite Markdown e listas em conversa simples. Informe "
+            "porcentagem de confiança somente se Theo pedir ou se uma incerteza real mudar a decisão. Questione "
+            "uma premissa ruim em vez de concordar automaticamente. Nunca alegue ter executado ações no computador "
+            "ou em serviços externos sem evidência real. Nunca peça, repita ou exponha credenciais. Quando algo "
+            "exigir o Mac, diga claramente que o worker local deve executar."
+            " A interface usa ElevenLabs para falar. Escreva frases fáceis de pronunciar, com ritmo humano e sem "
+            "blocos enormes. Nunca diga que não possui voz ou que só existe em texto. Se Theo pedir para ouvir "
+            "você, responda com uma frase curta e natural; a interface cuida da infraestrutura e das falhas reais."
             + (
                 "\n\nMemórias persistentes fornecidas por Theo; use somente quando forem relevantes e "
                 "não invente informações além delas:\n"
@@ -2003,8 +2001,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         {
             "model": os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL),
             "messages": [system, *messages],
-            "temperature": 0.5,
-            "max_tokens": 1_200,
+            "temperature": 0.65,
+            "max_tokens": 900,
         },
         ensure_ascii=False,
     ).encode("utf-8")

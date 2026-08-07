@@ -86,7 +86,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="muteButton"', html)
         self.assertIn(b'id="avatar3d"', html)
         self.assertIn(b'id="liveSurface"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260807-audiofix1', html)
+        self.assertIn(b'id="conversationState"', html)
+        self.assertIn(b'class="mark-j"', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260807-human2', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260807-human2', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b"fallback-core", html)
@@ -108,6 +111,15 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"new AbortController()", app_js)
         self.assertIn(b"signal: controller.signal", app_js)
         self.assertIn(b"currentSpeechController?.abort()", app_js)
+        self.assertIn(b"compactCaption", app_js)
+        self.assertIn(b"session.voicePending", app_js)
+        self.assertIn(b'data.provider === "openrouter"', app_js)
+
+        status, headers, app_css = self.request("/ui/jarvis.css")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/css")
+        self.assertIn(b".conversation-head", app_css)
+        self.assertIn(b"-webkit-line-clamp: 2", app_css)
         self.assertIn(b'error?.name === "AbortError"', app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
 
@@ -674,12 +686,14 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["message"], "Resposta conectada.")
         sent_request = request.call_args.args[0]
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
-        self.assertEqual(sent_payload["temperature"], 0.5)
+        self.assertEqual(sent_payload["temperature"], 0.65)
+        self.assertEqual(sent_payload["max_tokens"], 900)
         system_prompt = sent_payload["messages"][0]["content"]
         self.assertIn("humor seco", system_prompt)
-        self.assertIn("pedir humor explicitamente", system_prompt)
-        self.assertIn("confiança em porcentagem", system_prompt)
-        self.assertIn("nunca diga que não possui voz", system_prompt)
+        self.assertIn("até três frases", system_prompt)
+        self.assertIn("porcentagem de confiança somente", system_prompt)
+        self.assertIn("não use rótulos burocráticos", system_prompt)
+        self.assertIn("nunca diga que não possui voz", system_prompt.casefold())
 
     def test_openrouter_can_suggest_real_memory_without_saving_it(self):
         class FakeResponse:
@@ -725,8 +739,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(sent_request.headers["Xi-api-key"], "private-test-key")
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
         self.assertEqual(sent_payload["language_code"], "pt")
-        self.assertEqual(sent_payload["voice_settings"]["stability"], 0.42)
-        self.assertTrue(sent_payload["voice_settings"]["use_speaker_boost"])
+        self.assertEqual(sent_payload["model_id"], "eleven_flash_v2_5")
+        self.assertEqual(sent_payload["voice_settings"]["stability"], 0.38)
+        self.assertFalse(sent_payload["voice_settings"]["use_speaker_boost"])
+        self.assertEqual(sent_payload["voice_settings"]["speed"], 1.04)
 
     def test_missing_elevenlabs_key_stays_text_only(self):
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):
