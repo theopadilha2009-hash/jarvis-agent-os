@@ -46,6 +46,24 @@ class DeviceWorkerTest(unittest.TestCase):
             self_edit,
             [str(ROOT / "jarvis"), "self-edit", "melhore seus próprios scripts de diagnóstico"],
         )
+        self_publish = MODULE.command_argv({
+            "action": "self_edit",
+            "target": "",
+            "request_text": "melhore seus próprios scripts, publique e faça deploy",
+        })
+        self.assertEqual(
+            self_publish,
+            [
+                str(ROOT / "jarvis"),
+                "self-edit",
+                "melhore seus próprios scripts, publique e faça deploy",
+                "--publish",
+            ],
+        )
+        self.assertFalse(MODULE.self_publish_requested("melhore seus próprios scripts"))
+        self.assertFalse(MODULE.self_publish_requested("melhore seus scripts sem fazer deploy"))
+        self.assertFalse(MODULE.self_publish_requested("edite seus arquivos, somente local"))
+        self.assertTrue(MODULE.self_publish_requested("crie a melhoria e suba para produção"))
 
         capture = MODULE.command_argv({"action": "screen_capture", "target": ""})
         storage = MODULE.command_argv({"action": "storage_scan", "target": "downloads"})
@@ -109,7 +127,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
-        self.assertEqual(kwargs["body"]["version"], "5")
+        self.assertEqual(kwargs["body"]["version"], "6")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):

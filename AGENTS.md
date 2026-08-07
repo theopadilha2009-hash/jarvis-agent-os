@@ -96,6 +96,8 @@ cat "$(./jarvis mission-open-latest)" | pbcopy  # copia prompt p/ clipboard
 ```
 ./jarvis self-cockpit                                    # primeiro comando do dia
 ./jarvis self-evolve --goal "..." --copy                 # gera mission + copia clipboard
+./jarvis self-edit "melhoria"                            # edita/testa/commita em worktree local
+./jarvis self-edit "melhoria e deploy" --publish         # PR + merge main + Vercel, só com autorização explícita
 cd ~/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO
 claude                                                   # Theo abre Claude Code manualmente
 # (cole a missão; Claude executa)
@@ -106,6 +108,12 @@ cat > /tmp/jarvis-claude-out.md                          # captura resposta fina
 env JARVIS_NO_REPORT=1 ./jarvis safety-gate
 env JARVIS_NO_REPORT=1 ./jarvis smoke-test
 ```
+
+`self-edit --publish` é a única exceção automatizada de publicação do próprio
+JARVIS: exige o flag explícito (ou pedido pareado contendo publicar/subir/deploy),
+fixa os alvos em `jarvis-origin` → `theopadilha2009-hash/jarvis-agent-os/main` e
+Vercel `jarvis-agent-os`, registra PR/merge/deploy/health reais e recusa qualquer
+outro remoto ou projeto. Sem `--publish`, continua local-only.
 
 ## Loop oficial (Agent OS — entrada única `go`)
 

@@ -57,6 +57,16 @@ REMOTE_DEVICE_INTENTS = {
     "system_memory",
     "self_edit",
 }
+
+SELF_EDIT_PATTERN = re.compile(
+    r"(?:\b(?:auto[-\s]?(?:edit(?:e|ar)|melhor(?:e|ar))|"
+    r"(?:edit(?:e|ar)|mex(?:a|er)|alter(?:e|ar)|modifiqu(?:e|ar)|melhor(?:e|ar)|"
+    r"arrum(?:e|ar)|corrij(?:a|ir))\b.{0,100}\b(?:seus|nos\s+seus|pr[oó]prios?)\b"
+    r".{0,50}\b(?:scripts?|c[oó]digo|arquivos?)\b)|"
+    r"(?:\b(?:cri(?:a|e|ar)|implement(?:a|e|ar)|adicion(?:a|e|ar)|constru(?:a|ir)|"
+    r"desenvolv(?:a|e|er))\b.{0,160}\b(?:no|para\s+o)\s+jarvis\b))",
+    re.I,
+)
 MEMORY_KIND_LABELS = {
     "learning": "APRENDIZADOS",
     "decision": "DECISOES",
@@ -105,6 +115,11 @@ BASE_WEB_CAPABILITIES = [
         "what": "Transforma pedidos de dispositivo em comandos explícitos para o worker local.",
     },
     {
+        "name": "self_evolution",
+        "status": "available_on_local_worker",
+        "what": "Edita, testa e commita o JARVIS; publicação exige pedido explícito para subir/deployar.",
+    },
+    {
         "name": "persistent_memory",
         "status": "available_on_local_worker",
         "what": "Grava memória local ou persistente no Supabase e atualiza a constelação visual.",
@@ -149,7 +164,7 @@ JARVIS_CLEANUP_PATTERN = re.compile(
 )
 
 LOCAL_INTENTS = (
-    (re.compile(r"\b(?:auto[-\s]?(?:edit(?:e|ar)|melhor(?:e|ar))|(?:edit(?:e|ar)|mex(?:a|er)|alter(?:e|ar)|modifiqu(?:e|ar)|melhor(?:e|ar)|arrum(?:e|ar)|corrij(?:a|ir))\b.{0,100}\b(?:seus|nos\s+seus|pr[oó]prios?)\b.{0,50}\b(?:scripts?|c[oó]digo|arquivos?)\b)", re.I), "self_edit"),
+    (SELF_EDIT_PATTERN, "self_edit"),
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
     (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
     (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
@@ -940,7 +955,11 @@ def supabase_device_enqueue(command, intent):
             "endpoint": "POST /command",
             "status_real": "device_command_queued",
             "visual_state": "local",
-            "message": "Pedido enviado ao worker do Mac. Estou acompanhando a execução.",
+            "message": (
+                "Autoedição enviada ao Mac. Vou editar e testar; se o pedido disser para publicar ou fazer deploy, também vou subir, mesclar e verificar a produção."
+                if intent == "self_edit"
+                else "Pedido enviado ao worker do Mac. Estou acompanhando a execução."
+            ),
             "intent": intent,
             "provider": "supabase_device_bridge",
             "job": {

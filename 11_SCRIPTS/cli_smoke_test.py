@@ -697,6 +697,23 @@ CHECKS = [
         ],
     },
     {
+        "name": "self-edit-publish-dry-run",
+        "cmd": [
+            "./jarvis",
+            "self-edit",
+            "criar diagnóstico no jarvis e fazer deploy",
+            "--publish",
+            "--dry-run",
+        ],
+        "expect": [
+            "JARVIS Self Edit",
+            "GitHub main + Vercel production autorizados",
+            "theopadilha2009-hash/jarvis-agent-os",
+            "jarvis-agent-os-delta.vercel.app",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "files-triage-read-only",
         "cmd": ["./jarvis", "files-triage", "10_TESTES/FIXTURES", "--limit", "10"],
         "expect": ["Files Triage", "plano read-only", "não possui --apply", "Produção: nada alterado"],
