@@ -2863,6 +2863,10 @@ def storage_scan_command(args=None):
     """./jarvis storage-scan [PASTA] [--top N] [--min-mb N]"""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["storage-scan", *(args or [])])
 
+def system_memory_command(args=None):
+    """./jarvis system-memory [--cleanup-jarvis] [--dry-run]"""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["system-memory", *(args or [])])
+
 def files_triage_command(args=None):
     """./jarvis files-triage [PASTA] [--limit N] — plano read-only."""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["files-triage", *(args or [])])
@@ -3244,6 +3248,7 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
   ./jarvis memory-save "texto"               grava na memória local versionável
   ./jarvis web                                abre o JARVIS visual ligado ao worker local
   ./jarvis storage-scan PASTA                mostra arquivos grandes, sem apagar
+  ./jarvis system-memory                     diagnostica RAM; limpa só temporários JARVIS sob pedido
   ./jarvis files-triage PASTA                plano de organização, sem mover
 
 ## Lifecycle longo (quando `do` não basta)
@@ -3361,6 +3366,7 @@ def _help_full():
   ./jarvis memory-save "texto" [--kind learning|decision|preference] [--dry-run]  memória local
   ./jarvis web [--no-open|--check]  cockpit visual + OpenRouter + worker local
   ./jarvis storage-scan [PASTA] [--top N] [--min-mb N]  inventário read-only de arquivos grandes
+  ./jarvis system-memory [--cleanup-jarvis] [--dry-run]  RAM + limpeza restrita a temporários JARVIS
   ./jarvis files-triage [PASTA] [--limit N]  plano de organização por tipo; não move nada
   ./jarvis blueprint --type T --goal "..."  blueprint local (n8n|app|automation|research)
   ./jarvis research-digest [--goal "..."]  digest local dos deep research + plano de evolução
@@ -3582,6 +3588,8 @@ def main():
         memory_save_command(sys.argv[2:])
     elif cmd == "storage-scan":
         storage_scan_command(sys.argv[2:])
+    elif cmd == "system-memory":
+        system_memory_command(sys.argv[2:])
     elif cmd == "files-triage":
         files_triage_command(sys.argv[2:])
     elif cmd == "run-list":

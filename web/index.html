@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260807-modes1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260807-mech3">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -30,32 +30,6 @@
     <main class="stage" id="stage" data-state="idle">
       <section class="presence" aria-label="Presença visual do JARVIS">
         <div class="grid-plane" aria-hidden="true"></div>
-        <div class="fallback-core" aria-hidden="true">
-          <svg viewBox="0 0 440 600" role="presentation">
-            <defs>
-              <linearGradient id="fallbackGlass" x1="14%" y1="8%" x2="86%" y2="96%">
-                <stop offset="0%" stop-color="#dffbff" stop-opacity=".5"/>
-                <stop offset="35%" stop-color="#46e6ff" stop-opacity=".12"/>
-                <stop offset="72%" stop-color="#171a35" stop-opacity=".7"/>
-                <stop offset="100%" stop-color="#03070d" stop-opacity=".96"/>
-              </linearGradient>
-              <filter id="fallbackGlow" x="-60%" y="-60%" width="220%" height="220%">
-                <feGaussianBlur stdDeviation="5"/>
-              </filter>
-            </defs>
-            <path class="fallback-glow" d="M220 62C286 62 332 104 336 196C339 252 326 302 284 334C268 348 256 354 252 368V392C252 406 262 412 300 420C356 432 410 476 426 600H14C30 476 84 432 140 420C178 412 188 406 188 392V368C184 354 172 348 156 334C114 302 101 252 104 196C108 104 154 62 220 62Z"/>
-            <path class="fallback-body" d="M220 62C286 62 332 104 336 196C339 252 326 302 284 334C268 348 256 354 252 368V392C252 406 262 412 300 420C356 432 410 476 426 600H14C30 476 84 432 140 420C178 412 188 406 188 392V368C184 354 172 348 156 334C114 302 101 252 104 196C108 104 154 62 220 62Z"/>
-            <g class="fallback-face">
-              <path d="M140 182Q176 164 207 184M233 184Q266 164 300 182"/>
-              <path d="M147 207Q176 188 205 207Q176 225 147 207ZM235 207Q266 188 295 207Q266 225 235 207Z"/>
-              <path d="M220 196L203 294L220 306L237 294"/>
-              <path d="M184 334Q220 352 256 334"/>
-              <path d="M126 242L314 242M119 276L321 276M132 310L308 310M153 110L287 110M125 146L315 146"/>
-              <path d="M151 92L292 339M118 147L281 365M291 91L148 340M322 148L161 364"/>
-            </g>
-            <g class="fallback-eyes"><ellipse cx="176" cy="207" rx="22" ry="8"/><ellipse cx="266" cy="207" rx="22" ry="8"/></g>
-          </svg>
-        </div>
         <div class="avatar" id="avatar3d" aria-hidden="true"></div>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
 
@@ -134,9 +108,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260807-modes1" defer></script>
+  <script src="/ui/jarvis.js?v=20260807-mech3" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260807-modes1");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260807-mech3");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

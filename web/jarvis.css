@@ -219,39 +219,33 @@ button {
   inset: -9% 0 16%;
 }
 
+.avatar::before {
+  content: "CARREGANDO MECH BUST";
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, -50%);
+  color: color-mix(in srgb, var(--state) 72%, white);
+  font: 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.28em;
+  opacity: 0.68;
+  transition: opacity 280ms ease;
+}
+
+.model-ready .avatar::before {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.model-error .avatar::before {
+  content: "MODELO 3D INDISPONÍVEL";
+  color: var(--red);
+}
+
 .avatar canvas {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.fallback-core {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  top: 43%;
-  width: min(32vw, 390px);
-  aspect-ratio: 440 / 600;
-  transform: translate(-50%, -50%);
-  filter: drop-shadow(0 0 46px color-mix(in srgb, var(--state) 38%, transparent));
-  animation: core-pulse 4.8s ease-in-out infinite;
-  transition: opacity 700ms ease;
-}
-
-.fallback-core svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.fallback-body { fill: url(#fallbackGlass); stroke: color-mix(in srgb, var(--state) 78%, #dffbff); stroke-width: 1.1; }
-.fallback-glow { fill: none; stroke: var(--state); stroke-width: 7; opacity: .42; filter: url(#fallbackGlow); }
-.fallback-face { fill: none; stroke: color-mix(in srgb, var(--state) 64%, #dffbff); stroke-width: 1; opacity: .48; }
-.fallback-eyes { fill: #dcfbff; filter: drop-shadow(0 0 10px var(--state)); }
-
-.model-ready .fallback-core {
-  opacity: 0;
-  visibility: hidden;
-  animation: none;
-}
-
-@keyframes core-pulse {
-  50% { transform: translate(-50%, -50%) scale(1.025); filter: brightness(1.25) drop-shadow(0 0 66px color-mix(in srgb, var(--state) 48%, transparent)); }
 }
 
 .target-ring {
@@ -768,7 +762,6 @@ dialog::backdrop {
   .topbar { padding: 0 12px; }
   .connection { letter-spacing: 0.05em; }
   .avatar { inset: -6% -30% 44%; }
-  .fallback-core { top: 25%; width: 170px; }
   .target-ring { top: 23%; width: 250px; }
   .hud-rail { display: none; }
   .presence-copy { bottom: 48%; left: 14px; }

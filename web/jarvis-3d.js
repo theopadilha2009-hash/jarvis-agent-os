@@ -6,7 +6,7 @@ const stage = document.getElementById("stage");
 const presenceValue = document.getElementById("presenceValue");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
-const FRAME_INTERVAL_MS = 1000 / 30;
+const FRAME_INTERVAL_MS = compactViewport ? 1000 / 30 : 0;
 
 const COLORS = {
   idle: 0x46e6ff,
@@ -337,7 +337,7 @@ async function start() {
   renderer.domElement.style.inset = "0";
   renderer.domElement.style.zIndex = "1";
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, compactViewport ? 1 : 1.35));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, compactViewport ? 1 : 1.2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.92;
@@ -361,7 +361,7 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const gltf = await new Promise((resolve, reject) => {
-    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260806-real", resolve, undefined, reject);
+    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-mech3", resolve, undefined, reject);
   });
 
   const model = gltf.scene || gltf.scenes[0];
@@ -373,43 +373,27 @@ async function start() {
   model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
   root.add(model);
 
-  const shellMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x0d1720,
-    metalness: 0.52,
-    roughness: 0.29,
-    clearcoat: 0.68,
-    clearcoatRoughness: 0.24,
-    transmission: 0.04,
-    thickness: 0.48,
-    ior: 1.32,
-    emissive: 0x062b36,
-    emissiveIntensity: 0.28,
-    envMapIntensity: 1.25,
-    transparent: true,
-    opacity: 0.92,
-    side: THREE.DoubleSide,
-  });
-  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xb6f7ff, transparent: true, opacity: 0.96, blending: THREE.AdditiveBlending });
-  const wireMaterial = new THREE.MeshBasicMaterial({ color: COLORS.idle, wireframe: true, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false });
-  const overlays = [];
+  const glowMaterials = new Set();
   model.traverse((object) => {
-    if (!object.isMesh || !object.geometry) return;
-    const identity = `${object.name} ${object.parent?.name || ""}`;
-    object.material = /eye/i.test(identity) ? eyeMaterial : shellMaterial;
-    const wire = new THREE.Mesh(object.geometry, wireMaterial);
-    wire.position.copy(object.position);
-    wire.scale.copy(object.scale).multiplyScalar(1.005);
-    wire.quaternion.copy(object.quaternion);
-    overlays.push([object.parent, wire]);
+    if (!object.isMesh) return;
+    object.frustumCulled = true;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.filter(Boolean).forEach((material) => {
+      if ("envMapIntensity" in material) material.envMapIntensity = 1.15;
+      if (material.emissive && /glow|emissive/i.test(material.name || "")) {
+        material.userData.jarvisBaseEmissive = material.emissive.clone();
+        material.userData.jarvisBaseIntensity = material.emissiveIntensity || 1;
+        glowMaterials.add(material);
+      }
+    });
   });
-  overlays.forEach(([parent, wire]) => parent?.add(wire));
+  const mixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null;
+  if (mixer && !reducedMotion) mixer.clipAction(gltf.animations[0]).play();
+  stage.dataset.modelAsset = "mech-bust";
+  stage.dataset.modelAnimations = String(gltf.animations.length);
+  stage.dataset.modelAnimationSeconds = gltf.animations[0]?.duration?.toFixed(1) || "0";
 
-  const visorMaterial = new THREE.MeshBasicMaterial({ color: COLORS.idle, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
-  const visor = new THREE.Mesh(new THREE.PlaneGeometry(2.55, 0.055), visorMaterial);
-  visor.position.set(0, 0.32, 1.38);
-  root.add(visor);
-
-  const particleCount = 190;
+  const particleCount = compactViewport ? 54 : 96;
   const particlePositions = new Float32Array(particleCount * 3);
   for (let index = 0; index < particleCount; index += 1) {
     const angle = Math.random() * Math.PI * 2;
@@ -440,7 +424,6 @@ async function start() {
   let currentY = 0;
   const currentColor = new THREE.Color(COLORS.idle);
   const targetColor = new THREE.Color(COLORS.idle);
-  const white = new THREE.Color(0xffffff);
 
   stage.addEventListener("pointermove", (event) => {
     const rect = stage.getBoundingClientRect();
@@ -461,7 +444,7 @@ async function start() {
     camera.aspect = canvasWidth / canvasHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(canvasWidth, canvasHeight, false);
-    const density = Math.min(devicePixelRatio || 1, compactViewport ? 1 : 1.35);
+    const density = Math.min(devicePixelRatio || 1, compactViewport ? 1 : 1.2);
     effectCanvas.width = canvasWidth * density;
     effectCanvas.height = canvasHeight * density;
     effectCanvas.style.width = `${canvasWidth}px`;
@@ -472,15 +455,25 @@ async function start() {
   resize();
 
   stage.classList.add("model-ready");
-  presenceValue.textContent = "Avatar GLB · Core · Forja · Memória";
+  stage.classList.remove("model-error");
+  presenceValue.textContent = "Mech Bust GLB · animação real · Forja · Memória";
 
   let previousFrameMs = 0;
   let effectVisible = false;
   let currentScale = 1;
+  let sampledFrames = 0;
+  let fpsWindowStart = performance.now();
   function render(timeMs) {
     requestAnimationFrame(render);
     if (document.hidden || timeMs - previousFrameMs < FRAME_INTERVAL_MS) return;
+    const deltaSeconds = previousFrameMs ? Math.min((timeMs - previousFrameMs) / 1000, 0.1) : 0;
     previousFrameMs = timeMs;
+    sampledFrames += 1;
+    if (timeMs - fpsWindowStart >= 1000) {
+      stage.dataset.renderFps = String(Math.round(sampledFrames * 1000 / (timeMs - fpsWindowStart)));
+      sampledFrames = 0;
+      fpsWindowStart = timeMs;
+    }
     const time = timeMs * 0.001;
     const visualMode = visualModeForState(visualState);
     stage.dataset.visualMode = visualMode;
@@ -488,10 +481,15 @@ async function start() {
     const isWorking = visualMode === "forge";
     targetColor.setHex(activeColor);
     currentColor.lerp(targetColor, 0.065);
-    wireMaterial.color.copy(currentColor);
-    visorMaterial.color.copy(currentColor);
     particleMaterial.color.copy(currentColor);
-    eyeMaterial.color.copy(currentColor).lerp(white, 0.22);
+    glowMaterials.forEach((material) => {
+      material.emissive.copy(material.userData.jarvisBaseEmissive).lerp(currentColor, 0.28);
+      material.emissiveIntensity = material.userData.jarvisBaseIntensity * (isWorking ? 1.28 : visualState === "speaking" ? 1.18 : 1);
+    });
+    if (mixer) {
+      mixer.timeScale = isWorking ? 1.18 : visualState === "speaking" ? 1.05 : 0.72;
+      mixer.update(deltaSeconds);
+    }
 
     currentX += (pointerX * 0.25 - currentX) * 0.055;
     currentY += (pointerY * 0.12 - currentY) * 0.055;
@@ -504,10 +502,7 @@ async function start() {
     const targetScale = (visualMode === "source" ? 0.92 : visualMode === "forge" ? 0.95 : visualMode === "core" ? 0.97 : 1) + speakingPulse * 0.035;
     currentScale += (targetScale - currentScale) * 0.055;
     root.scale.setScalar(currentScale);
-    visor.position.y = 0.3 + Math.sin(time * (isWorking ? 1.8 : 0.7)) * 0.57;
-    visorMaterial.opacity = (visualState === "listening" ? 0.52 : 0.32) + speakingPulse;
-    wireMaterial.opacity = isWorking ? 0.16 : 0.09 + speakingPulse * 0.24;
-    particleMaterial.opacity = isWorking ? 0.46 : 0.32 + speakingPulse;
+    particleMaterial.opacity = isWorking ? 0.32 : 0.2 + speakingPulse * 0.35;
     particles.rotation.y += 0.0012 * (isWorking ? 2 : 1);
     coreEntity.update(time, visualMode === "core");
 
@@ -533,6 +528,7 @@ async function start() {
 
 start().catch((error) => {
   stage.classList.remove("model-ready");
-  presenceValue.textContent = "busto holográfico de contingência";
-  console.warn("JARVIS 3D fallback", error);
+  stage.classList.add("model-error");
+  presenceValue.textContent = "modelo 3D indisponível";
+  console.warn("JARVIS 3D model unavailable", error);
 });
