@@ -199,6 +199,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(sent_payload["temperature"], 0.5)
         system_prompt = sent_payload["messages"][0]["content"]
         self.assertIn("humor seco", system_prompt)
+        self.assertIn("pedir humor explicitamente", system_prompt)
         self.assertIn("confiança em porcentagem", system_prompt)
 
     def test_elevenlabs_speech_returns_audio_without_exposing_key(self):
