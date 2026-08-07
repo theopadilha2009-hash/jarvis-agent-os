@@ -55,6 +55,7 @@ Storage: `05_EXECUCAO/63_DECISIONS/decisions.jsonl` (gitignored, JSONL append-on
 - `./jarvis storage-scan [PASTA] [--top N] [--min-mb N]` — inventário read-only dos maiores arquivos; não lê conteúdo e não move/apaga nada.
 - `./jarvis system-memory [--cleanup-jarvis] [--dry-run]` — mede pressão de memória, lista os processos mais pesados e pode encerrar somente previews/servidores temporários do próprio JARVIS; preserva Chrome, Claude, Orca, Codex e demais apps pessoais.
 - `./jarvis computer list|inspect|open|close [APP] [--dry-run]` — lista/observa apps pelo Computer Use do Orca e abre ou fecha um aplicativo sob pedido explícito; Finder e Orca são preservados para manter desktop e worker ativos.
+- `./jarvis computer-worker [--once|--watch|--install|--status|--uninstall] [--dry-run]` — consome a fila privada do Supabase e executa somente `open_application`, `close_application` e `system_memory`; `--install` mantém heartbeat leve via LaunchAgent sem armazenar chaves no plist.
 - `./jarvis files-triage [PASTA] [--limit N]` — classifica arquivos soltos por extensão e mostra origem → destino; não possui `--apply`.
 
 Todas recusam texto com aparência de segredo. Processos nativos são executados por lista de argumentos, sem shell. Somente `message-send`, chamado de forma explícita e com destino/texto completos, envia uma mensagem; organização e limpeza continuam sem aplicação automática.

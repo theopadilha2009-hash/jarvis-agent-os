@@ -680,6 +680,11 @@ CHECKS = [
         "expect": ["System Memory", "Temporários controláveis", "nenhum processo encerrado", "processos pessoais foram preservados", "Produção: nada alterado"],
     },
     {
+        "name": "computer-worker-dry-run",
+        "cmd": ["./jarvis", "computer-worker", "--once", "--dry-run"],
+        "expect": ["Device Worker", "ponte local allowlisted", "nenhum heartbeat ou comando foi gravado", "Produção: nenhum deploy alterado"],
+    },
+    {
         "name": "files-triage-read-only",
         "cmd": ["./jarvis", "files-triage", "10_TESTES/FIXTURES", "--limit", "10"],
         "expect": ["Files Triage", "plano read-only", "não possui --apply", "Produção: nada alterado"],

@@ -13,6 +13,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
 import argparse
+from datetime import datetime, timezone
+import hmac
 import json
 import mimetypes
 import os
@@ -35,6 +37,9 @@ DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
 MAX_BODY_BYTES = 32_768
 MAX_PROMPT_CHARS = 8_000
 SUPABASE_MEMORY_TABLE = "jarvis_memories"
+SUPABASE_DEVICE_COMMANDS_TABLE = "jarvis_device_commands"
+SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
+REMOTE_DEVICE_INTENTS = {"open_application", "close_application", "system_memory"}
 MEMORY_KIND_LABELS = {
     "learning": "APRENDIZADOS",
     "decision": "DECISOES",
@@ -190,6 +195,27 @@ def supabase_configured():
     return bool(parsed.scheme == "https" and parsed.netloc and key)
 
 
+def owner_pairing_required():
+    return bool(clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000))
+
+
+def owner_token_matches(value):
+    expected = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
+    provided = clean_text(value, 2_000)
+    return bool(expected and provided and hmac.compare_digest(expected, provided))
+
+
+def pairing_required_payload():
+    return {
+        "ok": False,
+        "endpoint": "POST /command",
+        "status_real": "owner_pairing_required",
+        "visual_state": "error",
+        "error": "Conecte este navegador ao JARVIS pelo painel Sistema para usar memória, agenda ou o Mac.",
+        "pairing_required": True,
+    }, 401
+
+
 def memory_suggestion(value):
     text = clean_text(value, 600)
     if len(text) < 12:
@@ -238,12 +264,18 @@ def public_sources():
     ]
 
 
-def supabase_request(method="GET", query="", body=None, prefer=""):
+def supabase_request(method="GET", query="", body=None, prefer="", table=SUPABASE_MEMORY_TABLE):
     if not supabase_configured():
         raise ValueError("supabase not configured")
     base_url = clean_text(os.environ.get("SUPABASE_URL"), 500).rstrip("/")
     api_key = clean_text(os.environ.get("SUPABASE_SERVICE_ROLE_KEY"), 2_000)
-    url = f"{base_url}/rest/v1/{SUPABASE_MEMORY_TABLE}"
+    if table not in {
+        SUPABASE_MEMORY_TABLE,
+        SUPABASE_DEVICE_COMMANDS_TABLE,
+        SUPABASE_DEVICE_WORKERS_TABLE,
+    }:
+        raise ValueError("supabase table not allowed")
+    url = f"{base_url}/rest/v1/{table}"
     if query:
         url = f"{url}?{query}"
     headers = {
@@ -270,6 +302,174 @@ def supabase_memory_rows(limit=80):
     )
     rows = supabase_request(query=query)
     return rows if isinstance(rows, list) else []
+
+
+def supabase_device_enqueue(command, intent):
+    target = ""
+    if intent in {"open_application", "close_application"}:
+        command_args = computer_app_command(command, intent)
+        if not command_args:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "application_target_missing",
+                "visual_state": "error",
+                "error": "Diga exatamente qual aplicativo devo abrir ou fechar.",
+                "intent": intent,
+            }, 400
+        target = clean_text(command_args[-1], 120)
+    row = {
+        "owner_id": "theo",
+        "action": intent,
+        "target": target,
+        "request_text": clean_text(command, 8_000),
+        "status": "pending",
+    }
+    try:
+        result = supabase_request(
+            "POST",
+            body=row,
+            prefer="return=representation",
+            table=SUPABASE_DEVICE_COMMANDS_TABLE,
+        )
+        saved = result[0] if isinstance(result, list) and result else None
+        if not isinstance(saved, dict) or not saved.get("id"):
+            raise ValueError("missing queued command")
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "device_command_queued",
+            "visual_state": "local",
+            "message": "Pedido enviado ao worker do Mac. Estou acompanhando a execução.",
+            "intent": intent,
+            "provider": "supabase_device_bridge",
+            "job": {
+                "id": saved["id"],
+                "status": "pending",
+                "action": intent,
+                "target": target,
+            },
+        }, 202
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "device_command_queue_failed",
+            "visual_state": "error",
+            "error": f"O Supabase recusou a fila do Mac (HTTP {error.code}).",
+            "intent": intent,
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "device_command_queue_unavailable",
+            "visual_state": "error",
+            "error": "A fila do Mac não confirmou o pedido.",
+            "intent": intent,
+        }, 504
+
+
+def supabase_device_command(command_id):
+    if not re.fullmatch(r"[0-9]{1,18}", str(command_id or "")):
+        return {
+            "ok": False,
+            "endpoint": "GET /device-command",
+            "status_real": "device_command_id_invalid",
+            "error": "Identificador de ação inválido.",
+        }, 400
+    try:
+        query = (
+            "select=id,action,target,status,result,created_at,claimed_at,completed_at"
+            f"&owner_id=eq.theo&id=eq.{command_id}&limit=1"
+        )
+        rows = supabase_request(query=query, table=SUPABASE_DEVICE_COMMANDS_TABLE)
+        row = rows[0] if isinstance(rows, list) and rows else None
+        if not isinstance(row, dict):
+            return {
+                "ok": False,
+                "endpoint": "GET /device-command",
+                "status_real": "device_command_not_found",
+                "error": "Ação do Mac não encontrada.",
+            }, 404
+        status = clean_text(row.get("status"), 40)
+        succeeded = status == "succeeded"
+        failed = status == "failed"
+        messages = {
+            "pending": "Pedido aguardando o worker do Mac.",
+            "running": "O worker do Mac está executando o pedido.",
+            "succeeded": "Ação concluída no Mac.",
+            "failed": "O worker tentou executar, mas não confirmou a conclusão.",
+        }
+        return {
+            "ok": not failed,
+            "endpoint": "GET /device-command",
+            "status_real": f"device_command_{status or 'unknown'}",
+            "visual_state": "success" if succeeded else "error" if failed else "local",
+            "message": messages.get(status, "Estado da ação desconhecido."),
+            "provider": "supabase_device_bridge",
+            "job": {
+                "id": row.get("id"),
+                "action": clean_text(row.get("action"), 60),
+                "target": clean_text(row.get("target"), 120),
+                "status": status,
+                "result": clean_text(row.get("result"), 8_000),
+                "created_at": clean_text(row.get("created_at"), 80),
+                "claimed_at": clean_text(row.get("claimed_at"), 80),
+                "completed_at": clean_text(row.get("completed_at"), 80),
+            },
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "GET /device-command",
+            "status_real": "device_command_read_failed",
+            "error": f"O Supabase recusou a consulta da ação (HTTP {error.code}).",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "GET /device-command",
+            "status_real": "device_command_read_unavailable",
+            "error": "O estado do worker do Mac não respondeu.",
+        }, 504
+
+
+def device_worker_status_payload():
+    try:
+        query = "select=worker_id,hostname,version,last_seen_at&owner_id=eq.theo&order=last_seen_at.desc&limit=1"
+        rows = supabase_request(query=query, table=SUPABASE_DEVICE_WORKERS_TABLE)
+        row = rows[0] if isinstance(rows, list) and rows else None
+        if not isinstance(row, dict):
+            return {
+                "ok": True,
+                "endpoint": "GET /device-worker-status",
+                "status_real": "device_worker_never_seen",
+                "online": False,
+                "message": "O worker do Mac ainda não enviou heartbeat.",
+            }, 200
+        raw_seen = clean_text(row.get("last_seen_at"), 80)
+        seen = datetime.fromisoformat(raw_seen.replace("Z", "+00:00"))
+        age_seconds = max(0, int((datetime.now(timezone.utc) - seen.astimezone(timezone.utc)).total_seconds()))
+        online = age_seconds <= 20
+        return {
+            "ok": True,
+            "endpoint": "GET /device-worker-status",
+            "status_real": "device_worker_online" if online else "device_worker_offline",
+            "online": online,
+            "age_seconds": age_seconds,
+            "hostname": clean_text(row.get("hostname"), 255),
+            "version": clean_text(row.get("version"), 40),
+            "message": "Worker do Mac conectado." if online else "Worker do Mac sem heartbeat recente.",
+        }, 200
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "GET /device-worker-status",
+            "status_real": "device_worker_status_unavailable",
+            "online": False,
+            "error": "Não consegui consultar o heartbeat do Mac.",
+        }, 503
 
 
 def local_memory_tree_payload():
@@ -374,7 +574,7 @@ def memory_tree_payload():
     }
 
 
-def status_payload():
+def status_payload(owner_authenticated=False):
     ai_ready = bool(os.environ.get("OPENROUTER_API_KEY"))
     elevenlabs_ready = bool(os.environ.get("ELEVENLABS_API_KEY"))
     n8n_ready = bool(os.environ.get("N8N_WEBHOOK_URL"))
@@ -405,6 +605,14 @@ def status_payload():
             "provider": "supabase" if supabase_configured() else "local_markdown",
             "configured": supabase_configured(),
             "persistent": supabase_configured(),
+        },
+        "owner_pairing": {
+            "required": owner_pairing_required(),
+            "authenticated": bool(owner_authenticated),
+        },
+        "device_bridge": {
+            "configured": bool(supabase_configured() and owner_pairing_required()),
+            "execution": "local_worker",
         },
         "capabilities": web_capabilities(),
         "device_actions": "local_worker_required",
@@ -846,7 +1054,7 @@ def normalize_messages(body):
     return messages[-12:]
 
 
-def assistant_response(body, origin="", local_execute=False):
+def assistant_response(body, origin="", local_execute=False, owner_authenticated=False):
     messages = normalize_messages(body)
     if not messages:
         return {"ok": False, "error": "Escreva uma mensagem para o JARVIS."}, 400
@@ -860,13 +1068,19 @@ def assistant_response(body, origin="", local_execute=False):
     latest = messages[-1]["content"]
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
+            if owner_pairing_required() and not owner_authenticated and intent in {
+                "memory_save", "agenda_note", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
+            }:
+                return pairing_required_payload()
             if intent == "memory_save" and supabase_configured():
                 return supabase_memory_save(latest)
+            if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
+                return supabase_device_enqueue(latest, intent)
             return local_handoff(latest, intent, execute=local_execute), 200
 
     suggested_memory = memory_suggestion(latest)
     memory_context = []
-    if supabase_configured():
+    if supabase_configured() and (owner_authenticated or not owner_pairing_required()):
         try:
             memory_context = supabase_memory_rows(12)
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
@@ -981,7 +1195,7 @@ def assistant_response(body, origin="", local_execute=False):
         }, 502
 
 
-def command_payload(body, origin="", local_execute=False):
+def command_payload(body, origin="", local_execute=False, owner_authenticated=False):
     command = clean_text(body.get("command") or body.get("prompt"))
     if not command:
         return {"ok": False, "error": "Comando vazio."}, 400
@@ -993,6 +1207,8 @@ def command_payload(body, origin="", local_execute=False):
         }, 400
 
     if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.IGNORECASE):
+        if owner_pairing_required() and not owner_authenticated:
+            return pairing_required_payload()
         payload = memory_tree_payload()
         payload.update({
             "message": (
@@ -1009,8 +1225,14 @@ def command_payload(body, origin="", local_execute=False):
 
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(command):
+            if owner_pairing_required() and not owner_authenticated and intent in {
+                "memory_save", "agenda_note", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
+            }:
+                return pairing_required_payload()
             if intent == "memory_save" and supabase_configured():
                 return supabase_memory_save(command)
+            if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
+                return supabase_device_enqueue(command, intent)
             if intent in {"agenda_note", "agenda_view", "task_add"} and os.environ.get("N8N_WEBHOOK_URL"):
                 return n8n_automation(command, intent)
             return local_handoff(command, intent, execute=local_execute), 200
@@ -1039,6 +1261,7 @@ def command_payload(body, origin="", local_execute=False):
         {"command": command, "messages": body.get("messages")},
         origin=origin,
         local_execute=local_execute,
+        owner_authenticated=owner_authenticated,
     )
 
 
@@ -1131,6 +1354,7 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path, query = request_route(self.path)
+        owner_authenticated = owner_token_matches(self.headers.get("X-Jarvis-Owner-Token"))
         if path == "/":
             return self.serve_ui()
         if path == "/favicon.ico":
@@ -1140,7 +1364,7 @@ class handler(BaseHTTPRequestHandler):
         if path.startswith("/asset/"):
             return self.serve_asset(path[len("/asset/"):])
         if path in {"/health", "/status", "/runtime"}:
-            payload = status_payload()
+            payload = status_payload(owner_authenticated=owner_authenticated)
             payload["endpoint"] = f"GET {path}"
             return self.send_json(200, payload)
         if path == "/owner-dev":
@@ -1166,8 +1390,26 @@ class handler(BaseHTTPRequestHandler):
                 "returned": len(sources),
             })
         if path == "/memory-tree":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /memory-tree"
+                return self.send_json(status, payload)
             payload = memory_tree_payload()
             return self.send_json(200 if payload.get("ok") else 503, payload)
+        if path == "/device-command":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /device-command"
+                return self.send_json(status, payload)
+            payload, status = supabase_device_command((query.get("id") or [""])[0])
+            return self.send_json(status, payload)
+        if path == "/device-worker-status":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /device-worker-status"
+                return self.send_json(status, payload)
+            payload, status = device_worker_status_payload()
+            return self.send_json(status, payload)
         if path in {"/next", "/latest", "/feature-backlog", "/autopilot-dashboard"}:
             return self.send_json(200, {
                 "ok": True,
@@ -1202,6 +1444,7 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(400, {"ok": False, "error": str(error)})
 
         origin = clean_text(self.headers.get("Origin") or self.headers.get("Referer"), 200)
+        owner_authenticated = owner_token_matches(self.headers.get("X-Jarvis-Owner-Token"))
         if path == "/command":
             client = str((self.client_address or [""])[0]).lower()
             local_execute = (
@@ -1209,10 +1452,19 @@ class handler(BaseHTTPRequestHandler):
                 and os.environ.get("JARVIS_WEB_LOCAL_EXEC", "1") != "0"
                 and client in {"127.0.0.1", "::1", "localhost"}
             )
-            payload, status = command_payload(body, origin=origin, local_execute=local_execute)
+            payload, status = command_payload(
+                body,
+                origin=origin,
+                local_execute=local_execute,
+                owner_authenticated=owner_authenticated,
+            )
             return self.send_json(status, payload)
         if path in {"/assistant", "/chat"}:
-            payload, status = assistant_response(body, origin=origin)
+            payload, status = assistant_response(
+                body,
+                origin=origin,
+                owner_authenticated=owner_authenticated,
+            )
             payload.setdefault("endpoint", f"POST {path}")
             return self.send_json(status, payload)
         if path == "/speech":
@@ -1232,6 +1484,8 @@ class handler(BaseHTTPRequestHandler):
                 {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},
                 {"name": "elevenlabs_configured", "ok": bool(os.environ.get("ELEVENLABS_API_KEY")), "required": False},
                 {"name": "supabase_memory_configured", "ok": supabase_configured(), "required": False},
+                {"name": "owner_pairing_configured", "ok": owner_pairing_required(), "required": False},
+                {"name": "device_bridge_configured", "ok": bool(supabase_configured() and owner_pairing_required()), "required": False},
                 {"name": "n8n_configured", "ok": bool(os.environ.get("N8N_WEBHOOK_URL")), "required": False},
             ]
             return self.send_json(200, {

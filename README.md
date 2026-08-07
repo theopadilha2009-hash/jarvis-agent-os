@@ -23,6 +23,11 @@ ou inicia processos.
   guardar algo escrevem em `public.jarvis_memories`, `/memory-tree` lê a
   constelação persistente e o OpenRouter recebe as memórias recentes como
   contexto. A chave server-side nunca é enviada ao navegador.
+- Com `JARVIS_OWNER_TOKEN`, memória, agenda e comandos do Mac exigem pareamento
+  no painel Sistema. O valor fica somente no armazenamento local do navegador.
+- `./jarvis computer-worker --install` mantém uma ponte leve entre a fila
+  privada do Supabase e o Mac. O worker aceita apenas abrir aplicativo, fechar
+  aplicativo e diagnosticar memória; não aceita shell arbitrário.
 - Com `N8N_WEBHOOK_URL` (e opcionalmente `N8N_WEBHOOK_TOKEN`), pedidos de
   agenda e tarefas são executados pelo webhook n8n.
 - Print, conversão e organização de arquivos retornam um comando de
@@ -66,10 +71,11 @@ JARVIS é um AI Operations Worker criado por Theo Padilha para transformar pedid
 No estado atual, JARVIS já possui estrutura local de laboratório, inbox para entradas, CLI local, criação automática de tasks, scan/processamento de inbox, logs, arquivo morto para entradas processadas e memória inicial de projetos.
 
 ## Limites atuais
-O runtime na Vercel não controla o Mac diretamente. Ações do computador usam o
-worker local; ElevenLabs e n8n só ficam ativos quando suas variáveis de ambiente
-estão configuradas no projeto Vercel. A memória web usa Supabase e não concede
-acesso ao computador local.
+O runtime na Vercel não acessa o Mac diretamente: ele grava um pedido
+allowlisted no Supabase, e o worker local pareado executa e devolve a evidência.
+ElevenLabs e n8n só ficam ativos quando suas variáveis de ambiente estão
+configuradas no projeto Vercel. A voz continua em texto quando a cota externa
+acaba.
 
 ## Regra principal
 Nada de produção, token, senha, API key, QR Code, .env, deploy, push/main, envio real, banco real ou VPS real sem aprovação humana.
