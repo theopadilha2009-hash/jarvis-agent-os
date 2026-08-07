@@ -385,6 +385,35 @@ class WebGatewayTest(unittest.TestCase):
             "./jarvis system-memory --cleanup-jarvis",
         )
 
+    def test_remote_jarvis_cleanup_reaches_worker_with_explicit_scope(self):
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE,
+            "supabase_request",
+            return_value=[{"id": 91, "status": "pending"}],
+        ) as request:
+            payload, status = MODULE.command_payload(
+                {"command": "limpa os processos temporários do jarvis"},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["intent"], "system_memory")
+        self.assertEqual(payload["job"]["target"], "jarvis-temporaries")
+        self.assertEqual(request.call_args.kwargs["body"]["target"], "jarvis-temporaries")
+
+    def test_broad_mac_cleanup_remains_diagnostic_only(self):
+        payload, status = MODULE.command_payload(
+            {"command": "limpa os processos do Mac"},
+            local_execute=False,
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["intent"], "system_memory")
+        self.assertEqual(payload["local_command"], "./jarvis system-memory")
+
     def test_memory_save_executes_and_opens_memory_visual(self):
         completed = MODULE.subprocess.CompletedProcess(
             args=["./jarvis", "memory-save", "o busto deve continuar na frente", "--kind", "learning"],
