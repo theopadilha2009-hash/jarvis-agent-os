@@ -60,7 +60,6 @@ def validation_commands(files: list[str]) -> list[list[str]]:
     )
     commands.extend([
         ["./jarvis", "command-audit"],
-        ["./jarvis", "safety-gate"],
     ])
     return commands
 
@@ -75,7 +74,8 @@ def execute(goal: str, dry_run: bool = False) -> int:
         raise SelfEditError("O pedido parece conter uma credencial; remova o segredo antes da autoedição.")
 
     codex = shutil.which("codex")
-    if not codex:
+    preview = dry_run or os.environ.get("JARVIS_NO_REPORT") == "1"
+    if not codex and not preview:
         raise SelfEditError("Codex CLI não está instalado no Mac do worker.")
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
@@ -84,11 +84,15 @@ def execute(goal: str, dry_run: bool = False) -> int:
     report = RUN_ROOT / "reports" / f"{branch.replace('/', '-')}.md"
 
     print("JARVIS Self Edit")
-    print("Status real: autoedição isolada preparada para o Codex local.")
+    if codex:
+        print("Status real: autoedição isolada preparada para o Codex local.")
+    else:
+        print("Status real: preview de autoedição; Codex local indisponível.")
     print(f"Objetivo: {request}")
     print(f"Branch: {branch}")
     print(f"Worktree: {worktree}")
-    if dry_run or os.environ.get("JARVIS_NO_REPORT") == "1":
+    print(f"Codex CLI: {'disponível' if codex else 'indisponível'}.")
+    if preview:
         print("Modo preview: nenhum worktree, diff ou commit criado.")
         print("Produção: nada alterado.")
         return 0
@@ -161,10 +165,16 @@ No fim, relate arquivos alterados, testes e o que não foi validado.
         raise SelfEditError("O diff passou nos testes, mas o commit local não foi criado.")
     commit = run(["git", "rev-parse", "--short", "HEAD"], worktree).stdout.strip()
 
+    safety = run(["./jarvis", "safety-gate"], worktree, timeout=300, env=validation_env)
+    if safety.returncode != 0:
+        raise SelfEditError(
+            f"Safety gate pós-commit falhou; checkpoint local {commit} preservado sem push ou merge."
+        )
+
     print(f"Arquivos alterados: {', '.join(files)}")
     print(f"Commit local: {commit}")
     print(f"Relatório do agente: {report}")
-    print("Testes: bash -n, diff --check, py_compile aplicável, command-audit e safety-gate passaram.")
+    print("Testes: bash -n, diff --check, py_compile aplicável e command-audit passaram antes do checkpoint; safety-gate passou com a árvore limpa.")
     print("Produção: nada alterado; branch local não enviada nem mesclada.")
     return 0
 

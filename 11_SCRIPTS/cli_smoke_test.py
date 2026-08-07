@@ -689,7 +689,8 @@ CHECKS = [
         "cmd": ["./jarvis", "self-edit", "melhorar os próprios scripts com evidência", "--dry-run"],
         "expect": [
             "JARVIS Self Edit",
-            "autoedição isolada preparada",
+            "Status real:",
+            "Codex CLI:",
             "Modo preview",
             "Produção: nada alterado",
         ],
