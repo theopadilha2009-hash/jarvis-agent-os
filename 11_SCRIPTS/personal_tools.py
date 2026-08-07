@@ -9,6 +9,7 @@ command; `message-draft` remains a non-sending WhatsApp handoff.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import signal
@@ -36,6 +37,29 @@ FILE_CATEGORIES = {
     "archives": {".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar"},
     "data": {".json", ".jsonl", ".yaml", ".yml", ".xml", ".sql"},
     "code": {".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".sh"},
+}
+
+APP_ALIASES = {
+    "chrome": ("Google Chrome", "com.google.Chrome"),
+    "google chrome": ("Google Chrome", "com.google.Chrome"),
+    "safari": ("Safari", "com.apple.Safari"),
+    "calculator": ("Calculator", "com.apple.calculator"),
+    "calculadora": ("Calculator", "com.apple.calculator"),
+    "terminal": ("Terminal", "com.apple.Terminal"),
+    "mensagens": ("Messages", "com.apple.MobileSMS"),
+    "messages": ("Messages", "com.apple.MobileSMS"),
+    "whatsapp": ("WhatsApp", "net.whatsapp.WhatsApp"),
+    "spotify": ("Spotify", "com.spotify.client"),
+    "discord": ("Discord", "com.hnc.Discord"),
+    "vscode": ("Visual Studio Code", "com.microsoft.VSCode"),
+    "visual studio code": ("Visual Studio Code", "com.microsoft.VSCode"),
+    "orca": ("Orca", "com.stablyai.orca"),
+    "finder": ("Finder", "com.apple.finder"),
+}
+
+PROTECTED_APP_BUNDLE_IDS = {
+    "com.apple.finder",
+    "com.stablyai.orca",
 }
 
 try:
@@ -103,6 +127,152 @@ def _slug(value: str, limit: int = 54) -> str:
     normalized = value.lower()
     normalized = re.sub(r"[^a-z0-9à-ÿ]+", "-", normalized).strip("-")
     return normalized[:limit].rstrip("-") or "memoria"
+
+
+def _computer_fail(message: str, code: int = 1) -> None:
+    print(f"FALHA: {message}")
+    print("Produção: nada alterado.")
+    raise SystemExit(code)
+
+
+def _orca_apps() -> list[dict]:
+    binary = shutil.which("orca")
+    if not binary:
+        _computer_fail("Orca CLI ausente; instale ou abra o Orca antes de controlar o Mac.")
+    result = subprocess.run(
+        [binary, "computer", "list-apps", "--json"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=20,
+    )
+    if result.returncode != 0:
+        _computer_fail("o runtime de Computer Use do Orca não respondeu.")
+    try:
+        payload = json.loads(result.stdout)
+        apps = payload.get("result", {}).get("apps", [])
+    except (AttributeError, json.JSONDecodeError):
+        _computer_fail("o Orca respondeu em formato inválido.")
+    return [row for row in apps if isinstance(row, dict)]
+
+
+def _app_identity(raw: str) -> tuple[str, str | None]:
+    target = re.sub(r"\s+", " ", str(raw or "")).strip(" .")
+    if not target or len(target) > 80 or not re.fullmatch(r"[\wÀ-ÿ ._-]+", target):
+        _computer_fail("nome de aplicativo vazio ou inválido.", 2)
+    if re.fullmatch(r"(?:com|net|org|dev)\.[A-Za-z0-9._-]+", target, re.I):
+        return target, target
+    return APP_ALIASES.get(target.casefold(), (target, None))
+
+
+def _running_app(raw: str) -> dict | None:
+    name, bundle_id = _app_identity(raw)
+    apps = _orca_apps()
+    if bundle_id:
+        for app in apps:
+            if str(app.get("bundleId") or "").casefold() == bundle_id.casefold():
+                return app
+    exact = [app for app in apps if str(app.get("name") or "").casefold() == name.casefold()]
+    if exact:
+        return exact[0]
+    partial = [app for app in apps if name.casefold() in str(app.get("name") or "").casefold()]
+    return partial[0] if len(partial) == 1 else None
+
+
+def cmd_computer(args: argparse.Namespace) -> None:
+    action = args.action
+    print("JARVIS — Computer Use")
+    print(f"Status real: controle local solicitado ({action}); nenhuma ação foi presumida.")
+
+    if action == "list":
+        apps = _orca_apps()
+        print(f"Aplicativos visíveis: {len(apps)}")
+        for app in apps:
+            print(f"- {app.get('name', '?')} · {app.get('bundleId', '?')} · PID {app.get('pid', '?')}")
+        print("Produção: nada alterado.")
+        return
+
+    if not args.app:
+        _computer_fail("informe o aplicativo.", 2)
+    name, known_bundle = _app_identity(args.app)
+
+    if action == "open":
+        print(f"Aplicativo: {name}")
+        if args.dry_run:
+            print("Modo: --dry-run (aplicativo não aberto).")
+            print("Produção: nada alterado.")
+            return
+        binary = _require_binary("open")
+        argv = [binary, "-b", known_bundle] if known_bundle else [binary, "-a", name]
+        result = subprocess.run(argv, text=True, capture_output=True, check=False, timeout=20)
+        if result.returncode != 0:
+            _computer_fail("o macOS não encontrou ou não abriu esse aplicativo.")
+        time.sleep(0.8)
+        visible = _running_app(known_bundle or name)
+        evidence = "visível para o Computer Use" if visible else "abertura aceita pelo macOS"
+        print(f"OK — {name} aberto ({evidence}).")
+        print("Produção: aplicativo local aberto; nenhum deploy alterado.")
+        return
+
+    app = _running_app(known_bundle or name)
+    if not app:
+        if action == "close":
+            print(f"OK — {name} já não está aberto.")
+            print("Produção: nada alterado.")
+            return
+        _computer_fail("aplicativo não encontrado entre as janelas visíveis.")
+    bundle_id = str(app.get("bundleId") or "")
+
+    if action == "inspect":
+        if args.dry_run:
+            print(f"Modo: --dry-run (estado de {app.get('name')} não capturado).")
+            print("Produção: nada alterado.")
+            return
+        binary = shutil.which("orca")
+        argv = [binary, "computer", "get-app-state", "--app", bundle_id, "--no-screenshot", "--json"]
+        result = subprocess.run(argv, text=True, capture_output=True, check=False, timeout=30)
+        if result.returncode != 0 and '"code": "window_not_found"' in result.stdout:
+            result = subprocess.run(
+                [*argv[:-1], "--restore-window", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=30,
+            )
+        if result.returncode != 0:
+            _computer_fail("não consegui observar esse aplicativo pelo Orca.")
+        try:
+            payload = json.loads(result.stdout)
+            tree = payload.get("result", {}).get("snapshot", {}).get("treeText", "")
+        except (AttributeError, json.JSONDecodeError):
+            _computer_fail("o Orca respondeu em formato inválido.")
+        print(f"Aplicativo: {app.get('name')} · {bundle_id}")
+        print(str(tree or "(árvore de acessibilidade vazia)")[:8_000])
+        print("Produção: nada alterado.")
+        return
+
+    if bundle_id in PROTECTED_APP_BUNDLE_IDS:
+        _computer_fail(f"{app.get('name')} mantém o desktop ou o próprio worker ativo e não será fechado por este comando.", 3)
+    print(f"Aplicativo: {app.get('name')} · {bundle_id}")
+    if args.dry_run:
+        print("Modo: --dry-run (aplicativo não fechado).")
+        print("Produção: nada alterado.")
+        return
+    binary = _require_binary("osascript")
+    script = 'tell application id "{}" to quit'.format(bundle_id.replace('"', ""))
+    try:
+        result = subprocess.run([binary, "-e", script], text=True, capture_output=True, check=False, timeout=20)
+    except subprocess.TimeoutExpired:
+        _computer_fail("o aplicativo não respondeu ao encerramento em 20 segundos; nada foi forçado.")
+    if result.returncode != 0:
+        _computer_fail("o aplicativo recusou o pedido de encerramento.")
+    for _ in range(10):
+        time.sleep(0.25)
+        if _running_app(bundle_id) is None:
+            print(f"OK — {app.get('name')} fechado e ausência confirmada pelo Orca.")
+            print("Produção: aplicativo local fechado; nenhum deploy alterado.")
+            return
+    _computer_fail("o macOS aceitou o pedido, mas o aplicativo continuou visível.")
 
 
 def cmd_doctor(_args: argparse.Namespace) -> None:
@@ -681,6 +851,11 @@ def build_parser() -> argparse.ArgumentParser:
     system_memory.add_argument("--cleanup-jarvis", action="store_true")
     system_memory.add_argument("--dry-run", action="store_true")
 
+    computer = sub.add_parser("computer")
+    computer.add_argument("action", choices=("list", "inspect", "open", "close"))
+    computer.add_argument("app", nargs="?")
+    computer.add_argument("--dry-run", action="store_true")
+
     triage = sub.add_parser("files-triage")
     triage.add_argument("path", nargs="?", default=".")
     triage.add_argument("--limit", type=int, default=100, choices=range(1, 1001))
@@ -700,6 +875,7 @@ def main() -> None:
         "memory-save": cmd_memory_save,
         "storage-scan": cmd_storage_scan,
         "system-memory": cmd_system_memory,
+        "computer": cmd_computer,
         "files-triage": cmd_files_triage,
     }
     handlers[args.command](args)

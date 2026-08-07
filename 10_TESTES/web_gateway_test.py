@@ -23,6 +23,8 @@ class WebGatewayTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.previous_local_exec = os.environ.get("JARVIS_WEB_LOCAL_EXEC")
+        cls.previous_supabase_url = os.environ.pop("SUPABASE_URL", None)
+        cls.previous_supabase_key = os.environ.pop("SUPABASE_SERVICE_ROLE_KEY", None)
         os.environ["JARVIS_WEB_LOCAL_EXEC"] = "0"
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), MODULE.handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
@@ -38,6 +40,10 @@ class WebGatewayTest(unittest.TestCase):
             os.environ.pop("JARVIS_WEB_LOCAL_EXEC", None)
         else:
             os.environ["JARVIS_WEB_LOCAL_EXEC"] = cls.previous_local_exec
+        if cls.previous_supabase_url is not None:
+            os.environ["SUPABASE_URL"] = cls.previous_supabase_url
+        if cls.previous_supabase_key is not None:
+            os.environ["SUPABASE_SERVICE_ROLE_KEY"] = cls.previous_supabase_key
 
     def request(self, path, method="GET", payload=None):
         body = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -140,6 +146,38 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(payload["requires_local_worker"])
         self.assertTrue(payload["local_command"].startswith("./jarvis do "))
 
+    def test_open_and_close_apps_route_to_explicit_computer_command(self):
+        opened, open_status = MODULE.command_payload(
+            {"command": "abre o Chrome pra mim"},
+            local_execute=False,
+        )
+        closed, close_status = MODULE.command_payload(
+            {"command": "fecha o Spotify"},
+            local_execute=False,
+        )
+        self.assertEqual(open_status, 200)
+        self.assertEqual(opened["intent"], "open_application")
+        self.assertEqual(opened["local_command"], "./jarvis computer open 'Google Chrome'")
+        self.assertEqual(close_status, 200)
+        self.assertEqual(closed["intent"], "close_application")
+        self.assertEqual(closed["local_command"], "./jarvis computer close Spotify")
+
+    def test_open_app_can_execute_local_computer_adapter(self):
+        completed = MODULE.subprocess.CompletedProcess(
+            args=["./jarvis", "computer", "open", "Google Chrome"],
+            returncode=0,
+            stdout="OK — Google Chrome aberto e confirmado.",
+            stderr="",
+        )
+        with patch.object(MODULE.subprocess, "run", return_value=completed) as run:
+            payload, status = MODULE.command_payload(
+                {"command": "abre o Chrome"},
+                local_execute=True,
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "local_action_executed")
+        self.assertEqual(run.call_args.args[0], completed.args)
+
     def test_local_device_request_can_execute_allowlisted_worker(self):
         completed = MODULE.subprocess.CompletedProcess(
             args=["./jarvis", "do", "tirar um print da tela"],
@@ -219,6 +257,70 @@ class WebGatewayTest(unittest.TestCase):
             payload["local_command"],
             "./jarvis memory-save 'respostas curtas' --kind preference",
         )
+
+    def test_supabase_memory_save_returns_persisted_evidence(self):
+        class FakeSupabaseResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, *_args):
+                return json.dumps([{
+                    "id": 42,
+                    "kind": "preference",
+                    "content": "respostas curtas",
+                    "created_at": "2026-08-07T12:00:00Z",
+                }]).encode("utf-8")
+
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeSupabaseResponse()) as request:
+                payload, status = MODULE.command_payload({
+                    "command": "guarde na memória como preferência: respostas curtas"
+                })
+        self.assertEqual(status, 201)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status_real"], "supabase_memory_persisted")
+        self.assertEqual(payload["memory"]["id"], 42)
+        self.assertNotIn("private-supabase-key", json.dumps(payload))
+        sent_request = request.call_args.args[0]
+        self.assertEqual(sent_request.method, "POST")
+        self.assertIn("/rest/v1/jarvis_memories", sent_request.full_url)
+
+    def test_supabase_memory_tree_reads_real_rows(self):
+        class FakeSupabaseResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, *_args):
+                return json.dumps([{
+                    "id": 42,
+                    "kind": "learning",
+                    "content": "o busto fica na frente",
+                    "source": "jarvis-web",
+                    "created_at": "2026-08-07T12:00:00Z",
+                }]).encode("utf-8")
+
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeSupabaseResponse()):
+                payload = MODULE.memory_tree_payload()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["provider"], "supabase")
+        self.assertTrue(payload["persistent_write"])
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["nodes"][0]["label"], "o busto fica na frente")
 
     def test_memory_save_never_claims_success_without_file_evidence(self):
         completed = MODULE.subprocess.CompletedProcess(
