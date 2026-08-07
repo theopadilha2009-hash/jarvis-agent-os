@@ -3,12 +3,12 @@
   "source_path_at_import": "/Users/usuario1/Downloads/mech_bust.glb",
   "source_sha256": "44025ad5cb3d008f7fa8d11b082456c79b5d64d9498d71c5b7939feb6015f9bd",
   "source_bytes": 31529420,
-  "runtime_sha256": "144f3fe794caa3da6adbc5f5763c081ff4c559e89967175a28d207f0cc9cb0f2",
-  "runtime_bytes": 9010288,
+  "runtime_sha256": "87a4f2e9216943019e9663a6bdbaa27ab957f869f1fd451da110d6e56915e097",
+  "runtime_bytes": 4129736,
   "optimization": {
     "tool": "gltf-transform 4.4.2",
-    "geometry": "quantized, simplified to 68% target with 0.0005 error",
-    "textures": "WebP, max 1024px",
+    "geometry": "quantized, simplified to 22% target with 0.003 error; 86,282 upload vertices and 193,353 render vertices",
+    "textures": "WebP, max 512px; estimated GPU texture footprint reduced by about 75%",
     "animation": "original 18s clip retained and resampled",
     "decoder_required": false
   }

@@ -6,7 +6,7 @@ const stage = document.getElementById("stage");
 const presenceValue = document.getElementById("presenceValue");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
-const FRAME_INTERVAL_MS = compactViewport ? 1000 / 30 : 0;
+const FRAME_INTERVAL_MS = 1000 / (compactViewport ? 24 : 30);
 
 const COLORS = {
   idle: 0x46e6ff,
@@ -39,15 +39,6 @@ window.addEventListener("jarvis-state", (event) => {
   applyVisualMode(event.detail?.state);
 });
 applyVisualMode(visualState);
-
-function webglAvailable() {
-  try {
-    const canvas = document.createElement("canvas");
-    return Boolean(window.WebGLRenderingContext && (canvas.getContext("webgl") || canvas.getContext("experimental-webgl")));
-  } catch {
-    return false;
-  }
-}
 
 function makeEffectCanvas() {
   const canvas = document.createElement("canvas");
@@ -330,14 +321,17 @@ function makeCoreEntity(scene) {
 }
 
 async function start() {
-  if (!webglAvailable()) throw new Error("WebGL unavailable");
-
-  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !compactViewport, powerPreference: "high-performance" });
+  const renderer = new THREE.WebGLRenderer({
+    alpha: true,
+    antialias: false,
+    powerPreference: "low-power",
+    preserveDrawingBuffer: false,
+  });
   renderer.domElement.style.position = "absolute";
   renderer.domElement.style.inset = "0";
   renderer.domElement.style.zIndex = "1";
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, compactViewport ? 1 : 1.2));
+  renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.92;
@@ -361,7 +355,7 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const gltf = await new Promise((resolve, reject) => {
-    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-mech3", resolve, undefined, reject);
+    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-mech4lite", resolve, undefined, reject);
   });
 
   const model = gltf.scene || gltf.scenes[0];
@@ -392,8 +386,9 @@ async function start() {
   stage.dataset.modelAsset = "mech-bust";
   stage.dataset.modelAnimations = String(gltf.animations.length);
   stage.dataset.modelAnimationSeconds = gltf.animations[0]?.duration?.toFixed(1) || "0";
+  stage.dataset.renderProfile = "low-memory";
 
-  const particleCount = compactViewport ? 54 : 96;
+  const particleCount = compactViewport ? 28 : 48;
   const particlePositions = new Float32Array(particleCount * 3);
   for (let index = 0; index < particleCount; index += 1) {
     const angle = Math.random() * Math.PI * 2;
@@ -444,7 +439,7 @@ async function start() {
     camera.aspect = canvasWidth / canvasHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(canvasWidth, canvasHeight, false);
-    const density = Math.min(devicePixelRatio || 1, compactViewport ? 1 : 1.2);
+    const density = 1;
     effectCanvas.width = canvasWidth * density;
     effectCanvas.height = canvasHeight * density;
     effectCanvas.style.width = `${canvasWidth}px`;
@@ -456,6 +451,7 @@ async function start() {
 
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
+  stage.classList.remove("gpu-error");
   presenceValue.textContent = "Mech Bust GLB · animação real · Forja · Memória";
 
   let previousFrameMs = 0;
@@ -463,9 +459,10 @@ async function start() {
   let currentScale = 1;
   let sampledFrames = 0;
   let fpsWindowStart = performance.now();
+  let lastVisualMode = "";
   function render(timeMs) {
     requestAnimationFrame(render);
-    if (document.hidden || timeMs - previousFrameMs < FRAME_INTERVAL_MS) return;
+    if (document.hidden || timeMs - previousFrameMs < FRAME_INTERVAL_MS - 1) return;
     const deltaSeconds = previousFrameMs ? Math.min((timeMs - previousFrameMs) / 1000, 0.1) : 0;
     previousFrameMs = timeMs;
     sampledFrames += 1;
@@ -476,7 +473,10 @@ async function start() {
     }
     const time = timeMs * 0.001;
     const visualMode = visualModeForState(visualState);
-    stage.dataset.visualMode = visualMode;
+    if (visualMode !== lastVisualMode) {
+      stage.dataset.visualMode = visualMode;
+      lastVisualMode = visualMode;
+    }
     const activeColor = COLORS[visualState] || COLORS.idle;
     const isWorking = visualMode === "forge";
     targetColor.setHex(activeColor);
@@ -529,6 +529,10 @@ async function start() {
 start().catch((error) => {
   stage.classList.remove("model-ready");
   stage.classList.add("model-error");
-  presenceValue.textContent = "modelo 3D indisponível";
+  const reason = String(error?.message || error || "falha desconhecida").slice(0, 180);
+  const gpuFailure = /webgl|context/i.test(reason);
+  stage.dataset.modelErrorReason = reason;
+  stage.classList.toggle("gpu-error", gpuFailure);
+  presenceValue.textContent = gpuFailure ? "GPU 3D desativada · reinicie o Chrome" : "modelo 3D indisponível";
   console.warn("JARVIS 3D model unavailable", error);
 });
