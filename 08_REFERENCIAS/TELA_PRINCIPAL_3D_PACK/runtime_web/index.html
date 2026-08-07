@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#03090f">
+  <meta name="description" content="JARVIS, assistente pessoal de Theo.">
+  <title>JARVIS · Theo</title>
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260807-perf1">
+  <script type="importmap">
+    {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
+  </script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="identity">
+        <span class="identity-mark" aria-hidden="true"></span>
+        <b>JARVIS</b>
+        <small>THEO · AGENT OS</small>
+      </div>
+      <div class="connection">
+        <span class="connection-dot" id="connectionDot"></span>
+        <span id="connectionText">acordando</span>
+        <button class="quiet-button" id="muteButton" type="button" aria-pressed="false">Fala ligada</button>
+        <button class="quiet-button" id="detailsButton" type="button">Sistema</button>
+      </div>
+    </header>
+
+    <main class="stage" id="stage" data-state="idle">
+      <section class="presence" aria-label="Presença visual do JARVIS">
+        <div class="grid-plane" aria-hidden="true"></div>
+        <div class="fallback-core" aria-hidden="true">
+          <svg viewBox="0 0 440 600" role="presentation">
+            <defs>
+              <linearGradient id="fallbackGlass" x1="14%" y1="8%" x2="86%" y2="96%">
+                <stop offset="0%" stop-color="#dffbff" stop-opacity=".5"/>
+                <stop offset="35%" stop-color="#46e6ff" stop-opacity=".12"/>
+                <stop offset="72%" stop-color="#171a35" stop-opacity=".7"/>
+                <stop offset="100%" stop-color="#03070d" stop-opacity=".96"/>
+              </linearGradient>
+              <filter id="fallbackGlow" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur stdDeviation="5"/>
+              </filter>
+            </defs>
+            <path class="fallback-glow" d="M220 62C286 62 332 104 336 196C339 252 326 302 284 334C268 348 256 354 252 368V392C252 406 262 412 300 420C356 432 410 476 426 600H14C30 476 84 432 140 420C178 412 188 406 188 392V368C184 354 172 348 156 334C114 302 101 252 104 196C108 104 154 62 220 62Z"/>
+            <path class="fallback-body" d="M220 62C286 62 332 104 336 196C339 252 326 302 284 334C268 348 256 354 252 368V392C252 406 262 412 300 420C356 432 410 476 426 600H14C30 476 84 432 140 420C178 412 188 406 188 392V368C184 354 172 348 156 334C114 302 101 252 104 196C108 104 154 62 220 62Z"/>
+            <g class="fallback-face">
+              <path d="M140 182Q176 164 207 184M233 184Q266 164 300 182"/>
+              <path d="M147 207Q176 188 205 207Q176 225 147 207ZM235 207Q266 188 295 207Q266 225 235 207Z"/>
+              <path d="M220 196L203 294L220 306L237 294"/>
+              <path d="M184 334Q220 352 256 334"/>
+              <path d="M126 242L314 242M119 276L321 276M132 310L308 310M153 110L287 110M125 146L315 146"/>
+              <path d="M151 92L292 339M118 147L281 365M291 91L148 340M322 148L161 364"/>
+            </g>
+            <g class="fallback-eyes"><ellipse cx="176" cy="207" rx="22" ry="8"/><ellipse cx="266" cy="207" rx="22" ry="8"/></g>
+          </svg>
+        </div>
+        <div class="avatar" id="avatar3d" aria-hidden="true"></div>
+        <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
+
+        <aside class="hud-rail hud-left" aria-label="Contexto atual">
+          <section class="hud-surface signal-surface">
+            <div class="hud-label">VOICE LINK</div>
+            <strong id="voiceLink">aguardando</strong>
+            <div class="signal-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </section>
+          <section class="hud-surface request-surface" id="requestSurface">
+            <div class="hud-label">PEDIDO ATUAL</div>
+            <strong id="requestTitle">Pronto para você</strong>
+            <p id="requestText">Fale naturalmente. O JARVIS escolhe as ferramentas por trás.</p>
+          </section>
+          <section class="hud-surface compact-surface">
+            <div><span>CONTEXTO</span><b id="contextCount">0 turnos</b></div>
+            <div><span>RUNTIME</span><b id="runtimeLabel">local</b></div>
+          </section>
+        </aside>
+
+        <aside class="hud-rail hud-right" aria-label="Canvas de trabalho">
+          <section class="hud-surface mode-surface">
+            <div class="hud-label">MODO ATIVO</div>
+            <strong id="modeLabel">PRESENÇA</strong>
+            <p id="stateLabel">JARVIS está inicializando.</p>
+          </section>
+          <section class="hud-surface live-surface" id="liveSurface">
+            <div class="hud-label">LIVE CANVAS</div>
+            <div class="canvas-empty" id="canvasEmpty">Planos, ações e resultados aparecem aqui enquanto vocês conversam.</div>
+            <div class="canvas-content" id="canvasContent"></div>
+          </section>
+          <section class="hud-surface actions-surface">
+            <div class="hud-label">INTEGRAÇÕES</div>
+            <strong id="integrationValue">checando conexões</strong>
+            <p id="integrationHint">IA, voz, agenda e worker local com estado real.</p>
+          </section>
+        </aside>
+
+        <div class="presence-copy" aria-hidden="true">
+          <span>PERSONAL INTELLIGENCE</span>
+          <h1>JARVIS</h1>
+        </div>
+        <div class="spoken-caption" id="spokenCaption" aria-live="polite">Estou aqui.</div>
+      </section>
+
+      <section class="conversation" aria-label="Conversa com JARVIS">
+        <div class="conversation-feed" id="conversationFeed" aria-live="polite">
+          <div class="welcome" id="welcomeMessage">
+            <strong>JARVIS online.</strong>
+            <span>Peça diretamente. Eu respondo ou aciono a integração disponível.</span>
+          </div>
+        </div>
+        <form class="composer" id="commandForm">
+          <button class="voice-button" id="voiceButton" type="button" aria-label="Falar com JARVIS">
+            <span aria-hidden="true"></span>
+          </button>
+          <input id="commandInput" maxlength="8000" autocomplete="off" placeholder="Fale ou diga o que quer…" aria-label="Pedido para JARVIS">
+          <button class="send-button" id="sendButton" type="submit">Enviar</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="systemDialog">
+    <div class="dialog-head">
+      <b>SISTEMA JARVIS</b>
+      <button id="closeDialog" type="button" aria-label="Fechar">×</button>
+    </div>
+    <div class="dialog-grid">
+      <section><span>Serviço</span><strong id="serviceValue">—</strong></section>
+      <section><span>Inteligência</span><strong id="aiValue">—</strong></section>
+      <section><span>Modelo</span><strong id="modelValue">—</strong></section>
+      <section><span>Voz</span><strong id="voiceValue">detectando</strong></section>
+      <section class="dialog-wide"><span>Presença</span><strong id="presenceValue">carregando modelo 3D</strong></section>
+      <section class="dialog-wide"><span>Última ação</span><strong id="activityValue">Nenhuma ação nesta sessão.</strong></section>
+    </div>
+  </dialog>
+
+  <script src="/ui/jarvis.js?v=20260806-voice3" defer></script>
+  <script type="module">
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260807-perf1");
+    const schedulePresence = () => {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(loadPresence, { timeout: 700 });
+      } else {
+        window.setTimeout(loadPresence, 200);
+      }
+    };
+    if (document.readyState === "complete") schedulePresence();
+    else window.addEventListener("load", schedulePresence, { once: true });
+  </script>
+</body>
+</html>
