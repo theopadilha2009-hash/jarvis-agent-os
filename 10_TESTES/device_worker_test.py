@@ -38,6 +38,15 @@ class DeviceWorkerTest(unittest.TestCase):
             message,
             [str(ROOT / "jarvis"), "message-send", "--phone", "5511999999999", "teste real"],
         )
+        alias_message = MODULE.command_argv({
+            "action": "message_send",
+            "target": "5511999999999",
+            "request_text": "mande mensagem para Arthur dizendo estou chegando",
+        })
+        self.assertEqual(
+            alias_message,
+            [str(ROOT / "jarvis"), "message-send", "--phone", "5511999999999", "estou chegando"],
+        )
 
     def test_command_argv_rejects_arbitrary_shell_and_invalid_target(self):
         with self.assertRaises(MODULE.WorkerError):
@@ -73,6 +82,41 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
+
+    def test_screen_capture_uploads_private_preview_before_success(self):
+        pending = {"id": 23, "action": "screen_capture", "target": ""}
+        capture = ROOT / "05_EXECUCAO" / "64_PERSONAL_TOOLS" / "screenshots" / "capture.png"
+        output = f"Status real: captura.\nsaída: {capture}\nOK"
+        with patch.object(MODULE, "pending_command", return_value=pending), patch.object(
+            MODULE, "claim_command", return_value=pending
+        ), patch.object(MODULE, "execute_job", return_value=(True, output)), patch.object(
+            MODULE, "upload_private_artifact", return_value=("theo/23-capture.png", "image/png")
+        ) as upload, patch.object(MODULE, "finish_command") as finish:
+            message = MODULE.run_once()
+        self.assertIn("Ação 23 concluída", message)
+        upload.assert_called_once_with(capture, 23)
+        finish.assert_called_once_with(
+            23,
+            True,
+            output + "\nPreview privado publicado no Supabase Storage.",
+            "theo/23-capture.png",
+            "image/png",
+        )
+
+    def test_stale_recovery_never_repeats_message_send(self):
+        stale = [
+            {"id": 31, "action": "screen_capture"},
+            {"id": 32, "action": "message_send"},
+        ]
+        with patch.object(MODULE, "rest_request", side_effect=[stale, [], []]) as request:
+            requeued, failed = MODULE.recover_stale_commands()
+        self.assertEqual((requeued, failed), (1, 1))
+        retry_body = request.call_args_list[1].kwargs["body"]
+        message_body = request.call_args_list[2].kwargs["body"]
+        self.assertEqual(retry_body["status"], "pending")
+        self.assertIsNone(retry_body["claimed_at"])
+        self.assertEqual(message_body["status"], "failed")
+        self.assertIn("não foi repetida", message_body["result"])
 
     def test_watch_defaults_keep_polling_lightweight(self):
         args = MODULE.build_parser().parse_args(["--watch"])

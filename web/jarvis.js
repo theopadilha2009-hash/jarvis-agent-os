@@ -32,6 +32,7 @@
     history: [],
     paired: false,
     deviceOnline: false,
+    deviceBridge: false,
   };
   let currentAudio = null;
   let currentAudioUrl = "";
@@ -143,7 +144,20 @@
     else if (data.job?.id) {
       const target = data.job.target ? ` · ${data.job.target}` : "";
       html = `<div class="canvas-row"><i>↗</i><span>Ação ${escapeHtml(data.job.id)} · ${escapeHtml(data.job.status || "pending")}${escapeHtml(target)}</span></div>`;
+      if (data.job.artifact_url) {
+        html += `<a class="artifact-link" href="${escapeHtml(data.job.artifact_url)}" target="_blank" rel="noopener noreferrer"><img class="artifact-preview" src="${escapeHtml(data.job.artifact_url)}" alt="Captura privada criada pelo worker do Mac"></a>`;
+      }
       if (data.job.result) html += `<div class="canvas-result">${escapeHtml(data.job.result).slice(0, 1800)}</div>`;
+    }
+    else if (Array.isArray(data.agenda) && data.agenda.length) {
+      html = data.agenda.slice(0, 8).map((item, index) => (
+        `<div class="canvas-row"><i>${index + 1}</i><span>${escapeHtml(item.title || "item da agenda")}</span></div>`
+      )).join("");
+    }
+    else if (Array.isArray(data.contacts) && data.contacts.length) {
+      html = data.contacts.slice(0, 8).map((item, index) => (
+        `<div class="canvas-row"><i>${index + 1}</i><span>${escapeHtml(item.display_name || item.alias)} · ${escapeHtml(item.phone || "")}</span></div>`
+      )).join("");
     }
     else if (Array.isArray(data.steps) && data.steps.length) html = canvasRows(data.steps);
     else if (Array.isArray(data.sources) && data.sources.length) html = canvasRows(data.sources);
@@ -152,6 +166,29 @@
     else if (data.message) html = `<div class="canvas-result">${escapeHtml(data.message).slice(0, 900)}</div>`;
     content.innerHTML = html;
     empty.hidden = Boolean(html);
+  }
+
+  function renderActionHistory(items) {
+    const target = byId("actionHistory");
+    if (!target) return;
+    if (!Array.isArray(items) || !items.length) {
+      target.innerHTML = "<small>Nenhuma ação registrada.</small>";
+      return;
+    }
+    target.innerHTML = items.slice(0, 8).map((item) => {
+      const suffix = item.target ? ` · ${escapeHtml(item.target)}` : "";
+      return `<div class="history-row" data-status="${escapeHtml(item.status || "unknown")}"><i></i><span><b>${escapeHtml(item.action || "ação")}</b>${suffix}<small>${escapeHtml(item.status || "unknown")}</small></span></div>`;
+    }).join("");
+  }
+
+  async function refreshActionHistory() {
+    if (!session.paired || !session.deviceBridge) return renderActionHistory([]);
+    try {
+      const data = await request("/device-history?limit=8");
+      renderActionHistory(data.history || []);
+    } catch {
+      renderActionHistory([]);
+    }
   }
 
   async function request(path, options) {
@@ -277,6 +314,7 @@
         message.classList.toggle("error", data.job.status === "failed");
         session.responseState = data.visual_state || (data.job.status === "succeeded" ? "success" : "error");
         byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : "Ação falhou";
+        refreshActionHistory();
         settleState();
         return;
       }
@@ -440,6 +478,7 @@
       byId("aiValue").textContent = status.ai?.configured ? "OpenRouter conectado" : "OpenRouter não configurado";
       byId("modelValue").textContent = status.ai?.model || "—";
       session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
+      session.deviceBridge = Boolean(status.device_bridge?.configured);
       session.elevenlabs = Boolean(status.voice?.configured);
       session.voiceError = "";
       byId("voiceValue").textContent = session.elevenlabs
@@ -457,7 +496,9 @@
       byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
       byId("integrationHint").textContent = status.automations?.n8n?.configured
         ? "Agenda e tarefas conectadas ao n8n."
-        : "Agenda aguarda o webhook n8n; ações do Mac usam o worker local.";
+        : status.automations?.agenda?.provider === "supabase"
+          ? "Agenda privada no Supabase; n8n continua opcional. Ações do Mac usam o worker local."
+          : "Agenda aguarda o webhook n8n; ações do Mac usam o worker local.";
       byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
       const tokenInput = byId("ownerTokenInput");
       tokenInput.value = ownerToken();
@@ -473,6 +514,7 @@
         workerValue.textContent = worker.online
           ? `Mac conectado · ${worker.hostname || "worker local"}`
           : "Mac offline · abra ou instale o worker local";
+        await refreshActionHistory();
       } else {
         session.deviceOnline = status.runtime === "local_web_preview";
         workerValue.textContent = session.paired
@@ -491,7 +533,10 @@
     event.preventDefault();
     sendCommand(input.value);
   });
-  byId("detailsButton").addEventListener("click", () => dialog.showModal());
+  byId("detailsButton").addEventListener("click", () => {
+    dialog.showModal();
+    refreshActionHistory();
+  });
   byId("saveOwnerToken").addEventListener("click", async () => {
     const token = byId("ownerTokenInput").value.trim();
     if (!token) {

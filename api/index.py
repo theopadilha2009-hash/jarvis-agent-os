@@ -22,6 +22,7 @@ import re
 import shlex
 import subprocess
 import threading
+import unicodedata
 import webbrowser
 
 
@@ -39,6 +40,9 @@ MAX_PROMPT_CHARS = 8_000
 SUPABASE_MEMORY_TABLE = "jarvis_memories"
 SUPABASE_DEVICE_COMMANDS_TABLE = "jarvis_device_commands"
 SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
+SUPABASE_CONTACTS_TABLE = "jarvis_contacts"
+SUPABASE_AGENDA_TABLE = "jarvis_agenda_items"
+SUPABASE_ARTIFACTS_BUCKET = "jarvis-artifacts"
 REMOTE_DEVICE_INTENTS = {
     "open_application",
     "close_application",
@@ -107,7 +111,7 @@ BASE_WEB_CAPABILITIES = [
     {
         "name": "n8n_agenda",
         "status": "needs_environment",
-        "what": "Agenda e tarefas por webhook n8n configurado pelo operador.",
+        "what": "Agenda persistente no Supabase, com n8n opcional quando configurado.",
     },
 ]
 
@@ -136,6 +140,7 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
     (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
     (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|whatsapp\s+para|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
+    (re.compile(r"\b(salv(?:a|e|ar)|adicion(?:a|e|ar)|cri(?:a|e|ar)|cadastr(?:a|e|ar))\b.{0,40}\bcontato\b", re.I), "contact_save"),
     (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
     (re.compile(r"\b(coloc(?:a|ar)|adicion(?:a|ar)|marc(?:a|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
@@ -242,6 +247,9 @@ def web_capabilities():
             row["status"] = "configured" if supabase_configured() else "available_on_local_worker"
             continue
         if row["name"] in configured:
+            if row["name"] == "n8n_agenda" and not configured[row["name"]] and supabase_configured():
+                row["status"] = "supabase_fallback"
+                continue
             if row["name"] == "assistant_voice" and not configured[row["name"]]:
                 row["status"] = "input_only_requires_elevenlabs_key"
             else:
@@ -280,6 +288,8 @@ def supabase_request(method="GET", query="", body=None, prefer="", table=SUPABAS
         SUPABASE_MEMORY_TABLE,
         SUPABASE_DEVICE_COMMANDS_TABLE,
         SUPABASE_DEVICE_WORKERS_TABLE,
+        SUPABASE_CONTACTS_TABLE,
+        SUPABASE_AGENDA_TABLE,
     }:
         raise ValueError("supabase table not allowed")
     url = f"{base_url}/rest/v1/{table}"
@@ -300,6 +310,59 @@ def supabase_request(method="GET", query="", body=None, prefer="", table=SUPABAS
     return json.loads(raw.decode("utf-8")) if raw else []
 
 
+def supabase_storage_request(object_path, body):
+    """Call a private Storage endpoint without ever returning service credentials."""
+    if not supabase_configured():
+        raise ValueError("supabase not configured")
+    safe_path = clean_text(object_path, 500).strip("/")
+    if not re.fullmatch(r"theo/[A-Za-z0-9._/-]{1,480}", safe_path):
+        raise ValueError("invalid private artifact path")
+    base_url = clean_text(os.environ.get("SUPABASE_URL"), 500).rstrip("/")
+    api_key = clean_text(os.environ.get("SUPABASE_SERVICE_ROLE_KEY"), 2_000)
+    url = (
+        f"{base_url}/storage/v1/object/sign/{SUPABASE_ARTIFACTS_BUCKET}/"
+        f"{quote(safe_path, safe='/')}"
+    )
+    request = Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "apikey": api_key,
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urlopen(request, timeout=15) as response:
+        raw = response.read(100_000)
+    return json.loads(raw.decode("utf-8")) if raw else {}
+
+
+def signed_artifact_url(path, expires_in=120):
+    safe_path = clean_text(path, 500)
+    if not safe_path:
+        return ""
+    result = supabase_storage_request(
+        safe_path,
+        {"expiresIn": max(30, min(int(expires_in), 600))},
+    )
+    signed = clean_text(
+        result.get("signedURL") or result.get("signedUrl")
+        if isinstance(result, dict)
+        else "",
+        2_000,
+    )
+    base_url = clean_text(os.environ.get("SUPABASE_URL"), 500).rstrip("/")
+    if signed.startswith("/storage/v1/object/sign/"):
+        return f"{base_url}{signed}"
+    if signed.startswith("/object/sign/"):
+        return f"{base_url}/storage/v1{signed}"
+    if signed.startswith(f"{base_url}/storage/v1/object/sign/"):
+        return signed
+    return ""
+
+
 def supabase_memory_rows(limit=80):
     safe_limit = max(1, min(int(limit), 80))
     query = (
@@ -309,6 +372,243 @@ def supabase_memory_rows(limit=80):
     )
     rows = supabase_request(query=query)
     return rows if isinstance(rows, list) else []
+
+
+def normalize_alias(value):
+    folded = unicodedata.normalize("NFKD", clean_text(value, 80).casefold())
+    ascii_text = "".join(char for char in folded if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", "-", ascii_text).strip("-")[:80]
+
+
+def contact_details(command):
+    text = clean_text(command, 500)
+    phone_match = re.search(r"(?:\+?\d[\d\s().-]{6,}\d)", text)
+    if not phone_match:
+        return None
+    phone = "".join(char for char in phone_match.group(0) if char.isdigit())
+    if not 8 <= len(phone) <= 15:
+        return None
+    prefix = text[:phone_match.start()]
+    name = re.sub(
+        r"^\s*(?:jarvis[,\s]+)?(?:salv(?:a|e|ar)|adicion(?:a|e|ar)|cri(?:a|e|ar)|cadastr(?:a|e|ar))\s+"
+        r"(?:o\s+)?contato\s+(?:d[oa]\s+|como\s+)?",
+        "",
+        prefix,
+        flags=re.I,
+    ).strip(" :-")
+    alias = normalize_alias(name)
+    if not alias or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", alias):
+        return None
+    return {"alias": alias, "display_name": clean_text(name, 120), "phone": phone}
+
+
+def supabase_contact_save(command):
+    contact = contact_details(command)
+    if not contact:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "contact_details_missing",
+            "visual_state": "error",
+            "error": "Diga o nome do contato e o telefone completo com DDI e DDD.",
+            "intent": "contact_save",
+        }, 400
+    row = {"owner_id": "theo", **contact, "updated_at": datetime.now(timezone.utc).isoformat()}
+    try:
+        result = supabase_request(
+            "POST",
+            query="on_conflict=owner_id,alias",
+            body=row,
+            prefer="resolution=merge-duplicates,return=representation",
+            table=SUPABASE_CONTACTS_TABLE,
+        )
+        saved = result[0] if isinstance(result, list) and result else None
+        if not isinstance(saved, dict) or not saved.get("id"):
+            raise ValueError("missing saved contact")
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "supabase_contact_persisted",
+            "visual_state": "memory",
+            "message": f"Contato {contact['display_name']} salvo. Agora você pode pedir pelo nome.",
+            "intent": "contact_save",
+            "provider": "supabase",
+            "contact": {
+                "alias": contact["alias"],
+                "display_name": contact["display_name"],
+                "phone": f"…{contact['phone'][-4:]}",
+            },
+        }, 201
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "supabase_contact_write_failed",
+            "visual_state": "error",
+            "error": f"O Supabase recusou o contato (HTTP {error.code}).",
+            "intent": "contact_save",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "supabase_contact_write_unavailable",
+            "visual_state": "error",
+            "error": "O contato não foi confirmado no Supabase.",
+            "intent": "contact_save",
+        }, 504
+
+
+def message_alias_details(command):
+    text = clean_text(command, 8_000)
+    match = re.search(
+        r"(?:mensagem|msg)\s+(?:para|pro|pra|ao|a)\s+(?P<name>[\wÀ-ÿ ._-]{1,80}?)\s+"
+        r"(?:dizendo|falando|com\s+(?:o\s+)?texto|texto)\s*[:,-]?\s*(?P<body>.+)$",
+        text,
+        re.I,
+    )
+    if not match:
+        return None
+    body = clean_text(match.group("body"), 4_000).strip(' "“”')
+    alias = normalize_alias(match.group("name"))
+    if not alias or not body or has_secret_like_text(body):
+        return None
+    return {"alias": alias, "text": body}
+
+
+def supabase_contact(alias):
+    safe_alias = normalize_alias(alias)
+    if not safe_alias:
+        return None
+    query = (
+        "select=id,alias,display_name,phone"
+        f"&owner_id=eq.theo&alias=eq.{quote(safe_alias, safe='')}&limit=1"
+    )
+    rows = supabase_request(query=query, table=SUPABASE_CONTACTS_TABLE)
+    return rows[0] if isinstance(rows, list) and rows else None
+
+
+def agenda_title(command):
+    text = clean_text(command, 1_000)
+    title = re.sub(
+        r"^\s*(?:jarvis[,\s]+)?(?:coloc(?:a|e|ar)|adicion(?:a|e|ar)|marc(?:a|e|ar)|cri(?:a|e|ar))\s+",
+        "",
+        text,
+        flags=re.I,
+    ).strip(" :-")
+    title = re.sub(r"^(?:na\s+)?agenda\s*[:,-]?\s*", "", title, flags=re.I).strip()
+    title = re.sub(r"^(?:um\s+)?lembrete\s*[:,-]?\s*", "", title, flags=re.I).strip()
+    return title if len(title) >= 3 else ""
+
+
+def supabase_agenda_rows(limit=20):
+    safe_limit = max(1, min(int(limit), 50))
+    query = (
+        "select=id,title,status,scheduled_for,source,created_at,completed_at"
+        "&owner_id=eq.theo&status=eq.pending"
+        f"&order=created_at.desc&limit={safe_limit}"
+    )
+    rows = supabase_request(query=query, table=SUPABASE_AGENDA_TABLE)
+    return rows if isinstance(rows, list) else []
+
+
+def supabase_agenda_command(command, intent):
+    try:
+        if intent in {"agenda_note", "task_add"}:
+            title = agenda_title(command)
+            if not title:
+                return {
+                    "ok": False,
+                    "endpoint": "POST /command",
+                    "status_real": "agenda_title_missing",
+                    "visual_state": "error",
+                    "error": "Diga qual tarefa ou lembrete devo guardar.",
+                    "intent": intent,
+                }, 400
+            result = supabase_request(
+                "POST",
+                body={"owner_id": "theo", "title": title, "source": "jarvis-web"},
+                prefer="return=representation",
+                table=SUPABASE_AGENDA_TABLE,
+            )
+            saved = result[0] if isinstance(result, list) and result else None
+            if not isinstance(saved, dict) or not saved.get("id"):
+                raise ValueError("missing agenda item")
+            return {
+                "ok": True,
+                "endpoint": "POST /command",
+                "status_real": "supabase_agenda_persisted",
+                "visual_state": "planning",
+                "message": "Guardei na agenda privada do JARVIS.",
+                "intent": intent,
+                "provider": "supabase_agenda",
+                "agenda": [{
+                    "id": saved.get("id"),
+                    "title": clean_text(saved.get("title"), 1_000),
+                    "status": clean_text(saved.get("status"), 40),
+                    "scheduled_for": clean_text(saved.get("scheduled_for"), 80),
+                }],
+            }, 201
+        rows = supabase_agenda_rows(20)
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "supabase_agenda_read",
+            "visual_state": "planning",
+            "message": f"Você tem {len(rows)} item(ns) pendente(s) na agenda privada.",
+            "intent": intent,
+            "provider": "supabase_agenda",
+            "agenda": rows,
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "supabase_agenda_failed",
+            "visual_state": "error",
+            "error": f"O Supabase recusou a agenda (HTTP {error.code}).",
+            "intent": intent,
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "supabase_agenda_unavailable",
+            "visual_state": "error",
+            "error": "A agenda privada não confirmou a operação.",
+            "intent": intent,
+        }, 504
+
+
+def contacts_payload(limit=50):
+    try:
+        requested_limit = int(limit) if re.fullmatch(r"[0-9]{1,3}", str(limit or "")) else 50
+        safe_limit = max(1, min(requested_limit, 100))
+        rows = supabase_request(
+            query=(
+                "select=id,alias,display_name,phone,updated_at"
+                f"&owner_id=eq.theo&order=display_name.asc&limit={safe_limit}"
+            ),
+            table=SUPABASE_CONTACTS_TABLE,
+        )
+        contacts = [{
+            "id": row.get("id"),
+            "alias": clean_text(row.get("alias"), 80),
+            "display_name": clean_text(row.get("display_name"), 120),
+            "phone": f"…{clean_text(row.get('phone'), 20)[-4:]}",
+            "updated_at": clean_text(row.get("updated_at"), 80),
+        } for row in rows if isinstance(row, dict)]
+        return {
+            "ok": True,
+            "endpoint": "GET /contacts",
+            "status_real": "supabase_contacts_read",
+            "contacts": contacts,
+            "count": len(contacts),
+        }, 200
+    except HTTPError as error:
+        return {"ok": False, "endpoint": "GET /contacts", "error": f"Supabase recusou contatos (HTTP {error.code})."}, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {"ok": False, "endpoint": "GET /contacts", "error": "Contatos não responderam."}, 504
 
 
 def supabase_device_enqueue(command, intent):
@@ -328,12 +628,32 @@ def supabase_device_enqueue(command, intent):
     elif intent == "message_send":
         details = message_send_details(command)
         if not details:
+            alias_details = message_alias_details(command)
+            try:
+                contact = supabase_contact(alias_details["alias"]) if alias_details else None
+            except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+                return {
+                    "ok": False,
+                    "endpoint": "POST /command",
+                    "status_real": "contact_lookup_unavailable",
+                    "visual_state": "error",
+                    "error": "Não consegui consultar seus contatos privados agora.",
+                    "intent": intent,
+                }, 504
+            if isinstance(contact, dict):
+                phone = clean_text(contact.get("phone"), 20)
+                details = {
+                    "phone": phone,
+                    "text": alias_details["text"],
+                    "alias": alias_details["alias"],
+                }
+        if not details:
             return {
                 "ok": False,
                 "endpoint": "POST /command",
                 "status_real": "message_details_missing",
                 "visual_state": "error",
-                "error": "Informe DDI + DDD + número e o texto exato da mensagem.",
+                "error": "Informe DDI + DDD + número e o texto exato, ou use um contato salvo.",
                 "intent": intent,
             }, 400
         target = details["phone"]
@@ -401,7 +721,7 @@ def supabase_device_command(command_id):
         }, 400
     try:
         query = (
-            "select=id,action,target,status,result,created_at,claimed_at,completed_at"
+            "select=id,action,target,status,result,artifact_path,artifact_mime,created_at,claimed_at,completed_at"
             f"&owner_id=eq.theo&id=eq.{command_id}&limit=1"
         )
         rows = supabase_request(query=query, table=SUPABASE_DEVICE_COMMANDS_TABLE)
@@ -416,6 +736,13 @@ def supabase_device_command(command_id):
         status = clean_text(row.get("status"), 40)
         succeeded = status == "succeeded"
         failed = status == "failed"
+        artifact_url = ""
+        artifact_path = clean_text(row.get("artifact_path"), 500)
+        if succeeded and artifact_path:
+            try:
+                artifact_url = signed_artifact_url(artifact_path)
+            except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+                artifact_url = ""
         messages = {
             "pending": "Pedido aguardando o worker do Mac.",
             "running": "O worker do Mac está executando o pedido.",
@@ -438,6 +765,8 @@ def supabase_device_command(command_id):
                 ),
                 "status": status,
                 "result": clean_text(row.get("result"), 8_000),
+                "artifact_url": artifact_url,
+                "artifact_mime": clean_text(row.get("artifact_mime"), 100),
                 "created_at": clean_text(row.get("created_at"), 80),
                 "claimed_at": clean_text(row.get("claimed_at"), 80),
                 "completed_at": clean_text(row.get("completed_at"), 80),
@@ -456,6 +785,63 @@ def supabase_device_command(command_id):
             "endpoint": "GET /device-command",
             "status_real": "device_command_read_unavailable",
             "error": "O estado do worker do Mac não respondeu.",
+        }, 504
+
+
+def device_history_payload(limit=20):
+    requested_limit = int(limit) if re.fullmatch(r"[0-9]{1,3}", str(limit or "")) else 20
+    safe_limit = max(1, min(requested_limit, 30))
+    try:
+        query = (
+            "select=id,action,target,status,result,artifact_path,artifact_mime,created_at,completed_at"
+            f"&owner_id=eq.theo&order=created_at.desc&limit={safe_limit}"
+        )
+        rows = supabase_request(query=query, table=SUPABASE_DEVICE_COMMANDS_TABLE)
+        history = []
+        artifact_signed = False
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            action = clean_text(row.get("action"), 60)
+            artifact_path = clean_text(row.get("artifact_path"), 500)
+            artifact_url = ""
+            if artifact_path and not artifact_signed:
+                try:
+                    artifact_url = signed_artifact_url(artifact_path)
+                    artifact_signed = bool(artifact_url)
+                except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+                    artifact_url = ""
+            history.append({
+                "id": row.get("id"),
+                "action": action,
+                "target": public_device_target(action, clean_text(row.get("target"), 120)),
+                "status": clean_text(row.get("status"), 40),
+                "result": clean_text(row.get("result"), 500),
+                "artifact_url": artifact_url,
+                "artifact_mime": clean_text(row.get("artifact_mime"), 100),
+                "created_at": clean_text(row.get("created_at"), 80),
+                "completed_at": clean_text(row.get("completed_at"), 80),
+            })
+        return {
+            "ok": True,
+            "endpoint": "GET /device-history",
+            "status_real": "device_history_read",
+            "history": history,
+            "count": len(history),
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "GET /device-history",
+            "status_real": "device_history_failed",
+            "error": f"O Supabase recusou o histórico (HTTP {error.code}).",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "GET /device-history",
+            "status_real": "device_history_unavailable",
+            "error": "O histórico de ações não respondeu.",
         }, 504
 
 
@@ -624,6 +1010,10 @@ def status_payload(owner_authenticated=False):
         },
         "automations": {
             "n8n": {"configured": n8n_ready, "agenda": n8n_ready},
+            "agenda": {
+                "configured": bool(n8n_ready or supabase_configured()),
+                "provider": "n8n" if n8n_ready else "supabase" if supabase_configured() else "none",
+            },
         },
         "memory": {
             "provider": "supabase" if supabase_configured() else "local_markdown",
@@ -1133,13 +1523,20 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
             if owner_pairing_required() and not owner_authenticated and intent in {
-                "memory_save", "agenda_note", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
+                "memory_save", "contact_save", "agenda_note", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
             }:
                 return pairing_required_payload()
             if intent == "memory_save" and supabase_configured():
                 return supabase_memory_save(latest)
+            if intent == "contact_save" and supabase_configured():
+                return supabase_contact_save(latest)
             if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
                 return supabase_device_enqueue(latest, intent)
+            if intent in {"agenda_note", "agenda_view", "task_add"}:
+                if os.environ.get("N8N_WEBHOOK_URL"):
+                    return n8n_automation(latest, intent)
+                if supabase_configured():
+                    return supabase_agenda_command(latest, intent)
             return local_handoff(latest, intent, execute=local_execute), 200
 
     suggested_memory = memory_suggestion(latest)
@@ -1290,15 +1687,20 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(command):
             if owner_pairing_required() and not owner_authenticated and intent in {
-                "memory_save", "agenda_note", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
+                "memory_save", "contact_save", "agenda_note", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
             }:
                 return pairing_required_payload()
             if intent == "memory_save" and supabase_configured():
                 return supabase_memory_save(command)
+            if intent == "contact_save" and supabase_configured():
+                return supabase_contact_save(command)
             if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
                 return supabase_device_enqueue(command, intent)
-            if intent in {"agenda_note", "agenda_view", "task_add"} and os.environ.get("N8N_WEBHOOK_URL"):
-                return n8n_automation(command, intent)
+            if intent in {"agenda_note", "agenda_view", "task_add"}:
+                if os.environ.get("N8N_WEBHOOK_URL"):
+                    return n8n_automation(command, intent)
+                if supabase_configured():
+                    return supabase_agenda_command(command, intent)
             return local_handoff(command, intent, execute=local_execute), 200
 
     clean = command.lstrip("/").strip()
@@ -1466,6 +1868,28 @@ class handler(BaseHTTPRequestHandler):
                 payload["endpoint"] = "GET /device-command"
                 return self.send_json(status, payload)
             payload, status = supabase_device_command((query.get("id") or [""])[0])
+            return self.send_json(status, payload)
+        if path == "/device-history":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /device-history"
+                return self.send_json(status, payload)
+            payload, status = device_history_payload((query.get("limit") or ["20"])[0])
+            return self.send_json(status, payload)
+        if path == "/agenda":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /agenda"
+                return self.send_json(status, payload)
+            payload, status = supabase_agenda_command("", "agenda_view")
+            payload["endpoint"] = "GET /agenda"
+            return self.send_json(status, payload)
+        if path == "/contacts":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /contacts"
+                return self.send_json(status, payload)
+            payload, status = contacts_payload((query.get("limit") or ["50"])[0])
             return self.send_json(status, payload)
         if path == "/device-worker-status":
             if owner_pairing_required() and not owner_authenticated:

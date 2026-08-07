@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
@@ -23,11 +24,22 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "1"
+WORKER_VERSION = "2"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
+RECOVERY_INTERVAL_SECONDS = 60.0
+STALE_AFTER_SECONDS = 300
 LAUNCH_LABEL = "ai.theopadilha.jarvis-device-worker"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = ROOT / "09_LOGS"
+SCREENSHOT_DIR = ROOT / "05_EXECUCAO" / "64_PERSONAL_TOOLS" / "screenshots"
+ARTIFACTS_BUCKET = "jarvis-artifacts"
+RETRYABLE_STALE_ACTIONS = {
+    "open_application",
+    "close_application",
+    "screen_capture",
+    "storage_scan",
+    "system_memory",
+}
 ALLOWED_ACTIONS = {
     "open_application",
     "close_application",
@@ -118,6 +130,44 @@ def rest_request(
     return parsed if isinstance(parsed, list) else []
 
 
+def upload_private_artifact(path: Path, command_id: int) -> tuple[str, str]:
+    resolved = path.resolve()
+    base = SCREENSHOT_DIR.resolve()
+    if base not in resolved.parents or not resolved.is_file() or resolved.suffix.lower() != ".png":
+        raise WorkerError("A captura terminou fora da pasta privada permitida.")
+    if resolved.stat().st_size <= 0 or resolved.stat().st_size > 10_485_760:
+        raise WorkerError("A captura não tem um tamanho aceito para o preview privado.")
+    object_path = f"theo/{int(command_id)}-{resolved.name}"
+    base_url, api_key = configuration()
+    request = Request(
+        f"{base_url}/storage/v1/object/{ARTIFACTS_BUCKET}/{quote(object_path, safe='/')}",
+        data=resolved.read_bytes(),
+        headers={
+            "apikey": api_key,
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "image/png",
+            "x-upsert": "false",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            response.read(100_000)
+    except HTTPError as error:
+        raise WorkerError(f"Supabase Storage recusou o preview (HTTP {error.code}).") from error
+    except (URLError, TimeoutError) as error:
+        raise WorkerError("Supabase Storage não confirmou o preview.") from error
+    return object_path, "image/png"
+
+
+def screenshot_path(output: str) -> Path | None:
+    match = re.search(r"^sa[ií]da:\s*(.+?\.png)\s*$", str(output or ""), re.I | re.M)
+    if not match:
+        return None
+    path = Path(match.group(1).strip()).expanduser()
+    return path if path.is_absolute() else ROOT / path
+
+
 def redact_secrets(value: str) -> str:
     safe = str(value or "")[:8_000]
     for _name, pattern in SECRET_PATTERNS:
@@ -168,7 +218,13 @@ def claim_command(command_id: int) -> dict | None:
     return rows[0] if rows else None
 
 
-def finish_command(command_id: int, succeeded: bool, result: str) -> None:
+def finish_command(
+    command_id: int,
+    succeeded: bool,
+    result: str,
+    artifact_path: str = "",
+    artifact_mime: str = "",
+) -> None:
     rest_request(
         COMMANDS_TABLE,
         "PATCH",
@@ -176,6 +232,8 @@ def finish_command(command_id: int, succeeded: bool, result: str) -> None:
         body={
             "status": "succeeded" if succeeded else "failed",
             "result": redact_secrets(result),
+            "artifact_path": artifact_path if succeeded else "",
+            "artifact_mime": artifact_mime if succeeded else "",
             "completed_at": now_iso(),
         },
         prefer="return=minimal",
@@ -224,16 +282,24 @@ def command_argv(job: dict) -> list[str]:
 
 def message_details(request_text: str, expected_phone: str) -> dict | None:
     text = str(request_text or "")[:8_000]
-    phone_match = re.search(r"(?:\+?\d[\d\s().-]{6,}\d)", text)
-    if not phone_match:
+    if not re.fullmatch(r"[0-9]{8,15}", expected_phone):
         return None
-    phone = "".join(char for char in phone_match.group(0) if char.isdigit())
-    if phone != expected_phone or not 8 <= len(phone) <= 15:
+    phone_match = re.search(r"(?:\+?\d[\d\s().-]{6,}\d)", text)
+    phone = "".join(char for char in phone_match.group(0) if char.isdigit()) if phone_match else expected_phone
+    if phone != expected_phone:
         return None
     quoted = re.search(r'["“](.+?)["”]', text)
-    body = quoted.group(1).strip() if quoted else re.sub(
-        re.escape(phone_match.group(0)), "", text, count=1
-    ).strip(" :-")
+    alias_match = re.search(
+        r"(?:mensagem|msg)\s+(?:para|pro|pra|ao|a)\s+[\wÀ-ÿ ._-]{1,80}?\s+"
+        r"(?:dizendo|falando|com\s+(?:o\s+)?texto|texto)\s*[:,-]?\s*(?P<body>.+)$",
+        text,
+        re.I,
+    ) if not phone_match and not quoted else None
+    body = quoted.group(1).strip() if quoted else alias_match.group("body").strip() if alias_match else (
+        re.sub(re.escape(phone_match.group(0)), "", text, count=1).strip(" :-")
+        if phone_match
+        else text.strip(" :-")
+    )
     if not quoted:
         body = re.sub(
             r"^\s*(?:jarvis[,\s]+)?(?:mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\s+"
@@ -271,6 +337,47 @@ def execute_job(job: dict) -> tuple[bool, str]:
     return result.returncode == 0, output or f"Processo finalizado com exit code {result.returncode}."
 
 
+def recover_stale_commands() -> tuple[int, int]:
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=STALE_AFTER_SECONDS)).isoformat()
+    rows = rest_request(
+        COMMANDS_TABLE,
+        query=(
+            "select=id,action&owner_id=eq.theo&status=eq.running"
+            f"&claimed_at=lt.{quote(cutoff, safe=':+-T.')}&limit=50"
+        ),
+    )
+    requeued = 0
+    failed = 0
+    for row in rows:
+        command_id = row.get("id")
+        action = str(row.get("action") or "")
+        if not re.fullmatch(r"[0-9]{1,18}", str(command_id or "")):
+            continue
+        if action in RETRYABLE_STALE_ACTIONS:
+            rest_request(
+                COMMANDS_TABLE,
+                "PATCH",
+                query=f"owner_id=eq.theo&id=eq.{command_id}&status=eq.running",
+                body={"status": "pending", "claimed_at": None},
+                prefer="return=minimal",
+            )
+            requeued += 1
+        else:
+            rest_request(
+                COMMANDS_TABLE,
+                "PATCH",
+                query=f"owner_id=eq.theo&id=eq.{command_id}&status=eq.running",
+                body={
+                    "status": "failed",
+                    "result": "A execução perdeu o heartbeat e não foi repetida para evitar efeito duplicado.",
+                    "completed_at": now_iso(),
+                },
+                prefer="return=minimal",
+            )
+            failed += 1
+    return requeued, failed
+
+
 def run_once(preview: bool = False) -> str:
     job = pending_command()
     if not job:
@@ -287,7 +394,22 @@ def run_once(preview: bool = False) -> str:
         succeeded, output = execute_job(claimed)
     except WorkerError as error:
         succeeded, output = False, str(error)
-    finish_command(command_id, succeeded, output)
+    artifact_path = ""
+    artifact_mime = ""
+    if succeeded and action == "screen_capture":
+        captured = screenshot_path(output)
+        if not captured:
+            output = f"{output}\nAVISO: preview não publicado; caminho da captura não foi confirmado."
+        else:
+            try:
+                artifact_path, artifact_mime = upload_private_artifact(captured, command_id)
+                output = f"{output}\nPreview privado publicado no Supabase Storage."
+            except WorkerError as error:
+                output = f"{output}\nAVISO: preview não publicado: {error}"
+    if artifact_path:
+        finish_command(command_id, succeeded, output, artifact_path, artifact_mime)
+    else:
+        finish_command(command_id, succeeded, output)
     state = "concluída" if succeeded else "falhou"
     return f"Ação {command_id} {state}: {action} {target}".strip()
 
@@ -416,6 +538,7 @@ def main() -> int:
             else:
                 running = True
                 last_heartbeat = 0.0
+                last_recovery = 0.0
 
                 def stop(_signum, _frame):
                     nonlocal running
@@ -429,6 +552,15 @@ def main() -> int:
                         if monotonic_now - last_heartbeat >= HEARTBEAT_INTERVAL_SECONDS:
                             heartbeat()
                             last_heartbeat = monotonic_now
+                        if monotonic_now - last_recovery >= RECOVERY_INTERVAL_SECONDS:
+                            requeued, failed = recover_stale_commands()
+                            if requeued or failed:
+                                print(
+                                    f"Recuperação: {requeued} ação(ões) reencaminhada(s), "
+                                    f"{failed} não repetida(s).",
+                                    flush=True,
+                                )
+                            last_recovery = monotonic_now
                         message = run_once()
                         if not message.startswith("Fila vazia"):
                             print(message, flush=True)
@@ -440,6 +572,7 @@ def main() -> int:
                 print("Preview: consultaria uma ação pendente; nenhum heartbeat ou comando foi gravado.")
             else:
                 heartbeat()
+                recover_stale_commands()
                 print(run_once())
     except WorkerError as error:
         print(f"FALHA: {error}")
