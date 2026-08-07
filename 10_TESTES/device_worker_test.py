@@ -184,6 +184,7 @@ class DeviceWorkerTest(unittest.TestCase):
 
     def test_launch_agent_path_includes_orca_install_locations(self):
         path = MODULE.launch_payload()["EnvironmentVariables"]["PATH"]
+        self.assertIn(str(Path.home() / ".local" / "bin"), path)
         self.assertIn("/usr/local/bin", path)
         self.assertIn("/opt/homebrew/bin", path)
 
