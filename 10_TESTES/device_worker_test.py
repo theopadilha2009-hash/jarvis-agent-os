@@ -117,6 +117,9 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertIsNone(retry_body["claimed_at"])
         self.assertEqual(message_body["status"], "failed")
         self.assertIn("não foi repetida", message_body["result"])
+        recovery_query = request.call_args_list[0].kwargs["query"]
+        self.assertIn("%2B00:00", recovery_query)
+        self.assertNotIn("+00:00", recovery_query)
 
     def test_watch_defaults_keep_polling_lightweight(self):
         args = MODULE.build_parser().parse_args(["--watch"])

@@ -343,7 +343,7 @@ def recover_stale_commands() -> tuple[int, int]:
         COMMANDS_TABLE,
         query=(
             "select=id,action&owner_id=eq.theo&status=eq.running"
-            f"&claimed_at=lt.{quote(cutoff, safe=':+-T.')}&limit=50"
+            f"&claimed_at=lt.{quote(cutoff, safe=':.-T')}&limit=50"
         ),
     )
     requeued = 0
