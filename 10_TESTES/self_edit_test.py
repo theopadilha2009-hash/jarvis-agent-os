@@ -5,6 +5,7 @@ from contextlib import redirect_stdout
 import importlib.util
 from io import StringIO
 from pathlib import Path
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -30,6 +31,8 @@ class SelfEditTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertIn("Codex CLI: disponível.", output)
         self.assertIn("Modo preview: nenhum worktree, diff ou commit criado.", output)
+        self.assertRegex(output, r"Duração total: \d+\.\d{3}s\.")
+        self.assertTrue(output.rstrip().endswith("Produção: nada alterado."))
 
     def test_dry_run_reports_codex_cli_unavailable_without_failing(self):
         result, output = self.run_preview(None)
@@ -47,6 +50,20 @@ class SelfEditTest(unittest.TestCase):
         commands = MODULE.validation_commands(["11_SCRIPTS/self_edit.py"])
         self.assertIn(["./jarvis", "command-audit"], commands)
         self.assertNotIn(["./jarvis", "safety-gate"], commands)
+
+    def test_format_duration_keeps_long_runs_readable(self):
+        self.assertEqual(MODULE.format_duration(3_661.25), "1h 01m 01.250s")
+
+    def test_handled_error_also_reports_total_duration(self):
+        output = StringIO()
+        argv = ["self_edit.py", "curto", "--dry-run"]
+        with patch.object(sys, "argv", argv):
+            with patch.object(MODULE.time, "monotonic", side_effect=[10.0, 10.75]):
+                with redirect_stdout(output):
+                    result = MODULE.main()
+        self.assertEqual(result, 1)
+        self.assertIn("Duração total: 0.750s.", output.getvalue())
+        self.assertTrue(output.getvalue().rstrip().endswith("Produção: nada alterado."))
 
 
 if __name__ == "__main__":
