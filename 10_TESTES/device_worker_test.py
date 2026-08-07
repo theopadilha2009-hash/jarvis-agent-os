@@ -2,6 +2,7 @@
 """Contract tests for the allowlisted JARVIS device queue worker."""
 
 from pathlib import Path
+from datetime import datetime, timezone
 import importlib.util
 import unittest
 from unittest.mock import patch
@@ -120,6 +121,31 @@ class DeviceWorkerTest(unittest.TestCase):
         recovery_query = request.call_args_list[0].kwargs["query"]
         self.assertIn("%2B00:00", recovery_query)
         self.assertNotIn("+00:00", recovery_query)
+
+    def test_artifact_retention_keeps_newest_twenty_and_only_removes_old_remote_copy(self):
+        rows = [{
+            "id": index + 1,
+            "artifact_path": f"theo/{index + 1}-capture.png",
+            "completed_at": "2026-08-01T12:00:00Z",
+        } for index in range(20)]
+        rows.append({
+            "id": 21,
+            "artifact_path": "theo/21-old.png",
+            "completed_at": "2026-05-01T12:00:00Z",
+        })
+        with patch.object(MODULE, "rest_request", side_effect=[rows, []]) as request, patch.object(
+            MODULE, "delete_private_artifact"
+        ) as delete:
+            removed = MODULE.prune_private_artifacts(
+                now=datetime(2026, 8, 7, 18, 0, tzinfo=timezone.utc)
+            )
+        self.assertEqual(removed, 1)
+        delete.assert_called_once_with("theo/21-old.png")
+        self.assertEqual(request.call_args_list[1].kwargs["body"]["artifact_path"], "")
+
+    def test_artifact_delete_rejects_paths_outside_private_prefix(self):
+        with self.assertRaises(MODULE.WorkerError):
+            MODULE.delete_private_artifact("someone-else/file.png")
 
     def test_watch_defaults_keep_polling_lightweight(self):
         args = MODULE.build_parser().parse_args(["--watch"])

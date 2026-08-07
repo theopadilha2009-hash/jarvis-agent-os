@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import importlib.util
+from datetime import datetime
 import json
 import os
 import threading
@@ -99,6 +100,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"memory-command", app_js)
         self.assertIn(b"X-Jarvis-Owner-Token", app_js)
         self.assertIn(b"monitorDeviceCommand", app_js)
+        self.assertIn(b"agendaDate", app_js)
+        self.assertIn(b"revealLatest", app_js)
         self.assertIn(b"saveOwnerToken", app_js)
         self.assertIn(b"ElevenLabs sem cr\xc3\xa9ditos", app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
@@ -637,6 +640,32 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["agenda"][0]["title"], "comprar ração amanhã")
         self.assertEqual(request.call_args.kwargs["table"], MODULE.SUPABASE_AGENDA_TABLE)
 
+    def test_agenda_schedule_uses_sao_paulo_dates_and_times(self):
+        now = datetime(2026, 8, 7, 14, 0, tzinfo=MODULE.ZoneInfo("America/Sao_Paulo"))
+        tomorrow = MODULE.agenda_schedule("coloca na agenda reunião amanhã às 15h", now=now)
+        monday = MODULE.agenda_schedule("marca revisão segunda às 09:30", now=now)
+        no_date = MODULE.agenda_schedule("coloca na agenda comprar café", now=now)
+        self.assertEqual(tomorrow, "2026-08-08T18:00:00Z")
+        self.assertEqual(monday, "2026-08-10T12:30:00Z")
+        self.assertEqual(no_date, "")
+
+    def test_agenda_complete_updates_exact_pending_item(self):
+        saved = [{
+            "id": 17,
+            "title": "comprar ração amanhã",
+            "status": "done",
+            "scheduled_for": "2026-08-08T12:00:00Z",
+        }]
+        with patch.object(MODULE, "supabase_request", return_value=saved) as request:
+            payload, status = MODULE.supabase_agenda_command(
+                "conclui a tarefa 17", "agenda_complete"
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "supabase_agenda_completed")
+        self.assertEqual(request.call_args.args[0], "PATCH")
+        self.assertIn("id=eq.17", request.call_args.kwargs["query"])
+        self.assertEqual(request.call_args.kwargs["body"]["status"], "done")
+
     def test_contact_alias_is_persisted_and_resolved_for_message_queue(self):
         env = {
             "SUPABASE_URL": "https://jarvis.example.supabase.co",
@@ -672,6 +701,19 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 201)
         self.assertEqual(payload["contact"]["phone"], "…9999")
         self.assertNotIn("5511999999999", json.dumps(payload))
+
+    def test_contact_archive_is_soft_delete_and_contact_list_filters_it(self):
+        archived = [{"id": 3, "display_name": "Arthur", "alias": "arthur"}]
+        with patch.object(MODULE, "supabase_request", return_value=archived) as request:
+            payload, status = MODULE.supabase_contact_archive("arquiva o contato Arthur")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "supabase_contact_archived")
+        self.assertIsNotNone(request.call_args.kwargs["body"]["archived_at"])
+        with patch.object(MODULE, "supabase_request", return_value=[]) as list_request:
+            listed, list_status = MODULE.contacts_payload(50)
+        self.assertEqual(list_status, 200)
+        self.assertEqual(listed["count"], 0)
+        self.assertIn("archived_at=is.null", list_request.call_args.kwargs["query"])
 
     def test_device_command_returns_only_short_lived_signed_artifact(self):
         row = [{

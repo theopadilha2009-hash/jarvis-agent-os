@@ -24,10 +24,13 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "2"
+WORKER_VERSION = "3"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
+RETENTION_INTERVAL_SECONDS = 21_600.0
+ARTIFACT_KEEP_COUNT = 20
+ARTIFACT_MAX_AGE_DAYS = 30
 LAUNCH_LABEL = "ai.theopadilha.jarvis-device-worker"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = ROOT / "09_LOGS"
@@ -158,6 +161,28 @@ def upload_private_artifact(path: Path, command_id: int) -> tuple[str, str]:
     except (URLError, TimeoutError) as error:
         raise WorkerError("Supabase Storage não confirmou o preview.") from error
     return object_path, "image/png"
+
+
+def delete_private_artifact(object_path: str) -> None:
+    safe_path = str(object_path or "").strip("/")
+    if not re.fullmatch(r"theo/[A-Za-z0-9._/-]{1,480}", safe_path):
+        raise WorkerError("Artefato fora do prefixo privado permitido.")
+    base_url, api_key = configuration()
+    request = Request(
+        f"{base_url}/storage/v1/object/{ARTIFACTS_BUCKET}/{quote(safe_path, safe='/')}",
+        headers={
+            "apikey": api_key,
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="DELETE",
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            response.read(100_000)
+    except HTTPError as error:
+        raise WorkerError(f"Supabase Storage recusou a retenção (HTTP {error.code}).") from error
+    except (URLError, TimeoutError) as error:
+        raise WorkerError("Supabase Storage não confirmou a retenção.") from error
 
 
 def screenshot_path(output: str) -> Path | None:
@@ -378,6 +403,47 @@ def recover_stale_commands() -> tuple[int, int]:
     return requeued, failed
 
 
+def prune_private_artifacts(now: datetime | None = None) -> int:
+    reference = now or datetime.now(timezone.utc)
+    cutoff = reference.astimezone(timezone.utc) - timedelta(days=ARTIFACT_MAX_AGE_DAYS)
+    rows = rest_request(
+        COMMANDS_TABLE,
+        query=(
+            "select=id,artifact_path,completed_at&owner_id=eq.theo"
+            "&order=completed_at.desc.nullslast&limit=200"
+        ),
+    )
+    candidates = []
+    artifact_rows = [row for row in rows if str(row.get("artifact_path") or "").strip()]
+    for index, row in enumerate(artifact_rows):
+        if index < ARTIFACT_KEEP_COUNT:
+            continue
+        raw_completed = str(row.get("completed_at") or "")
+        try:
+            completed = datetime.fromisoformat(raw_completed.replace("Z", "+00:00")).astimezone(timezone.utc)
+        except ValueError:
+            continue
+        if completed < cutoff:
+            candidates.append(row)
+
+    removed = 0
+    for row in candidates:
+        command_id = row.get("id")
+        artifact_path = str(row.get("artifact_path") or "")
+        if not re.fullmatch(r"[0-9]{1,18}", str(command_id or "")):
+            continue
+        delete_private_artifact(artifact_path)
+        rest_request(
+            COMMANDS_TABLE,
+            "PATCH",
+            query=f"owner_id=eq.theo&id=eq.{command_id}&artifact_path=eq.{quote(artifact_path, safe='')}",
+            body={"artifact_path": "", "artifact_mime": ""},
+            prefer="return=minimal",
+        )
+        removed += 1
+    return removed
+
+
 def run_once(preview: bool = False) -> str:
     job = pending_command()
     if not job:
@@ -539,6 +605,7 @@ def main() -> int:
                 running = True
                 last_heartbeat = 0.0
                 last_recovery = 0.0
+                last_retention = 0.0
 
                 def stop(_signum, _frame):
                     nonlocal running
@@ -561,6 +628,11 @@ def main() -> int:
                                     flush=True,
                                 )
                             last_recovery = monotonic_now
+                        if monotonic_now - last_retention >= RETENTION_INTERVAL_SECONDS:
+                            removed = prune_private_artifacts()
+                            if removed:
+                                print(f"Retenção: {removed} preview(s) remoto(s) antigo(s) removido(s).", flush=True)
+                            last_retention = monotonic_now
                         message = run_once()
                         if not message.startswith("Fila vazia"):
                             print(message, flush=True)
@@ -573,6 +645,7 @@ def main() -> int:
             else:
                 heartbeat()
                 recover_stale_commands()
+                prune_private_artifacts()
                 print(run_once())
     except WorkerError as error:
         print(f"FALHA: {error}")
