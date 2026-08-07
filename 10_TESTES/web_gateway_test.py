@@ -86,6 +86,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="muteButton"', html)
         self.assertIn(b'id="avatar3d"', html)
         self.assertIn(b'id="liveSurface"', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260807-audiofix1', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b"fallback-core", html)
