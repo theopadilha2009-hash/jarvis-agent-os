@@ -41,6 +41,8 @@
 __pycache__/
 *.pyc
 .vercel/
+09_LOGS/device-worker.log
+09_LOGS/device-worker-error.log
 
 # JARVIS old generated/runtime folders
 05_EXECUCAO/21_CLAUDE_MISSIONS/

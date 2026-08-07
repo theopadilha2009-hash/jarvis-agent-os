@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260807-voicecyan1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260807-devicebridge1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -107,14 +107,24 @@
       <section><span>Inteligência</span><strong id="aiValue">—</strong></section>
       <section><span>Modelo</span><strong id="modelValue">—</strong></section>
       <section><span>Voz</span><strong id="voiceValue">detectando</strong></section>
+      <section class="dialog-wide pairing-panel">
+        <span>Conexão privada</span>
+        <strong id="workerValue">verificando worker do Mac</strong>
+        <div class="pairing-controls">
+          <input id="ownerTokenInput" type="password" autocomplete="off" placeholder="Token de pareamento" aria-label="Token privado do JARVIS">
+          <button id="saveOwnerToken" type="button">Conectar</button>
+          <button id="clearOwnerToken" type="button">Esquecer</button>
+        </div>
+        <small id="pairingHint">O token fica somente neste navegador.</small>
+      </section>
       <section class="dialog-wide"><span>Presença</span><strong id="presenceValue">carregando modelo 3D</strong></section>
       <section class="dialog-wide"><span>Última ação</span><strong id="activityValue">Nenhuma ação nesta sessão.</strong></section>
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260807-voicecyan1" defer></script>
+  <script src="/ui/jarvis.js?v=20260807-devicebridge1" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260807-voicecyan1");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260807-devicebridge1");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

@@ -9,6 +9,7 @@
   const voiceButton = byId("voiceButton");
   const muteButton = byId("muteButton");
   const dialog = byId("systemDialog");
+  const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
     input: Boolean(Recognition),
@@ -29,11 +30,21 @@
     })(),
     responseState: "",
     history: [],
+    paired: false,
+    deviceOnline: false,
   };
   let currentAudio = null;
   let currentAudioUrl = "";
   let speechGeneration = 0;
   let voiceFailureNotified = false;
+
+  function ownerToken() {
+    try {
+      return localStorage.getItem(OWNER_TOKEN_KEY) || "";
+    } catch {
+      return "";
+    }
+  }
 
   const stateLabels = {
     idle: ["PRESENÇA", "aguardando você"],
@@ -129,6 +140,11 @@
     if (data.memory_suggestion) {
       html = `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
     }
+    else if (data.job?.id) {
+      const target = data.job.target ? ` · ${data.job.target}` : "";
+      html = `<div class="canvas-row"><i>↗</i><span>Ação ${escapeHtml(data.job.id)} · ${escapeHtml(data.job.status || "pending")}${escapeHtml(target)}</span></div>`;
+      if (data.job.result) html += `<div class="canvas-result">${escapeHtml(data.job.result).slice(0, 1800)}</div>`;
+    }
     else if (Array.isArray(data.steps) && data.steps.length) html = canvasRows(data.steps);
     else if (Array.isArray(data.sources) && data.sources.length) html = canvasRows(data.sources);
     else if (data.result) html = `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
@@ -139,7 +155,12 @@
   }
 
   async function request(path, options) {
-    const response = await fetch(path, options);
+    const requestOptions = { ...(options || {}) };
+    const headers = new Headers(requestOptions.headers || {});
+    const token = ownerToken();
+    if (token) headers.set("X-Jarvis-Owner-Token", token);
+    requestOptions.headers = headers;
+    const response = await fetch(path, requestOptions);
     let data;
     try {
       data = await response.json();
@@ -176,8 +197,9 @@
     muteButton.title = session.muted ? "Ativar a voz do JARVIS" : "Mutar a voz do JARVIS";
   }
 
-  function reportVoiceFailure(status) {
+  function reportVoiceFailure(status, terminal = false) {
     session.voiceError = status;
+    if (terminal) session.elevenlabs = false;
     byId("voiceValue").textContent = status;
     byId("voiceLink").textContent = status.toLowerCase();
     byId("integrationValue").textContent = `IA · ${status}`;
@@ -224,15 +246,45 @@
     } catch (error) {
       if (generation === speechGeneration) {
         finishSpeaking();
+        const errorCode = error?.message;
         const status = {
           elevenlabs_quota: "ElevenLabs sem créditos",
           elevenlabs_authorization: "ElevenLabs sem autorização",
           elevenlabs_rate_limit: "ElevenLabs no limite",
-        }[error?.message] || "ElevenLabs indisponível";
-        reportVoiceFailure(status);
+        }[errorCode] || "ElevenLabs indisponível";
+        reportVoiceFailure(status, ["elevenlabs_quota", "elevenlabs_authorization"].includes(errorCode));
       }
       return false;
     }
+  }
+
+  async function monitorDeviceCommand(jobId, message) {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1200));
+      let data;
+      try {
+        data = await request(`/device-command?id=${encodeURIComponent(jobId)}`);
+      } catch {
+        continue;
+      }
+      if (data?.pairing_required) return;
+      if (!data?.job) continue;
+      renderLiveCanvas(data);
+      byId("activityValue").textContent = `${data.message} · ação ${jobId}`;
+      if (["succeeded", "failed"].includes(data.job.status)) {
+        const text = data.job.result ? `${data.message}\n${data.job.result}` : data.message;
+        message.querySelector("span").textContent = text;
+        message.classList.toggle("error", data.job.status === "failed");
+        session.responseState = data.visual_state || (data.job.status === "succeeded" ? "success" : "error");
+        byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : "Ação falhou";
+        settleState();
+        return;
+      }
+      message.querySelector("span").textContent = data.message;
+      session.responseState = "local";
+      settleState();
+    }
+    message.querySelector("span").textContent = "O pedido continua na fila; o worker do Mac não confirmou dentro de um minuto.";
   }
 
   function showResponse(data) {
@@ -243,6 +295,10 @@
       renderLiveCanvas({ message: error });
       settleState();
       speak(error);
+      if (data?.pairing_required) {
+        dialog.showModal();
+        window.setTimeout(() => byId("ownerTokenInput").focus(), 30);
+      }
       return;
     }
 
@@ -282,8 +338,11 @@
       replay.textContent = played ? "Reproduzir novamente" : "Tentar voz novamente";
     });
     byId("activityValue").textContent = data.executed_locally ? `Executado localmente · ${data.intent || "ação"}` : answer;
-    byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
+    byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.job?.id ? "Ação enviada ao Mac" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
     renderLiveCanvas(data);
+    if (data.job?.id && ["pending", "running"].includes(data.job.status)) {
+      monitorDeviceCommand(data.job.id, message);
+    }
     if (session.responseState === "memory") window.dispatchEvent(new CustomEvent("jarvis-memory-refresh"));
     settleState();
     speak(answer);
@@ -380,6 +439,7 @@
       byId("serviceValue").textContent = status.service || "jarvis-web";
       byId("aiValue").textContent = status.ai?.configured ? "OpenRouter conectado" : "OpenRouter não configurado";
       byId("modelValue").textContent = status.ai?.model || "—";
+      session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
       session.elevenlabs = Boolean(status.voice?.configured);
       session.voiceError = "";
       byId("voiceValue").textContent = session.elevenlabs
@@ -391,6 +451,7 @@
         status.ai?.configured ? "IA" : "",
         status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
         status.automations?.n8n?.configured ? "n8n" : "",
+        session.paired && status.device_bridge?.configured ? "Mac pareado" : "",
         status.runtime === "local_web_preview" ? "worker local" : "",
       ].filter(Boolean);
       byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
@@ -398,6 +459,26 @@
         ? "Agenda e tarefas conectadas ao n8n."
         : "Agenda aguarda o webhook n8n; ações do Mac usam o worker local.";
       byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
+      const tokenInput = byId("ownerTokenInput");
+      tokenInput.value = ownerToken();
+      byId("pairingHint").textContent = session.paired
+        ? "Navegador pareado. O token permanece somente neste navegador."
+        : status.owner_pairing?.required
+          ? "Informe o token privado do Theo para memória, agenda e ações no Mac."
+          : "Pareamento ainda não foi exigido neste ambiente.";
+      const workerValue = byId("workerValue");
+      if (session.paired && status.device_bridge?.configured) {
+        const worker = await request("/device-worker-status");
+        session.deviceOnline = Boolean(worker.online);
+        workerValue.textContent = worker.online
+          ? `Mac conectado · ${worker.hostname || "worker local"}`
+          : "Mac offline · abra ou instale o worker local";
+      } else {
+        session.deviceOnline = status.runtime === "local_web_preview";
+        workerValue.textContent = session.paired
+          ? "Ponte remota ainda não configurada"
+          : "Navegador não pareado";
+      }
       setVisualState(status.ok ? "idle" : "offline");
     } catch {
       byId("connectionText").textContent = "offline";
@@ -411,6 +492,32 @@
     sendCommand(input.value);
   });
   byId("detailsButton").addEventListener("click", () => dialog.showModal());
+  byId("saveOwnerToken").addEventListener("click", async () => {
+    const token = byId("ownerTokenInput").value.trim();
+    if (!token) {
+      byId("pairingHint").textContent = "Cole o token privado antes de conectar.";
+      return;
+    }
+    try {
+      localStorage.setItem(OWNER_TOKEN_KEY, token);
+    } catch {
+      byId("pairingHint").textContent = "Este navegador bloqueou o armazenamento local.";
+      return;
+    }
+    byId("pairingHint").textContent = "Validando pareamento…";
+    await boot();
+    if (session.paired) dialog.close();
+  });
+  byId("clearOwnerToken").addEventListener("click", async () => {
+    try {
+      localStorage.removeItem(OWNER_TOKEN_KEY);
+    } catch {
+      // A sessão ainda será atualizada mesmo se o navegador bloquear storage.
+    }
+    byId("ownerTokenInput").value = "";
+    session.paired = false;
+    await boot();
+  });
   muteButton.addEventListener("click", () => {
     session.muted = !session.muted;
     try {

@@ -54,7 +54,15 @@ function makeEffectCanvas() {
 
 async function loadMemoryLabels() {
   try {
-    const response = await fetch("/memory-tree");
+    let pairingValue = "";
+    try {
+      pairingValue = localStorage.getItem("jarvis-owner-token-v1") || "";
+    } catch {
+      // O visual segue com rótulos locais quando o storage está indisponível.
+    }
+    const response = await fetch("/memory-tree", {
+      headers: pairingValue ? { "X-Jarvis-Owner-Token": pairingValue } : {},
+    });
     if (!response.ok) throw new Error("memory tree unavailable");
     const data = await response.json();
     return (data.nodes || []).slice(0, 28).map((node) => String(node.label || node.name || "MEMORY").slice(0, 18).toUpperCase());

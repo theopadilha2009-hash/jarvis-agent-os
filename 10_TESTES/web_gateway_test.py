@@ -25,6 +25,7 @@ class WebGatewayTest(unittest.TestCase):
         cls.previous_local_exec = os.environ.get("JARVIS_WEB_LOCAL_EXEC")
         cls.previous_supabase_url = os.environ.pop("SUPABASE_URL", None)
         cls.previous_supabase_key = os.environ.pop("SUPABASE_SERVICE_ROLE_KEY", None)
+        cls.previous_owner_token = os.environ.pop("JARVIS_OWNER_TOKEN", None)
         os.environ["JARVIS_WEB_LOCAL_EXEC"] = "0"
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), MODULE.handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
@@ -44,6 +45,8 @@ class WebGatewayTest(unittest.TestCase):
             os.environ["SUPABASE_URL"] = cls.previous_supabase_url
         if cls.previous_supabase_key is not None:
             os.environ["SUPABASE_SERVICE_ROLE_KEY"] = cls.previous_supabase_key
+        if cls.previous_owner_token is not None:
+            os.environ["JARVIS_OWNER_TOKEN"] = cls.previous_owner_token
 
     def request(self, path, method="GET", payload=None):
         body = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -94,6 +97,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'input_mode: options.source || "text"', app_js)
         self.assertIn("Áudio não reproduzido".encode(), app_js)
         self.assertIn(b"memory-command", app_js)
+        self.assertIn(b"X-Jarvis-Owner-Token", app_js)
+        self.assertIn(b"monitorDeviceCommand", app_js)
+        self.assertIn(b"saveOwnerToken", app_js)
         self.assertIn(b"ElevenLabs sem cr\xc3\xa9ditos", app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
 
@@ -114,6 +120,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'GPU 3D desativada', visual_js)
         self.assertIn(b"FRAME_INTERVAL_MS", visual_js)
         self.assertIn(b"document.hidden", visual_js)
+        self.assertIn(b"X-Jarvis-Owner-Token", visual_js)
 
         status, headers, three_js = self.request("/ui/vendor/three.module.js")
         self.assertEqual(status, 200)
@@ -161,6 +168,94 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(close_status, 200)
         self.assertEqual(closed["intent"], "close_application")
         self.assertEqual(closed["local_command"], "./jarvis computer close Spotify")
+
+    def test_remote_device_action_requires_owner_pairing(self):
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            payload, status = MODULE.command_payload(
+                {"command": "abre a Calculadora"},
+                owner_authenticated=False,
+            )
+        self.assertEqual(status, 401)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["pairing_required"])
+        self.assertNotIn(env["JARVIS_OWNER_TOKEN"], json.dumps(payload))
+
+    def test_paired_remote_device_action_enters_supabase_queue(self):
+        class FakeSupabaseResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, *_args):
+                return json.dumps([{
+                    "id": 91,
+                    "action": "open_application",
+                    "target": "Calculator",
+                    "status": "pending",
+                }]).encode("utf-8")
+
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeSupabaseResponse()) as request:
+                payload, status = MODULE.command_payload(
+                    {"command": "abre a Calculadora"},
+                    owner_authenticated=True,
+                )
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["status_real"], "device_command_queued")
+        self.assertEqual(payload["job"]["id"], 91)
+        sent_request = request.call_args.args[0]
+        self.assertEqual(sent_request.method, "POST")
+        self.assertIn("/rest/v1/jarvis_device_commands", sent_request.full_url)
+
+    def test_device_command_status_uses_persisted_result(self):
+        class FakeSupabaseResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, *_args):
+                return json.dumps([{
+                    "id": 91,
+                    "action": "open_application",
+                    "target": "Calculator",
+                    "status": "succeeded",
+                    "result": "Aplicativo aberto e confirmado.",
+                    "created_at": "2026-08-07T12:00:00Z",
+                    "claimed_at": "2026-08-07T12:00:01Z",
+                    "completed_at": "2026-08-07T12:00:02Z",
+                }]).encode("utf-8")
+
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeSupabaseResponse()):
+                payload, status = MODULE.supabase_device_command("91")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "device_command_succeeded")
+        self.assertEqual(payload["job"]["result"], "Aplicativo aberto e confirmado.")
+
+    def test_status_reports_pairing_without_exposing_token(self):
+        with patch.dict(os.environ, {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}, clear=False):
+            payload = MODULE.status_payload(owner_authenticated=True)
+        self.assertTrue(payload["owner_pairing"]["required"])
+        self.assertTrue(payload["owner_pairing"]["authenticated"])
+        self.assertNotIn("owner-pairing-test-value", json.dumps(payload))
 
     def test_open_app_can_execute_local_computer_adapter(self):
         completed = MODULE.subprocess.CompletedProcess(

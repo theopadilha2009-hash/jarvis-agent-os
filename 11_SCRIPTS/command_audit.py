@@ -96,6 +96,7 @@ CRITICAL_COMMANDS = [
     "storage-scan",
     "system-memory",
     "computer",
+    "computer-worker",
     "files-triage",
     "run-list",
     "run-show",
