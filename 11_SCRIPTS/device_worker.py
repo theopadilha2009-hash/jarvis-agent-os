@@ -517,7 +517,10 @@ def launch_payload() -> dict:
         "ProcessType": "Background",
         "EnvironmentVariables": {
             "PYTHONUNBUFFERED": "1",
-            "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+            "PATH": (
+                f"{Path.home() / '.local' / 'bin'}:"
+                "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+            ),
         },
         "StandardOutPath": str(LOG_DIR / "device-worker.log"),
         "StandardErrorPath": str(LOG_DIR / "device-worker-error.log"),
