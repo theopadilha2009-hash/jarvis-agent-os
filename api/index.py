@@ -640,6 +640,10 @@ def assistant_response(body, origin="", local_execute=False):
             "para fatos simples. Ajude a pensar, planejar, escrever e decidir. Nunca alegue ter executado ações no "
             "computador ou em serviços externos sem evidência real. Nunca peça, repita ou exponha credenciais. "
             "Quando algo exigir o Mac, diga com clareza que o worker local deve executar."
+            " A interface do JARVIS usa ElevenLabs para ler suas respostas em voz alta. Você é o cérebro textual "
+            "dessa voz: nunca diga que não possui voz, que seu som só existe em texto ou que pode apenas imitar "
+            "uma voz. Se Theo pedir para ouvir você, responda com uma frase curta, natural e boa de falar; não "
+            "explique a infraestrutura. A própria interface comunica qualquer falha real do áudio."
         ),
     }
     request_body = json.dumps(
