@@ -30,8 +30,8 @@ UI_ASSET_DIR = ROOT / "11_SCRIPTS" / "jarvis_ui_assets"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openrouter/free"
 ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
-DEFAULT_ELEVENLABS_VOICE_ID = "tS45q0QcrDHqHoaWdCDR"
-DEFAULT_ELEVENLABS_MODEL = "eleven_v3"
+DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
+DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
 MAX_BODY_BYTES = 32_768
 MAX_PROMPT_CHARS = 8_000
 
@@ -444,7 +444,7 @@ def elevenlabs_speech(body):
     if not api_key:
         return {
             "ok": False,
-            "status_real": "browser_voice_fallback_required",
+            "status_real": "elevenlabs_key_required",
             "error": "ElevenLabs ainda não está configurado.",
             "fallback": "text_only",
         }, 503
