@@ -174,7 +174,10 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: clean }),
       });
-      if (!response.ok) throw new Error("elevenlabs unavailable");
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}));
+        throw new Error(failure.error_code || "elevenlabs_unavailable");
+      }
       currentAudioUrl = URL.createObjectURL(await response.blob());
       currentAudio = new Audio(currentAudioUrl);
       currentAudio.onplay = () => {
@@ -187,10 +190,15 @@
         if (generation === speechGeneration) finishSpeaking();
       };
       await currentAudio.play();
-    } catch {
+    } catch (error) {
       if (generation === speechGeneration) {
         finishSpeaking();
-        byId("voiceValue").textContent = "ElevenLabs indisponível";
+        const status = {
+          elevenlabs_quota: "ElevenLabs sem créditos",
+          elevenlabs_authorization: "ElevenLabs sem autorização",
+          elevenlabs_rate_limit: "ElevenLabs no limite",
+        }[error?.message] || "ElevenLabs indisponível";
+        byId("voiceValue").textContent = status;
       }
     }
     return true;

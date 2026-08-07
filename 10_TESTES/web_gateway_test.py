@@ -85,6 +85,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b"SpeechRecognition", app_js)
         self.assertIn(b"memory-command", app_js)
+        self.assertIn(b"ElevenLabs sem cr\xc3\xa9ditos", app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
 
         status, headers, visual_js = self.request("/ui/jarvis-3d.js")
@@ -316,6 +317,16 @@ class WebGatewayTest(unittest.TestCase):
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):
             payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
         self.assertEqual(status, 503)
+        self.assertEqual(payload["fallback"], "text_only")
+
+    def test_elevenlabs_quota_error_is_reported_honestly(self):
+        provider_error = HTTPError("https://api.elevenlabs.io", 402, "payment required", {}, None)
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key"}, clear=False):
+            with patch.object(MODULE, "urlopen", side_effect=provider_error):
+                payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
+        self.assertEqual(status, 502)
+        self.assertEqual(payload["error_code"], "elevenlabs_quota")
+        self.assertIn("sem créditos", payload["error"])
         self.assertEqual(payload["fallback"], "text_only")
 
     def test_agenda_routes_to_configured_n8n_webhook(self):
