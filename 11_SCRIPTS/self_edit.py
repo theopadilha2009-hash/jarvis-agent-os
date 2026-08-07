@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +44,22 @@ def slug(value: str) -> str:
     return safe or "melhoria"
 
 
+def format_duration(seconds: float) -> str:
+    total = max(0.0, seconds)
+    minutes, remaining_seconds = divmod(total, 60)
+    hours, remaining_minutes = divmod(int(minutes), 60)
+    if hours:
+        return f"{hours}h {remaining_minutes:02d}m {remaining_seconds:06.3f}s"
+    if minutes:
+        return f"{int(minutes)}m {remaining_seconds:06.3f}s"
+    return f"{remaining_seconds:.3f}s"
+
+
+def print_footer(started_at: float, production: str) -> None:
+    print(f"Duração total: {format_duration(time.monotonic() - started_at)}.")
+    print(production)
+
+
 def changed_files(worktree: Path) -> list[str]:
     result = run(["git", "status", "--short"], worktree)
     if result.returncode != 0:
@@ -64,7 +81,8 @@ def validation_commands(files: list[str]) -> list[list[str]]:
     return commands
 
 
-def execute(goal: str, dry_run: bool = False) -> int:
+def execute(goal: str, dry_run: bool = False, started_at: float | None = None) -> int:
+    started_at = time.monotonic() if started_at is None else started_at
     request = " ".join(str(goal or "").split()).strip()
     if len(request) < 12:
         raise SelfEditError("Descreva a melhoria dos scripts com pelo menos 12 caracteres.")
@@ -94,7 +112,7 @@ def execute(goal: str, dry_run: bool = False) -> int:
     print(f"Codex CLI: {'disponível' if codex else 'indisponível'}.")
     if preview:
         print("Modo preview: nenhum worktree, diff ou commit criado.")
-        print("Produção: nada alterado.")
+        print_footer(started_at, "Produção: nada alterado.")
         return 0
 
     RUN_ROOT.joinpath("worktrees").mkdir(parents=True, exist_ok=True)
@@ -175,7 +193,7 @@ No fim, relate arquivos alterados, testes e o que não foi validado.
     print(f"Commit local: {commit}")
     print(f"Relatório do agente: {report}")
     print("Testes: bash -n, diff --check, py_compile aplicável e command-audit passaram antes do checkpoint; safety-gate passou com a árvore limpa.")
-    print("Produção: nada alterado; branch local não enviada nem mesclada.")
+    print_footer(started_at, "Produção: nada alterado; branch local não enviada nem mesclada.")
     return 0
 
 
@@ -187,13 +205,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    started_at = time.monotonic()
     args = build_parser().parse_args()
     try:
-        return execute(" ".join(args.goal), dry_run=args.dry_run)
+        return execute(" ".join(args.goal), dry_run=args.dry_run, started_at=started_at)
     except SelfEditError as error:
         print("JARVIS Self Edit")
         print(f"Status real: autoedição não concluída — {error}")
-        print("Produção: nada alterado.")
+        print_footer(started_at, "Produção: nada alterado.")
         return 1
 
 

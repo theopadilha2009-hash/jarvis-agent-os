@@ -692,6 +692,7 @@ CHECKS = [
             "Status real:",
             "Codex CLI:",
             "Modo preview",
+            "Duração total:",
             "Produção: nada alterado",
         ],
     },
