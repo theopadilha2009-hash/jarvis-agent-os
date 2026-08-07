@@ -617,14 +617,20 @@ def cmd_storage_scan(args: argparse.Namespace) -> None:
             break
 
     largest.sort(key=lambda item: item[0], reverse=True)
+    disk = shutil.disk_usage(target)
     print("JARVIS — Storage Scan")
     print("Status real: somente metadados; nenhum conteúdo lido e nenhum arquivo apagado.")
     print(f"pasta: {_safe_path(target)}")
+    print(f"disco total: {_format_bytes(disk.total)}")
+    print(f"disco usado: {_format_bytes(disk.used)}")
+    print(f"disco livre: {_format_bytes(disk.free)}")
     print(f"arquivos analisados: {count}")
     print(f"tamanho observado: {_format_bytes(total)}")
     print(f"erros ignorados: {skipped}")
     if stopped:
         print(f"AVISO: limite de {args.max_files} arquivos atingido; resultado parcial.")
+    if count == 0 and skipped:
+        print("AVISO: o serviço não recebeu permissão para listar esta pasta; o resumo do disco acima continua válido.")
     print("")
     print(f"## Maiores arquivos acima de {args.min_mb} MB")
     if not largest:

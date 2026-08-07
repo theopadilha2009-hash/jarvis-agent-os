@@ -88,6 +88,24 @@ class PersonalToolsTest(unittest.TestCase):
             self.assertTrue(copied)
             self.assertEqual(target.read_bytes(), source.read_bytes())
 
+    def test_storage_scan_always_reports_real_disk_summary(self):
+        with TemporaryDirectory() as directory:
+            Path(directory, "sample.bin").write_bytes(b"real-metadata")
+            output = io.StringIO()
+            with redirect_stdout(output):
+                MODULE.cmd_storage_scan(Namespace(
+                    path=directory,
+                    top=3,
+                    min_mb=0,
+                    max_files=100,
+                    include_hidden=False,
+                ))
+        text = output.getvalue()
+        self.assertIn("disco total:", text)
+        self.assertIn("disco usado:", text)
+        self.assertIn("disco livre:", text)
+        self.assertIn("arquivos analisados: 1", text)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
