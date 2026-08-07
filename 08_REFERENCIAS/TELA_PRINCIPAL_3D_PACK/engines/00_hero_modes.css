@@ -1,0 +1,150 @@
+/* EXTRACT CSS — hero modes Avatar/Core/Source/Forge (cockpit.html ~492-640) */
+  --hue-avatar:#8a6cff; --hue-core:#9b7bff; --hue-source:#7fb6ff; --hue-forge:#c06bff;
+  --acc-dyn:#8a6cff;
+}
+.hero{ --acc-dyn: var(--hue-avatar); }
+/* mode switch pill */
+.modeSwitch{
+  position:absolute; z-index:7; top:34px; left:50%; transform:translateX(-50%);
+  display:flex; gap:4px; padding:5px; border-radius:999px;
+  background:linear-gradient(180deg,rgba(22,24,38,.74),rgba(9,10,17,.62));
+  border:1px solid rgba(255,255,255,.085);
+  box-shadow:0 14px 38px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.07);
+  backdrop-filter:blur(16px) saturate(125%); -webkit-backdrop-filter:blur(16px) saturate(125%);
+}
+.modeSwitch button{
+  appearance:none; cursor:pointer; border:0; background:transparent; color:var(--muted);
+  font:600 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.22em;
+  padding:9px 19px; border-radius:999px; transition:color .25s ease, background .25s ease, box-shadow .25s ease;
+  text-transform:uppercase;
+}
+.modeSwitch button:hover{ color:var(--ice); }
+.modeSwitch button.on{
+  color:#fff;
+  background:radial-gradient(120% 120% at 50% 0%, color-mix(in srgb,var(--acc-dyn) 42%, transparent), transparent 70%),
+             linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--acc-dyn) 45%, transparent),
+             0 6px 22px color-mix(in srgb,var(--acc-dyn) 30%, transparent);
+}
+.modeSwitch button:focus-visible{ outline:2px solid var(--acc-dyn); outline-offset:2px; }
+
+/* avatar mount — layered like #bust3d, framed a touch wider for a bust read */
+#avatar3d{
+  position:absolute; inset:-4% -8%; z-index:5; display:block;
+  pointer-events:none; opacity:0; transition:opacity .42s ease;
+}
+#avatar3d canvas{ width:100%!important; height:100%!important; display:block; }
+/* abstract obsidian-mask overlay: dissolve the edges + torso into the dark
+   so the GLB reads as an emerging AI mask, never a full human figure */
+/* soft "emerging from dark" feather — NO hard rectangular box.
+   Only a whisper of edge vignette (round, not boxy) + a gentle bottom ground
+   so the bust dissolves into the hero instead of sitting in a black panel. */
+#avatar3d::before{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:6;
+  background:
+    radial-gradient(82% 92% at 50% 44%, transparent 60%, rgba(8,6,18,.18) 100%),
+    linear-gradient(180deg, transparent 52%, rgba(6,4,14,.55) 90%, rgba(5,4,12,.78) 100%);
+}
+/* screen-space scanlines over avatar — slow, fine, barely there */
+#avatar3d::after{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:6; opacity:.13; mix-blend-mode:screen;
+  background:repeating-linear-gradient(to bottom, rgba(150,120,255,.05) 0 1px, transparent 1px 6px);
+  animation:scanDrift 22s linear infinite;
+}
+@keyframes scanDrift{ from{background-position:0 0} to{background-position:0 72px} }
+
+/* source + forge mounts */
+.heroMount{
+  position:absolute; inset:0; z-index:5; display:block; opacity:0; pointer-events:none;
+  transition:opacity .42s ease;
+}
+.heroMount canvas{ width:100%!important; height:100%!important; display:block }
+
+/* mode visibility orchestration via data-mode on #figure */
+#figure[data-mode="avatar"] #avatar3d{ opacity:1; }
+#figure[data-mode="core"] #bust3d{ opacity:1!important; }
+#figure:not([data-mode="core"]) #bust3d{ opacity:0; transition:opacity .42s ease; }
+#figure:not([data-mode="core"]) #bustFallback{ opacity:0!important; transition:opacity .42s ease; }
+#figure[data-mode="source"] #sourceMap{ opacity:1; }
+#figure[data-mode="forge"] #forgeStage{ opacity:1; }
+/* SOURCE fills the hero band but stays ON-SCREEN (no huge off-canvas breakout that
+   pushed clusters out of view). Pointer events on so the user can zoom + pan the graph. */
+#figure[data-mode="source"] #sourceMap{ left:-7%; right:-7%; top:0; bottom:0; pointer-events:auto; cursor:grab; }
+#figure[data-mode="source"] #sourceMap.grabbing{ cursor:grabbing; }
+#figure[data-mode="forge"]  #forgeStage{ left:-26%; right:-26%; top:-6%;  bottom:-6%; }
+
+/* per-mode hero composition — same system, distinct intent.
+   The wordmark recedes for graph/build modes so the entity/graph reads,
+   and stays prominent for avatar/core. (Aura stays state-driven for error feedback.) */
+.hero[data-mode="avatar"] .giant{ opacity:.92; }
+/* keep the dark backing soft in avatar mode so it never reads as a black block */
+.hero[data-mode="avatar"] .figure .haze{ opacity:.62; }
+.hero[data-mode="core"]   .giant{ opacity:1; }
+.hero[data-mode="source"] .giant{ opacity:.5; }
+.hero[data-mode="source"] .wordEcho{ opacity:.28; }
+.hero[data-mode="forge"]  .giant{ opacity:.62; }
+.hero[data-mode="source"] .heroCuts,
+.hero[data-mode="forge"]  .heroCuts{ opacity:.28; }
+
+/* editorial microtexts around the hero */
+.heroMicro{ position:absolute; z-index:2; pointer-events:none;
+  font:600 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.34em;
+  color:rgba(154,163,184,.40); text-transform:uppercase; white-space:nowrap;
+  opacity:0; transition:opacity .5s ease; mix-blend-mode:screen;
+}
+.heroMicro.show{ opacity:1; }
+.heroMicro.m1{ top:22%; left:6%; transform:rotate(-90deg); transform-origin:left top; }
+.heroMicro.m2{ bottom:16%; right:5%; }
+.heroMicro.m3{ top:30%; right:4%; transform:rotate(90deg); transform-origin:right top; }
+.heroMicro.m4{ bottom:24%; left:6%; }
+
+/* forge call-to-action */
+.forgeCTA{
+  position:absolute; z-index:7; left:50%; bottom:18px; transform:translateX(-50%);
+  display:none; align-items:center; gap:8px; padding:9px 16px; border-radius:999px; cursor:pointer;
+  font:700 11px/1 ui-monospace,Menlo,monospace; letter-spacing:.16em; color:#fff; text-transform:uppercase;
+  border:1px solid color-mix(in srgb,var(--hue-forge) 45%, transparent);
+  background:radial-gradient(120% 140% at 50% 0%, color-mix(in srgb,var(--hue-forge) 40%, transparent), rgba(12,13,20,.7) 75%);
+  box-shadow:0 8px 26px color-mix(in srgb,var(--hue-forge) 28%, transparent), inset 0 1px 0 rgba(255,255,255,.08);
+  transition:transform .18s ease, box-shadow .25s ease;
+}
+.forgeCTA:hover{ transform:translateX(-50%) translateY(-1px); }
+.forgeCTA.show{ display:inline-flex; }
+.forgeCTA .spark{ width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 10px var(--hue-forge); }
+
+/* stronger wordmark layering */
+.hero .giant{ position:relative; }
+.hero .giant::after{
+  content:"JARVIS"; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  background-size:240% 100%; animation:wmScan 9s linear infinite; opacity:.0;
+}
+.hero.thinking .giant::after{ opacity:.65; animation-duration:3.2s; }
+@keyframes wmScan{ from{background-position:160% 0} to{background-position:-60% 0} }
+/* horizontal fracture cuts on the wordmark */
+.hero .giant::before{
+  content:""; position:absolute; left:-4%; right:-4%; top:46%; height:2px; pointer-events:none;
+  background:linear-gradient(90deg,transparent, color-mix(in srgb,var(--acc-dyn) 60%, transparent), transparent);
+  opacity:.0; transform:translateY(0); animation:cutSlide 6.5s ease-in-out infinite;
+}
+.hero.thinking .giant::before{ opacity:.5; animation-duration:2.6s; }
+@keyframes cutSlide{ 0%,100%{transform:translateY(-60px);opacity:0} 50%{transform:translateY(60px);opacity:.6} }
+
+/* state flash overlay on hero */
+.hero .stateFlash{ position:absolute; inset:0; z-index:8; pointer-events:none; opacity:0; }
+.hero .stateFlash.ok{ animation:flashOk 1.6s ease-out; }
+.hero .stateFlash.bad{ animation:flashBad 1.6s ease-out; }
+@keyframes flashOk{ 0%{opacity:.0} 12%{opacity:.5; box-shadow:inset 0 0 120px color-mix(in srgb,var(--acc-dyn) 60%, transparent)} 100%{opacity:0} }
+@keyframes flashBad{ 0%{opacity:.0} 12%{opacity:.55; box-shadow:inset 0 0 120px color-mix(in srgb,var(--bad) 60%, transparent)} 100%{opacity:0} }
+
+@media (prefers-reduced-motion: reduce){
+  #avatar3d::after, .hero .giant::after, .hero .giant::before{ animation:none!important; }
+}
+/* ===== END JARVIS HERO OVERHAUL ===== */
+
+/* === JARVIS BLOCK 90 — SOURCES CARDS UI === */
+.srcdash{display:flex; flex-direction:column; gap:14px; color:var(--ice);}
+.srcdash-head{display:flex; justify-content:space-between; gap:14px; align-items:flex-start; padding:14px 16px; border:1px solid var(--line-2); border-radius:16px; background:linear-gradient(180deg, rgba(124,92,255,.10), rgba(255,255,255,.025));}
+.srcdash-title{font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--violet-soft);}
+.srcdash-sub{margin-top:6px; color:var(--muted); font-size:12px; line-height:1.45;}

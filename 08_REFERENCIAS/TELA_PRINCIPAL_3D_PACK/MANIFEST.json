@@ -1,0 +1,108 @@
+{
+  "name": "TELA_PRINCIPAL_3D_PACK",
+  "created_at": "2026-08-07T12:46:03Z",
+  "purpose": "Snapshot dos 4 visuais da tela principal do JARVIS para o Claude editar/restaurar.",
+  "runtime_active_model": "11_SCRIPTS/jarvis_ui_assets/models/jarvis-humanoid.glb",
+  "modes": [
+    {
+      "id": "avatar",
+      "label": "Avatar / boneco 3D",
+      "kind": "glb+three",
+      "mount": "#avatar3d",
+      "default": true,
+      "asset": "models/01_avatar_boneco_humanoid.glb",
+      "engine": "engines/01_avatar_engine.js"
+    },
+    {
+      "id": "core",
+      "label": "Core cristal procedural",
+      "kind": "procedural-three",
+      "mount": "#bust3d",
+      "asset": null,
+      "engine": "engines/02_core_engine.js"
+    },
+    {
+      "id": "source",
+      "label": "Source constellation",
+      "kind": "canvas2d",
+      "mount": "#sourceMap",
+      "asset": null,
+      "engine": "engines/03_source_engine.js"
+    },
+    {
+      "id": "forge",
+      "label": "Forge / forja",
+      "kind": "canvas2d",
+      "mount": "#forgeStage",
+      "asset": null,
+      "engine": "engines/04_forge_engine.js"
+    }
+  ],
+  "files": [
+    {
+      "path": "CLAUDE_HANDOFF.md",
+      "bytes": 2591,
+      "sha256": "361f3815ae1f715e86fd0c2244c1807beeee0314cbce71a9c35a538bcb663130"
+    },
+    {
+      "path": "cockpit_snapshot/cockpit.html",
+      "bytes": 185010,
+      "sha256": "fdf5938a8788afa3594d7319629f8bdc19ac5a1e63a8488665a5af7437f9d56b"
+    },
+    {
+      "path": "engines/00_hero_modes.css",
+      "bytes": 8760,
+      "sha256": "084faa77f070bb9d9aa6786777e12205c03ce9d5208029e921ebeacc2e136ea0"
+    },
+    {
+      "path": "engines/01_avatar_engine.js",
+      "bytes": 7953,
+      "sha256": "4de52ca6883a83a61dbafc756bdb6fbeabb0ec0433035efa3eb733494d165fe0"
+    },
+    {
+      "path": "engines/02_core_engine.js",
+      "bytes": 14812,
+      "sha256": "4a2c9648290f6abc9d67c58d6192e2957f7a8962e94ab4e714313e2334447fe8"
+    },
+    {
+      "path": "engines/03_source_engine.js",
+      "bytes": 9272,
+      "sha256": "8055adb65457382dc4369e473eaf8f948941a6ba0109d96ddb6990997a4aa278"
+    },
+    {
+      "path": "engines/04_forge_engine.js",
+      "bytes": 4097,
+      "sha256": "c40ab8e7a9fb88764b44b959a3c6a4ddbacbfd06d7ad5a78031b3d06c5c440c5"
+    },
+    {
+      "path": "engines/05_mode_orchestration.js",
+      "bytes": 7263,
+      "sha256": "37ad57f487171eff1d8409d7d323919c46861434b60ee1b7617fa8b5d9a07e50"
+    },
+    {
+      "path": "models/01_avatar_boneco_humanoid.glb",
+      "bytes": 2975104,
+      "sha256": "a30ae1e010efd9cf438d486591fc068d01e48a7b34eaf47616c7396abbc1513e"
+    },
+    {
+      "path": "runtime_web/index.html",
+      "bytes": 7866,
+      "sha256": "3ac883f969a42699629a73fee8f1e5118fc83dd77a4373d684ea6c14e9fc0399"
+    },
+    {
+      "path": "runtime_web/jarvis-3d.js",
+      "bytes": 12814,
+      "sha256": "0785bd26fb09ac34fa5def1ec37774fd8caef17177a5c86c89610efeb646d02e"
+    },
+    {
+      "path": "runtime_web/jarvis.css",
+      "bytes": 16416,
+      "sha256": "0b6f228da8f71e1d6d53416e0dd926c4f58565434bea9ba886996b8956f525a4"
+    },
+    {
+      "path": "runtime_web/jarvis.js",
+      "bytes": 13732,
+      "sha256": "e34a06019d07d40dc76984fef0d7af30edb48993f095cc3a12609856719b6b69"
+    }
+  ]
+}
