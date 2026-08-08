@@ -32,8 +32,8 @@ body {
   overflow: hidden;
   color: var(--text);
   background:
-    radial-gradient(circle at 50% 28%, rgba(8, 145, 178, 0.14), transparent 32%),
-    radial-gradient(circle at 50% 110%, rgba(91, 33, 182, 0.12), transparent 38%),
+    radial-gradient(circle at 50% 30%, rgba(8, 145, 178, 0.1), transparent 34%),
+    radial-gradient(circle at 50% 105%, rgba(37, 99, 235, 0.06), transparent 42%),
     var(--ink);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -50,7 +50,7 @@ button {
 .app {
   height: 100%;
   display: grid;
-  grid-template-rows: 62px minmax(0, 1fr);
+  grid-template-rows: 54px minmax(0, 1fr);
 }
 
 .topbar {
@@ -59,9 +59,9 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 22px;
   border-bottom: 1px solid var(--line);
-  background: rgba(2, 8, 13, 0.88);
+  background: rgba(2, 8, 13, 0.76);
   backdrop-filter: blur(18px);
 }
 
@@ -72,7 +72,7 @@ button {
 }
 
 .identity {
-  gap: 12px;
+  gap: 10px;
 }
 
 .identity-name {
@@ -81,8 +81,8 @@ button {
 }
 
 .identity-name b {
-  font-size: 12px;
-  letter-spacing: 0.32em;
+  font-size: 11px;
+  letter-spacing: 0.28em;
 }
 
 .identity-name small {
@@ -90,12 +90,6 @@ button {
   font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.identity-system {
-  margin-left: 3px;
-  padding-left: 14px;
-  border-left: 1px solid rgba(103, 232, 249, 0.14);
 }
 
 .identity small,
@@ -107,19 +101,19 @@ button {
 
 .identity-mark {
   position: relative;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   display: grid;
   place-items: center;
-  border-radius: 13px;
-  background: linear-gradient(145deg, rgba(20, 63, 78, 0.62), rgba(3, 13, 20, 0.9));
-  box-shadow: inset 0 0 0 1px rgba(151, 239, 255, 0.22), 0 0 22px rgba(34, 211, 238, 0.14);
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
 }
 
 .identity-mark svg {
-  width: 34px;
-  height: 34px;
+  width: 31px;
+  height: 31px;
   overflow: visible;
   filter: drop-shadow(0 0 6px rgba(103, 232, 249, 0.38));
 }
@@ -169,12 +163,20 @@ button {
 
 .quiet-button {
   margin-left: 8px;
-  padding: 6px 9px;
+  min-height: 30px;
+  padding: 5px 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
+  background: transparent;
   color: var(--muted);
   cursor: pointer;
+}
+
+.system-button {
+  width: 32px;
+  padding: 0;
+  font-size: 14px;
+  letter-spacing: 0.08em;
 }
 
 .quiet-button:hover {
@@ -221,8 +223,8 @@ button {
   inset: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at center 39%, color-mix(in srgb, var(--state) 12%, transparent), transparent 27%),
-    linear-gradient(180deg, rgba(2, 11, 18, 0.34), rgba(1, 5, 9, 0.88));
+    radial-gradient(circle at center 38%, color-mix(in srgb, var(--state) 9%, transparent), transparent 29%),
+    linear-gradient(180deg, rgba(2, 11, 18, 0.2), rgba(1, 5, 9, 0.84));
   transition: background 500ms ease;
 }
 
@@ -235,18 +237,18 @@ button {
 
 .presence::before {
   z-index: 1;
-  inset: 2% 22% 19%;
-  border: 1px solid color-mix(in srgb, var(--state) 16%, transparent);
+  inset: 7% 30% 30%;
+  border: 1px solid color-mix(in srgb, var(--state) 10%, transparent);
   border-radius: 50%;
   box-shadow:
-    0 0 90px color-mix(in srgb, var(--state) 8%, transparent),
-    inset 0 0 70px rgba(0, 0, 0, 0.7);
+    0 0 100px color-mix(in srgb, var(--state) 5%, transparent),
+    inset 0 0 80px rgba(0, 0, 0, 0.68);
 }
 
 .presence::after {
   z-index: 7;
   inset: 0;
-  opacity: 0.13;
+  opacity: 0.035;
   background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(103, 232, 249, 0.09) 4px);
   mix-blend-mode: screen;
 }
@@ -254,25 +256,25 @@ button {
 .grid-plane {
   position: absolute;
   z-index: 0;
-  inset: 38% -20% -45%;
+  inset: 44% -20% -48%;
   transform: perspective(520px) rotateX(62deg);
   transform-origin: top center;
   background-image:
-    linear-gradient(color-mix(in srgb, var(--state) 15%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--state) 15%, transparent) 1px, transparent 1px);
-  background-size: 54px 54px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent 72%);
-  animation: grid-drift 9s linear infinite;
+    linear-gradient(color-mix(in srgb, var(--state) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--state) 8%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent 68%);
+  animation: grid-drift 18s linear infinite;
 }
 
 @keyframes grid-drift {
-  to { background-position: 0 54px; }
+  to { background-position: 0 64px; }
 }
 
 .avatar {
   position: absolute;
   z-index: 3;
-  inset: -9% 0 16%;
+  inset: -10% 0 11%;
 }
 
 .avatar::before {
@@ -312,13 +314,14 @@ button {
   position: absolute;
   z-index: 2;
   left: 50%;
-  top: 37%;
-  width: min(42vw, 510px);
+  top: 38%;
+  width: min(34vw, 410px);
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
-  border: 1px dashed color-mix(in srgb, var(--state) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state) 11%, transparent);
   border-radius: 50%;
-  animation: ring-spin 32s linear infinite;
+  opacity: 0.48;
+  transition: opacity 400ms ease, border-color 400ms ease;
   pointer-events: none;
 }
 
@@ -331,11 +334,9 @@ button {
   border: 1px solid color-mix(in srgb, var(--state) 16%, transparent);
 }
 
-.target-ring::before { inset: 7%; border-style: dotted; }
-.target-ring::after { inset: 18%; }
-.target-ring i:nth-child(1) { inset: -3% 46%; border-radius: 0; border-width: 0 1px; }
-.target-ring i:nth-child(2) { inset: 46% -3%; border-radius: 0; border-width: 1px 0; }
-.target-ring i:nth-child(3) { inset: 28%; box-shadow: 0 0 24px color-mix(in srgb, var(--state) 12%, transparent); }
+.target-ring::before { inset: 16%; }
+.target-ring::after,
+.target-ring i { display: none; }
 
 @keyframes ring-spin {
   to { transform: translate(-50%, -50%) rotate(360deg); }
@@ -343,33 +344,79 @@ button {
 
 .stage[data-state="thinking"] .target-ring,
 .stage[data-state="planning"] .target-ring {
-  animation-duration: 5s;
+  opacity: 0.82;
+  animation: ring-spin 14s linear infinite;
 }
 
 .hud-rail {
   position: absolute;
   z-index: 9;
-  top: 28px;
-  bottom: 250px;
-  width: clamp(205px, 18vw, 248px);
+  top: 32px;
+  width: clamp(220px, 19vw, 270px);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition: opacity 260ms ease, transform 320ms ease, visibility 260ms ease;
 }
 
-.hud-left { left: 18px; }
-.hud-right { right: 18px; }
+.hud-left {
+  left: 26px;
+  transform: translateX(-12px);
+}
+
+.hud-right {
+  right: 26px;
+  transform: translateX(12px);
+}
+
+.stage[data-state="listening"] .hud-left,
+.stage[data-state="thinking"] .hud-left,
+.stage[data-state="planning"] .hud-left,
+.stage[data-state="local"] .hud-left,
+.stage[data-state="memory"] .hud-left,
+.stage[data-state="thinking"] .hud-right,
+.stage[data-state="planning"] .hud-right,
+.stage[data-state="local"] .hud-right,
+.stage[data-state="memory"] .hud-right,
+.stage[data-state="success"] .hud-right,
+.stage[data-state="error"] .hud-right,
+.stage[data-state="offline"] .hud-right {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+.hud-surface {
+  display: none;
+}
+
+.stage[data-state="listening"] .signal-surface,
+.stage[data-state="thinking"] .request-surface,
+.stage[data-state="planning"] .request-surface,
+.stage[data-state="local"] .request-surface,
+.stage[data-state="memory"] .request-surface,
+.stage[data-state="thinking"] .live-surface,
+.stage[data-state="planning"] .live-surface,
+.stage[data-state="local"] .live-surface,
+.stage[data-state="memory"] .live-surface,
+.stage[data-state="success"] .mode-surface,
+.stage[data-state="error"] .mode-surface,
+.stage[data-state="offline"] .mode-surface {
+  display: block;
+}
 
 .hud-surface {
   position: relative;
-  padding: 13px 15px;
+  padding: 14px 16px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--state) 17%, transparent);
-  border-radius: 16px;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--state) 5%, rgba(5, 17, 26, 0.86)), rgba(3, 11, 18, 0.7));
-  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.2), inset 0 1px rgba(255, 255, 255, 0.025);
-  backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--state) 14%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--state) 3%, rgba(3, 12, 19, 0.76));
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
   transition: border-color 350ms ease, background 350ms ease, transform 350ms ease;
 }
 
@@ -383,14 +430,7 @@ button {
 }
 
 .hud-surface::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 1px;
-  background: linear-gradient(90deg, var(--state), transparent 68%);
-  opacity: 0.6;
+  display: none;
 }
 
 .hud-right .hud-surface::after {
@@ -449,7 +489,7 @@ button {
 }
 
 .request-surface {
-  min-height: 96px;
+  min-height: 88px;
 }
 
 .request-surface p {
@@ -460,7 +500,7 @@ button {
 }
 
 .compact-surface {
-  display: grid;
+  display: none;
   gap: 8px;
 }
 
@@ -481,9 +521,8 @@ button {
 }
 
 .live-surface {
-  flex: 0 1 145px;
-  min-height: 112px;
-  max-height: 145px;
+  min-height: 104px;
+  max-height: 210px;
 }
 
 .mode-surface,
@@ -492,6 +531,7 @@ button {
 }
 
 .actions-surface {
+  display: none;
   min-height: 64px;
 }
 
@@ -572,44 +612,21 @@ button {
   transform: scale(1.015);
 }
 
-.presence-copy {
-  position: absolute;
-  z-index: 8;
-  left: 24px;
-  right: 24px;
-  bottom: 205px;
-  pointer-events: none;
-}
-
-.presence-copy span {
-  color: color-mix(in srgb, var(--state) 75%, white);
-  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.28em;
-}
-
-.presence-copy h1 {
-  margin: 0;
-  color: rgba(225, 250, 255, 0.04);
-  font-size: clamp(78px, 12vw, 184px);
-  line-height: 0.8;
-  letter-spacing: -0.08em;
-}
-
 .spoken-caption {
   position: absolute;
   z-index: 10;
   left: 50%;
-  bottom: 246px;
+  bottom: 264px;
   width: min(470px, 42vw);
-  min-height: 38px;
+  min-height: 34px;
   display: -webkit-box;
   overflow: hidden;
-  padding: 10px 16px;
+  padding: 8px 15px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  transform: translateX(-50%);
+  transform: translate(-50%, 8px);
   color: #dffaff;
-  border: 1px solid rgba(103, 232, 249, 0.12);
+  border: 1px solid rgba(103, 232, 249, 0.1);
   border-radius: 999px;
   background: rgba(2, 10, 16, 0.62);
   backdrop-filter: blur(12px);
@@ -617,36 +634,51 @@ button {
   line-height: 1.35;
   text-align: center;
   text-shadow: 0 0 24px rgba(103, 232, 249, 0.55);
-  opacity: 0.9;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 220ms ease, transform 260ms ease, visibility 220ms ease;
+}
+
+.stage[data-state="voice"] .spoken-caption,
+.stage[data-state="speaking"] .spoken-caption {
+  opacity: 0.92;
+  visibility: visible;
+  transform: translate(-50%, 0);
 }
 
 .conversation {
   position: absolute;
   z-index: 12;
   left: 50%;
-  bottom: 14px;
-  width: clamp(620px, 62vw, 860px);
-  height: 220px;
+  bottom: 20px;
+  width: clamp(620px, 58vw, 780px);
+  height: 154px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   transform: translateX(-50%);
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  background: rgba(3, 11, 18, 0.86);
-  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.52), inset 0 1px rgba(255, 255, 255, 0.025);
-  backdrop-filter: blur(20px);
+  border: 1px solid rgba(103, 232, 249, 0.12);
+  border-radius: 24px;
+  background: rgba(3, 11, 18, 0.78);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.44), inset 0 1px rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(24px);
+  transition: width 320ms ease, height 320ms ease, background 320ms ease;
+}
+
+.stage.has-conversation .conversation {
+  width: clamp(660px, 62vw, 840px);
+  height: min(252px, calc(100% - 146px));
+  background: rgba(3, 11, 18, 0.9);
 }
 
 .conversation-head {
-  min-height: 34px;
+  min-height: 30px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px 5px;
+  padding: 9px 16px 3px;
   color: var(--faint);
   font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 .conversation-head span {
@@ -665,6 +697,8 @@ button {
 
 .conversation-head b {
   color: #cceaf1;
+  font-size: 8px;
+  letter-spacing: 0.18em;
 }
 
 .conversation-head span small {
@@ -675,8 +709,8 @@ button {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 7px 14px 10px;
+  gap: 12px;
+  padding: 6px 16px 12px;
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--line-hot) transparent;
@@ -685,38 +719,38 @@ button {
 .welcome {
   margin: auto;
   display: grid;
-  gap: 4px;
+  gap: 3px;
   text-align: center;
 }
 
 .welcome strong {
   color: var(--cyan-hot);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .welcome span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .message {
-  max-width: 92%;
-  padding: 10px 12px;
-  border: 1px solid rgba(103, 232, 249, 0.11);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.025);
-  color: #c7dce5;
-  font-size: 13px;
-  line-height: 1.52;
+  max-width: 88%;
+  padding: 11px 14px;
+  border: 1px solid rgba(103, 232, 249, 0.09);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.022);
+  color: #d3e6ed;
+  font-size: 14px;
+  line-height: 1.58;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .message.user {
-  max-width: 78%;
+  max-width: 76%;
   align-self: flex-end;
   border-color: rgba(103, 232, 249, 0.24);
-  background: linear-gradient(135deg, rgba(8, 145, 178, 0.18), rgba(91, 33, 182, 0.12));
+  background: rgba(8, 145, 178, 0.13);
   color: #e7faff;
 }
 
@@ -806,21 +840,21 @@ button {
 
 .composer {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) auto;
-  gap: 9px;
-  padding: 10px 12px 12px;
-  border-top: 1px solid var(--line);
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 9px 11px 11px;
+  border-top: 1px solid rgba(103, 232, 249, 0.09);
 }
 
 .composer input {
   min-width: 0;
   border: 1px solid rgba(103, 232, 249, 0.15);
-  border-radius: 14px;
+  border-radius: 16px;
   outline: 0;
   background: rgba(0, 0, 0, 0.3);
   color: var(--text);
-  padding: 11px 14px;
-  font-size: 13px;
+  padding: 11px 15px;
+  font-size: 14px;
 }
 
 .composer input:focus {
@@ -831,14 +865,14 @@ button {
 .voice-button,
 .send-button {
   border: 0;
-  border-radius: 14px;
+  border-radius: 16px;
   cursor: pointer;
 }
 
 .voice-button {
   display: flex;
-  gap: 7px;
-  padding: 0 10px;
+  gap: 0;
+  padding: 0;
   align-items: center;
   justify-content: center;
   place-items: center;
@@ -859,9 +893,7 @@ button {
 }
 
 .voice-button b {
-  font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  display: none;
 }
 
 .voice-button.listening {
@@ -883,9 +915,10 @@ button {
 }
 
 .send-button {
-  padding: 0 18px;
-  background: linear-gradient(135deg, #0891b2, #6d28d9);
-  font-weight: 750;
+  padding: 0 17px;
+  background: linear-gradient(135deg, #0891b2, #2563eb);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .send-button:disabled {
@@ -1067,16 +1100,16 @@ dialog::backdrop {
 }
 
 @media (max-width: 1120px) {
-  .hud-rail { width: 205px; }
-  .hud-rail .compact-surface,
-  .actions-surface { display: none; }
-  .conversation { width: min(680px, calc(100% - 430px)); }
-  .spoken-caption { width: min(430px, 44vw); }
+  .hud-rail { width: 220px; }
+  .conversation { width: min(720px, calc(100% - 48px)); }
+  .stage.has-conversation .conversation { width: min(780px, calc(100% - 48px)); }
+  .spoken-caption { width: min(440px, 46vw); }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 940px) {
   .hud-rail { display: none; }
   .conversation { width: calc(100% - 28px); }
+  .stage.has-conversation .conversation { width: calc(100% - 28px); }
   .spoken-caption { width: min(520px, calc(100% - 40px)); }
 }
 
@@ -1085,12 +1118,13 @@ dialog::backdrop {
   .identity-name small { display: block; }
   .topbar { padding: 0 12px; }
   .connection { letter-spacing: 0.05em; }
-  .avatar { inset: -6% -30% 44%; }
-  .target-ring { top: 23%; width: 250px; }
-  .presence-copy { bottom: 48%; left: 14px; }
-  .presence-copy h1 { font-size: 64px; }
-  .spoken-caption { bottom: calc(46% + 14px); width: calc(100% - 30px); font-size: 12px; }
-  .conversation { bottom: 8px; width: calc(100% - 16px); height: 45%; min-height: 280px; }
+  .connection #connectionText { display: none; }
+  .quiet-button { margin-left: 2px; }
+  .avatar { inset: -7% -32% 37%; }
+  .target-ring { top: 26%; width: 230px; }
+  .spoken-caption { bottom: calc(40% + 22px); width: calc(100% - 34px); font-size: 12px; }
+  .conversation { bottom: 8px; width: calc(100% - 16px); height: 154px; }
+  .stage.has-conversation .conversation { width: calc(100% - 16px); height: 40%; min-height: 250px; }
   .message { max-width: 94%; }
   .composer { grid-template-columns: 44px minmax(0, 1fr) auto; }
   .voice-button { padding: 0; }
@@ -1100,6 +1134,12 @@ dialog::backdrop {
   .dialog-wide { grid-column: auto; }
   .pairing-controls { grid-template-columns: 1fr 1fr; }
   .pairing-controls input { grid-column: 1 / -1; }
+}
+
+@media (max-height: 700px) and (min-width: 721px) {
+  .conversation { bottom: 14px; }
+  .stage.has-conversation .conversation { height: 230px; }
+  .spoken-caption { bottom: 256px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

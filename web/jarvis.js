@@ -118,7 +118,7 @@
     return `${excerpt.slice(0, naturalEnd > 520 ? naturalEnd + 1 : 900).trim()}…`;
   }
 
-  function compactCaption(value, fallback = "Pronto quando você estiver.") {
+  function compactCaption(value, fallback = "Estou aqui.") {
     const clean = speechText(value);
     if (!clean) return fallback;
     const sentence = clean.match(/^.{1,150}?[.!?](?=\s|$)/)?.[0] || clean.slice(0, 148);
@@ -135,6 +135,7 @@
 
   function addMessage(text, type = "jarvis", extraHtml = "") {
     byId("welcomeMessage")?.remove();
+    stage.classList.add("has-conversation");
     const message = document.createElement("div");
     message.className = `message ${type}`;
     message.innerHTML = `<span>${messageHtml(text)}</span>${extraHtml}`;
@@ -260,6 +261,7 @@
 
   function finishSpeaking() {
     session.speaking = false;
+    byId("spokenCaption").textContent = "";
     settleState();
   }
 

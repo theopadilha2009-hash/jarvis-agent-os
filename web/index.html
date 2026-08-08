@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260807-human2">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260808-quiet2">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -24,13 +24,12 @@
           </svg>
         </span>
         <span class="identity-name"><b>JARVIS</b><small>para Theo</small></span>
-        <small class="identity-system">AGENT OS</small>
       </div>
       <div class="connection">
         <span class="connection-dot" id="connectionDot"></span>
         <span id="connectionText">acordando</span>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false">Fala ligada</button>
-        <button class="quiet-button" id="detailsButton" type="button">Sistema</button>
+        <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
       </div>
     </header>
 
@@ -75,22 +74,18 @@
           </section>
         </aside>
 
-        <div class="presence-copy" aria-hidden="true">
-          <span>PERSONAL INTELLIGENCE</span>
-          <h1>JARVIS</h1>
-        </div>
-        <div class="spoken-caption" id="spokenCaption" aria-live="polite">Pronto quando você estiver.</div>
+        <div class="spoken-caption" id="spokenCaption" aria-live="polite">Estou aqui.</div>
       </section>
 
       <section class="conversation" aria-label="Conversa com JARVIS">
         <div class="conversation-head">
-          <span><i aria-hidden="true"></i><b>Conversa</b><small id="conversationState">pronto</small></span>
-          <small>voz e texto</small>
+          <span><i aria-hidden="true"></i><b>JARVIS</b><small id="conversationState">pronto</small></span>
+          <small>voz + texto</small>
         </div>
         <div class="conversation-feed" id="conversationFeed" aria-live="polite">
           <div class="welcome" id="welcomeMessage">
-            <strong>JARVIS online.</strong>
-            <span>Peça diretamente. Eu respondo ou aciono a integração disponível.</span>
+            <strong>Estou aqui.</strong>
+            <span>Escreva ou fale naturalmente.</span>
           </div>
         </div>
         <form class="composer" id="commandForm">
@@ -137,9 +132,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260807-human2" defer></script>
+  <script src="/ui/jarvis.js?v=20260808-quiet2" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260807-human2");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260808-quiet2");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });
