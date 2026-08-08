@@ -637,6 +637,9 @@ class WebGatewayTest(unittest.TestCase):
         sent_request = request.call_args.args[0]
         self.assertEqual(sent_request.method, "POST")
         self.assertIn("/rest/v1/jarvis_memories", sent_request.full_url)
+        sent_row = json.loads(sent_request.data.decode("utf-8"))
+        self.assertEqual(sent_row["metadata"]["schema_version"], 2)
+        self.assertEqual(sent_row["metadata"]["layer"], "owner")
 
     def test_supabase_memory_tree_reads_real_rows(self):
         class FakeSupabaseResponse:
@@ -667,6 +670,24 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(payload["persistent_write"])
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["nodes"][0]["label"], "o busto fica na frente")
+        self.assertEqual(payload["nodes"][0]["layer"], "discussion")
+
+    def test_memory_ranking_prefers_relevance_and_owner_preferences(self):
+        rows = [
+            {"id": 1, "kind": "learning", "content": "usar azul no avatar", "metadata": {"layer": "project"}},
+            {"id": 2, "kind": "learning", "content": "reunião amanhã às nove", "metadata": {"layer": "daily"}},
+            {"id": 3, "kind": "preference", "content": "Theo prefere respostas curtas", "metadata": {"layer": "owner"}},
+            {"id": 4, "kind": "decision", "content": "deploy do projeto JARVIS na Vercel", "metadata": {"layer": "project"}},
+        ]
+        ranked = MODULE.rank_memory_rows(rows, "como está o deploy na Vercel?", 3)
+        self.assertEqual(ranked[0]["id"], 4)
+        self.assertIn(3, [row["id"] for row in ranked])
+        self.assertEqual(ranked[0]["layer"], "project")
+
+    def test_memory_layer_classification(self):
+        self.assertEqual(MODULE.memory_layer("prefiro respostas curtas", "preference"), "owner")
+        self.assertEqual(MODULE.memory_layer("deploy do projeto na Vercel", "decision"), "project")
+        self.assertEqual(MODULE.memory_layer("reunião amanhã às nove", "learning"), "daily")
 
     def test_memory_save_never_claims_success_without_file_evidence(self):
         completed = MODULE.subprocess.CompletedProcess(

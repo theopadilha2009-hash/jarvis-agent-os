@@ -73,6 +73,12 @@ MEMORY_KIND_LABELS = {
     "preference": "PREFERENCIAS",
     "context": "CONTEXTO",
 }
+MEMORY_LAYER_LABELS = {
+    "owner": "THEO",
+    "project": "PROJETOS",
+    "daily": "HOJE",
+    "discussion": "CONVERSAS",
+}
 
 ASSET_TYPES = {
     ".css": "text/css; charset=utf-8",
@@ -477,12 +483,60 @@ def signed_artifact_url(path, expires_in=120):
 def supabase_memory_rows(limit=80):
     safe_limit = max(1, min(int(limit), 80))
     query = (
-        "select=id,kind,content,source,created_at"
+        "select=id,kind,content,source,metadata,created_at"
         "&owner_id=eq.theo&archived_at=is.null"
         f"&order=created_at.desc&limit={safe_limit}"
     )
     rows = supabase_request(query=query)
     return rows if isinstance(rows, list) else []
+
+
+def memory_layer(content, kind="learning"):
+    text = clean_text(content, 4_000).casefold()
+    if kind == "preference" or re.search(r"\b(?:meu|minha|eu\s+(?:gosto|prefiro)|theo)\b", text):
+        return "owner"
+    if re.search(r"\b(?:hoje|amanh[aã]|agenda|reuni[aã]o|lembrete|prazo|esta\s+semana)\b", text):
+        return "daily"
+    if re.search(r"\b(?:projeto|repo(?:sit[oó]rio)?|github|deploy|vercel|supabase|jarvis|branch|commit)\b", text):
+        return "project"
+    return "discussion"
+
+
+def memory_row_layer(row):
+    metadata = row.get("metadata") if isinstance(row, dict) else None
+    configured = clean_text(metadata.get("layer"), 40) if isinstance(metadata, dict) else ""
+    if configured in MEMORY_LAYER_LABELS:
+        return configured
+    return memory_layer(row.get("content"), clean_text(row.get("kind"), 40))
+
+
+def memory_terms(value):
+    folded = unicodedata.normalize("NFKD", clean_text(value, 8_000).casefold())
+    ascii_text = "".join(char for char in folded if not unicodedata.combining(char))
+    stop = {"para", "como", "isso", "essa", "este", "esta", "com", "que", "uma", "uns", "das", "dos", "por", "meu", "minha", "theo", "jarvis"}
+    return {word for word in re.findall(r"[a-z0-9]{3,}", ascii_text) if word not in stop}
+
+
+def rank_memory_rows(rows, query, limit=12):
+    """Prefer relevant memories while always keeping stable owner preferences."""
+    query_terms = memory_terms(query)
+    ranked = []
+    for index, row in enumerate(rows if isinstance(rows, list) else []):
+        if not isinstance(row, dict) or not clean_text(row.get("content"), 4_000):
+            continue
+        layer = memory_row_layer(row)
+        overlap = len(query_terms & memory_terms(row.get("content")))
+        score = overlap * 10
+        if layer == "owner":
+            score += 4
+        if layer == "project" and query_terms & {"projeto", "repo", "github", "deploy", "vercel", "supabase"}:
+            score += 5
+        score += max(0, 3 - min(index, 3))
+        enriched = dict(row)
+        enriched["layer"] = layer
+        ranked.append((score, -index, enriched))
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return [item[2] for item in ranked[:max(1, min(int(limit), 20))]]
 
 
 def normalize_alias(value):
@@ -1236,13 +1290,15 @@ def memory_tree_payload():
         kind = clean_text(row.get("kind"), 40).lower()
         if not memory_id or not content:
             continue
-        category = MEMORY_KIND_LABELS.get(kind, "MEMORIA")
+        layer = memory_row_layer(row)
+        category = MEMORY_LAYER_LABELS.get(layer, MEMORY_KIND_LABELS.get(kind, "MEMORIA"))
         node_id = f"supabase:{memory_id}"
         nodes.append({
             "id": node_id,
             "label": content[:120],
             "content": content,
             "category": category,
+            "layer": layer,
             "path": f"supabase/{SUPABASE_MEMORY_TABLE}/{memory_id}",
             "created_at": clean_text(row.get("created_at"), 80),
         })
@@ -1439,12 +1495,13 @@ def supabase_memory_save(command):
             "error": "Não salvo credenciais na memória.",
             "intent": "memory_save",
         }, 400
+    layer = memory_layer(memory["content"], memory["kind"])
     row = {
         "owner_id": "theo",
         "kind": memory["kind"],
         "content": memory["content"],
         "source": "jarvis-web",
-        "metadata": {"schema_version": 1},
+        "metadata": {"schema_version": 2, "layer": layer},
     }
     try:
         result = supabase_request("POST", body=row, prefer="return=representation")
@@ -1463,6 +1520,7 @@ def supabase_memory_save(command):
             "memory": {
                 "id": saved["id"],
                 "kind": clean_text(saved.get("kind"), 40),
+                "layer": layer,
                 "content": clean_text(saved.get("content"), 4_000),
                 "created_at": clean_text(saved.get("created_at"), 80),
             },
@@ -1954,7 +2012,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     memory_context = []
     if supabase_configured() and (owner_authenticated or not owner_pairing_required()):
         try:
-            memory_context = supabase_memory_rows(12)
+            memory_context = rank_memory_rows(supabase_memory_rows(80), latest, 12)
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
             memory_context = []
 
@@ -1988,7 +2046,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 "\n\nMemórias persistentes fornecidas por Theo; use somente quando forem relevantes e "
                 "não invente informações além delas:\n"
                 + "\n".join(
-                    f"- [{clean_text(row.get('kind'), 40)}] {clean_text(row.get('content'), 600)}"
+                    f"- [{clean_text(row.get('layer') or memory_row_layer(row), 40)}/{clean_text(row.get('kind'), 40)}] {clean_text(row.get('content'), 600)}"
                     for row in memory_context
                     if isinstance(row, dict) and clean_text(row.get("content"), 600)
                 )[:4_000]

@@ -21,3 +21,11 @@ authors and contributors.
 - License: MIT (both projects)
 - Use here: inspiration for typed, generative result cards rendered from real
   backend state rather than parsing arbitrary model prose.
+
+## Leon and Mem0
+
+- Projects: [leon-ai/leon](https://github.com/leon-ai/leon) (MIT) and
+  [mem0ai/mem0](https://github.com/mem0ai/mem0) (Apache-2.0)
+- Use here: inspiration for layered owner/project/daily/discussion memory and
+  relevance-first retrieval. JARVIS keeps its existing private Supabase table
+  and does not vendor either project's runtime.
