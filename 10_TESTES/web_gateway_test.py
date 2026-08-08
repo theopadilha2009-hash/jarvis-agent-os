@@ -5,6 +5,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+import base64
 import importlib.util
 from datetime import datetime
 import json
@@ -88,9 +89,11 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260808-actions1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260808-actions1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260808-files1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260808-files1', html)
         self.assertIn(b'id="pulseButton"', html)
+        self.assertIn(b'id="attachmentInput"', html)
+        self.assertIn(b'id="attachmentTray"', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b"fallback-core", html)
@@ -123,6 +126,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"10 * 60 * 1000", app_js)
         self.assertIn(b'"/device-cancel"', app_js)
         self.assertIn(b"canceledJobs", app_js)
+        self.assertIn(b"addAttachments", app_js)
+        self.assertIn(b"readAsDataURL", app_js)
 
         status, headers, app_css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
@@ -824,6 +829,63 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["visual_state"], "memory")
         self.assertEqual(payload["memory_suggestion"], preference)
         self.assertNotIn("executed_locally", payload)
+
+    def test_pdf_attachment_uses_official_openrouter_file_contract(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "O PDF contém um teste."}}],
+                }).encode("utf-8")
+
+        encoded = base64.b64encode(b"%PDF-1.4\ntest document").decode("ascii")
+        attachment = {
+            "name": "brief.pdf",
+            "type": "application/pdf",
+            "size": 22,
+            "data_url": f"data:application/pdf;base64,{encoded}",
+        }
+        env = {
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_ATTACHMENT_MODEL": "openrouter/free",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+                payload, status = MODULE.command_payload({
+                    "command": "resuma este documento",
+                    "attachments": [attachment],
+                })
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["attachments_received"][0]["name"], "brief.pdf")
+        sent = json.loads(request.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(sent["model"], "openrouter/free")
+        self.assertEqual(sent["messages"][-1]["content"][0], {"type": "text", "text": "resuma este documento"})
+        file_part = sent["messages"][-1]["content"][1]
+        self.assertEqual(file_part["type"], "file")
+        self.assertEqual(file_part["file"]["filename"], "brief.pdf")
+        self.assertTrue(file_part["file"]["file_data"].startswith("data:application/pdf;base64,"))
+        self.assertEqual(sent["plugins"][0]["pdf"]["engine"], "cloudflare-ai")
+
+    def test_text_attachment_with_secret_is_refused_before_provider(self):
+        secret = "api_key=" + ("x" * 24)
+        encoded = base64.b64encode(secret.encode("utf-8")).decode("ascii")
+        payload, status = MODULE.assistant_response({
+            "command": "leia o arquivo",
+            "attachments": [{
+                "name": "config.txt",
+                "type": "text/plain",
+                "data_url": f"data:text/plain;base64,{encoded}",
+            }],
+        })
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["status_real"], "attachment_refused")
+        self.assertNotIn(secret, json.dumps(payload))
 
     def test_elevenlabs_speech_returns_audio_without_exposing_key(self):
         class FakeAudioResponse:

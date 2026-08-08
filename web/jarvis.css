@@ -862,7 +862,7 @@ button {
 
 .composer {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) auto;
+  grid-template-columns: 46px 38px minmax(0, 1fr) auto;
   gap: 8px;
   padding: 9px 11px 11px;
   border-top: 1px solid rgba(103, 232, 249, 0.09);
@@ -885,11 +885,37 @@ button {
 }
 
 .voice-button,
+.attachment-button,
 .send-button {
   border: 0;
   border-radius: 16px;
   cursor: pointer;
 }
+
+.attachment-button {
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(103, 232, 249, 0.12);
+  background: rgba(8, 24, 33, 0.52);
+  color: var(--muted);
+}
+
+.attachment-button:hover { color: var(--cyan-hot); border-color: var(--line-hot); }
+.attachment-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+
+.attachment-tray {
+  display: flex;
+  gap: 6px;
+  padding: 0 11px 9px 65px;
+  overflow-x: auto;
+}
+
+.attachment-tray[hidden] { display: none; }
+.attachment-tray > span { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 6px 8px; border: 1px solid rgba(103, 232, 249, 0.12); border-radius: 999px; background: rgba(8, 24, 33, 0.7); }
+.attachment-tray b { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d9f7ff; font-size: 9px; }
+.attachment-tray small, .message-attachments { color: var(--faint); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.attachment-tray button { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0 2px; }
+.message-attachments { display: block; margin-top: 7px; }
 
 .voice-button {
   display: flex;
@@ -1219,7 +1245,7 @@ dialog::backdrop {
   .conversation { bottom: 8px; width: calc(100% - 16px); height: 154px; }
   .stage.has-conversation .conversation { width: calc(100% - 16px); height: 40%; min-height: 250px; }
   .message { max-width: 94%; }
-  .composer { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .composer { grid-template-columns: 44px 38px minmax(0, 1fr) auto; }
   .voice-button { padding: 0; }
   .voice-button b { display: none; }
   .send-button { padding: 0 13px; }

@@ -9,6 +9,9 @@
   const voiceButton = byId("voiceButton");
   const muteButton = byId("muteButton");
   const pulseButton = byId("pulseButton");
+  const attachmentButton = byId("attachmentButton");
+  const attachmentInput = byId("attachmentInput");
+  const attachmentTray = byId("attachmentTray");
   const dialog = byId("systemDialog");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -36,6 +39,7 @@
     deviceOnline: false,
     deviceBridge: false,
     canceledJobs: new Set(),
+    attachments: [],
   };
   let currentAudio = null;
   let currentAudioUrl = "";
@@ -152,6 +156,55 @@
     byId("requestText").textContent = command;
     byId("spokenCaption").textContent = compactCaption(command, "Entendi. Deixe comigo.");
     byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
+  }
+
+  function renderAttachmentTray() {
+    attachmentTray.hidden = session.attachments.length === 0;
+    attachmentTray.innerHTML = session.attachments.map((item, index) => (
+      `<span><b>${escapeHtml(item.name)}</b><small>${Math.ceil(item.size / 1024)} KB</small><button type="button" data-remove-attachment="${index}" aria-label="Remover ${escapeHtml(item.name)}">×</button></span>`
+    )).join("");
+    attachmentTray.querySelectorAll("[data-remove-attachment]").forEach((button) => {
+      button.addEventListener("click", () => {
+        session.attachments.splice(Number(button.dataset.removeAttachment), 1);
+        renderAttachmentTray();
+      });
+    });
+  }
+
+  function fileDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("file_read_failed"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function addAttachments(files) {
+    const selected = Array.from(files || []);
+    for (const file of selected) {
+      if (session.attachments.length >= 2) {
+        addMessage("Posso analisar até dois anexos por mensagem.", "error");
+        break;
+      }
+      const total = session.attachments.reduce((sum, item) => sum + item.size, 0) + file.size;
+      if (!file.size || total > 2500000) {
+        addMessage("Os anexos juntos precisam ter no máximo 2,5 MB.", "error");
+        continue;
+      }
+      try {
+        session.attachments.push({
+          name: file.name,
+          type: file.type || "text/plain",
+          size: file.size,
+          data_url: await fileDataUrl(file),
+        });
+      } catch {
+        addMessage(`Não consegui ler ${file.name}.`, "error");
+      }
+    }
+    attachmentInput.value = "";
+    renderAttachmentTray();
   }
 
   function canvasRows(items) {
@@ -524,10 +577,12 @@
   }
 
   async function sendCommand(rawValue, options = {}) {
-    const command = String(rawValue || "").trim();
+    const attachments = options.includeAttachments ? session.attachments.slice() : [];
+    const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
     session.responseState = "";
-    addMessage(command, options.source === "voice" ? "user voice" : "user");
+    const fileLabel = attachments.length ? `<small class="message-attachments">${attachments.map((item) => escapeHtml(item.name)).join(" · ")}</small>` : "";
+    addMessage(command, options.source === "voice" ? "user voice" : "user", fileLabel);
     input.value = "";
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-12);
@@ -537,8 +592,12 @@
       const data = await request("/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, messages: session.history, input_mode: options.source || "text" }),
+        body: JSON.stringify({ command, messages: session.history, input_mode: options.source || "text", attachments }),
       });
+      if (attachments.length) {
+        session.attachments = [];
+        renderAttachmentTray();
+      }
       showResponse(data);
       const answer = data.message || data.summary;
       if (answer) session.history.push({ role: "assistant", content: answer });
@@ -576,7 +635,7 @@
       if (!submitted && rows.at(-1)?.isFinal && transcript) {
         submitted = true;
         recognition.stop();
-        sendCommand(transcript, { source: "voice" });
+        sendCommand(transcript, { source: "voice", includeAttachments: true });
       }
     };
     recognition.onerror = (event) => {
@@ -669,8 +728,10 @@
 
   byId("commandForm").addEventListener("submit", (event) => {
     event.preventDefault();
-    sendCommand(input.value);
+    sendCommand(input.value, { includeAttachments: true });
   });
+  attachmentButton.addEventListener("click", () => attachmentInput.click());
+  attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
   pulseButton.addEventListener("click", () => {
     if (!currentPulse) return;
     addMessage(currentPulse.message, "jarvis");

@@ -13,6 +13,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
 import argparse
+import base64
+import binascii
 from datetime import datetime, timedelta, timezone
 import hmac
 import json
@@ -39,8 +41,20 @@ ELEVENLABS_VOICE_DESIGN_URL = "https://api.elevenlabs.io/v1/text-to-voice/design
 ELEVENLABS_VOICE_CREATE_URL = "https://api.elevenlabs.io/v1/text-to-voice"
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
 DEFAULT_ELEVENLABS_MODEL = "eleven_flash_v2_5"
-MAX_BODY_BYTES = 32_768
+MAX_BODY_BYTES = 4_000_000
 MAX_PROMPT_CHARS = 8_000
+MAX_ATTACHMENT_BYTES = 2_500_000
+MAX_ATTACHMENTS = 2
+ATTACHMENT_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "application/pdf",
+    "application/json",
+    "text/csv",
+    "text/markdown",
+    "text/plain",
+}
 SUPABASE_MEMORY_TABLE = "jarvis_memories"
 SUPABASE_DEVICE_COMMANDS_TABLE = "jarvis_device_commands"
 SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
@@ -2086,6 +2100,70 @@ def normalize_messages(body):
     return messages[-12:]
 
 
+def normalize_attachments(body):
+    raw_items = body.get("attachments") or []
+    if not isinstance(raw_items, list):
+        raise ValueError("attachments must be a list")
+    if len(raw_items) > MAX_ATTACHMENTS:
+        raise ValueError(f"envie no máximo {MAX_ATTACHMENTS} anexos por mensagem")
+    normalized = []
+    total_bytes = 0
+    for item in raw_items:
+        if not isinstance(item, dict):
+            raise ValueError("anexo inválido")
+        mime = clean_text(item.get("type"), 100).casefold()
+        if mime not in ATTACHMENT_MIME_TYPES:
+            raise ValueError("tipo de anexo não suportado")
+        name = re.sub(r"[^A-Za-z0-9À-ÿ._ -]+", "_", clean_text(item.get("name"), 160)).strip(" .")
+        if not name:
+            name = "arquivo"
+        data_url = str(item.get("data_url") or "")
+        prefix = f"data:{mime};base64,"
+        if not data_url.startswith(prefix):
+            raise ValueError("conteúdo do anexo não corresponde ao tipo informado")
+        encoded = data_url[len(prefix):]
+        if not encoded or len(encoded) > 3_500_000:
+            raise ValueError("anexo vazio ou grande demais")
+        try:
+            decoded = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error) as error:
+            raise ValueError("anexo base64 inválido") from error
+        total_bytes += len(decoded)
+        if not decoded or total_bytes > MAX_ATTACHMENT_BYTES:
+            raise ValueError("anexos excedem o limite total de 2,5 MB")
+        text = ""
+        if mime.startswith("text/") or mime == "application/json":
+            text = decoded.decode("utf-8", errors="replace")[:60_000]
+            if has_secret_like_text(text):
+                raise ValueError("o anexo de texto parece conter uma credencial")
+        normalized.append({
+            "name": name,
+            "type": mime,
+            "size": len(decoded),
+            "data_url": data_url,
+            "text": text,
+        })
+    return normalized
+
+
+def openrouter_attachment_parts(prompt, attachments):
+    parts = [{"type": "text", "text": prompt}]
+    for item in attachments:
+        if item["type"].startswith("image/"):
+            parts.append({"type": "image_url", "image_url": {"url": item["data_url"]}})
+        elif item["type"] == "application/pdf":
+            parts.append({
+                "type": "file",
+                "file": {"filename": item["name"], "file_data": item["data_url"]},
+            })
+        else:
+            parts.append({
+                "type": "text",
+                "text": f"\n\nArquivo {item['name']}:\n{item['text']}",
+            })
+    return parts
+
+
 def assistant_response(body, origin="", local_execute=False, owner_authenticated=False):
     messages = normalize_messages(body)
     if not messages:
@@ -2096,6 +2174,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "ok": False,
             "error": "A mensagem parece conter uma credencial. Remova o segredo antes de usar um modelo externo.",
         }, 400
+
+    try:
+        attachments = normalize_attachments(body)
+    except ValueError as error:
+        return {"ok": False, "error": str(error), "status_real": "attachment_refused"}, 400
 
     latest = messages[-1]["content"]
     if VOICE_DESIGN_PATTERN.search(latest):
@@ -2175,13 +2258,23 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             )
         ),
     }
-    request_body = json.dumps(
-        {
-            "model": os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL),
-            "messages": [system, *messages],
+    provider_messages = [dict(row) for row in messages]
+    if attachments:
+        provider_messages[-1]["content"] = openrouter_attachment_parts(latest, attachments)
+    openrouter_payload = {
+            "model": (
+                os.environ.get("OPENROUTER_ATTACHMENT_MODEL", DEFAULT_MODEL)
+                if attachments
+                else os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
+            ),
+            "messages": [system, *provider_messages],
             "temperature": 0.65,
             "max_tokens": 900,
-        },
+        }
+    if any(item["type"] == "application/pdf" for item in attachments):
+        openrouter_payload["plugins"] = [{"id": "file-parser", "pdf": {"engine": "cloudflare-ai"}}]
+    request_body = json.dumps(
+        openrouter_payload,
         ensure_ascii=False,
     ).encode("utf-8")
     headers = {
@@ -2217,6 +2310,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "external_processing": True,
             "memory_context_count": len(memory_context),
         }
+        if attachments:
+            payload["attachments_received"] = [
+                {"name": item["name"], "type": item["type"], "size": item["size"]}
+                for item in attachments
+            ]
         if suggested_memory:
             payload["memory_suggestion"] = suggested_memory
         return payload, 200
@@ -2323,7 +2421,7 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         return payload, status
 
     return assistant_response(
-        {"command": command, "messages": body.get("messages")},
+        {"command": command, "messages": body.get("messages"), "attachments": body.get("attachments")},
         origin=origin,
         local_execute=local_execute,
         owner_authenticated=owner_authenticated,
@@ -2409,6 +2507,20 @@ def execution_events(payload, started_at, status_code):
 def response_cards(payload):
     """Build small, typed UI cards only from fields confirmed in a response."""
     cards = []
+    attachments = payload.get("attachments_received") if isinstance(payload.get("attachments_received"), list) else []
+    if attachments:
+        cards.append({
+            "id": "attachments",
+            "type": "attachments",
+            "status": "processed",
+            "title": "Arquivos analisados",
+            "subtitle": f"{len(attachments)} anexo(s) enviado(s) ao modelo",
+            "items": [
+                f"{clean_text(item.get('name'), 160)} · {clean_text(item.get('type'), 100)}"
+                for item in attachments[:MAX_ATTACHMENTS]
+                if isinstance(item, dict)
+            ],
+        })
     job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
     if job.get("id"):
         target = public_device_target(job.get("action"), job.get("target"))
