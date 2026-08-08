@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "6"
+WORKER_VERSION = "7"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -48,6 +48,7 @@ RETRYABLE_STALE_ACTIONS = {
     "open_application",
     "close_application",
     "screen_capture",
+    "github_overview",
     "storage_scan",
     "system_memory",
 }
@@ -56,6 +57,8 @@ ALLOWED_ACTIONS = {
     "close_application",
     "message_send",
     "screen_capture",
+    "screen_record",
+    "github_overview",
     "storage_scan",
     "system_memory",
     "self_edit",
@@ -319,6 +322,10 @@ def command_argv(job: dict) -> list[str]:
         return argv
     if action == "screen_capture":
         return [str(ROOT / "jarvis"), "screen-capture"]
+    if action == "screen_record":
+        return [str(ROOT / "jarvis"), "screen-record"]
+    if action == "github_overview":
+        return [str(ROOT / "jarvis"), "github-overview", "--limit", "12"]
     if action == "storage_scan":
         if target != "downloads":
             raise WorkerError("Destino de armazenamento fora do allowlist.")

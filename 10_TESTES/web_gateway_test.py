@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import base64
+import hashlib
 import importlib.util
 from datetime import datetime
 import json
@@ -103,13 +104,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260808-agent1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260808-spatial1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260808-hub1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260808-hub1', html)
         self.assertIn(b'id="stateBeacon"', html)
         self.assertIn(b'id="accessMode"', html)
         self.assertIn(b'id="pulseButton"', html)
         self.assertIn(b'id="attachmentInput"', html)
         self.assertIn(b'id="attachmentTray"', html)
+        self.assertIn(b'id="actionHub"', html)
+        self.assertIn(b'id="tourDialog"', html)
+        self.assertIn(b'id="adminLoginButton"', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b"fallback-core", html)
@@ -127,6 +131,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"agendaDate", app_js)
         self.assertIn(b"revealLatest", app_js)
         self.assertIn(b"saveOwnerToken", app_js)
+        self.assertIn(b"restoreConversationHistory", app_js)
+        self.assertIn(b"syncConversationHistory", app_js)
+        self.assertIn(b"updateActionHub", app_js)
+        self.assertIn(b'"/admin-login"', app_js)
         self.assertIn(b"ElevenLabs sem cr\xc3\xa9ditos", app_js)
         self.assertIn(b"new AbortController()", app_js)
         self.assertIn(b"signal: controller.signal", app_js)
@@ -160,6 +168,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
         self.assertIn(b".conversation-head", app_css)
+        self.assertIn(b".action-hub", app_css)
+        self.assertIn(b".admin-login", app_css)
+        self.assertIn(b".tour-grid", app_css)
         self.assertIn(b"-webkit-line-clamp: 2", app_css)
         self.assertIn(b'.stage.has-conversation .conversation', app_css)
         self.assertIn(b'.stage[data-state="thinking"] .hud-right', app_css)
@@ -491,6 +502,65 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(payload["owner_pairing"]["authenticated"])
         self.assertNotIn("owner-pairing-test-value", json.dumps(payload))
 
+    def test_admin_login_issues_temporary_signed_owner_session(self):
+        salt = bytes.fromhex("00112233445566778899aabbccddeeff")
+        digest = hashlib.pbkdf2_hmac("sha256", b"test-admin-password", salt, 120_000).hex()
+        encoded = f"pbkdf2_sha256$120000${salt.hex()}${digest}"
+        env = {
+            "JARVIS_OWNER_TOKEN": "owner-session-signing-secret",
+            "JARVIS_ADMIN_USERNAME": "admin",
+            "JARVIS_ADMIN_PASSWORD_HASH": encoded,
+        }
+        with patch.dict(os.environ, env, clear=False):
+            payload, status = MODULE.admin_login_payload({
+                "username": "admin",
+                "password": "test-admin-password",
+            })
+            refused, refused_status = MODULE.admin_login_payload({
+                "username": "admin",
+                "password": "wrong-password",
+            })
+            self.assertTrue(MODULE.owner_token_matches(payload["session_token"]))
+            status_payload = MODULE.status_payload(owner_authenticated=True)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["access"], "owner_master")
+        self.assertEqual(refused_status, 401)
+        self.assertFalse(refused["ok"])
+        serialized = json.dumps(status_payload)
+        self.assertNotIn("test-admin-password", serialized)
+        self.assertNotIn(encoded, serialized)
+        self.assertTrue(status_payload["owner_pairing"]["admin_login_configured"])
+
+    def test_private_conversation_history_is_normalized_and_persisted(self):
+        rows = [{
+            "value": {
+                "schema_version": 1,
+                "messages": [
+                    {"role": "user", "content": "lembre do contexto"},
+                    {"role": "assistant", "content": "Contexto mantido."},
+                ],
+            },
+            "updated_at": "2026-08-08T10:00:00Z",
+        }]
+        with patch.dict(os.environ, {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }, clear=False), patch.object(MODULE, "supabase_request", side_effect=[rows, []]) as request:
+            restored, restored_status = MODULE.conversation_history_payload()
+            saved, saved_status = MODULE.persist_conversation_history({
+                "messages": [
+                    {"role": "user", "content": "conversa segura"},
+                    {"role": "assistant", "content": "mantida"},
+                    {"role": "user", "content": "token=placeholdervalue123456"},
+                ],
+            })
+        self.assertEqual(restored_status, 200)
+        self.assertEqual(restored["count"], 2)
+        self.assertEqual(saved_status, 200)
+        self.assertEqual(saved["count"], 2)
+        written = request.call_args_list[1].kwargs["body"]["value"]["messages"]
+        self.assertNotIn("placeholdervalue123456", json.dumps(written))
+
     def test_paired_personal_tools_enter_allowlisted_queue(self):
         class FakeSupabaseResponse:
             next_id = 120
@@ -515,6 +585,8 @@ class WebGatewayTest(unittest.TestCase):
         }
         commands = {
             "screen_capture": "tira um print da tela",
+            "screen_record": "abra o gravador de tela",
+            "github_overview": "mostre meus repositórios do GitHub",
             "storage_scan": "mostra os arquivos grandes do armazenamento",
             "message_send": 'mande mensagem para 5511999999999 "teste real"',
         }
@@ -532,6 +604,8 @@ class WebGatewayTest(unittest.TestCase):
             self.assertEqual(payload["intent"], intent)
             self.assertEqual(payload["status_real"], "device_command_queued")
         self.assertEqual(results["storage_scan"][0]["job"]["target"], "Downloads")
+        self.assertEqual(results["screen_record"][0]["job"]["target"], "Gravador do macOS")
+        self.assertEqual(results["github_overview"][0]["job"]["target"], "GitHub do Theo")
         self.assertEqual(results["message_send"][0]["job"]["target"], "…9999")
         message_request = request.call_args_list[-1].args[0]
         stored = json.loads(message_request.data.decode("utf-8"))
@@ -922,6 +996,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("open_application", names)
         self.assertIn("save_memory", names)
         self.assertIn("add_agenda_item", names)
+        self.assertIn("start_screen_recording", names)
+        self.assertIn("inspect_github", names)
         self.assertNotIn("self_edit", names)
         self.assertNotIn("shell", " ".join(sorted(names)))
         for row in tools:
@@ -983,7 +1059,7 @@ class WebGatewayTest(unittest.TestCase):
                 "messages": [
                     {"role": "user", "content": "quero usar o Chrome"},
                     {"role": "assistant", "content": "Entendido."},
-                    {"role": "user", "content": "faz aquilo com o navegador que mencionei"},
+                    {"role": "user", "content": "faz isso"},
                 ],
             }, owner_authenticated=True)
 
@@ -1054,11 +1130,25 @@ class WebGatewayTest(unittest.TestCase):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
             MODULE, "urlopen", side_effect=fake_urlopen
         ):
-            payload, status = MODULE.assistant_response({"command": "vamos conversar"})
+            payload, status = MODULE.assistant_response({
+                "messages": [
+                    {"role": "user", "content": "quero usar o Spotify"},
+                    {"role": "assistant", "content": "Entendi."},
+                    {"role": "user", "content": "faz isso"},
+                ],
+            })
         self.assertEqual(status, 200)
         self.assertTrue(payload["tool_calling_fallback"])
         self.assertIn("tools", requests[0])
         self.assertNotIn("tools", requests[1])
+
+    def test_casual_owner_chat_skips_tool_schemas_for_lower_latency(self):
+        self.assertFalse(MODULE.should_offer_agent_tools([
+            {"role": "user", "content": "poxa, é bonitão hein"},
+        ]))
+        self.assertTrue(MODULE.should_offer_agent_tools([
+            {"role": "user", "content": "abra o Spotify"},
+        ]))
 
     def test_simple_chat_is_trimmed_without_bureaucratic_labels(self):
         raw = (
@@ -1074,6 +1164,30 @@ class WebGatewayTest(unittest.TestCase):
         self.assertNotIn("Confiança", content)
         self.assertNotIn("quarta frase", content)
         self.assertLessEqual(len(content), 480)
+
+    def test_internal_model_reasoning_is_never_shown_as_the_answer(self):
+        raw = (
+            "We need to respond as JARVIS: short, under 55 words.\n"
+            "The user asks if it can use n8n and control the computer.\n"
+            "Consigo integrar o n8n e acionar o worker do Mac quando eles estão conectados."
+        )
+        content, trimmed = MODULE.concise_assistant_content(raw, detailed=False)
+        self.assertTrue(trimmed)
+        self.assertEqual(content, "Consigo integrar o n8n e acionar o worker do Mac quando eles estão conectados.")
+        self.assertNotIn("We need", content)
+
+    def test_mixed_capability_question_is_answered_without_model_latency(self):
+        result = MODULE.capability_question_payload(
+            "você consegue criar no n8n, mexer no meu computador e se aprimorar?"
+        )
+        self.assertIsNotNone(result)
+        payload, status = result
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "jarvis_runtime")
+        self.assertIn("n8n", payload["message"])
+        self.assertIn("Mac", payload["message"])
+        self.assertIn("scripts", payload["message"])
+        self.assertFalse(payload["external_processing"])
 
     def test_detailed_requests_keep_room_for_real_analysis(self):
         profile = MODULE.assistant_response_profile("faça uma análise detalhada da arquitetura")

@@ -13,6 +13,9 @@
   const attachmentInput = byId("attachmentInput");
   const attachmentTray = byId("attachmentTray");
   const dialog = byId("systemDialog");
+  const tourDialog = byId("tourDialog");
+  const actionHub = byId("actionHub");
+  const actionHubButton = byId("actionHubButton");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
@@ -41,6 +44,8 @@
     deviceBridge: false,
     canceledJobs: new Set(),
     attachments: [],
+    historyRestored: false,
+    currentCommand: "",
   };
   let currentAudio = null;
   let currentAudioUrl = "";
@@ -54,6 +59,80 @@
       return localStorage.getItem(OWNER_TOKEN_KEY) || "";
     } catch {
       return "";
+    }
+  }
+
+  const ACTION_CATALOG = [
+    { id: "spotify", label: "Abrir Spotify", command: "abra o Spotify", keywords: /m[uú]sica|spotify/i },
+    { id: "steam", label: "Abrir Steam", command: "abra a Steam", keywords: /jogo|steam/i },
+    { id: "record", label: "Gravar a tela", command: "abra o gravador de tela", keywords: /grav|tela|v[ií]deo/i },
+    { id: "github", label: "Ver meu GitHub", command: "mostre meus repositórios do GitHub", keywords: /github|repo|c[oó]digo|pull/i },
+    { id: "n8n", label: "Projetar fluxo n8n", command: "crie um blueprint n8n para a automação que eu descrever", keywords: /n\s*8\s*n|workflow|automa/i },
+    { id: "memory", label: "Abrir memória", command: "mostre minhas memórias", keywords: /mem[oó]ria|lembr/i },
+    { id: "agenda", label: "Ver agenda", command: "mostre minha agenda", keywords: /agenda|tarefa|lembrete/i },
+    { id: "computer", label: "Analisar o Mac", command: "meu computador está travando, analise a memória", keywords: /mac|computador|trav|ram|mem[oó]ria/i },
+  ];
+
+  const CAPABILITIES = [
+    "Conversar com OpenRouter sem expor instruções internas",
+    "Ouvir pelo microfone e falar com ElevenLabs",
+    "Abrir e fechar aplicativos pelo worker do Mac",
+    "Tirar print, abrir o gravador e analisar arquivos",
+    "Consultar GitHub autenticado sem mostrar credenciais",
+    "Ler agenda, criar tarefas e usar n8n quando conectado",
+    "Guardar memória confirmada e restaurar conversa privada",
+    "Editar o próprio projeto; deploy só com pedido explícito",
+  ];
+
+  function setActionHub(open) {
+    actionHub.hidden = !open;
+    actionHubButton.setAttribute("aria-expanded", String(open));
+  }
+
+  function updateActionHub(command = session.currentCommand, data = {}) {
+    const context = `${command || ""} ${data.intent || ""}`;
+    const ranked = [...ACTION_CATALOG].sort((left, right) => Number(right.keywords.test(context)) - Number(left.keywords.test(context)));
+    byId("actionHubGrid").innerHTML = ranked.map((item, index) => (
+      `<button type="button" data-hub-command="${escapeHtml(item.command)}" class="${index < 2 ? "recommended" : ""}"><i>${index < 2 ? "SUGESTÃO" : "AÇÃO"}</i><span>${escapeHtml(item.label)}</span><b>→</b></button>`
+    )).join("");
+    byId("capabilityList").innerHTML = CAPABILITIES.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    byId("hubWorkerValue").textContent = session.deviceOnline ? "conectado" : session.deviceBridge ? "offline" : "não configurado";
+    byId("actionHubHint").textContent = data.job?.id
+      ? "A ação foi enviada ao Mac. Aqui ficam os próximos comandos úteis."
+      : data.agentic || data.executed_locally
+        ? "O JARVIS escolheu uma ferramenta real. Você pode encadear outra ação."
+        : "Escolha uma ação ou continue conversando. Nada é executado só por abrir este painel.";
+    if (data.job?.id || data.agentic || data.executed_locally) setActionHub(true);
+  }
+
+  async function restoreConversationHistory() {
+    if (!session.paired || session.historyRestored) return;
+    try {
+      const data = await request("/conversation-history");
+      if (data.ok && Array.isArray(data.messages)) {
+        session.history = data.messages.slice(-24);
+        session.historyRestored = true;
+        byId("conversationMemoryValue").textContent = data.persistent
+          ? `${Math.ceil(session.history.length / 2)} turnos no Supabase`
+          : "sessão local";
+        byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
+      }
+    } catch {
+      byId("conversationMemoryValue").textContent = "sincronização indisponível";
+    }
+  }
+
+  async function syncConversationHistory() {
+    if (!session.paired || !session.history.length) return;
+    try {
+      const data = await request("/conversation-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: session.history.slice(-24) }),
+      });
+      if (data.ok) byId("conversationMemoryValue").textContent = `${Math.ceil(data.count / 2)} turnos no Supabase`;
+    } catch {
+      byId("conversationMemoryValue").textContent = "sessão local · sync pendente";
     }
   }
 
@@ -416,10 +495,12 @@
       target.textContent = worker.online
         ? `Mac conectado · ${worker.hostname || "worker local"}`
         : "Mac offline · abra ou instale o worker local";
+      byId("hubWorkerValue").textContent = worker.online ? "conectado" : "offline";
       await refreshActionHistory({ revealLatest: true });
     } catch {
       session.deviceOnline = false;
       target.textContent = "Mac offline · verificação indisponível";
+      byId("hubWorkerValue").textContent = "offline";
     }
   }
 
@@ -627,7 +708,7 @@
       speak(error);
       if (data?.pairing_required) {
         dialog.showModal();
-        window.setTimeout(() => byId("ownerTokenInput").focus(), 30);
+        window.setTimeout(() => byId("adminPassword").focus(), 30);
       }
       return;
     }
@@ -699,6 +780,7 @@
     byId("activityValue").textContent = data.executed_locally ? `Executado localmente · ${data.intent || "ação"}` : answer;
     byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.job?.id ? "Ação enviada ao Mac" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
     renderLiveCanvas(data);
+    updateActionHub(session.currentCommand, data);
     if (data.job?.id && ["pending", "running"].includes(data.job.status)) {
       monitorDeviceCommand(data.job.id, message);
     }
@@ -712,11 +794,12 @@
     const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
     session.responseState = "";
+    session.currentCommand = command;
     const fileLabel = attachments.length ? `<small class="message-attachments">${attachments.map((item) => escapeHtml(item.name)).join(" · ")}</small>` : "";
     addMessage(command, options.source === "voice" ? "user voice" : "user", fileLabel);
     input.value = "";
     session.history.push({ role: "user", content: command });
-    session.history = session.history.slice(-12);
+    session.history = session.history.slice(-24);
     setRequest(command);
     setWorking(true, workingStateFor(command));
     try {
@@ -731,7 +814,11 @@
       }
       showResponse(data);
       const answer = data.message || data.summary;
-      if (answer) session.history.push({ role: "assistant", content: answer });
+      if (answer) {
+        session.history.push({ role: "assistant", content: answer });
+        session.history = session.history.slice(-24);
+        window.setTimeout(syncConversationHistory, 0);
+      }
     } catch {
       showResponse({ ok: false, error: "A conexão com o núcleo do JARVIS caiu." });
     } finally {
@@ -810,9 +897,9 @@
         : "OpenRouter não configurado";
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
-      byId("accessMode").textContent = session.paired ? "Theo conectado" : "modo visitante";
+      byId("accessMode").textContent = session.paired ? "Theo · modo master" : "modo visitante";
       byId("accessValue").textContent = session.paired
-        ? "Theo · memória e Mac privados disponíveis"
+        ? "Theo master · memória, GitHub e Mac privados disponíveis"
         : status.access?.public_chat
           ? "Visitante · conversa liberada, memória e Mac privados"
           : "Visitante · conversa aguarda OpenRouter";
@@ -843,10 +930,14 @@
       byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
       const tokenInput = byId("ownerTokenInput");
       tokenInput.value = ownerToken();
+      byId("adminUsername").closest(".admin-login").hidden = session.paired;
+      document.querySelector(".advanced-pairing").hidden = !status.owner_pairing?.required;
       byId("pairingHint").textContent = session.paired
-        ? "Navegador pareado. O token permanece somente neste navegador."
+        ? "Modo master ativo neste navegador. A sessão é temporária e pode ser encerrada em Sair."
         : status.owner_pairing?.required
-          ? "Informe o token privado do Theo para memória, agenda e ações no Mac."
+          ? status.owner_pairing?.admin_login_configured
+            ? "Entre como admin para liberar memória, agenda, GitHub e ações no Mac."
+            : "Login master ainda não configurado no ambiente; use o pareamento avançado."
           : "Pareamento ainda não foi exigido neste ambiente.";
       const workerValue = byId("workerValue");
       if (session.paired && status.device_bridge?.configured) {
@@ -859,6 +950,8 @@
           : "Navegador não pareado";
       }
       setVisualState(status.ok ? "idle" : "offline");
+      updateActionHub();
+      if (session.paired) await restoreConversationHistory();
       refreshPulse();
     } catch {
       byId("connectionText").textContent = "offline";
@@ -896,6 +989,39 @@
     dialog.showModal();
     refreshActionHistory();
   });
+  byId("adminLoginButton").addEventListener("click", async () => {
+    const username = byId("adminUsername").value.trim();
+    const password = byId("adminPassword").value;
+    if (!username || !password) {
+      byId("pairingHint").textContent = "Informe login e senha para entrar no modo master.";
+      return;
+    }
+    byId("adminLoginButton").disabled = true;
+    byId("pairingHint").textContent = "Validando login master…";
+    try {
+      const data = await request("/admin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!data.ok || !data.session_token) {
+        byId("pairingHint").textContent = data.error || "Login master recusado.";
+        return;
+      }
+      localStorage.setItem(OWNER_TOKEN_KEY, data.session_token);
+      byId("adminPassword").value = "";
+      session.historyRestored = false;
+      await boot();
+      if (session.paired) dialog.close();
+    } catch {
+      byId("pairingHint").textContent = "Não consegui validar o login agora.";
+    } finally {
+      byId("adminLoginButton").disabled = false;
+    }
+  });
+  byId("adminPassword").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") byId("adminLoginButton").click();
+  });
   byId("saveOwnerToken").addEventListener("click", async () => {
     const token = byId("ownerTokenInput").value.trim();
     if (!token) {
@@ -920,7 +1046,28 @@
     }
     byId("ownerTokenInput").value = "";
     session.paired = false;
+    session.history = [];
+    session.historyRestored = false;
+    byId("conversationMemoryValue").textContent = "sessão local";
     await boot();
+  });
+  actionHubButton.addEventListener("click", () => setActionHub(actionHub.hidden));
+  byId("closeActionHub").addEventListener("click", () => setActionHub(false));
+  actionHub.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-hub-command]");
+    if (!button) return;
+    input.value = button.dataset.hubCommand || "";
+    setActionHub(false);
+    input.focus();
+  });
+  byId("tourButton").addEventListener("click", () => tourDialog.showModal());
+  byId("closeTour").addEventListener("click", () => tourDialog.close());
+  byId("tourActionButton").addEventListener("click", () => {
+    tourDialog.close();
+    setActionHub(true);
+  });
+  tourDialog.addEventListener("click", (event) => {
+    if (event.target === tourDialog) tourDialog.close();
   });
   muteButton.addEventListener("click", () => {
     session.muted = !session.muted;

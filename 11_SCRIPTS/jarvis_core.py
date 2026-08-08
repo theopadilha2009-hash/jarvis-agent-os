@@ -2835,6 +2835,14 @@ def screen_capture_command(args=None):
     """./jarvis screen-capture [--interactive] [--output P] [--dry-run]"""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["screen-capture", *(args or [])])
 
+def screen_record_command(args=None):
+    """./jarvis screen-record [--dry-run] — abre o gravador nativo do macOS."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["screen-record", *(args or [])])
+
+def github_overview_command(args=None):
+    """./jarvis github-overview [--limit N] [--dry-run] — resumo GitHub read-only."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["github-overview", *(args or [])])
+
 def image_to_pdf_command(args=None):
     """./jarvis image-to-pdf IMAGEM --dry-run — planejamento; PDF bloqueado."""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["image-to-pdf", *(args or [])])
@@ -3252,6 +3260,8 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
 ## Ações pessoais locais
   ./jarvis assistant-doctor                  verifica captura/imagem/voz/mensagem
   ./jarvis screen-capture --dry-run          prepara captura de tela
+  ./jarvis screen-record --dry-run           prepara gravador nativo de tela
+  ./jarvis github-overview --dry-run         inspeciona GitHub autenticado
   ./jarvis image-to-pdf IMAGEM --dry-run     planeja; PDF bloqueado pela doutrina
   ./jarvis image-convert IMAGEM --to jpg     converte preservando original
   ./jarvis speak "bom dia" --dry-run         fala local com a voz do macOS
@@ -3372,6 +3382,8 @@ def _help_full():
   ./jarvis agenda                 exibe agenda local
   ./jarvis assistant-doctor       verifica comandos nativos para utilidades pessoais
   ./jarvis screen-capture [--interactive] [--output P] [--dry-run]  captura local sob comando
+  ./jarvis screen-record [--dry-run]  abre o gravador nativo do macOS
+  ./jarvis github-overview [--limit N] [--dry-run]  GitHub read-only
   ./jarvis image-to-pdf IMAGEM --dry-run  planeja; PDF permanece bloqueado pelo AGENTS.md
   ./jarvis image-convert IMAGEM --to png|jpg|tiff [--output P] [--dry-run]  conversão permitida
   ./jarvis speak "texto" [--voice VOZ] [--output audio.aiff] [--dry-run]  voz local
@@ -3591,6 +3603,10 @@ def main():
         web_command(sys.argv[2:])
     elif cmd == "screen-capture":
         screen_capture_command(sys.argv[2:])
+    elif cmd == "screen-record":
+        screen_record_command(sys.argv[2:])
+    elif cmd == "github-overview":
+        github_overview_command(sys.argv[2:])
     elif cmd == "image-to-pdf":
         image_to_pdf_command(sys.argv[2:])
     elif cmd == "image-convert":

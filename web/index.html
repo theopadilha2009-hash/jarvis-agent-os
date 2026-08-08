@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260808-spatial1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260808-hub1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -30,6 +30,8 @@
         <span id="connectionText">acordando</span>
         <span class="access-mode" id="accessMode">verificando acesso</span>
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
+        <button class="quiet-button" id="tourButton" type="button">Guia</button>
+        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false">Ações</button>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false">Fala ligada</button>
         <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
       </div>
@@ -141,12 +143,20 @@
       <section class="dialog-wide pairing-panel">
         <span>Conexão privada</span>
         <strong id="workerValue">verificando worker do Mac</strong>
-        <div class="pairing-controls">
-          <input id="ownerTokenInput" type="password" autocomplete="off" placeholder="Token de pareamento" aria-label="Token privado do JARVIS">
-          <button id="saveOwnerToken" type="button">Conectar</button>
-          <button id="clearOwnerToken" type="button">Esquecer</button>
+        <div class="admin-login">
+          <input id="adminUsername" autocomplete="username" value="admin" placeholder="Login" aria-label="Login master">
+          <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha master">
+          <button id="adminLoginButton" type="button">Entrar master</button>
         </div>
-        <small id="pairingHint">O token fica somente neste navegador.</small>
+        <small id="pairingHint">A senha é validada no servidor; este navegador recebe apenas uma sessão temporária.</small>
+        <details class="advanced-pairing">
+          <summary>Pareamento avançado</summary>
+          <div class="pairing-controls">
+            <input id="ownerTokenInput" type="password" autocomplete="off" placeholder="Token privado" aria-label="Token privado do JARVIS">
+            <button id="saveOwnerToken" type="button">Conectar</button>
+            <button id="clearOwnerToken" type="button">Sair</button>
+          </div>
+        </details>
       </section>
       <section class="dialog-wide"><span>Presença</span><strong id="presenceValue">carregando modelo 3D</strong></section>
       <section class="dialog-wide"><span>Última ação</span><strong id="activityValue">Nenhuma ação nesta sessão.</strong></section>
@@ -157,7 +167,38 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260808-agent1" defer></script>
+  <aside class="action-hub" id="actionHub" hidden aria-label="Ações contextuais do JARVIS">
+    <header>
+      <span><small>HUB CONTEXTUAL</small><strong>O que posso fazer agora</strong></span>
+      <button id="closeActionHub" type="button" aria-label="Fechar ações">×</button>
+    </header>
+    <p id="actionHubHint">Escolha uma ação ou continue conversando. Nada é executado só por abrir este painel.</p>
+    <div class="action-hub-status">
+      <span><small>CONVERSA</small><b id="conversationMemoryValue">sessão local</b></span>
+      <span><small>MAC</small><b id="hubWorkerValue">verificando</b></span>
+    </div>
+    <div class="action-hub-grid" id="actionHubGrid"></div>
+    <details class="capability-list">
+      <summary>Ver tudo que o JARVIS sabe fazer</summary>
+      <ul id="capabilityList"></ul>
+    </details>
+  </aside>
+
+  <dialog id="tourDialog" class="tour-dialog">
+    <div class="dialog-head">
+      <b>GUIA RÁPIDO</b>
+      <button id="closeTour" type="button" aria-label="Fechar guia">×</button>
+    </div>
+    <div class="tour-grid">
+      <section><i>01</i><strong>Converse</strong><p>Escreva, fale ou anexe arquivos. Perguntas comuns ficam rápidas e diretas.</p></section>
+      <section><i>02</i><strong>Veja o estado</strong><p>Núcleo pensa, Forja executa, Memória grava algo confirmado e Resultado mostra evidência.</p></section>
+      <section><i>03</i><strong>Use o Mac</strong><p>O worker abre Spotify ou Steam, captura e grava tela, consulta GitHub e analisa memória.</p></section>
+      <section><i>04</i><strong>Memória real</strong><p>A conversa privada pode voltar pelo Supabase; memórias semânticas só entram quando você pede ou confirma.</p></section>
+    </div>
+    <button class="tour-primary" id="tourActionButton" type="button">Ver ações disponíveis</button>
+  </dialog>
+
+  <script src="/ui/jarvis.js?v=20260808-hub1" defer></script>
   <script type="module">
     const loadPresence = () => import("/ui/jarvis-3d.js?v=20260808-spatial1");
     const schedulePresence = () => {

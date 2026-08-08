@@ -17,11 +17,13 @@ import base64
 import binascii
 from datetime import datetime, timedelta, timezone
 import hmac
+import hashlib
 import json
 import mimetypes
 import os
 import re
 import shlex
+import secrets
 import subprocess
 import threading
 import time
@@ -75,6 +77,8 @@ REMOTE_DEVICE_INTENTS = {
     "close_application",
     "message_send",
     "screen_capture",
+    "screen_record",
+    "github_overview",
     "storage_scan",
     "system_memory",
     "self_edit",
@@ -171,6 +175,16 @@ BASE_WEB_CAPABILITIES = [
         "what": "Envia mensagens explícitas pelo app Mensagens do macOS.",
     },
     {
+        "name": "screen_recording",
+        "status": "available_on_local_worker",
+        "what": "Abre o gravador nativo do macOS; Theo confirma área, início e término na tela.",
+    },
+    {
+        "name": "github_overview",
+        "status": "available_on_local_worker",
+        "what": "Inspeciona a conta e repositórios autenticados pelo GitHub CLI sem revelar o token.",
+    },
+    {
         "name": "n8n_agenda",
         "status": "needs_environment",
         "what": "Agenda persistente no Supabase, com n8n opcional quando configurado.",
@@ -195,6 +209,8 @@ APPLICATION_ALIASES = {
     "vs code": "Visual Studio Code",
     "código": "Visual Studio Code",
     "mensagens": "Messages",
+    "spotify": "Spotify",
+    "steam": "Steam",
 }
 
 JARVIS_CLEANUP_PATTERN = re.compile(
@@ -207,6 +223,8 @@ JARVIS_CLEANUP_PATTERN = re.compile(
 LOCAL_INTENTS = (
     (SELF_EDIT_PATTERN, "self_edit"),
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
+    (re.compile(r"\b(abr(?:a|e|ir)|inici(?:a|e|ar)|grav(?:a|e|ar))\b.{0,50}\b(gravador|grava[cç][aã]o|tela)\b", re.I), "screen_record"),
+    (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar)|analis(?:a|e|ar))\b.{0,70}\b(github|reposit[oó]rios?|pull requests?|prs?)\b", re.I), "github_overview"),
     (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
     (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
     (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|whatsapp\s+para|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
@@ -295,10 +313,87 @@ def owner_pairing_required():
     return bool(clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000))
 
 
+def admin_login_configured():
+    return bool(owner_pairing_required() and clean_text(os.environ.get("JARVIS_ADMIN_PASSWORD_HASH"), 2_000))
+
+
+def owner_session_token(expires_in=43_200):
+    secret = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
+    if not secret:
+        raise ValueError("owner token not configured")
+    expires_at = int(time.time()) + max(900, min(int(expires_in), 86_400))
+    body = f"v1.{expires_at}.{secrets.token_urlsafe(12)}"
+    signature = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{body}.{signature}", expires_at
+
+
+def owner_session_matches(value):
+    secret = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
+    provided = clean_text(value, 2_000)
+    parts = provided.split(".")
+    if not secret or len(parts) != 4 or parts[0] != "v1" or not parts[1].isdigit():
+        return False
+    if int(parts[1]) < int(time.time()):
+        return False
+    body = ".".join(parts[:3])
+    expected = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, parts[3])
+
+
 def owner_token_matches(value):
     expected = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
     provided = clean_text(value, 2_000)
-    return bool(expected and provided and hmac.compare_digest(expected, provided))
+    return bool(
+        expected
+        and provided
+        and (hmac.compare_digest(expected, provided) or owner_session_matches(provided))
+    )
+
+
+def admin_password_matches(username, password):
+    expected_username = clean_text(os.environ.get("JARVIS_ADMIN_USERNAME") or "admin", 80)
+    encoded = clean_text(os.environ.get("JARVIS_ADMIN_PASSWORD_HASH"), 2_000)
+    provided_username = clean_text(username, 80)
+    provided_password = str(password or "")[:512]
+    if not encoded or not hmac.compare_digest(expected_username, provided_username):
+        return False
+    try:
+        algorithm, iterations_raw, salt_hex, digest_hex = encoded.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        iterations = int(iterations_raw)
+        if not 100_000 <= iterations <= 2_000_000:
+            return False
+        salt = bytes.fromhex(salt_hex)
+        expected = bytes.fromhex(digest_hex)
+        actual = hashlib.pbkdf2_hmac("sha256", provided_password.encode("utf-8"), salt, iterations)
+        return hmac.compare_digest(expected, actual)
+    except (ValueError, TypeError):
+        return False
+
+
+def admin_login_payload(body):
+    if not admin_login_configured():
+        return {
+            "ok": False,
+            "status_real": "admin_login_not_configured",
+            "error": "O login master ainda não foi configurado no ambiente do JARVIS.",
+        }, 503
+    if not admin_password_matches(body.get("username"), body.get("password")):
+        return {
+            "ok": False,
+            "status_real": "admin_login_refused",
+            "error": "Login master inválido.",
+        }, 401
+    token, expires_at = owner_session_token()
+    return {
+        "ok": True,
+        "status_real": "admin_session_issued",
+        "message": "Modo master ativado neste navegador.",
+        "session_token": token,
+        "expires_at": datetime.fromtimestamp(expires_at, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "access": "owner_master",
+    }, 200
 
 
 def pairing_required_payload():
@@ -558,6 +653,103 @@ def assistant_memory_rows(force=False):
             "expires_at": time.monotonic() + ASSISTANT_MEMORY_CACHE_SECONDS,
         })
     return [dict(row) for row in safe_rows], False
+
+
+def normalized_conversation_messages(raw_messages):
+    if not isinstance(raw_messages, list):
+        return []
+    messages = []
+    for row in raw_messages[-24:]:
+        if not isinstance(row, dict) or row.get("role") not in {"user", "assistant"}:
+            continue
+        content = clean_text(row.get("content"), 4_000)
+        if not content or has_secret_like_text(content):
+            continue
+        messages.append({"role": row["role"], "content": content})
+    return messages
+
+
+def conversation_history_payload():
+    if not supabase_configured():
+        return {
+            "ok": True,
+            "status_real": "conversation_history_local_only",
+            "messages": [],
+            "persistent": False,
+        }, 200
+    try:
+        rows = supabase_request(
+            query="select=value,updated_at&owner_id=eq.theo&key=eq.conversation_history&limit=1",
+            table=SUPABASE_SETTINGS_TABLE,
+        )
+        row = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
+        value = row.get("value") if isinstance(row.get("value"), dict) else {}
+        messages = normalized_conversation_messages(value.get("messages"))
+        return {
+            "ok": True,
+            "status_real": "conversation_history_restored",
+            "messages": messages,
+            "count": len(messages),
+            "updated_at": clean_text(row.get("updated_at"), 80),
+            "persistent": True,
+            "provider": "supabase",
+        }, 200
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "status_real": "conversation_history_unavailable",
+            "error": "O histórico privado não respondeu.",
+        }, 504
+
+
+def persist_conversation_history(body):
+    messages = normalized_conversation_messages(body.get("messages"))
+    if not messages:
+        return {
+            "ok": False,
+            "status_real": "conversation_history_empty",
+            "error": "Não há conversa válida para sincronizar.",
+        }, 400
+    if not supabase_configured():
+        return {
+            "ok": False,
+            "status_real": "conversation_history_requires_supabase",
+            "error": "O histórico privado aguarda o Supabase.",
+        }, 503
+    updated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    try:
+        supabase_request(
+            "POST",
+            query="on_conflict=owner_id,key",
+            body={
+                "owner_id": "theo",
+                "key": "conversation_history",
+                "value": {"schema_version": 1, "messages": messages},
+                "updated_at": updated_at,
+            },
+            prefer="resolution=merge-duplicates,return=minimal",
+            table=SUPABASE_SETTINGS_TABLE,
+        )
+        return {
+            "ok": True,
+            "status_real": "conversation_history_persisted",
+            "count": len(messages),
+            "updated_at": updated_at,
+            "persistent": True,
+            "provider": "supabase",
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "status_real": "conversation_history_write_failed",
+            "error": f"O Supabase recusou o histórico (HTTP {error.code}).",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "status_real": "conversation_history_write_unavailable",
+            "error": "O histórico privado não confirmou a gravação.",
+        }, 504
 
 
 def memory_layer(content, kind="learning"):
@@ -1106,6 +1298,10 @@ def supabase_device_enqueue(command, intent):
         target = details["phone"]
     elif intent == "storage_scan":
         target = "downloads"
+    elif intent == "screen_record":
+        target = "native-recorder"
+    elif intent == "github_overview":
+        target = "theopadilha2009-hash"
     elif intent == "system_memory" and JARVIS_CLEANUP_PATTERN.search(command):
         target = "jarvis-temporaries"
     row = {
@@ -1545,10 +1741,14 @@ def status_payload(owner_authenticated=False):
             "provider": "supabase" if supabase_configured() else "local_markdown",
             "configured": supabase_configured(),
             "persistent": supabase_configured(),
+            "conversation_history": bool(supabase_configured() and owner_authenticated),
+            "semantic_memory": "explicit_or_confirmed",
         },
         "owner_pairing": {
             "required": owner_pairing_required(),
             "authenticated": bool(owner_authenticated),
+            "admin_login_configured": admin_login_configured(),
+            "session_duration_seconds": 43_200,
         },
         "access": {
             "mode": "owner" if owner_authenticated or not owner_pairing_required() else "guest",
@@ -1800,6 +2000,10 @@ def public_device_target(action, target):
         return f"…{safe_target[-4:]}"
     if action == "storage_scan" and safe_target == "downloads":
         return "Downloads"
+    if action == "screen_record":
+        return "Gravador do macOS"
+    if action == "github_overview":
+        return "GitHub do Theo"
     return safe_target
 
 
@@ -1813,6 +2017,10 @@ def local_handoff(command, intent, execute=False):
         command_args = ["./jarvis", "system-memory"]
         if cleanup_requested:
             command_args.append("--cleanup-jarvis")
+    elif intent == "screen_record":
+        command_args = ["./jarvis", "screen-record"]
+    elif intent == "github_overview":
+        command_args = ["./jarvis", "github-overview", "--limit", "12"]
     else:
         command_args = ["./jarvis", "do", command]
     if not command_args:
@@ -1849,6 +2057,8 @@ def local_handoff(command, intent, execute=False):
                 "memory_save": "Guardei isso na memória local.",
                 "message_send": "Mensagem entregue ao app Mensagens do Mac.",
                 "screen_capture": "Captura concluída no seu Mac.",
+                "screen_record": "Gravador de tela aberto no seu Mac.",
+                "github_overview": "GitHub consultado no seu Mac sem alterar repositórios.",
                 "system_memory": "Diagnóstico do Mac concluído; somente temporários do JARVIS foram elegíveis para limpeza.",
                 "open_application": "Aplicativo aberto no seu Mac.",
                 "close_application": "Aplicativo fechado no seu Mac.",
@@ -2243,9 +2453,9 @@ def assistant_response_profile(prompt, attachments=None):
 
 
 def concise_assistant_content(value, detailed=False):
-    content = clean_text(value, 20_000)
+    content, leaked_internal_reasoning = sanitize_model_output(value)
     if detailed or not content:
-        return content, False
+        return content, leaked_internal_reasoning
     original = content
     content = re.sub(
         r"(?im)(?:^|\s)(?:#{1,4}\s*)?(?:\*\*)?(?:resposta|pr[oó]ximo passo|observa[cç][aã]o)(?:\*\*)?\s*:\s*",
@@ -2269,7 +2479,105 @@ def concise_assistant_content(value, detailed=False):
             content = excerpt[:cut + 1].strip()
         else:
             content = excerpt.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
-    return content or original[:480], content != original
+    return content or original[:480], leaked_internal_reasoning or content != original
+
+
+MODEL_META_LINE = re.compile(
+    r"(?i)(?:^|\b)(?:we need to respond|we should respond|the user (?:said|says|asks)|"
+    r"they ask(?:ed)?|respond as jarvis|answer in portuguese|under \d+ words|"
+    r"no intro|no filler|internal (?:reasoning|instructions)|system prompt)\b"
+)
+
+
+def sanitize_model_output(value):
+    """Remove provider reasoning leaks while preserving an actual final answer."""
+    content = clean_text(value, 20_000)
+    if not content:
+        return "", False
+    original = content
+    content = re.sub(r"(?is)<(?:think|analysis)>.*?</(?:think|analysis)>", " ", content)
+    kept = []
+    leaked = content != original
+    for line in content.splitlines():
+        if MODEL_META_LINE.search(line):
+            leaked = True
+            continue
+        kept.append(line)
+    content = "\n".join(kept).strip()
+    return content, leaked
+
+
+ACTION_TOOL_REQUEST = re.compile(
+    r"(?:^|[.!?]\s*)(?:jarvis[,\s]+)?(?:abr(?:a|e)|fech(?:a|e)|envi(?:a|e)|mand(?:a|e)|"
+    r"salv(?:a|e)|guard(?:a|e)|adicion(?:a|e)|mostr(?:a|e)|list(?:a|e)|tir(?:a|e)|"
+    r"captur(?:a|e)|grav(?:a|e)|analis(?:a|e)|limp(?:a|e))\b",
+    re.I,
+)
+CONTEXTUAL_TOOL_FOLLOWUP = re.compile(
+    r"^\s*(?:faz|fa[cç]a|pode fazer|manda|envia|abre|fecha|salva|guarda|mostra|isso|agora)"
+    r"(?:\s+(?:isso|ele|ela|a[ií]))?[.!?]*\s*$",
+    re.I,
+)
+
+
+def should_offer_agent_tools(messages):
+    """Keep casual chat fast; expose tool schemas only for an actionable request."""
+    if not messages:
+        return False
+    latest = clean_text(messages[-1].get("content"), 8_000)
+    if ACTION_TOOL_REQUEST.search(latest):
+        return True
+    if CONTEXTUAL_TOOL_FOLLOWUP.fullmatch(latest) and len(messages) > 1:
+        previous = " ".join(clean_text(row.get("content"), 1_000) for row in messages[-4:-1])
+        return bool(re.search(r"\b(?:app|chrome|navegador|spotify|steam|github|mensagem|agenda|mem[oó]ria|tela|computador|mac)\b", previous, re.I))
+    return False
+
+
+def meta_leak_recovery(messages):
+    """Return a truthful short answer if a free model emits only hidden prompt text."""
+    user_rows = [clean_text(row.get("content"), 2_000) for row in messages if row.get("role") == "user"]
+    latest = user_rows[-1] if user_rows else ""
+    source = user_rows[-2] if len(user_rows) > 1 and re.search(r"n[aã]o me respondeu", latest, re.I) else latest
+    if re.search(r"\bn\s*8\s*n\b", source, re.I) and re.search(r"\bcomputador|mac\b", source, re.I):
+        return (
+            "Consigo montar e acionar integrações do n8n quando o webhook estiver conectado, e no seu Mac o worker "
+            "já abre ou fecha apps, grava a tela, tira prints e faz diagnósticos. Autoaperfeiçoamento também existe, "
+            "mas só confirma edição ou deploy quando houver execução real e testes."
+        )
+    return "A resposta do modelo veio contaminada por instruções internas e foi descartada. Reformule em uma frase que eu respondo sem fingir resultado."
+
+
+def capability_question_payload(prompt):
+    """Answer known runtime-capability questions without paying model latency."""
+    text = clean_text(prompt, 4_000)
+    if not re.search(r"\b(?:consegue|pode|sabe|d[aá]\s+para|j[aá]\s+tem)\b", text, re.I):
+        return None
+    topics = {
+        "n8n": bool(re.search(r"\bn\s*8\s*n\b", text, re.I)),
+        "computer": bool(re.search(r"\b(?:computador|mac|aplicativos?|spotify|steam|tela)\b", text, re.I)),
+        "evolve": bool(re.search(r"\b(?:aprimor\w*|melhorar sozinho|auto[- ]?evol\w*|pr[oó]prios? scripts?)\b", text, re.I)),
+        "github": bool(re.search(r"\b(?:github|reposit[oó]rios?)\b", text, re.I)),
+    }
+    if sum(topics.values()) < 2:
+        return None
+    pieces = []
+    if topics["n8n"]:
+        pieces.append("no n8n eu monto o fluxo e aciono webhooks configurados; criar dentro da sua conta exige a API ou credencial do n8n conectada")
+    if topics["computer"]:
+        pieces.append("no Mac o worker abre ou fecha apps, tira prints, abre o gravador e analisa memória")
+    if topics["github"]:
+        pieces.append("no GitHub eu consulto a conta autenticada sem expor o token")
+    if topics["evolve"]:
+        pieces.append("também consigo editar e testar meus scripts, mas só confirmo mudança ou deploy com evidência real")
+    message = "; ".join(pieces)
+    return {
+        "ok": True,
+        "status_real": "capability_answer_from_runtime",
+        "visual_state": "response",
+        "message": message[:1].upper() + message[1:] + ".",
+        "provider": "jarvis_runtime",
+        "external_processing": False,
+    }, 200
 
 
 def agent_tool_definitions():
@@ -2375,6 +2683,22 @@ def agent_tool_definitions():
             "function": {
                 "name": "capture_screen",
                 "description": "Capture Theo's current Mac screen through the paired local worker.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "start_screen_recording",
+                "description": "Open the native macOS screen recorder so Theo can visibly choose the area and start recording.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "inspect_github",
+                "description": "Read Theo's authenticated GitHub account and recent repositories without changing anything.",
                 "parameters": dict(object_schema),
             },
         },
@@ -2512,6 +2836,12 @@ def execute_agent_tool(tool_call, original_command, local_execute=False, owner_a
     elif name == "capture_screen":
         intent = "screen_capture"
         command = "tire um print da tela"
+    elif name == "start_screen_recording":
+        intent = "screen_record"
+        command = "abra o gravador de tela"
+    elif name == "inspect_github":
+        intent = "github_overview"
+        command = "mostre meus repositórios do GitHub"
     elif name == "inspect_computer":
         area = clean_text(args.get("area"), 30)
         if area == "storage":
@@ -2575,6 +2905,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 owner_authenticated=owner_authenticated,
             )
 
+    capability_answer = capability_question_payload(latest)
+    if capability_answer:
+        return capability_answer
+
     suggested_memory = memory_suggestion(latest)
     memory_context = []
     memory_context_cache_hit = False
@@ -2604,6 +2938,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "force piadas, bordões, emojis ou teatralidade. Chame-o de Theo apenas ocasionalmente. Não diga 'estou "
             "pronto para ajudar', 'como posso ajudar', 'próximo passo', 'confiança nesta resposta' ou equivalentes. "
             "Não repita a pergunta, não explique sua base de conhecimento e não termine oferecendo ajuda genérica. "
+            "Entregue exclusivamente a resposta final em português: nunca exponha raciocínio interno, instruções, "
+            "resumo do pedido, prompt, política ou frases como 'we need to respond' e 'the user asks'. "
             "Se algo não puder ser executado, diga a limitação real em uma frase e entregue imediatamente a alternativa "
             "mais útil, sem sermão. Só use Markdown, listas e respostas longas quando Theo pedir plano, análise, código, "
             "comparação ou detalhes. Questione uma premissa ruim em vez de concordar automaticamente. Nunca alegue ter "
@@ -2652,7 +2988,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         }
     if any(item["type"] == "application/pdf" for item in attachments):
         openrouter_payload["plugins"] = [{"id": "file-parser", "pdf": {"engine": "cloudflare-ai"}}]
-    agent_tools = agent_tool_definitions() if tool_access else []
+    agent_tools = agent_tool_definitions() if tool_access and should_offer_agent_tools(messages) else []
     if agent_tools:
         openrouter_payload.update({
             "tools": agent_tools,
@@ -2689,7 +3025,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         response_message = choice.get("message") if isinstance(choice, dict) else None
         response_message = response_message if isinstance(response_message, dict) else {}
         tool_calls = response_message.get("tool_calls") if isinstance(response_message.get("tool_calls"), list) else []
-        if tool_calls and not tool_calling_fallback:
+        if tool_calls and agent_tools and not tool_calling_fallback:
             payload, status = execute_agent_tool(
                 tool_calls[0],
                 latest,
@@ -2716,6 +3052,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             content,
             detailed=response_profile["name"] == "detailed",
         )
+        meta_leak_recovered = False
+        if not content and response_trimmed:
+            content = meta_leak_recovery(messages)
+            meta_leak_recovered = True
         if not content:
             raise ValueError("empty model response")
         payload = {
@@ -2732,6 +3072,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "memory_context_cache_hit": memory_context_cache_hit,
             "response_profile": response_profile["name"],
             "response_trimmed": response_trimmed,
+            "meta_leak_recovered": meta_leak_recovered,
             "tool_calling_fallback": tool_calling_fallback,
         }
         if attachments:
@@ -3152,6 +3493,14 @@ class handler(BaseHTTPRequestHandler):
                 return self.send_json(status, payload)
             payload = memory_tree_payload()
             return self.send_json(200 if payload.get("ok") else 503, payload)
+        if path == "/conversation-history":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /conversation-history"
+                return self.send_json(status, payload)
+            payload, status = conversation_history_payload()
+            payload["endpoint"] = "GET /conversation-history"
+            return self.send_json(status, payload)
         if path == "/device-command":
             if owner_pairing_required() and not owner_authenticated:
                 payload, status = pairing_required_payload()
@@ -3227,6 +3576,17 @@ class handler(BaseHTTPRequestHandler):
 
         origin = clean_text(self.headers.get("Origin") or self.headers.get("Referer"), 200)
         owner_authenticated = owner_token_matches(self.headers.get("X-Jarvis-Owner-Token"))
+        if path == "/admin-login":
+            payload, status = admin_login_payload(body)
+            return self.send_json(status, payload)
+        if path == "/conversation-sync":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "POST /conversation-sync"
+            else:
+                payload, status = persist_conversation_history(body)
+                payload["endpoint"] = "POST /conversation-sync"
+            return self.send_json(status, payload)
         if path == "/command":
             client = str((self.client_address or [""])[0]).lower()
             local_execute = (
