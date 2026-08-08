@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260808-quiet2">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260808-events1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -132,9 +132,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260808-quiet2" defer></script>
+  <script src="/ui/jarvis.js?v=20260808-events1" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260808-quiet2");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260808-events1");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

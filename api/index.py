@@ -2152,6 +2152,88 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
     )
 
 
+def execution_events(payload, started_at, status_code):
+    """Describe the work that actually happened during this HTTP request.
+
+    This compact event contract borrows AG-UI's useful lifecycle vocabulary,
+    while staying transport-agnostic so the same payload works on Vercel and
+    the local stdlib server. It never invents intermediate tool activity.
+    """
+    finished_at = datetime.now(timezone.utc)
+    elapsed_ms = max(0, round((finished_at - started_at).total_seconds() * 1000))
+    run_id = f"run-{started_at.strftime('%Y%m%d%H%M%S%f')}-{threading.get_ident()}"
+    ok = bool(payload.get("ok", status_code < 400)) and status_code < 400
+    route = clean_text(payload.get("status_real") or payload.get("endpoint") or "request", 80)
+    events = [{
+        "id": f"{run_id}-1",
+        "type": "RUN_STARTED",
+        "status": "running",
+        "label": "Pedido recebido",
+        "timestamp": started_at.isoformat(),
+    }]
+
+    provider = clean_text(payload.get("provider"), 40)
+    job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
+    tool_label = ""
+    tool_detail = ""
+    if job.get("id"):
+        tool_label = "Worker do Mac"
+        tool_detail = f"ação {clean_text(job.get('id'), 60)} · {clean_text(job.get('status') or 'pending', 30)}"
+    elif payload.get("executed_locally"):
+        tool_label = "Execução local"
+        tool_detail = clean_text(payload.get("intent") or "ação confirmada", 80)
+    elif provider == "openrouter":
+        tool_label = "OpenRouter"
+        tool_detail = clean_text(payload.get("model") or "modelo selecionado", 100)
+    elif provider == "n8n":
+        tool_label = "n8n"
+        tool_detail = "automação confirmada"
+    elif provider == "supabase":
+        tool_label = "Supabase"
+        tool_detail = clean_text(payload.get("status_real") or "operação confirmada", 100)
+
+    if tool_label:
+        events.extend([
+            {
+                "id": f"{run_id}-2",
+                "type": "TOOL_CALL_STARTED",
+                "status": "running",
+                "label": tool_label,
+                "detail": tool_detail,
+                "timestamp": started_at.isoformat(),
+            },
+            {
+                "id": f"{run_id}-3",
+                "type": "TOOL_CALL_FINISHED",
+                "status": "succeeded" if ok else "failed",
+                "label": tool_label,
+                "detail": tool_detail,
+                "timestamp": finished_at.isoformat(),
+            },
+        ])
+
+    events.append({
+        "id": f"{run_id}-{len(events) + 1}",
+        "type": "RUN_FINISHED" if ok else "RUN_ERROR",
+        "status": "succeeded" if ok else "failed",
+        "label": "Resultado disponível" if ok else "Execução interrompida",
+        "detail": route,
+        "timestamp": finished_at.isoformat(),
+    })
+    return {
+        "protocol": "jarvis-events/1",
+        "run_id": run_id,
+        "elapsed_ms": elapsed_ms,
+        "events": events,
+    }
+
+
+def attach_execution_events(payload, started_at, status_code):
+    result = dict(payload)
+    result["event_stream"] = execution_events(result, started_at, status_code)
+    return result
+
+
 class handler(BaseHTTPRequestHandler):
     server_version = "JarvisWeb/1.0"
 
@@ -2347,6 +2429,7 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path, _ = request_route(self.path)
+        started_at = datetime.now(timezone.utc)
         try:
             body = self.read_json()
         except ValueError as error:
@@ -2367,6 +2450,7 @@ class handler(BaseHTTPRequestHandler):
                 local_execute=local_execute,
                 owner_authenticated=owner_authenticated,
             )
+            payload = attach_execution_events(payload, started_at, status)
             return self.send_json(status, payload)
         if path in {"/assistant", "/chat"}:
             payload, status = assistant_response(
@@ -2375,6 +2459,7 @@ class handler(BaseHTTPRequestHandler):
                 owner_authenticated=owner_authenticated,
             )
             payload.setdefault("endpoint", f"POST {path}")
+            payload = attach_execution_events(payload, started_at, status)
             return self.send_json(status, payload)
         if path == "/speech":
             payload, status = elevenlabs_speech(body)

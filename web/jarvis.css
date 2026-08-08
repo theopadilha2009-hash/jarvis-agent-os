@@ -1099,6 +1099,47 @@ dialog::backdrop {
   font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.event-stream {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(103, 232, 249, 0.1);
+}
+
+.event-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--cyan-hot);
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.16em;
+}
+
+.event-head small { color: var(--faint); letter-spacing: 0; }
+
+.event-row {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.event-row > i {
+  width: 6px;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px currentColor;
+}
+
+.event-row[data-status="succeeded"] > i { background: var(--green); }
+.event-row[data-status="failed"] > i { background: var(--red); }
+
+.event-row span { display: grid; gap: 2px; color: #b9d3dc; font-size: 9px; }
+.event-row b { font-weight: 600; }
+.event-row small { color: var(--faint); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
 @media (max-width: 1120px) {
   .hud-rail { width: 220px; }
   .conversation { width: min(720px, calc(100% - 48px)); }

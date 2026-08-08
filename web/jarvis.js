@@ -171,39 +171,49 @@
     }).format(date);
   }
 
+  function renderEventStream(stream) {
+    if (!stream || stream.protocol !== "jarvis-events/1" || !Array.isArray(stream.events)) return "";
+    const rows = stream.events.slice(-5).map((event) => {
+      const status = ["running", "succeeded", "failed"].includes(event.status) ? event.status : "unknown";
+      const detail = event.detail ? `<small>${escapeHtml(event.detail)}</small>` : "";
+      return `<div class="event-row" data-status="${status}"><i></i><span><b>${escapeHtml(event.label || event.type)}</b>${detail}</span></div>`;
+    }).join("");
+    return `<div class="event-stream"><div class="event-head"><span>EXECUÇÃO REAL</span><small>${Number(stream.elapsed_ms) || 0} ms</small></div>${rows}</div>`;
+  }
+
   function renderLiveCanvas(data) {
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
-    let html = "";
+    let html = renderEventStream(data.event_stream);
     if (data.memory_suggestion) {
-      html = `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
+      html += `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
     }
     else if (data.job?.id) {
       const target = data.job.target ? ` · ${data.job.target}` : "";
-      html = `<div class="canvas-row"><i>↗</i><span>Ação ${escapeHtml(data.job.id)} · ${escapeHtml(data.job.status || "pending")}${escapeHtml(target)}</span></div>`;
+      html += `<div class="canvas-row"><i>↗</i><span>Ação ${escapeHtml(data.job.id)} · ${escapeHtml(data.job.status || "pending")}${escapeHtml(target)}</span></div>`;
       if (data.job.artifact_url) {
         html += `<a class="artifact-link" href="${escapeHtml(data.job.artifact_url)}" target="_blank" rel="noopener noreferrer"><img class="artifact-preview" src="${escapeHtml(data.job.artifact_url)}" alt="Captura privada criada pelo worker do Mac"></a>`;
       }
       if (data.job.result) html += `<div class="canvas-result">${escapeHtml(data.job.result).slice(0, 1800)}</div>`;
     }
     else if (Array.isArray(data.agenda) && data.agenda.length) {
-      html = data.agenda.slice(0, 8).map((item) => {
+      html += data.agenda.slice(0, 8).map((item) => {
         const scheduled = agendaDate(item.scheduled_for);
         const label = scheduled ? `${item.title || "item da agenda"} · ${scheduled}` : item.title || "item da agenda";
         return `<div class="canvas-row"><i>${escapeHtml(item.id || "·")}</i><span>${escapeHtml(label)}</span></div>`;
       }).join("");
     }
     else if (Array.isArray(data.contacts) && data.contacts.length) {
-      html = data.contacts.slice(0, 8).map((item, index) => (
+      html += data.contacts.slice(0, 8).map((item, index) => (
         `<div class="canvas-row"><i>${index + 1}</i><span>${escapeHtml(item.display_name || item.alias)} · ${escapeHtml(item.phone || "")}</span></div>`
       )).join("");
     }
-    else if (Array.isArray(data.steps) && data.steps.length) html = canvasRows(data.steps);
-    else if (Array.isArray(data.sources) && data.sources.length) html = canvasRows(data.sources);
-    else if (data.result) html = `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
-    else if (data.local_command) html = `<div class="canvas-row"><i>→</i><span>Worker local preparado</span></div><div class="canvas-result">${escapeHtml(data.local_command)}</div>`;
-    else if (data.provider === "openrouter") html = `<div class="canvas-row"><i>✓</i><span>Resposta pronta para você</span></div>`;
-    else if (data.message) html = `<div class="canvas-result">${escapeHtml(data.message).slice(0, 320)}</div>`;
+    else if (Array.isArray(data.steps) && data.steps.length) html += canvasRows(data.steps);
+    else if (Array.isArray(data.sources) && data.sources.length) html += canvasRows(data.sources);
+    else if (data.result) html += `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
+    else if (data.local_command) html += `<div class="canvas-row"><i>→</i><span>Worker local preparado</span></div><div class="canvas-result">${escapeHtml(data.local_command)}</div>`;
+    else if (data.provider === "openrouter") html += `<div class="canvas-row"><i>✓</i><span>Resposta pronta para você</span></div>`;
+    else if (data.message && !html) html = `<div class="canvas-result">${escapeHtml(data.message).slice(0, 320)}</div>`;
     content.innerHTML = html;
     empty.hidden = Boolean(html);
   }

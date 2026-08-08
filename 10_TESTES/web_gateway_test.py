@@ -88,8 +88,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260808-quiet2', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260808-quiet2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260808-events1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260808-events1', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b"fallback-core", html)
@@ -114,6 +114,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"compactCaption", app_js)
         self.assertIn(b"session.voicePending", app_js)
         self.assertIn(b'data.provider === "openrouter"', app_js)
+        self.assertIn(b"renderEventStream", app_js)
+        self.assertIn(b'protocol !== "jarvis-events/1"', app_js)
 
         status, headers, app_css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
@@ -177,6 +179,17 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["intent"], "screen_capture")
         self.assertTrue(payload["requires_local_worker"])
         self.assertTrue(payload["local_command"].startswith("./jarvis do "))
+        stream = payload["event_stream"]
+        self.assertEqual(stream["protocol"], "jarvis-events/1")
+        self.assertEqual(stream["events"][0]["type"], "RUN_STARTED")
+        self.assertEqual(stream["events"][-1]["type"], "RUN_FINISHED")
+        self.assertGreaterEqual(stream["elapsed_ms"], 0)
+
+    def test_failed_command_has_terminal_error_event(self):
+        status, _, payload = self.json_request("/command", "POST", {"command": ""})
+        self.assertEqual(status, 400)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["event_stream"]["events"][-1]["type"], "RUN_ERROR")
 
     def test_open_and_close_apps_route_to_explicit_computer_command(self):
         opened, open_status = MODULE.command_payload(
