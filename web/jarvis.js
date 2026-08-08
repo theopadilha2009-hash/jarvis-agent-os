@@ -802,9 +802,12 @@
       byId("connectionDot").classList.toggle("online", Boolean(status.ok));
       byId("connectionText").textContent = status.ok ? "online" : "offline";
       byId("serviceValue").textContent = status.service || "jarvis-web";
-      byId("aiValue").textContent = status.ai?.configured ? "OpenRouter conectado" : "OpenRouter não configurado";
       byId("modelValue").textContent = status.ai?.model || "—";
       session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
+      const toolCount = session.paired ? Number(status.agent_runtime?.available_tools) || 0 : 0;
+      byId("aiValue").textContent = status.ai?.configured
+        ? `OpenRouter conectado${toolCount ? ` · ${toolCount} ferramentas` : ""}`
+        : "OpenRouter não configurado";
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
       byId("accessMode").textContent = session.paired ? "Theo conectado" : "modo visitante";
@@ -825,7 +828,7 @@
           ? "microfone ativo · saída aguarda ElevenLabs"
           : "ElevenLabs aguarda chave";
       const ready = [
-        status.ai?.configured ? "IA" : "",
+        status.ai?.configured ? (toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
         status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
         status.automations?.n8n?.configured ? "n8n" : "",
         session.paired && status.device_bridge?.configured ? "Mac pareado" : "",
@@ -833,10 +836,10 @@
       ].filter(Boolean);
       byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
       byId("integrationHint").textContent = status.automations?.n8n?.configured
-        ? "Agenda e tarefas conectadas ao n8n."
+        ? "O JARVIS escolhe ferramentas pelo contexto; agenda e tarefas estão conectadas ao n8n."
         : status.automations?.agenda?.provider === "supabase"
-          ? "Agenda privada no Supabase; n8n continua opcional. Ações do Mac usam o worker local."
-          : "Agenda aguarda o webhook n8n; ações do Mac usam o worker local.";
+          ? "Roteamento contextual ativo; memória e agenda ficam no Supabase e ações usam o worker local."
+          : "Roteamento contextual ativo; persistência aguarda Supabase ou n8n e o Mac usa o worker local.";
       byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
       const tokenInput = byId("ownerTokenInput");
       tokenInput.value = ownerToken();

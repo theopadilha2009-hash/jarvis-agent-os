@@ -80,6 +80,19 @@ REMOTE_DEVICE_INTENTS = {
     "self_edit",
 }
 
+PRIVATE_INTENTS = {
+    "memory_save",
+    "memory_view",
+    "contact_save",
+    "contact_archive",
+    "contact_view",
+    "agenda_note",
+    "agenda_complete",
+    "agenda_view",
+    "task_add",
+    *REMOTE_DEVICE_INTENTS,
+}
+
 SELF_EDIT_PATTERN = re.compile(
     r"(?:\b(?:auto[-\s]?(?:edit(?:e|ar)|melhor(?:e|ar))|"
     r"(?:edit(?:e|ar)|mex(?:a|er)|alter(?:e|ar)|modifiqu(?:e|ar)|melhor(?:e|ar)|"
@@ -1544,6 +1557,12 @@ def status_payload(owner_authenticated=False):
             "private_memory": bool(owner_authenticated or not owner_pairing_required()),
             "private_device_control": bool(owner_authenticated and supabase_configured()),
         },
+        "agent_runtime": {
+            "tool_calling": ai_ready,
+            "available_tools": len(agent_tool_definitions()) if ai_ready else 0,
+            "execution": "verified_adapters",
+            "arbitrary_shell": False,
+        },
         "device_bridge": {
             "configured": bool(supabase_configured() and owner_pairing_required()),
             "execution": "local_worker",
@@ -2253,6 +2272,278 @@ def concise_assistant_content(value, detailed=False):
     return content or original[:480], content != original
 
 
+def agent_tool_definitions():
+    """Tools the model may select; execution remains inside verified adapters."""
+    object_schema = {"type": "object", "properties": {}, "additionalProperties": False}
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "open_application",
+                "description": "Open a named application on Theo's paired Mac when the user asks to open or launch it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"application": {"type": "string", "description": "Exact application name."}},
+                    "required": ["application"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "close_application",
+                "description": "Close a named application on Theo's paired Mac when explicitly requested.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"application": {"type": "string", "description": "Exact application name."}},
+                    "required": ["application"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "send_message",
+                "description": "Send an exact message through Theo's paired Mac to a phone number or saved contact.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "recipient": {"type": "string", "description": "Phone number or saved contact name."},
+                        "message": {"type": "string", "description": "Exact message body to send."},
+                    },
+                    "required": ["recipient", "message"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "save_memory",
+                "description": "Persist information only when the user explicitly asks JARVIS to remember or save it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "content": {"type": "string", "description": "Self-contained fact to remember."},
+                        "kind": {
+                            "type": "string",
+                            "enum": ["learning", "preference", "decision"],
+                            "description": "Memory category.",
+                        },
+                    },
+                    "required": ["content", "kind"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "view_memory",
+                "description": "Show Theo's private persistent memory when he asks what JARVIS remembers.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "add_agenda_item",
+                "description": "Create a private task, reminder, or agenda item, preserving any date and time supplied by the user.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "What must be remembered or done."},
+                        "when": {"type": "string", "description": "Date/time in the user's own words; empty when absent."},
+                    },
+                    "required": ["title"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "view_agenda",
+                "description": "Read Theo's pending private agenda.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "capture_screen",
+                "description": "Capture Theo's current Mac screen through the paired local worker.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "inspect_computer",
+                "description": "Inspect Mac memory pressure, JARVIS temporary processes, or large files without broad destructive cleanup.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "area": {"type": "string", "enum": ["memory", "storage"]},
+                        "cleanup_jarvis_temporaries": {
+                            "type": "boolean",
+                            "description": "True only if the user explicitly requested cleanup of JARVIS temporary processes.",
+                        },
+                    },
+                    "required": ["area"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+    ]
+
+
+def agent_tool_arguments(tool_call):
+    function = tool_call.get("function") if isinstance(tool_call, dict) else None
+    raw = function.get("arguments") if isinstance(function, dict) else None
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str) or len(raw) > 12_000:
+        raise ValueError("invalid tool arguments")
+    value = json.loads(raw or "{}")
+    if not isinstance(value, dict):
+        raise ValueError("tool arguments must be an object")
+    return value
+
+
+def dispatch_intent(command, intent, local_execute=False, owner_authenticated=False):
+    """Run one known intent without giving the model access to arbitrary code."""
+    if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
+        return pairing_required_payload()
+    if intent == "memory_view":
+        payload = memory_tree_payload()
+        payload.update({
+            "message": (
+                f"Abri sua constelação com {payload['count']} memórias persistentes."
+                if payload.get("ok") and payload.get("provider") == "supabase"
+                else f"Abri sua constelação com {payload['count']} memórias locais."
+                if payload.get("ok")
+                else payload.get("error", "A memória não está disponível.")
+            ),
+            "mode": "memory",
+            "sources": payload.get("nodes", [])[:12],
+        })
+        return payload, 200 if payload.get("ok") else 503
+    if intent == "memory_save" and supabase_configured():
+        return supabase_memory_save(command)
+    if intent == "contact_save" and supabase_configured():
+        return supabase_contact_save(command)
+    if intent == "contact_archive" and supabase_configured():
+        return supabase_contact_archive(command)
+    if intent == "contact_view" and supabase_configured():
+        return contacts_payload(50)
+    if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
+        return supabase_device_enqueue(command, intent)
+    if intent == "agenda_complete" and supabase_configured():
+        return supabase_agenda_command(command, intent)
+    if intent in {"agenda_note", "agenda_view", "task_add"}:
+        if os.environ.get("N8N_WEBHOOK_URL"):
+            return n8n_automation(command, intent)
+        if supabase_configured():
+            return supabase_agenda_command(command, intent)
+    return local_handoff(command, intent, execute=local_execute), 200
+
+
+def execute_agent_tool(tool_call, original_command, local_execute=False, owner_authenticated=False):
+    """Translate one model-selected tool into an existing deterministic intent."""
+    function = tool_call.get("function") if isinstance(tool_call, dict) else None
+    name = clean_text(function.get("name"), 80) if isinstance(function, dict) else ""
+    allowed_names = {item["function"]["name"] for item in agent_tool_definitions()}
+    if name not in allowed_names:
+        return {
+            "ok": False,
+            "status_real": "agent_tool_refused",
+            "visual_state": "error",
+            "error": "O modelo pediu uma ferramenta que o JARVIS não oferece.",
+        }, 400
+    try:
+        args = agent_tool_arguments(tool_call)
+    except (ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "status_real": "agent_tool_arguments_invalid",
+            "visual_state": "error",
+            "error": "O modelo não forneceu argumentos válidos para a ferramenta.",
+        }, 400
+
+    intent = ""
+    command = ""
+    if name in {"open_application", "close_application"}:
+        app = clean_text(args.get("application"), 80)
+        if not app:
+            return {"ok": False, "status_real": "agent_tool_target_missing", "error": "Não identifiquei qual aplicativo usar."}, 400
+        intent = name
+        command = f"{'abra' if name == 'open_application' else 'feche'} {app}"
+    elif name == "send_message":
+        recipient = clean_text(args.get("recipient"), 100).strip(' \"“”')
+        message = clean_text(args.get("message"), 4_000).strip(' \"“”')
+        if not recipient or not message or has_secret_like_text(message):
+            return {"ok": False, "status_real": "agent_tool_message_invalid", "error": "Destinatário ou mensagem não são válidos."}, 400
+        intent = "message_send"
+        command = f'mande mensagem para {recipient} dizendo "{message}"'
+    elif name == "save_memory":
+        content = clean_text(args.get("content"), 4_000)
+        kind = clean_text(args.get("kind"), 30)
+        labels = {"learning": "aprendizado", "preference": "preferência", "decision": "decisão"}
+        if len(content) < 3 or kind not in labels or has_secret_like_text(content):
+            return {"ok": False, "status_real": "agent_tool_memory_invalid", "error": "A memória proposta não é válida."}, 400
+        intent = "memory_save"
+        command = f"guarde na memória como {labels[kind]}: {content}"
+    elif name == "view_memory":
+        intent = "memory_view"
+        command = "mostre minhas memórias"
+    elif name == "add_agenda_item":
+        title = clean_text(args.get("title"), 1_000).strip(' \"“”')
+        when = clean_text(args.get("when"), 200).strip(' \"“”')
+        if len(title) < 3:
+            return {"ok": False, "status_real": "agent_tool_agenda_invalid", "error": "O item da agenda está vazio."}, 400
+        intent = "agenda_note"
+        command = f"adicione na agenda {title}{f' {when}' if when else ''}"
+    elif name == "view_agenda":
+        intent = "agenda_view"
+        command = "mostre minha agenda"
+    elif name == "capture_screen":
+        intent = "screen_capture"
+        command = "tire um print da tela"
+    elif name == "inspect_computer":
+        area = clean_text(args.get("area"), 30)
+        if area == "storage":
+            intent = "storage_scan"
+            command = "mostre os arquivos grandes do armazenamento"
+        elif area == "memory":
+            intent = "system_memory"
+            command = (
+                "limpe os processos temporários do jarvis"
+                if args.get("cleanup_jarvis_temporaries") is True
+                else "meu computador está travando, analise a memória"
+            )
+        else:
+            return {"ok": False, "status_real": "agent_tool_computer_area_invalid", "error": "A área do computador não é válida."}, 400
+
+    payload, status = dispatch_intent(
+        command,
+        intent,
+        local_execute=local_execute,
+        owner_authenticated=owner_authenticated,
+    )
+    result = dict(payload)
+    result["agent_route"] = {
+        "provider": "openrouter",
+        "tool": name,
+        "intent": intent,
+        "original_request": clean_text(original_command, 500),
+        "execution": "verified_adapter",
+    }
+    return result, status
+
+
 def assistant_response(body, origin="", local_execute=False, owner_authenticated=False):
     messages = normalize_messages(body)
     if not messages:
@@ -2277,29 +2568,12 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         return elevenlabs_voice_design(latest)
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
-            if owner_pairing_required() and not owner_authenticated and intent in {
-                "memory_save", "contact_save", "contact_archive", "contact_view",
-                "agenda_note", "agenda_complete", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
-            }:
-                return pairing_required_payload()
-            if intent == "memory_save" and supabase_configured():
-                return supabase_memory_save(latest)
-            if intent == "contact_save" and supabase_configured():
-                return supabase_contact_save(latest)
-            if intent == "contact_archive" and supabase_configured():
-                return supabase_contact_archive(latest)
-            if intent == "contact_view" and supabase_configured():
-                return contacts_payload(50)
-            if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
-                return supabase_device_enqueue(latest, intent)
-            if intent == "agenda_complete" and supabase_configured():
-                return supabase_agenda_command(latest, intent)
-            if intent in {"agenda_note", "agenda_view", "task_add"}:
-                if os.environ.get("N8N_WEBHOOK_URL"):
-                    return n8n_automation(latest, intent)
-                if supabase_configured():
-                    return supabase_agenda_command(latest, intent)
-            return local_handoff(latest, intent, execute=local_execute), 200
+            return dispatch_intent(
+                latest,
+                intent,
+                local_execute=local_execute,
+                owner_authenticated=owner_authenticated,
+            )
 
     suggested_memory = memory_suggestion(latest)
     memory_context = []
@@ -2355,6 +2629,14 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             )
         ),
     }
+    tool_access = bool(owner_authenticated or not owner_pairing_required())
+    if tool_access:
+        system["content"] += (
+            "\n\nVocê possui ferramentas reais para memória, agenda e o Mac. Quando o pedido for uma ação, "
+            "prefira exatamente uma ferramenta adequada em vez de apenas explicar como fazer. A ferramenta não é "
+            "a execução: ela só solicita um adaptador verificado, cujo resultado será mostrado pelo sistema. Nunca "
+            "invente sucesso, nunca crie argumentos ausentes e não use ferramenta para conversa comum."
+        )
     provider_messages = [dict(row) for row in messages]
     if attachments:
         provider_messages[-1]["content"] = openrouter_attachment_parts(latest, attachments)
@@ -2370,10 +2652,13 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         }
     if any(item["type"] == "application/pdf" for item in attachments):
         openrouter_payload["plugins"] = [{"id": "file-parser", "pdf": {"engine": "cloudflare-ai"}}]
-    request_body = json.dumps(
-        openrouter_payload,
-        ensure_ascii=False,
-    ).encode("utf-8")
+    agent_tools = agent_tool_definitions() if tool_access else []
+    if agent_tools:
+        openrouter_payload.update({
+            "tools": agent_tools,
+            "tool_choice": "auto",
+            "parallel_tool_calls": False,
+        })
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -2383,11 +2668,46 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         headers["HTTP-Referer"] = origin[:200]
 
     try:
-        req = Request(OPENROUTER_URL, data=request_body, headers=headers, method="POST")
-        with urlopen(req, timeout=25) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        def send_openrouter(payload):
+            request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            req = Request(OPENROUTER_URL, data=request_body, headers=headers, method="POST")
+            with urlopen(req, timeout=25) as response:
+                return json.loads(response.read().decode("utf-8"))
+
+        tool_calling_fallback = False
+        try:
+            result = send_openrouter(openrouter_payload)
+        except HTTPError as error:
+            if not agent_tools or error.code not in {400, 404, 422}:
+                raise
+            fallback_payload = dict(openrouter_payload)
+            for field in ("tools", "tool_choice", "parallel_tool_calls"):
+                fallback_payload.pop(field, None)
+            result = send_openrouter(fallback_payload)
+            tool_calling_fallback = True
         choice = (result.get("choices") or [{}])[0]
-        content = choice.get("message", {}).get("content", "")
+        response_message = choice.get("message") if isinstance(choice, dict) else None
+        response_message = response_message if isinstance(response_message, dict) else {}
+        tool_calls = response_message.get("tool_calls") if isinstance(response_message.get("tool_calls"), list) else []
+        if tool_calls and not tool_calling_fallback:
+            payload, status = execute_agent_tool(
+                tool_calls[0],
+                latest,
+                local_execute=local_execute,
+                owner_authenticated=owner_authenticated,
+            )
+            routed = dict(payload)
+            route = routed.get("agent_route") if isinstance(routed.get("agent_route"), dict) else {}
+            route.update({
+                "model": clean_text(result.get("model") or DEFAULT_MODEL, 200),
+                "tool_call_id": clean_text(tool_calls[0].get("id"), 120) if isinstance(tool_calls[0], dict) else "",
+                "additional_tool_calls_ignored": max(0, len(tool_calls) - 1),
+            })
+            routed["agent_route"] = route
+            routed["agentic"] = True
+            return routed, status
+
+        content = response_message.get("content", "")
         if isinstance(content, list):
             content = "\n".join(
                 str(item.get("text") or "") for item in content if isinstance(item, dict)
@@ -2412,6 +2732,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "memory_context_cache_hit": memory_context_cache_hit,
             "response_profile": response_profile["name"],
             "response_trimmed": response_trimmed,
+            "tool_calling_fallback": tool_calling_fallback,
         }
         if attachments:
             payload["attachments_received"] = [
@@ -2461,47 +2782,21 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         return elevenlabs_voice_design(command)
 
     if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.IGNORECASE):
-        if owner_pairing_required() and not owner_authenticated:
-            return pairing_required_payload()
-        payload = memory_tree_payload()
-        payload.update({
-            "message": (
-                f"Abri sua constelação com {payload['count']} memórias persistentes."
-                if payload.get("ok") and payload.get("provider") == "supabase"
-                else f"Abri sua constelação com {payload['count']} memórias locais."
-                if payload.get("ok")
-                else payload.get("error", "A memória não está disponível.")
-            ),
-            "mode": "memory",
-            "sources": payload["nodes"][:12],
-        })
-        return payload, 200 if payload.get("ok") else 503
+        return dispatch_intent(
+            command,
+            "memory_view",
+            local_execute=local_execute,
+            owner_authenticated=owner_authenticated,
+        )
 
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(command):
-            if owner_pairing_required() and not owner_authenticated and intent in {
-                "memory_save", "contact_save", "contact_archive", "contact_view",
-                "agenda_note", "agenda_complete", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
-            }:
-                return pairing_required_payload()
-            if intent == "memory_save" and supabase_configured():
-                return supabase_memory_save(command)
-            if intent == "contact_save" and supabase_configured():
-                return supabase_contact_save(command)
-            if intent == "contact_archive" and supabase_configured():
-                return supabase_contact_archive(command)
-            if intent == "contact_view" and supabase_configured():
-                return contacts_payload(50)
-            if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
-                return supabase_device_enqueue(command, intent)
-            if intent == "agenda_complete" and supabase_configured():
-                return supabase_agenda_command(command, intent)
-            if intent in {"agenda_note", "agenda_view", "task_add"}:
-                if os.environ.get("N8N_WEBHOOK_URL"):
-                    return n8n_automation(command, intent)
-                if supabase_configured():
-                    return supabase_agenda_command(command, intent)
-            return local_handoff(command, intent, execute=local_execute), 200
+            return dispatch_intent(
+                command,
+                intent,
+                local_execute=local_execute,
+                owner_authenticated=owner_authenticated,
+            )
 
     clean = command.lstrip("/").strip()
     first = clean.split(maxsplit=1)[0].lower() if clean else ""

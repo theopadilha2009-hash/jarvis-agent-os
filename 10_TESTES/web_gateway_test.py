@@ -77,6 +77,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("n8n", payload["automations"])
         self.assertIn("access", payload)
         self.assertIn("public_chat", payload["access"])
+        self.assertEqual(payload["agent_runtime"]["execution"], "verified_adapters")
+        self.assertFalse(payload["agent_runtime"]["arbitrary_shell"])
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["X-Frame-Options"], "DENY")
 
@@ -101,7 +103,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260808-spatial1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260808-agent1', html)
         self.assertIn(b'/ui/jarvis.css?v=20260808-spatial1', html)
         self.assertIn(b'id="stateBeacon"', html)
         self.assertIn(b'id="accessMode"', html)
@@ -913,6 +915,150 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["provider"], "openrouter")
         self.assertEqual(payload["memory_context_count"], 0)
+
+    def test_agent_tool_schema_exposes_actions_but_never_shell_or_self_edit(self):
+        tools = MODULE.agent_tool_definitions()
+        names = {row["function"]["name"] for row in tools}
+        self.assertIn("open_application", names)
+        self.assertIn("save_memory", names)
+        self.assertIn("add_agenda_item", names)
+        self.assertNotIn("self_edit", names)
+        self.assertNotIn("shell", " ".join(sorted(names)))
+        for row in tools:
+            self.assertFalse(row["function"]["parameters"].get("additionalProperties", True))
+
+    def test_paired_contextual_tool_call_reaches_verified_device_adapter(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "tool-capable/free",
+                    "choices": [{
+                        "message": {
+                            "content": None,
+                            "tool_calls": [{
+                                "id": "call-open-chrome",
+                                "type": "function",
+                                "function": {
+                                    "name": "open_application",
+                                    "arguments": json.dumps({"application": "Google Chrome"}),
+                                },
+                            }],
+                        },
+                    }],
+                }).encode("utf-8")
+
+        captured_requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            captured_requests.append(json.loads(request.data.decode("utf-8")))
+            return FakeResponse()
+
+        queued = ({
+            "ok": True,
+            "status_real": "device_command_queued",
+            "visual_state": "local",
+            "message": "Pedido enviado ao worker do Mac.",
+            "intent": "open_application",
+            "provider": "supabase_device_bridge",
+            "job": {"id": 77, "status": "pending", "action": "open_application", "target": "Google Chrome"},
+        }, 202)
+        env = {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_OWNER_TOKEN": "private-owner-token",
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "assistant_memory_rows", return_value=([], False)
+        ), patch.object(MODULE, "urlopen", side_effect=fake_urlopen), patch.object(
+            MODULE, "supabase_device_enqueue", return_value=queued
+        ) as enqueue:
+            payload, status = MODULE.assistant_response({
+                "messages": [
+                    {"role": "user", "content": "quero usar o Chrome"},
+                    {"role": "assistant", "content": "Entendido."},
+                    {"role": "user", "content": "faz aquilo com o navegador que mencionei"},
+                ],
+            }, owner_authenticated=True)
+
+        self.assertEqual(status, 202)
+        self.assertTrue(payload["agentic"])
+        self.assertEqual(payload["agent_route"]["tool"], "open_application")
+        self.assertEqual(payload["agent_route"]["execution"], "verified_adapter")
+        self.assertEqual(payload["agent_route"]["model"], "tool-capable/free")
+        self.assertEqual(captured_requests[0]["tool_choice"], "auto")
+        self.assertFalse(captured_requests[0]["parallel_tool_calls"])
+        self.assertGreaterEqual(len(captured_requests[0]["tools"]), 8)
+        enqueue.assert_called_once_with("abra Google Chrome", "open_application")
+
+    def test_guest_chat_does_not_receive_private_tool_schemas(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Olá, visitante."}}],
+                }).encode("utf-8")
+
+        requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            requests.append(json.loads(request.data.decode("utf-8")))
+            return FakeResponse()
+
+        env = {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_OWNER_TOKEN": "private-owner-token",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(MODULE, "urlopen", side_effect=fake_urlopen):
+            payload, status = MODULE.assistant_response(
+                {"command": "oi, visitante aqui"}, owner_authenticated=False
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["message"], "Olá, visitante.")
+        self.assertNotIn("tools", requests[0])
+
+    def test_tool_calling_provider_rejection_falls_back_to_normal_chat(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "legacy/free",
+                    "choices": [{"message": {"content": "Continuo pela conversa normal."}}],
+                }).encode("utf-8")
+
+        requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            requests.append(json.loads(request.data.decode("utf-8")))
+            if len(requests) == 1:
+                raise HTTPError(MODULE.OPENROUTER_URL, 422, "tools unsupported", {}, None)
+            return FakeResponse()
+
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "urlopen", side_effect=fake_urlopen
+        ):
+            payload, status = MODULE.assistant_response({"command": "vamos conversar"})
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["tool_calling_fallback"])
+        self.assertIn("tools", requests[0])
+        self.assertNotIn("tools", requests[1])
 
     def test_simple_chat_is_trimmed_without_bureaucratic_labels(self):
         raw = (
