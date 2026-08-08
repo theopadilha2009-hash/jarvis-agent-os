@@ -8,6 +8,10 @@
   const sendButton = byId("sendButton");
   const voiceButton = byId("voiceButton");
   const muteButton = byId("muteButton");
+  const pulseButton = byId("pulseButton");
+  const attachmentButton = byId("attachmentButton");
+  const attachmentInput = byId("attachmentInput");
+  const attachmentTray = byId("attachmentTray");
   const dialog = byId("systemDialog");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -20,6 +24,7 @@
     speaking: false,
     voicePending: false,
     working: false,
+    workingState: "thinking",
     elevenlabs: false,
     voiceError: "",
     muted: (() => {
@@ -34,12 +39,15 @@
     paired: false,
     deviceOnline: false,
     deviceBridge: false,
+    canceledJobs: new Set(),
+    attachments: [],
   };
   let currentAudio = null;
   let currentAudioUrl = "";
   let currentSpeechController = null;
   let speechGeneration = 0;
   let voiceFailureNotified = false;
+  let currentPulse = null;
 
   function ownerToken() {
     try {
@@ -52,16 +60,33 @@
   const stateLabels = {
     idle: ["PRESENÇA", "aguardando você"],
     listening: ["ESCUTA", "ouvindo sua voz"],
-    thinking: ["RACIOCÍNIO", "conectando contexto e ferramentas"],
+    thinking: ["NÚCLEO", "raciocinando com o contexto"],
     voice: ["VOZ", "preparando uma resposta natural"],
-    planning: ["PLANO", "organizando a execução"],
+    planning: ["NÚCLEO", "organizando possibilidades"],
+    forge: ["FORJA", "construindo e verificando"],
     speaking: ["RESPOSTA", "falando com você"],
     response: ["RESPOSTA", "resultado disponível"],
-    memory: ["MEMÓRIA", "indexando conhecimento local"],
-    local: ["WORKER LOCAL", "ação preparada no Mac"],
+    memory: ["MEMÓRIA", "gravando conhecimento confirmado"],
+    local: ["FORJA", "executando pelo worker local"],
     success: ["CONCLUÍDO", "ação finalizada"],
     error: ["ATENÇÃO", "a ação encontrou um problema"],
     offline: ["OFFLINE", "runtime indisponível"],
+  };
+
+  const statePresentation = {
+    idle: ["●", "PRESENÇA", "JARVIS", "ambiente em espera"],
+    listening: ["◌", "ESCUTA", "CANAL ABERTO", "captando sua voz"],
+    thinking: ["◉", "NÚCLEO", "RACIOCÍNIO", "conectando contexto"],
+    planning: ["◉", "NÚCLEO", "PLANEJAMENTO", "organizando possibilidades"],
+    forge: ["◆", "FORJA", "CONSTRUÇÃO", "montando e verificando"],
+    local: ["◆", "FORJA", "EXECUÇÃO", "worker local em atividade"],
+    memory: ["◇", "MEMÓRIA", "ARQUIVO", "gravando contexto confirmado"],
+    speaking: ["≈", "VOZ", "TRANSMISSÃO", "falando com você"],
+    voice: ["≈", "VOZ", "SÍNTESE", "preparando áudio"],
+    response: ["✓", "RESULTADO", "CONCLUÍDO", "resposta disponível"],
+    success: ["✓", "RESULTADO", "CONCLUÍDO", "ação confirmada"],
+    error: ["!", "SISTEMA", "ATENÇÃO", "algo precisa ser revisto"],
+    offline: ["×", "SISTEMA", "OFFLINE", "runtime indisponível"],
   };
 
   function setVisualState(state) {
@@ -71,6 +96,11 @@
     byId("modeLabel").textContent = mode;
     byId("stateLabel").textContent = label;
     byId("conversationState").textContent = label;
+    const [symbol, phase, name, description] = statePresentation[normalized] || statePresentation.idle;
+    byId("stateSymbol").textContent = symbol;
+    byId("statePhase").textContent = phase;
+    byId("stateName").textContent = name;
+    byId("stateDescription").textContent = description;
     byId("voiceLink").textContent = normalized === "listening"
       ? "recebendo voz"
       : normalized === "speaking"
@@ -87,15 +117,30 @@
     if (session.listening) return setVisualState("listening");
     if (session.speaking) return setVisualState("speaking");
     if (session.voicePending) return setVisualState("voice");
-    if (session.working) return setVisualState("thinking");
+    if (session.working) return setVisualState(session.workingState || "thinking");
     setVisualState(session.responseState || "idle");
   }
 
-  function setWorking(value) {
+  function setWorking(value, state = "thinking") {
     session.working = value;
+    if (value) session.workingState = state;
     sendButton.disabled = value;
-    sendButton.textContent = value ? "Pensando…" : "Enviar";
+    sendButton.textContent = value ? (state === "forge" ? "Construindo…" : state === "memory" ? "Gravando…" : "Pensando…") : "Enviar";
     settleState();
+  }
+
+  function workingStateFor(command) {
+    const text = String(command || "");
+    if (/\b(?:guard(?:a|e|ar)|salv(?:a|e|ar)|memor(?:ize|izar)|lembre)\b.{0,80}\bmem[oó]ria\b|\bmem[oó]ria\b.{0,80}\b(?:guard(?:a|e|ar)|salv(?:a|e|ar))\b/i.test(text)) return "memory";
+    if (/\b(?:cri(?:a|e|ar)|constru(?:a|ir)|implement(?:a|e|ar)|edit(?:a|e|ar)|corrig(?:e|ir)|arrum(?:a|e|ar)|deploy|public(?:a|ar)|sub(?:a|ir)|automatiz(?:a|e|ar))\b/i.test(text)) return "forge";
+    return "thinking";
+  }
+
+  function responseVisualState(data) {
+    const state = data?.visual_state || (data?.executed_locally ? "success" : "response");
+    if (state === "local" || (data?.job && ["pending", "running"].includes(data.job.status))) return "forge";
+    if (state === "planning") return "response";
+    return state;
   }
 
   function escapeHtml(value) {
@@ -118,13 +163,39 @@
     return `${excerpt.slice(0, naturalEnd > 520 ? naturalEnd + 1 : 900).trim()}…`;
   }
 
-  function compactCaption(value, fallback = "Pronto quando você estiver.") {
+  function compactCaption(value, fallback = "Estou aqui.") {
     const clean = speechText(value);
     if (!clean) return fallback;
     const sentence = clean.match(/^.{1,150}?[.!?](?=\s|$)/)?.[0] || clean.slice(0, 148);
     return clean.length > sentence.length && !/[.!?]$/.test(sentence)
       ? `${sentence.trim()}…`
       : sentence.trim();
+  }
+
+  function speechChunks(value, maxLength = 260) {
+    const clean = speechText(value);
+    if (!clean) return [];
+    const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
+    const pieces = [];
+    sentences.forEach((sentence) => {
+      let remaining = sentence.trim();
+      while (remaining.length > maxLength) {
+        const windowText = remaining.slice(0, maxLength + 1);
+        const comma = Math.max(windowText.lastIndexOf(", "), windowText.lastIndexOf("; "), windowText.lastIndexOf(": "));
+        const space = windowText.lastIndexOf(" ");
+        const cut = comma > maxLength * 0.55 ? comma + 1 : space > 0 ? space : maxLength;
+        pieces.push(remaining.slice(0, cut).trim());
+        remaining = remaining.slice(cut).trim();
+      }
+      if (remaining) pieces.push(remaining);
+    });
+    const chunks = [];
+    pieces.forEach((piece) => {
+      const previous = chunks.at(-1);
+      if (previous && `${previous} ${piece}`.length <= maxLength) chunks[chunks.length - 1] = `${previous} ${piece}`;
+      else chunks.push(piece);
+    });
+    return chunks.slice(0, 6);
   }
 
   function messageHtml(value) {
@@ -135,6 +206,7 @@
 
   function addMessage(text, type = "jarvis", extraHtml = "") {
     byId("welcomeMessage")?.remove();
+    stage.classList.add("has-conversation");
     const message = document.createElement("div");
     message.className = `message ${type}`;
     message.innerHTML = `<span>${messageHtml(text)}</span>${extraHtml}`;
@@ -148,6 +220,55 @@
     byId("requestText").textContent = command;
     byId("spokenCaption").textContent = compactCaption(command, "Entendi. Deixe comigo.");
     byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
+  }
+
+  function renderAttachmentTray() {
+    attachmentTray.hidden = session.attachments.length === 0;
+    attachmentTray.innerHTML = session.attachments.map((item, index) => (
+      `<span><b>${escapeHtml(item.name)}</b><small>${Math.ceil(item.size / 1024)} KB</small><button type="button" data-remove-attachment="${index}" aria-label="Remover ${escapeHtml(item.name)}">×</button></span>`
+    )).join("");
+    attachmentTray.querySelectorAll("[data-remove-attachment]").forEach((button) => {
+      button.addEventListener("click", () => {
+        session.attachments.splice(Number(button.dataset.removeAttachment), 1);
+        renderAttachmentTray();
+      });
+    });
+  }
+
+  function fileDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("file_read_failed"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function addAttachments(files) {
+    const selected = Array.from(files || []);
+    for (const file of selected) {
+      if (session.attachments.length >= 2) {
+        addMessage("Posso analisar até dois anexos por mensagem.", "error");
+        break;
+      }
+      const total = session.attachments.reduce((sum, item) => sum + item.size, 0) + file.size;
+      if (!file.size || total > 2500000) {
+        addMessage("Os anexos juntos precisam ter no máximo 2,5 MB.", "error");
+        continue;
+      }
+      try {
+        session.attachments.push({
+          name: file.name,
+          type: file.type || "text/plain",
+          size: file.size,
+          data_url: await fileDataUrl(file),
+        });
+      } catch {
+        addMessage(`Não consegui ler ${file.name}.`, "error");
+      }
+    }
+    attachmentInput.value = "";
+    renderAttachmentTray();
   }
 
   function canvasRows(items) {
@@ -170,39 +291,75 @@
     }).format(date);
   }
 
+  function renderEventStream(stream) {
+    if (!stream || stream.protocol !== "jarvis-events/1" || !Array.isArray(stream.events)) return "";
+    const rows = stream.events.slice(-5).map((event) => {
+      const status = ["running", "succeeded", "failed"].includes(event.status) ? event.status : "unknown";
+      const detail = event.detail ? `<small>${escapeHtml(event.detail)}</small>` : "";
+      return `<div class="event-row" data-status="${status}"><i></i><span><b>${escapeHtml(event.label || event.type)}</b>${detail}</span></div>`;
+    }).join("");
+    return `<div class="event-stream"><div class="event-head"><span>EXECUÇÃO REAL</span><small>${Number(stream.elapsed_ms) || 0} ms</small></div>${rows}</div>`;
+  }
+
+  function renderUICards(cards) {
+    if (!Array.isArray(cards) || !cards.length) return "";
+    return `<div class="ui-card-stack">${cards.slice(0, 3).map((card) => {
+      const items = Array.isArray(card.items) ? card.items.slice(0, 6) : [];
+      const artifact = card.artifact_url
+        ? `<a class="artifact-link" href="${escapeHtml(card.artifact_url)}" target="_blank" rel="noopener noreferrer"><img class="artifact-preview" src="${escapeHtml(card.artifact_url)}" alt="Evidência criada pelo worker do Mac"></a>`
+        : "";
+      return `<article class="ui-card" data-type="${escapeHtml(card.type || "result")}" data-status="${escapeHtml(card.status || "unknown")}"><header><span>${escapeHtml(card.title || "Resultado")}</span><small>${escapeHtml(card.status || "")}</small></header>${card.subtitle ? `<p>${escapeHtml(card.subtitle)}</p>` : ""}${items.length ? `<ol>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : ""}${artifact}</article>`;
+    }).join("")}</div>`;
+  }
+
+  function renderMessageContext(data) {
+    let html = "";
+    if (Array.isArray(data.ui_cards) && data.ui_cards.length) {
+      html += data.ui_cards.slice(0, 2).map((card) => {
+        const items = Array.isArray(card.items) ? card.items.slice(0, 6) : [];
+        return `<details class="message-card"><summary>${escapeHtml(card.title || "Resultado")}<small>${escapeHtml(card.status || "")}</small></summary>${card.subtitle ? `<p>${escapeHtml(card.subtitle)}</p>` : ""}${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}</details>`;
+      }).join("");
+    }
+    const stream = data.event_stream;
+    if (stream?.protocol === "jarvis-events/1" && Array.isArray(stream.events)) {
+      html += `<details class="message-events"><summary>Execução real<small>${Number(stream.elapsed_ms) || 0} ms</small></summary>${stream.events.slice(-5).map((event) => `<div><i data-status="${escapeHtml(event.status || "unknown")}"></i><span>${escapeHtml(event.label || event.type)}</span></div>`).join("")}</details>`;
+    }
+    return html;
+  }
+
   function renderLiveCanvas(data) {
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
-    let html = "";
+    let html = renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
     if (data.memory_suggestion) {
-      html = `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
+      html += `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
     }
     else if (data.job?.id) {
       const target = data.job.target ? ` · ${data.job.target}` : "";
-      html = `<div class="canvas-row"><i>↗</i><span>Ação ${escapeHtml(data.job.id)} · ${escapeHtml(data.job.status || "pending")}${escapeHtml(target)}</span></div>`;
+      html += `<div class="canvas-row"><i>↗</i><span>Ação ${escapeHtml(data.job.id)} · ${escapeHtml(data.job.status || "pending")}${escapeHtml(target)}</span></div>`;
       if (data.job.artifact_url) {
         html += `<a class="artifact-link" href="${escapeHtml(data.job.artifact_url)}" target="_blank" rel="noopener noreferrer"><img class="artifact-preview" src="${escapeHtml(data.job.artifact_url)}" alt="Captura privada criada pelo worker do Mac"></a>`;
       }
       if (data.job.result) html += `<div class="canvas-result">${escapeHtml(data.job.result).slice(0, 1800)}</div>`;
     }
     else if (Array.isArray(data.agenda) && data.agenda.length) {
-      html = data.agenda.slice(0, 8).map((item) => {
+      html += data.agenda.slice(0, 8).map((item) => {
         const scheduled = agendaDate(item.scheduled_for);
         const label = scheduled ? `${item.title || "item da agenda"} · ${scheduled}` : item.title || "item da agenda";
         return `<div class="canvas-row"><i>${escapeHtml(item.id || "·")}</i><span>${escapeHtml(label)}</span></div>`;
       }).join("");
     }
     else if (Array.isArray(data.contacts) && data.contacts.length) {
-      html = data.contacts.slice(0, 8).map((item, index) => (
+      html += data.contacts.slice(0, 8).map((item, index) => (
         `<div class="canvas-row"><i>${index + 1}</i><span>${escapeHtml(item.display_name || item.alias)} · ${escapeHtml(item.phone || "")}</span></div>`
       )).join("");
     }
-    else if (Array.isArray(data.steps) && data.steps.length) html = canvasRows(data.steps);
-    else if (Array.isArray(data.sources) && data.sources.length) html = canvasRows(data.sources);
-    else if (data.result) html = `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
-    else if (data.local_command) html = `<div class="canvas-row"><i>→</i><span>Worker local preparado</span></div><div class="canvas-result">${escapeHtml(data.local_command)}</div>`;
-    else if (data.provider === "openrouter") html = `<div class="canvas-row"><i>✓</i><span>Resposta pronta para você</span></div>`;
-    else if (data.message) html = `<div class="canvas-result">${escapeHtml(data.message).slice(0, 320)}</div>`;
+    else if (Array.isArray(data.steps) && data.steps.length) html += canvasRows(data.steps);
+    else if (Array.isArray(data.sources) && data.sources.length) html += canvasRows(data.sources);
+    else if (data.result) html += `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
+    else if (data.local_command) html += `<div class="canvas-row"><i>→</i><span>Worker local preparado</span></div><div class="canvas-result">${escapeHtml(data.local_command)}</div>`;
+    else if (data.provider === "openrouter") html += `<div class="canvas-row"><i>✓</i><span>Resposta pronta para você</span></div>`;
+    else if (data.message && !html) html = `<div class="canvas-result">${escapeHtml(data.message).slice(0, 320)}</div>`;
     content.innerHTML = html;
     empty.hidden = Boolean(html);
   }
@@ -234,6 +391,38 @@
     }
   }
 
+  async function refreshPulse() {
+    if (document.hidden) return;
+    try {
+      const data = await request("/pulse");
+      const suggestion = data?.suggestion;
+      const dismissed = suggestion?.id && localStorage.getItem("jarvis-last-pulse") === suggestion.id;
+      currentPulse = suggestion && !dismissed ? suggestion : null;
+      pulseButton.hidden = !currentPulse;
+      if (currentPulse) {
+        pulseButton.textContent = currentPulse.overdue ? "1 pendência" : "1 lembrete";
+        pulseButton.title = currentPulse.message;
+      }
+    } catch {
+      currentPulse = null;
+      pulseButton.hidden = true;
+    }
+  }
+
+  async function refreshWorkerStatus(target) {
+    try {
+      const worker = await request("/device-worker-status");
+      session.deviceOnline = Boolean(worker.online);
+      target.textContent = worker.online
+        ? `Mac conectado · ${worker.hostname || "worker local"}`
+        : "Mac offline · abra ou instale o worker local";
+      await refreshActionHistory({ revealLatest: true });
+    } catch {
+      session.deviceOnline = false;
+      target.textContent = "Mac offline · verificação indisponível";
+    }
+  }
+
   async function request(path, options) {
     const requestOptions = { ...(options || {}) };
     const headers = new Headers(requestOptions.headers || {});
@@ -260,6 +449,7 @@
 
   function finishSpeaking() {
     session.speaking = false;
+    byId("spokenCaption").textContent = "";
     settleState();
   }
 
@@ -268,11 +458,60 @@
     session.voicePending = false;
     currentSpeechController?.abort();
     currentSpeechController = null;
+    currentAudio?.__jarvisFinish?.(false);
     currentAudio?.pause();
     currentAudio = null;
     if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
     currentAudioUrl = "";
     if (session.speaking) finishSpeaking();
+  }
+
+  async function fetchSpeechChunk(text, generation) {
+    const controller = new AbortController();
+    currentSpeechController = controller;
+    const response = await fetch("/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: controller.signal,
+    });
+    if (generation !== speechGeneration) throw new DOMException("Speech stopped", "AbortError");
+    if (!response.ok) {
+      const failure = await response.json().catch(() => ({}));
+      throw new Error(failure.error_code || "elevenlabs_unavailable");
+    }
+    return response.blob();
+  }
+
+  function playSpeechChunk(blob, text, generation) {
+    return new Promise((resolve, reject) => {
+      if (generation !== speechGeneration) return resolve(false);
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      let settled = false;
+      const finish = (played) => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(audioUrl);
+        if (currentAudio === audio) {
+          currentAudio = null;
+          currentAudioUrl = "";
+        }
+        resolve(played);
+      };
+      audio.__jarvisFinish = finish;
+      currentAudioUrl = audioUrl;
+      currentAudio = audio;
+      audio.onplay = () => {
+        if (generation === speechGeneration) beginSpeaking(text);
+      };
+      audio.onended = () => finish(true);
+      audio.onerror = () => finish(false);
+      audio.play().catch((error) => {
+        finish(false);
+        reject(error);
+      });
+    });
   }
 
   function renderMuteState() {
@@ -296,8 +535,8 @@
 
   async function speak(text) {
     if (!text) return;
-    const clean = speechText(text);
-    if (!clean) return false;
+    const chunks = speechChunks(text);
+    if (!chunks.length) return false;
     stopSpeechOutput();
     if (session.muted) return false;
     const generation = speechGeneration;
@@ -305,43 +544,26 @@
     session.voicePending = true;
     byId("spokenCaption").textContent = "Preparando voz…";
     settleState();
-    const controller = new AbortController();
-    currentSpeechController = controller;
+    let played = false;
     try {
-      const response = await fetch("/speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean }),
-        signal: controller.signal,
-      });
-      if (generation !== speechGeneration || controller !== currentSpeechController) return false;
-      if (!response.ok) {
-        const failure = await response.json().catch(() => ({}));
-        throw new Error(failure.error_code || "elevenlabs_unavailable");
+      let prepared = fetchSpeechChunk(chunks[0], generation)
+        .then((blob) => ({ blob }))
+        .catch((error) => ({ error }));
+      for (let index = 0; index < chunks.length; index += 1) {
+        const result = await prepared;
+        if (result.error) throw result.error;
+        if (generation !== speechGeneration) return false;
+        prepared = index + 1 < chunks.length
+          ? fetchSpeechChunk(chunks[index + 1], generation).then((blob) => ({ blob })).catch((error) => ({ error }))
+          : null;
+        const chunkPlayed = await playSpeechChunk(result.blob, chunks[index], generation);
+        if (generation !== speechGeneration) return false;
+        played = played || chunkPlayed;
       }
-      const audioBlob = await response.blob();
-      if (generation !== speechGeneration || controller !== currentSpeechController) return false;
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      currentAudioUrl = audioUrl;
-      currentAudio = audio;
-      audio.onplay = () => {
-        if (generation === speechGeneration) beginSpeaking(clean);
-      };
-      audio.onended = () => {
-        if (generation === speechGeneration) finishSpeaking();
-      };
-      audio.onerror = () => {
-        if (generation === speechGeneration) finishSpeaking();
-      };
-      if (generation !== speechGeneration || controller !== currentSpeechController) {
-        URL.revokeObjectURL(audioUrl);
-        return false;
-      }
-      await audio.play();
       session.voiceError = "";
       voiceFailureNotified = false;
-      return true;
+      if (generation === speechGeneration) finishSpeaking();
+      return played;
     } catch (error) {
       if (error?.name === "AbortError") return false;
       if (generation === speechGeneration) {
@@ -360,12 +582,13 @@
         session.voicePending = false;
         settleState();
       }
-      if (controller === currentSpeechController) currentSpeechController = null;
+      if (generation === speechGeneration) currentSpeechController = null;
     }
   }
 
   async function monitorDeviceCommand(jobId, message) {
     for (let attempt = 0; attempt < 50; attempt += 1) {
+      if (session.canceledJobs.has(String(jobId))) return;
       await new Promise((resolve) => window.setTimeout(resolve, 1200));
       let data;
       try {
@@ -377,18 +600,18 @@
       if (!data?.job) continue;
       renderLiveCanvas(data);
       byId("activityValue").textContent = `${data.message} · ação ${jobId}`;
-      if (["succeeded", "failed"].includes(data.job.status)) {
+      if (["succeeded", "failed", "canceled"].includes(data.job.status)) {
         const text = data.job.result ? `${data.message}\n${data.job.result}` : data.message;
         message.querySelector("span").textContent = text;
         message.classList.toggle("error", data.job.status === "failed");
         session.responseState = data.visual_state || (data.job.status === "succeeded" ? "success" : "error");
-        byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : "Ação falhou";
+        byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : data.job.status === "canceled" ? "Ação cancelada" : "Ação falhou";
         refreshActionHistory();
         settleState();
         return;
       }
       message.querySelector("span").textContent = data.message;
-      session.responseState = "local";
+      session.responseState = "forge";
       settleState();
     }
     message.querySelector("span").textContent = "O pedido continua na fila; o worker do Mac não confirmou dentro de um minuto.";
@@ -409,17 +632,21 @@
       return;
     }
 
-    session.responseState = data.visual_state || (data.executed_locally ? "success" : "response");
+    session.responseState = responseVisualState(data);
     const answer = data.message || data.summary || data.next_action || data.status_real || "Pronto.";
     let extra = "";
+    extra += renderMessageContext(data);
     if (data.memory_suggestion) {
-      extra = `<button class="memory-command" type="button">Guardar na memória</button>`;
+      extra = `<button class="memory-command" type="button">${session.paired ? "Guardar na memória" : "Memória privada"}</button>`;
     }
     if (data.local_command) {
       extra += `<button class="copy-command" type="button">Copiar comando local</button><details><summary>ver comando</summary><code>${escapeHtml(data.local_command)}</code></details>`;
     }
     if (data.result) {
       extra += `<details><summary>ver resultado completo</summary><code>${escapeHtml(data.result)}</code></details>`;
+    }
+    if (data.job?.id && data.job.status === "pending") {
+      extra += `<button class="cancel-job" type="button">Cancelar ação</button>`;
     }
     if (session.elevenlabs) {
       extra += `<button class="speak-command" type="button">Ouvir</button>`;
@@ -432,6 +659,11 @@
     });
     const memory = message.querySelector(".memory-command");
     if (memory) memory.addEventListener("click", () => {
+      if (!session.paired) {
+        dialog.showModal();
+        byId("ownerTokenInput").focus();
+        return;
+      }
       memory.disabled = true;
       memory.textContent = "Preparando memória…";
       sendCommand(`guarde na memória como preferência: ${data.memory_suggestion}`);
@@ -443,6 +675,26 @@
       const played = await speak(answer);
       replay.disabled = false;
       replay.textContent = played ? "Reproduzir novamente" : "Tentar voz novamente";
+    });
+    const cancelJob = message.querySelector(".cancel-job");
+    if (cancelJob) cancelJob.addEventListener("click", async () => {
+      cancelJob.disabled = true;
+      cancelJob.textContent = "Cancelando…";
+      try {
+        const canceled = await request("/device-cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: data.job.id }),
+        });
+        session.canceledJobs.add(String(data.job.id));
+        message.querySelector("span").textContent = canceled.message || "Ação cancelada.";
+        cancelJob.remove();
+        renderLiveCanvas(canceled);
+        refreshActionHistory();
+      } catch (error) {
+        cancelJob.disabled = false;
+        cancelJob.textContent = "Tentar cancelar novamente";
+      }
     });
     byId("activityValue").textContent = data.executed_locally ? `Executado localmente · ${data.intent || "ação"}` : answer;
     byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.job?.id ? "Ação enviada ao Mac" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
@@ -456,21 +708,27 @@
   }
 
   async function sendCommand(rawValue, options = {}) {
-    const command = String(rawValue || "").trim();
+    const attachments = options.includeAttachments ? session.attachments.slice() : [];
+    const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
     session.responseState = "";
-    addMessage(command, options.source === "voice" ? "user voice" : "user");
+    const fileLabel = attachments.length ? `<small class="message-attachments">${attachments.map((item) => escapeHtml(item.name)).join(" · ")}</small>` : "";
+    addMessage(command, options.source === "voice" ? "user voice" : "user", fileLabel);
     input.value = "";
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-12);
     setRequest(command);
-    setWorking(true);
+    setWorking(true, workingStateFor(command));
     try {
       const data = await request("/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, messages: session.history, input_mode: options.source || "text" }),
+        body: JSON.stringify({ command, messages: session.history, input_mode: options.source || "text", attachments }),
       });
+      if (attachments.length) {
+        session.attachments = [];
+        renderAttachmentTray();
+      }
       showResponse(data);
       const answer = data.message || data.summary;
       if (answer) session.history.push({ role: "assistant", content: answer });
@@ -508,7 +766,7 @@
       if (!submitted && rows.at(-1)?.isFinal && transcript) {
         submitted = true;
         recognition.stop();
-        sendCommand(transcript, { source: "voice" });
+        sendCommand(transcript, { source: "voice", includeAttachments: true });
       }
     };
     recognition.onerror = (event) => {
@@ -544,9 +802,23 @@
       byId("connectionDot").classList.toggle("online", Boolean(status.ok));
       byId("connectionText").textContent = status.ok ? "online" : "offline";
       byId("serviceValue").textContent = status.service || "jarvis-web";
-      byId("aiValue").textContent = status.ai?.configured ? "OpenRouter conectado" : "OpenRouter não configurado";
       byId("modelValue").textContent = status.ai?.model || "—";
       session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
+      const toolCount = session.paired ? Number(status.agent_runtime?.available_tools) || 0 : 0;
+      byId("aiValue").textContent = status.ai?.configured
+        ? `OpenRouter conectado${toolCount ? ` · ${toolCount} ferramentas` : ""}`
+        : "OpenRouter não configurado";
+      const accessMode = session.paired ? "owner" : "guest";
+      stage.dataset.access = accessMode;
+      byId("accessMode").textContent = session.paired ? "Theo conectado" : "modo visitante";
+      byId("accessValue").textContent = session.paired
+        ? "Theo · memória e Mac privados disponíveis"
+        : status.access?.public_chat
+          ? "Visitante · conversa liberada, memória e Mac privados"
+          : "Visitante · conversa aguarda OpenRouter";
+      byId("welcomeHint").textContent = session.paired
+        ? "Escreva ou fale naturalmente."
+        : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
       session.deviceBridge = Boolean(status.device_bridge?.configured);
       session.elevenlabs = Boolean(status.voice?.configured);
       session.voiceError = "";
@@ -556,7 +828,7 @@
           ? "microfone ativo · saída aguarda ElevenLabs"
           : "ElevenLabs aguarda chave";
       const ready = [
-        status.ai?.configured ? "IA" : "",
+        status.ai?.configured ? (toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
         status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
         status.automations?.n8n?.configured ? "n8n" : "",
         session.paired && status.device_bridge?.configured ? "Mac pareado" : "",
@@ -564,10 +836,10 @@
       ].filter(Boolean);
       byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
       byId("integrationHint").textContent = status.automations?.n8n?.configured
-        ? "Agenda e tarefas conectadas ao n8n."
+        ? "O JARVIS escolhe ferramentas pelo contexto; agenda e tarefas estão conectadas ao n8n."
         : status.automations?.agenda?.provider === "supabase"
-          ? "Agenda privada no Supabase; n8n continua opcional. Ações do Mac usam o worker local."
-          : "Agenda aguarda o webhook n8n; ações do Mac usam o worker local.";
+          ? "Roteamento contextual ativo; memória e agenda ficam no Supabase e ações usam o worker local."
+          : "Roteamento contextual ativo; persistência aguarda Supabase ou n8n e o Mac usa o worker local.";
       byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
       const tokenInput = byId("ownerTokenInput");
       tokenInput.value = ownerToken();
@@ -578,12 +850,8 @@
           : "Pareamento ainda não foi exigido neste ambiente.";
       const workerValue = byId("workerValue");
       if (session.paired && status.device_bridge?.configured) {
-        const worker = await request("/device-worker-status");
-        session.deviceOnline = Boolean(worker.online);
-        workerValue.textContent = worker.online
-          ? `Mac conectado · ${worker.hostname || "worker local"}`
-          : "Mac offline · abra ou instale o worker local";
-        await refreshActionHistory({ revealLatest: true });
+        workerValue.textContent = "verificando o Mac em segundo plano";
+        refreshWorkerStatus(workerValue);
       } else {
         session.deviceOnline = status.runtime === "local_web_preview";
         workerValue.textContent = session.paired
@@ -591,6 +859,7 @@
           : "Navegador não pareado";
       }
       setVisualState(status.ok ? "idle" : "offline");
+      refreshPulse();
     } catch {
       byId("connectionText").textContent = "offline";
       session.responseState = "offline";
@@ -600,7 +869,28 @@
 
   byId("commandForm").addEventListener("submit", (event) => {
     event.preventDefault();
-    sendCommand(input.value);
+    sendCommand(input.value, { includeAttachments: true });
+  });
+  attachmentButton.addEventListener("click", () => attachmentInput.click());
+  attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
+  pulseButton.addEventListener("click", () => {
+    if (!currentPulse) return;
+    addMessage(currentPulse.message, "jarvis");
+    renderLiveCanvas({
+      ui_cards: [{
+        id: currentPulse.id,
+        type: "agenda",
+        status: currentPulse.overdue ? "overdue" : "upcoming",
+        title: currentPulse.title,
+        subtitle: "Sugestão; nenhuma ação executada",
+        items: [currentPulse.message],
+      }],
+    });
+    input.value = currentPulse.command || "";
+    input.focus();
+    try { localStorage.setItem("jarvis-last-pulse", currentPulse.id); } catch { /* session-only dismissal */ }
+    currentPulse = null;
+    pulseButton.hidden = true;
   });
   byId("detailsButton").addEventListener("click", () => {
     dialog.showModal();
@@ -650,4 +940,5 @@
   renderMuteState();
   installVoiceInput();
   boot();
+  window.setInterval(refreshPulse, 10 * 60 * 1000);
 })();

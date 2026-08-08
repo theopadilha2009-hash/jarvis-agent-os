@@ -5,6 +5,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+import base64
 import importlib.util
 from datetime import datetime
 import json
@@ -74,8 +75,22 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("voice", payload)
         self.assertEqual(payload["voice"]["fallback"], "text_only")
         self.assertIn("n8n", payload["automations"])
+        self.assertIn("access", payload)
+        self.assertIn("public_chat", payload["access"])
+        self.assertEqual(payload["agent_runtime"]["execution"], "verified_adapters")
+        self.assertFalse(payload["agent_runtime"]["arbitrary_shell"])
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["X-Frame-Options"], "DENY")
+
+    def test_client_disconnect_during_asset_write_is_ignored(self):
+        class ClosedPipe:
+            def write(self, _body):
+                raise BrokenPipeError("browser closed the tab")
+
+        class FakeHandler:
+            wfile = ClosedPipe()
+
+        MODULE.handler._write_body(FakeHandler(), b"model bytes")
 
     def test_cockpit_and_model_asset(self):
         status, _, html = self.request("/")
@@ -88,8 +103,13 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260807-human2', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260807-human2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260808-agent1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260808-spatial1', html)
+        self.assertIn(b'id="stateBeacon"', html)
+        self.assertIn(b'id="accessMode"', html)
+        self.assertIn(b'id="pulseButton"', html)
+        self.assertIn(b'id="attachmentInput"', html)
+        self.assertIn(b'id="attachmentTray"', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b"fallback-core", html)
@@ -114,12 +134,36 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"compactCaption", app_js)
         self.assertIn(b"session.voicePending", app_js)
         self.assertIn(b'data.provider === "openrouter"', app_js)
+        self.assertIn(b"renderEventStream", app_js)
+        self.assertIn(b"refreshWorkerStatus", app_js)
+        self.assertIn(b"verificando o Mac em segundo plano", app_js)
+        self.assertIn(b'protocol !== "jarvis-events/1"', app_js)
+        self.assertIn(b"renderUICards", app_js)
+        self.assertIn(b'class="ui-card"', app_js)
+        self.assertIn(b"refreshPulse", app_js)
+        self.assertIn(b"10 * 60 * 1000", app_js)
+        self.assertIn(b'"/device-cancel"', app_js)
+        self.assertIn(b"canceledJobs", app_js)
+        self.assertIn(b"addAttachments", app_js)
+        self.assertIn(b"readAsDataURL", app_js)
+        self.assertIn(b"speechChunks", app_js)
+        self.assertIn(b"fetchSpeechChunk", app_js)
+        self.assertIn(b"playSpeechChunk", app_js)
+        self.assertIn(b"__jarvisFinish", app_js)
+        self.assertIn(b"renderMessageContext", app_js)
+        self.assertIn(b'class="message-card"', app_js)
+        self.assertIn(b"workingStateFor", app_js)
+        self.assertIn(b"responseVisualState", app_js)
+        self.assertIn(b'forge: ["FORJA"', app_js)
 
         status, headers, app_css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
         self.assertIn(b".conversation-head", app_css)
         self.assertIn(b"-webkit-line-clamp: 2", app_css)
+        self.assertIn(b'.stage.has-conversation .conversation', app_css)
+        self.assertIn(b'.stage[data-state="thinking"] .hud-right', app_css)
+        self.assertIn(b".compact-surface {\n  display: none", app_css)
         self.assertIn(b'error?.name === "AbortError"', app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
 
@@ -129,19 +173,28 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"drawMemory", visual_js)
         self.assertIn(b"drawForge", visual_js)
         self.assertIn(b"makeCoreEntity", visual_js)
-        self.assertIn(b"MEMORY CONSTELLATION", visual_js)
+        self.assertIn("MEMÓRIA · REGISTRO CONFIRMADO".encode(), visual_js)
+        self.assertIn("FORJA · CONSTRUÇÃO EM CURSO".encode(), visual_js)
         self.assertIn(b"visualModeForState", visual_js)
+        self.assertIn(b"modeBlend", visual_js)
+        self.assertIn(b'["thinking", "planning"].includes(state)', visual_js)
+        self.assertNotIn(b"rgba(192,107,255", visual_js)
         self.assertIn(b"AnimationMixer", visual_js)
         self.assertIn(b"20260807-voicecyan1", visual_js)
         self.assertIn(b"installCyanRemap", visual_js)
         self.assertIn(b"jarvisRedMask", visual_js)
         self.assertIn(b"BASE_FRAME_INTERVAL_MS", visual_js)
-        self.assertIn(b"adaptive-lite-18fps", visual_js)
+        self.assertIn(b"ACTIVE_TARGET_FPS", visual_js)
+        self.assertIn(b"IDLE_TARGET_FPS", visual_js)
+        self.assertIn(b"BACKGROUND_TARGET_FPS", visual_js)
+        self.assertIn(b"EFFECT_TARGET_FPS", visual_js)
         self.assertIn(b"slowFrameWindows", visual_js)
         self.assertIn(b'renderer.setPixelRatio(1)', visual_js)
         self.assertIn(b'GPU 3D desativada', visual_js)
         self.assertIn(b"frameIntervalMs", visual_js)
         self.assertIn(b"document.hidden", visual_js)
+        self.assertIn(b"resizeObserver.disconnect()", visual_js)
+        self.assertIn(b"renderer.dispose()", visual_js)
         self.assertIn(b"X-Jarvis-Owner-Token", visual_js)
 
         status, headers, three_js = self.request("/ui/vendor/three.module.js")
@@ -174,6 +227,30 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["intent"], "screen_capture")
         self.assertTrue(payload["requires_local_worker"])
         self.assertTrue(payload["local_command"].startswith("./jarvis do "))
+        stream = payload["event_stream"]
+        self.assertEqual(stream["protocol"], "jarvis-events/1")
+        self.assertEqual(stream["events"][0]["type"], "RUN_STARTED")
+        self.assertEqual(stream["events"][-1]["type"], "RUN_FINISHED")
+        self.assertGreaterEqual(stream["elapsed_ms"], 0)
+
+    def test_failed_command_has_terminal_error_event(self):
+        status, _, payload = self.json_request("/command", "POST", {"command": ""})
+        self.assertEqual(status, 400)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["event_stream"]["events"][-1]["type"], "RUN_ERROR")
+
+    def test_planning_response_has_typed_ui_card(self):
+        status, _, payload = self.json_request(
+            "/command", "POST", {"command": "/plan melhorar a memória"}
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["ui_cards"][0]["type"], "plan")
+        self.assertEqual(payload["ui_cards"][0]["status"], "ready")
+        self.assertGreaterEqual(len(payload["ui_cards"][0]["items"]), 3)
+
+    def test_plain_answer_does_not_invent_ui_card(self):
+        cards = MODULE.response_cards({"ok": True, "provider": "openrouter", "message": "Olá"})
+        self.assertEqual(cards, [])
 
     def test_open_and_close_apps_route_to_explicit_computer_command(self):
         opened, open_status = MODULE.command_payload(
@@ -380,6 +457,32 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["status_real"], "device_command_succeeded")
         self.assertEqual(payload["job"]["result"], "Aplicativo aberto e confirmado.")
+        self.assertTrue(payload["job"]["terminal"])
+
+    def test_pending_device_action_can_be_canceled_with_evidence(self):
+        saved = [{
+            "id": 91,
+            "action": "open_application",
+            "target": "Calculator",
+            "status": "canceled",
+            "completed_at": "2026-08-08T12:00:00Z",
+        }]
+        with patch.object(MODULE, "supabase_request", return_value=saved) as request:
+            payload, status = MODULE.supabase_device_cancel("91")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["job"]["status"], "canceled")
+        self.assertTrue(payload["job"]["terminal"])
+        args, kwargs = request.call_args
+        self.assertEqual(args[0], "PATCH")
+        self.assertIn("status=eq.pending", kwargs["query"])
+        self.assertEqual(kwargs["body"]["status"], "canceled")
+
+    def test_device_cancel_refuses_when_job_is_no_longer_pending(self):
+        with patch.object(MODULE, "supabase_request", return_value=[]):
+            payload, status = MODULE.supabase_device_cancel("91")
+        self.assertEqual(status, 409)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status_real"], "device_command_cancel_too_late")
 
     def test_status_reports_pairing_without_exposing_token(self):
         with patch.dict(os.environ, {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}, clear=False):
@@ -606,6 +709,9 @@ class WebGatewayTest(unittest.TestCase):
         sent_request = request.call_args.args[0]
         self.assertEqual(sent_request.method, "POST")
         self.assertIn("/rest/v1/jarvis_memories", sent_request.full_url)
+        sent_row = json.loads(sent_request.data.decode("utf-8"))
+        self.assertEqual(sent_row["metadata"]["schema_version"], 2)
+        self.assertEqual(sent_row["metadata"]["layer"], "owner")
 
     def test_supabase_memory_tree_reads_real_rows(self):
         class FakeSupabaseResponse:
@@ -636,6 +742,85 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(payload["persistent_write"])
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["nodes"][0]["label"], "o busto fica na frente")
+        self.assertEqual(payload["nodes"][0]["layer"], "discussion")
+
+    def test_memory_ranking_prefers_relevance_and_owner_preferences(self):
+        rows = [
+            {"id": 1, "kind": "learning", "content": "usar azul no avatar", "metadata": {"layer": "project"}},
+            {"id": 2, "kind": "learning", "content": "reunião amanhã às nove", "metadata": {"layer": "daily"}},
+            {"id": 3, "kind": "preference", "content": "Theo prefere respostas curtas", "metadata": {"layer": "owner"}},
+            {"id": 4, "kind": "decision", "content": "deploy do projeto JARVIS na Vercel", "metadata": {"layer": "project"}},
+        ]
+        ranked = MODULE.rank_memory_rows(rows, "como está o deploy na Vercel?", 3)
+        self.assertEqual(ranked[0]["id"], 4)
+        self.assertIn(3, [row["id"] for row in ranked])
+        self.assertEqual(ranked[0]["layer"], "project")
+
+    def test_memory_layer_classification(self):
+        self.assertEqual(MODULE.memory_layer("prefiro respostas curtas", "preference"), "owner")
+        self.assertEqual(MODULE.memory_layer("deploy do projeto na Vercel", "decision"), "project")
+        self.assertEqual(MODULE.memory_layer("reunião amanhã às nove", "learning"), "daily")
+
+    def test_assistant_memory_cache_avoids_repeat_remote_reads(self):
+        rows = [{"id": 1, "kind": "preference", "content": "respostas curtas"}]
+        env = {"SUPABASE_URL": "https://cache-test.supabase.co"}
+        MODULE.invalidate_assistant_memory_cache()
+        try:
+            with patch.dict(os.environ, env, clear=False), patch.object(
+                MODULE, "supabase_memory_rows", return_value=rows
+            ) as remote_read:
+                first, first_hit = MODULE.assistant_memory_rows()
+                second, second_hit = MODULE.assistant_memory_rows()
+            self.assertEqual(first, rows)
+            self.assertEqual(second, rows)
+            self.assertFalse(first_hit)
+            self.assertTrue(second_hit)
+            remote_read.assert_called_once_with(80)
+        finally:
+            MODULE.invalidate_assistant_memory_cache()
+
+    def test_assistant_memory_cache_is_invalidated_after_write(self):
+        env = {"SUPABASE_URL": "https://cache-test.supabase.co"}
+        MODULE.invalidate_assistant_memory_cache()
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "supabase_memory_rows", return_value=[]
+        ):
+            MODULE.assistant_memory_rows()
+            with patch.object(MODULE, "supabase_request", return_value=[{
+                "id": 7,
+                "kind": "preference",
+                "content": "respostas curtas",
+                "created_at": "2026-08-08T12:00:00Z",
+            }]):
+                payload, status = MODULE.supabase_memory_save(
+                    "guarde na memória como preferência: respostas curtas"
+                )
+        self.assertEqual(status, 201)
+        self.assertTrue(payload["persistent_write"])
+        self.assertEqual(MODULE._ASSISTANT_MEMORY_CACHE["backend"], "")
+
+    def test_proactive_pulse_returns_only_one_confirmable_matter(self):
+        rows = [
+            {"id": 7, "title": "Revisar apresentação", "scheduled_for": "2026-08-08T13:00:00Z"},
+            {"id": 8, "title": "Segunda tarefa", "scheduled_for": "2026-08-08T14:00:00Z"},
+        ]
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        now = datetime.fromisoformat("2026-08-08T12:00:00+00:00")
+        with patch.dict(os.environ, env, clear=False), patch.object(MODULE, "supabase_agenda_rows", return_value=rows):
+            payload = MODULE.proactive_pulse_payload(owner_authenticated=True, now=now)
+        self.assertEqual(payload["status_real"], "proactive_pulse_has_matter")
+        self.assertEqual(payload["suggestion"]["message"], "Revisar apresentação · 08/08 às 10:00")
+        self.assertTrue(payload["suggestion"]["requires_confirmation"])
+        self.assertFalse(payload["writes"])
+
+    def test_proactive_pulse_stays_quiet_without_backend(self):
+        with patch.dict(os.environ, {"SUPABASE_URL": "", "SUPABASE_SERVICE_ROLE_KEY": ""}, clear=False):
+            payload = MODULE.proactive_pulse_payload()
+        self.assertIsNone(payload["suggestion"])
+        self.assertEqual(payload["status_real"], "proactive_pulse_quiet")
 
     def test_memory_save_never_claims_success_without_file_evidence(self):
         completed = MODULE.subprocess.CompletedProcess(
@@ -686,14 +871,218 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["message"], "Resposta conectada.")
         sent_request = request.call_args.args[0]
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
-        self.assertEqual(sent_payload["temperature"], 0.65)
-        self.assertEqual(sent_payload["max_tokens"], 900)
+        self.assertEqual(sent_payload["temperature"], 0.72)
+        self.assertEqual(sent_payload["max_tokens"], 220)
         system_prompt = sent_payload["messages"][0]["content"]
         self.assertIn("humor seco", system_prompt)
-        self.assertIn("até três frases", system_prompt)
-        self.assertIn("porcentagem de confiança somente", system_prompt)
-        self.assertIn("não use rótulos burocráticos", system_prompt)
+        self.assertIn("uma ou duas frases", system_prompt)
+        self.assertIn("presença competente", system_prompt)
+        self.assertIn("sem sermão", system_prompt)
         self.assertIn("nunca diga que não possui voz", system_prompt.casefold())
+        self.assertEqual(payload["response_profile"], "concise")
+
+    def test_guest_can_chat_without_private_memory_or_device_access(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Olá. O modo visitante está funcionando."}}],
+                }).encode("utf-8")
+
+        env = {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_OWNER_TOKEN": "private-owner-token",
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "urlopen", return_value=FakeResponse()
+        ):
+            status_payload = MODULE.status_payload(owner_authenticated=False)
+            payload, status = MODULE.assistant_response(
+                {"command": "oi jarvis"}, owner_authenticated=False
+            )
+        self.assertEqual(status_payload["access"]["mode"], "guest")
+        self.assertTrue(status_payload["access"]["public_chat"])
+        self.assertFalse(status_payload["access"]["private_memory"])
+        self.assertFalse(status_payload["access"]["private_device_control"])
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "openrouter")
+        self.assertEqual(payload["memory_context_count"], 0)
+
+    def test_agent_tool_schema_exposes_actions_but_never_shell_or_self_edit(self):
+        tools = MODULE.agent_tool_definitions()
+        names = {row["function"]["name"] for row in tools}
+        self.assertIn("open_application", names)
+        self.assertIn("save_memory", names)
+        self.assertIn("add_agenda_item", names)
+        self.assertNotIn("self_edit", names)
+        self.assertNotIn("shell", " ".join(sorted(names)))
+        for row in tools:
+            self.assertFalse(row["function"]["parameters"].get("additionalProperties", True))
+
+    def test_paired_contextual_tool_call_reaches_verified_device_adapter(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "tool-capable/free",
+                    "choices": [{
+                        "message": {
+                            "content": None,
+                            "tool_calls": [{
+                                "id": "call-open-chrome",
+                                "type": "function",
+                                "function": {
+                                    "name": "open_application",
+                                    "arguments": json.dumps({"application": "Google Chrome"}),
+                                },
+                            }],
+                        },
+                    }],
+                }).encode("utf-8")
+
+        captured_requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            captured_requests.append(json.loads(request.data.decode("utf-8")))
+            return FakeResponse()
+
+        queued = ({
+            "ok": True,
+            "status_real": "device_command_queued",
+            "visual_state": "local",
+            "message": "Pedido enviado ao worker do Mac.",
+            "intent": "open_application",
+            "provider": "supabase_device_bridge",
+            "job": {"id": 77, "status": "pending", "action": "open_application", "target": "Google Chrome"},
+        }, 202)
+        env = {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_OWNER_TOKEN": "private-owner-token",
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "assistant_memory_rows", return_value=([], False)
+        ), patch.object(MODULE, "urlopen", side_effect=fake_urlopen), patch.object(
+            MODULE, "supabase_device_enqueue", return_value=queued
+        ) as enqueue:
+            payload, status = MODULE.assistant_response({
+                "messages": [
+                    {"role": "user", "content": "quero usar o Chrome"},
+                    {"role": "assistant", "content": "Entendido."},
+                    {"role": "user", "content": "faz aquilo com o navegador que mencionei"},
+                ],
+            }, owner_authenticated=True)
+
+        self.assertEqual(status, 202)
+        self.assertTrue(payload["agentic"])
+        self.assertEqual(payload["agent_route"]["tool"], "open_application")
+        self.assertEqual(payload["agent_route"]["execution"], "verified_adapter")
+        self.assertEqual(payload["agent_route"]["model"], "tool-capable/free")
+        self.assertEqual(captured_requests[0]["tool_choice"], "auto")
+        self.assertFalse(captured_requests[0]["parallel_tool_calls"])
+        self.assertGreaterEqual(len(captured_requests[0]["tools"]), 8)
+        enqueue.assert_called_once_with("abra Google Chrome", "open_application")
+
+    def test_guest_chat_does_not_receive_private_tool_schemas(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Olá, visitante."}}],
+                }).encode("utf-8")
+
+        requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            requests.append(json.loads(request.data.decode("utf-8")))
+            return FakeResponse()
+
+        env = {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_OWNER_TOKEN": "private-owner-token",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(MODULE, "urlopen", side_effect=fake_urlopen):
+            payload, status = MODULE.assistant_response(
+                {"command": "oi, visitante aqui"}, owner_authenticated=False
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["message"], "Olá, visitante.")
+        self.assertNotIn("tools", requests[0])
+
+    def test_tool_calling_provider_rejection_falls_back_to_normal_chat(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "legacy/free",
+                    "choices": [{"message": {"content": "Continuo pela conversa normal."}}],
+                }).encode("utf-8")
+
+        requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            requests.append(json.loads(request.data.decode("utf-8")))
+            if len(requests) == 1:
+                raise HTTPError(MODULE.OPENROUTER_URL, 422, "tools unsupported", {}, None)
+            return FakeResponse()
+
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "urlopen", side_effect=fake_urlopen
+        ):
+            payload, status = MODULE.assistant_response({"command": "vamos conversar"})
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["tool_calling_fallback"])
+        self.assertIn("tools", requests[0])
+        self.assertNotIn("tools", requests[1])
+
+    def test_simple_chat_is_trimmed_without_bureaucratic_labels(self):
+        raw = (
+            "**Resposta:** Está funcionando. "
+            "**Próximo passo:** Vou reduzir o atraso da voz. "
+            "Também vou manter as respostas curtas. "
+            "Esta quarta frase não deve aparecer. "
+            "**Confiança nesta resposta:** 95%."
+        )
+        content, trimmed = MODULE.concise_assistant_content(raw, detailed=False)
+        self.assertTrue(trimmed)
+        self.assertNotIn("Próximo passo", content)
+        self.assertNotIn("Confiança", content)
+        self.assertNotIn("quarta frase", content)
+        self.assertLessEqual(len(content), 480)
+
+    def test_detailed_requests_keep_room_for_real_analysis(self):
+        profile = MODULE.assistant_response_profile("faça uma análise detalhada da arquitetura")
+        self.assertEqual(profile["name"], "detailed")
+        self.assertEqual(profile["max_tokens"], 900)
+        content = "Uma análise longa. Com todos os detalhes. Sem corte."
+        normalized, trimmed = MODULE.concise_assistant_content(content, detailed=True)
+        self.assertEqual(normalized, content)
+        self.assertFalse(trimmed)
 
     def test_openrouter_can_suggest_real_memory_without_saving_it(self):
         class FakeResponse:
@@ -715,9 +1104,66 @@ class WebGatewayTest(unittest.TestCase):
                 payload, status = MODULE.assistant_response({"command": preference})
         self.assertEqual(status, 200)
         self.assertEqual(payload["provider"], "openrouter")
-        self.assertEqual(payload["visual_state"], "memory")
+        self.assertEqual(payload["visual_state"], "response")
         self.assertEqual(payload["memory_suggestion"], preference)
         self.assertNotIn("executed_locally", payload)
+
+    def test_pdf_attachment_uses_official_openrouter_file_contract(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "O PDF contém um teste."}}],
+                }).encode("utf-8")
+
+        encoded = base64.b64encode(b"%PDF-1.4\ntest document").decode("ascii")
+        attachment = {
+            "name": "brief.pdf",
+            "type": "application/pdf",
+            "size": 22,
+            "data_url": f"data:application/pdf;base64,{encoded}",
+        }
+        env = {
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_ATTACHMENT_MODEL": "openrouter/free",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+                payload, status = MODULE.command_payload({
+                    "command": "resuma este documento",
+                    "attachments": [attachment],
+                })
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["attachments_received"][0]["name"], "brief.pdf")
+        sent = json.loads(request.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(sent["model"], "openrouter/free")
+        self.assertEqual(sent["messages"][-1]["content"][0], {"type": "text", "text": "resuma este documento"})
+        file_part = sent["messages"][-1]["content"][1]
+        self.assertEqual(file_part["type"], "file")
+        self.assertEqual(file_part["file"]["filename"], "brief.pdf")
+        self.assertTrue(file_part["file"]["file_data"].startswith("data:application/pdf;base64,"))
+        self.assertEqual(sent["plugins"][0]["pdf"]["engine"], "cloudflare-ai")
+
+    def test_text_attachment_with_secret_is_refused_before_provider(self):
+        secret = "api_key=" + ("x" * 24)
+        encoded = base64.b64encode(secret.encode("utf-8")).decode("ascii")
+        payload, status = MODULE.assistant_response({
+            "command": "leia o arquivo",
+            "attachments": [{
+                "name": "config.txt",
+                "type": "text/plain",
+                "data_url": f"data:text/plain;base64,{encoded}",
+            }],
+        })
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["status_real"], "attachment_refused")
+        self.assertNotIn(secret, json.dumps(payload))
 
     def test_elevenlabs_speech_returns_audio_without_exposing_key(self):
         class FakeAudioResponse:

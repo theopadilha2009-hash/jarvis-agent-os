@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260807-human2">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260808-spatial1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -24,21 +24,39 @@
           </svg>
         </span>
         <span class="identity-name"><b>JARVIS</b><small>para Theo</small></span>
-        <small class="identity-system">AGENT OS</small>
       </div>
       <div class="connection">
         <span class="connection-dot" id="connectionDot"></span>
         <span id="connectionText">acordando</span>
+        <span class="access-mode" id="accessMode">verificando acesso</span>
+        <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false">Fala ligada</button>
-        <button class="quiet-button" id="detailsButton" type="button">Sistema</button>
+        <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
       </div>
     </header>
 
     <main class="stage" id="stage" data-state="idle">
       <section class="presence" aria-label="Presença visual do JARVIS">
         <div class="grid-plane" aria-hidden="true"></div>
+        <div class="environment-depth" aria-hidden="true">
+          <i class="depth-horizon"></i>
+          <i class="depth-arc depth-arc-one"></i>
+          <i class="depth-arc depth-arc-two"></i>
+          <i class="depth-light depth-light-left"></i>
+          <i class="depth-light depth-light-right"></i>
+        </div>
         <div class="avatar" id="avatar3d" aria-hidden="true"></div>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
+
+        <div class="state-beacon" id="stateBeacon" aria-live="polite">
+          <span class="state-symbol" id="stateSymbol" aria-hidden="true">●</span>
+          <span class="state-copy">
+            <small id="statePhase">PRESENÇA</small>
+            <strong id="stateName">JARVIS</strong>
+            <em id="stateDescription">ambiente em espera</em>
+          </span>
+          <span class="state-progress" aria-hidden="true"><i></i></span>
+        </div>
 
         <aside class="hud-rail hud-left" aria-label="Contexto atual">
           <section class="hud-surface signal-surface">
@@ -75,22 +93,18 @@
           </section>
         </aside>
 
-        <div class="presence-copy" aria-hidden="true">
-          <span>PERSONAL INTELLIGENCE</span>
-          <h1>JARVIS</h1>
-        </div>
-        <div class="spoken-caption" id="spokenCaption" aria-live="polite">Pronto quando você estiver.</div>
+        <div class="spoken-caption" id="spokenCaption" aria-live="polite">Estou aqui.</div>
       </section>
 
       <section class="conversation" aria-label="Conversa com JARVIS">
         <div class="conversation-head">
-          <span><i aria-hidden="true"></i><b>Conversa</b><small id="conversationState">pronto</small></span>
-          <small>voz e texto</small>
+          <span><i aria-hidden="true"></i><b>JARVIS</b><small id="conversationState">pronto</small></span>
+          <small>voz + texto</small>
         </div>
         <div class="conversation-feed" id="conversationFeed" aria-live="polite">
           <div class="welcome" id="welcomeMessage">
-            <strong>JARVIS online.</strong>
-            <span>Peça diretamente. Eu respondo ou aciono a integração disponível.</span>
+            <strong>Estou aqui.</strong>
+            <span id="welcomeHint">Escreva ou fale naturalmente.</span>
           </div>
         </div>
         <form class="composer" id="commandForm">
@@ -101,9 +115,14 @@
             </svg>
             <b>Falar</b>
           </button>
+          <button class="attachment-button" id="attachmentButton" type="button" aria-label="Anexar imagem, PDF ou texto" title="Anexar arquivo">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8.5 12.5 14.8 6.2a3 3 0 0 1 4.2 4.2l-8.5 8.5a5 5 0 0 1-7.1-7.1l8-8"></path></svg>
+          </button>
+          <input id="attachmentInput" type="file" hidden multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json,.md,.json,.csv">
           <input id="commandInput" maxlength="8000" autocomplete="off" placeholder="Escreva ou fale comigo…" aria-label="Pedido para JARVIS">
           <button class="send-button" id="sendButton" type="submit">Enviar</button>
         </form>
+        <div class="attachment-tray" id="attachmentTray" hidden></div>
       </section>
     </main>
   </div>
@@ -118,6 +137,7 @@
       <section><span>Inteligência</span><strong id="aiValue">—</strong></section>
       <section><span>Modelo</span><strong id="modelValue">—</strong></section>
       <section><span>Voz</span><strong id="voiceValue">detectando</strong></section>
+      <section class="dialog-wide"><span>Acesso atual</span><strong id="accessValue">verificando</strong></section>
       <section class="dialog-wide pairing-panel">
         <span>Conexão privada</span>
         <strong id="workerValue">verificando worker do Mac</strong>
@@ -137,9 +157,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260807-human2" defer></script>
+  <script src="/ui/jarvis.js?v=20260808-agent1" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260807-human2");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260808-spatial1");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

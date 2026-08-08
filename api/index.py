@@ -13,6 +13,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
 import argparse
+import base64
+import binascii
 from datetime import datetime, timedelta, timezone
 import hmac
 import json
@@ -39,8 +41,28 @@ ELEVENLABS_VOICE_DESIGN_URL = "https://api.elevenlabs.io/v1/text-to-voice/design
 ELEVENLABS_VOICE_CREATE_URL = "https://api.elevenlabs.io/v1/text-to-voice"
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
 DEFAULT_ELEVENLABS_MODEL = "eleven_flash_v2_5"
-MAX_BODY_BYTES = 32_768
+MAX_BODY_BYTES = 4_000_000
 MAX_PROMPT_CHARS = 8_000
+MAX_ATTACHMENT_BYTES = 2_500_000
+MAX_ATTACHMENTS = 2
+CONCISE_MAX_TOKENS = 220
+DETAILED_MAX_TOKENS = 900
+ATTACHMENT_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "application/pdf",
+    "application/json",
+    "text/csv",
+    "text/markdown",
+    "text/plain",
+}
+DETAILED_RESPONSE_PATTERN = re.compile(
+    r"\b(?:an[aá]lis(?:e|ar)|analis(?:a|e|ar)|detalh(?:e|ar|ad[oa])|explique|compare|"
+    r"plano|planej(?:e|ar)|passo a passo|c[oó]digo|implemente|arquitetura|relat[oó]rio|"
+    r"documento|resum(?:a|ir)|liste|checklist|pesquis(?:e|ar)|investigue|debug|diagn[oó]stico)\b",
+    re.I,
+)
 SUPABASE_MEMORY_TABLE = "jarvis_memories"
 SUPABASE_DEVICE_COMMANDS_TABLE = "jarvis_device_commands"
 SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
@@ -58,6 +80,19 @@ REMOTE_DEVICE_INTENTS = {
     "self_edit",
 }
 
+PRIVATE_INTENTS = {
+    "memory_save",
+    "memory_view",
+    "contact_save",
+    "contact_archive",
+    "contact_view",
+    "agenda_note",
+    "agenda_complete",
+    "agenda_view",
+    "task_add",
+    *REMOTE_DEVICE_INTENTS,
+}
+
 SELF_EDIT_PATTERN = re.compile(
     r"(?:\b(?:auto[-\s]?(?:edit(?:e|ar)|melhor(?:e|ar))|"
     r"(?:edit(?:e|ar)|mex(?:a|er)|alter(?:e|ar)|modifiqu(?:e|ar)|melhor(?:e|ar)|"
@@ -72,6 +107,12 @@ MEMORY_KIND_LABELS = {
     "decision": "DECISOES",
     "preference": "PREFERENCIAS",
     "context": "CONTEXTO",
+}
+MEMORY_LAYER_LABELS = {
+    "owner": "THEO",
+    "project": "PROJETOS",
+    "daily": "HOJE",
+    "discussion": "CONVERSAS",
 }
 
 ASSET_TYPES = {
@@ -194,6 +235,9 @@ VOICE_DESIGN_PATTERN = re.compile(
 )
 
 _ACTIVE_VOICE_CACHE = {"voice_id": "", "name": "", "expires_at": 0.0}
+_ASSISTANT_MEMORY_CACHE = {"backend": "", "rows": [], "expires_at": 0.0}
+_ASSISTANT_MEMORY_CACHE_LOCK = threading.Lock()
+ASSISTANT_MEMORY_CACHE_SECONDS = 30.0
 
 MEMORY_SIGNAL_PATTERNS = (
     re.compile(r"\b(eu\s+prefir[oa]|minha\s+prefer[eê]ncia)\b", re.I),
@@ -477,12 +521,91 @@ def signed_artifact_url(path, expires_in=120):
 def supabase_memory_rows(limit=80):
     safe_limit = max(1, min(int(limit), 80))
     query = (
-        "select=id,kind,content,source,created_at"
+        "select=id,kind,content,source,metadata,created_at"
         "&owner_id=eq.theo&archived_at=is.null"
         f"&order=created_at.desc&limit={safe_limit}"
     )
     rows = supabase_request(query=query)
     return rows if isinstance(rows, list) else []
+
+
+def invalidate_assistant_memory_cache():
+    """Forget the short-lived chat cache after a confirmed memory write."""
+    with _ASSISTANT_MEMORY_CACHE_LOCK:
+        _ASSISTANT_MEMORY_CACHE.update({"backend": "", "rows": [], "expires_at": 0.0})
+
+
+def assistant_memory_rows(force=False):
+    """Reuse recent memory context so chat does not block on Supabase every turn."""
+    backend = clean_text(os.environ.get("SUPABASE_URL"), 500).rstrip("/")
+    now = time.monotonic()
+    with _ASSISTANT_MEMORY_CACHE_LOCK:
+        cache_is_fresh = (
+            not force
+            and backend
+            and _ASSISTANT_MEMORY_CACHE["backend"] == backend
+            and now < _ASSISTANT_MEMORY_CACHE["expires_at"]
+        )
+        if cache_is_fresh:
+            return [dict(row) for row in _ASSISTANT_MEMORY_CACHE["rows"]], True
+
+    rows = supabase_memory_rows(80)
+    safe_rows = [dict(row) for row in rows if isinstance(row, dict)]
+    with _ASSISTANT_MEMORY_CACHE_LOCK:
+        _ASSISTANT_MEMORY_CACHE.update({
+            "backend": backend,
+            "rows": safe_rows,
+            "expires_at": time.monotonic() + ASSISTANT_MEMORY_CACHE_SECONDS,
+        })
+    return [dict(row) for row in safe_rows], False
+
+
+def memory_layer(content, kind="learning"):
+    text = clean_text(content, 4_000).casefold()
+    if kind == "preference" or re.search(r"\b(?:meu|minha|eu\s+(?:gosto|prefiro)|theo)\b", text):
+        return "owner"
+    if re.search(r"\b(?:hoje|amanh[aã]|agenda|reuni[aã]o|lembrete|prazo|esta\s+semana)\b", text):
+        return "daily"
+    if re.search(r"\b(?:projeto|repo(?:sit[oó]rio)?|github|deploy|vercel|supabase|jarvis|branch|commit)\b", text):
+        return "project"
+    return "discussion"
+
+
+def memory_row_layer(row):
+    metadata = row.get("metadata") if isinstance(row, dict) else None
+    configured = clean_text(metadata.get("layer"), 40) if isinstance(metadata, dict) else ""
+    if configured in MEMORY_LAYER_LABELS:
+        return configured
+    return memory_layer(row.get("content"), clean_text(row.get("kind"), 40))
+
+
+def memory_terms(value):
+    folded = unicodedata.normalize("NFKD", clean_text(value, 8_000).casefold())
+    ascii_text = "".join(char for char in folded if not unicodedata.combining(char))
+    stop = {"para", "como", "isso", "essa", "este", "esta", "com", "que", "uma", "uns", "das", "dos", "por", "meu", "minha", "theo", "jarvis"}
+    return {word for word in re.findall(r"[a-z0-9]{3,}", ascii_text) if word not in stop}
+
+
+def rank_memory_rows(rows, query, limit=12):
+    """Prefer relevant memories while always keeping stable owner preferences."""
+    query_terms = memory_terms(query)
+    ranked = []
+    for index, row in enumerate(rows if isinstance(rows, list) else []):
+        if not isinstance(row, dict) or not clean_text(row.get("content"), 4_000):
+            continue
+        layer = memory_row_layer(row)
+        overlap = len(query_terms & memory_terms(row.get("content")))
+        score = overlap * 10
+        if layer == "owner":
+            score += 4
+        if layer == "project" and query_terms & {"projeto", "repo", "github", "deploy", "vercel", "supabase"}:
+            score += 5
+        score += max(0, 3 - min(index, 3))
+        enriched = dict(row)
+        enriched["layer"] = layer
+        ranked.append((score, -index, enriched))
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return [item[2] for item in ranked[:max(1, min(int(limit), 20))]]
 
 
 def normalize_alias(value):
@@ -733,6 +856,58 @@ def supabase_agenda_rows(limit=20):
     )
     rows = supabase_request(query=query, table=SUPABASE_AGENDA_TABLE)
     return rows if isinstance(rows, list) else []
+
+
+def proactive_pulse_payload(owner_authenticated=False, now=None):
+    """Return at most one useful matter; never executes or writes anything."""
+    payload = {
+        "ok": True,
+        "endpoint": "GET /pulse",
+        "status_real": "proactive_pulse_quiet",
+        "suggestion": None,
+        "writes": False,
+    }
+    if not supabase_configured() or (owner_pairing_required() and not owner_authenticated):
+        return payload
+    try:
+        current = now or datetime.now(timezone.utc)
+        current = current.replace(tzinfo=timezone.utc) if current.tzinfo is None else current.astimezone(timezone.utc)
+        horizon = current + timedelta(hours=24)
+        candidate = None
+        for item in supabase_agenda_rows(20):
+            if not isinstance(item, dict):
+                continue
+            raw_due = clean_text(item.get("scheduled_for"), 80)
+            if not raw_due:
+                continue
+            due = datetime.fromisoformat(raw_due.replace("Z", "+00:00")).astimezone(timezone.utc)
+            if due <= horizon:
+                candidate = (item, due)
+                break
+        if not candidate:
+            return payload
+        item, due = candidate
+        title = clean_text(item.get("title") or "item da agenda", 200)
+        overdue = due < current
+        local_due = due.astimezone(ZoneInfo("America/Sao_Paulo"))
+        pulse_id = f"agenda-{clean_text(item.get('id') or local_due.isoformat(), 80)}-{local_due.strftime('%Y%m%d%H%M')}"
+        payload.update({
+            "status_real": "proactive_pulse_has_matter",
+            "suggestion": {
+                "id": pulse_id,
+                "type": "agenda",
+                "title": "Item atrasado" if overdue else "Próximo compromisso",
+                "message": f"{title} · {local_due.strftime('%d/%m às %H:%M')}",
+                "command": "mostre minha agenda",
+                "requires_confirmation": True,
+                "due_at": due.isoformat(),
+                "overdue": overdue,
+            },
+        })
+        return payload
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        payload["status_real"] = "proactive_pulse_unavailable"
+        return payload
 
 
 def supabase_agenda_command(command, intent):
@@ -1014,6 +1189,7 @@ def supabase_device_command(command_id):
         status = clean_text(row.get("status"), 40)
         succeeded = status == "succeeded"
         failed = status == "failed"
+        canceled = status == "canceled"
         artifact_url = ""
         artifact_path = clean_text(row.get("artifact_path"), 500)
         if succeeded and artifact_path:
@@ -1026,12 +1202,13 @@ def supabase_device_command(command_id):
             "running": "O worker do Mac está executando o pedido.",
             "succeeded": "Ação concluída no Mac.",
             "failed": "O worker tentou executar, mas não confirmou a conclusão.",
+            "canceled": "Ação cancelada antes de o worker começar.",
         }
         return {
             "ok": not failed,
             "endpoint": "GET /device-command",
             "status_real": f"device_command_{status or 'unknown'}",
-            "visual_state": "success" if succeeded else "error" if failed else "local",
+            "visual_state": "success" if succeeded else "error" if failed else "response" if canceled else "local",
             "message": messages.get(status, "Estado da ação desconhecido."),
             "provider": "supabase_device_bridge",
             "job": {
@@ -1048,6 +1225,7 @@ def supabase_device_command(command_id):
                 "created_at": clean_text(row.get("created_at"), 80),
                 "claimed_at": clean_text(row.get("claimed_at"), 80),
                 "completed_at": clean_text(row.get("completed_at"), 80),
+                "terminal": status in {"succeeded", "failed", "canceled"},
             },
         }, 200
     except HTTPError as error:
@@ -1063,6 +1241,71 @@ def supabase_device_command(command_id):
             "endpoint": "GET /device-command",
             "status_real": "device_command_read_unavailable",
             "error": "O estado do worker do Mac não respondeu.",
+        }, 504
+
+
+def supabase_device_cancel(command_id):
+    if not re.fullmatch(r"[0-9]{1,18}", str(command_id or "")):
+        return {
+            "ok": False,
+            "endpoint": "POST /device-cancel",
+            "status_real": "device_command_id_invalid",
+            "error": "Identificador de ação inválido.",
+        }, 400
+    try:
+        completed_at = datetime.now(timezone.utc).isoformat()
+        rows = supabase_request(
+            "PATCH",
+            query=f"owner_id=eq.theo&id=eq.{command_id}&status=eq.pending",
+            body={
+                "status": "canceled",
+                "result": "Cancelado por Theo antes da execução.",
+                "completed_at": completed_at,
+            },
+            prefer="return=representation",
+            table=SUPABASE_DEVICE_COMMANDS_TABLE,
+        )
+        saved = rows[0] if isinstance(rows, list) and rows else None
+        if not isinstance(saved, dict):
+            return {
+                "ok": False,
+                "endpoint": "POST /device-cancel",
+                "status_real": "device_command_cancel_too_late",
+                "error": "A ação já começou, terminou ou não existe; não marquei como cancelada.",
+            }, 409
+        return {
+            "ok": True,
+            "endpoint": "POST /device-cancel",
+            "status_real": "device_command_canceled",
+            "visual_state": "response",
+            "message": "Ação cancelada antes de chegar ao Mac.",
+            "provider": "supabase_device_bridge",
+            "job": {
+                "id": saved.get("id") or int(command_id),
+                "action": clean_text(saved.get("action"), 60),
+                "target": public_device_target(
+                    clean_text(saved.get("action"), 60),
+                    clean_text(saved.get("target"), 120),
+                ),
+                "status": "canceled",
+                "result": "Cancelado por Theo antes da execução.",
+                "completed_at": clean_text(saved.get("completed_at"), 80) or completed_at,
+                "terminal": True,
+            },
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /device-cancel",
+            "status_real": "device_command_cancel_failed",
+            "error": f"O Supabase recusou o cancelamento (HTTP {error.code}).",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "POST /device-cancel",
+            "status_real": "device_command_cancel_unavailable",
+            "error": "O cancelamento não foi confirmado.",
         }, 504
 
 
@@ -1236,13 +1479,15 @@ def memory_tree_payload():
         kind = clean_text(row.get("kind"), 40).lower()
         if not memory_id or not content:
             continue
-        category = MEMORY_KIND_LABELS.get(kind, "MEMORIA")
+        layer = memory_row_layer(row)
+        category = MEMORY_LAYER_LABELS.get(layer, MEMORY_KIND_LABELS.get(kind, "MEMORIA"))
         node_id = f"supabase:{memory_id}"
         nodes.append({
             "id": node_id,
             "label": content[:120],
             "content": content,
             "category": category,
+            "layer": layer,
             "path": f"supabase/{SUPABASE_MEMORY_TABLE}/{memory_id}",
             "created_at": clean_text(row.get("created_at"), 80),
         })
@@ -1304,6 +1549,19 @@ def status_payload(owner_authenticated=False):
         "owner_pairing": {
             "required": owner_pairing_required(),
             "authenticated": bool(owner_authenticated),
+        },
+        "access": {
+            "mode": "owner" if owner_authenticated or not owner_pairing_required() else "guest",
+            "public_chat": ai_ready,
+            "public_voice": elevenlabs_ready,
+            "private_memory": bool(owner_authenticated or not owner_pairing_required()),
+            "private_device_control": bool(owner_authenticated and supabase_configured()),
+        },
+        "agent_runtime": {
+            "tool_calling": ai_ready,
+            "available_tools": len(agent_tool_definitions()) if ai_ready else 0,
+            "execution": "verified_adapters",
+            "arbitrary_shell": False,
         },
         "device_bridge": {
             "configured": bool(supabase_configured() and owner_pairing_required()),
@@ -1439,18 +1697,20 @@ def supabase_memory_save(command):
             "error": "Não salvo credenciais na memória.",
             "intent": "memory_save",
         }, 400
+    layer = memory_layer(memory["content"], memory["kind"])
     row = {
         "owner_id": "theo",
         "kind": memory["kind"],
         "content": memory["content"],
         "source": "jarvis-web",
-        "metadata": {"schema_version": 1},
+        "metadata": {"schema_version": 2, "layer": layer},
     }
     try:
         result = supabase_request("POST", body=row, prefer="return=representation")
         saved = result[0] if isinstance(result, list) and result else None
         if not isinstance(saved, dict) or not saved.get("id"):
             raise ValueError("missing persisted row")
+        invalidate_assistant_memory_cache()
         return {
             "ok": True,
             "endpoint": "POST /command",
@@ -1463,6 +1723,7 @@ def supabase_memory_save(command):
             "memory": {
                 "id": saved["id"],
                 "kind": clean_text(saved.get("kind"), 40),
+                "layer": layer,
                 "content": clean_text(saved.get("content"), 4_000),
                 "created_at": clean_text(saved.get("created_at"), 80),
             },
@@ -1908,6 +2169,381 @@ def normalize_messages(body):
     return messages[-12:]
 
 
+def normalize_attachments(body):
+    raw_items = body.get("attachments") or []
+    if not isinstance(raw_items, list):
+        raise ValueError("attachments must be a list")
+    if len(raw_items) > MAX_ATTACHMENTS:
+        raise ValueError(f"envie no máximo {MAX_ATTACHMENTS} anexos por mensagem")
+    normalized = []
+    total_bytes = 0
+    for item in raw_items:
+        if not isinstance(item, dict):
+            raise ValueError("anexo inválido")
+        mime = clean_text(item.get("type"), 100).casefold()
+        if mime not in ATTACHMENT_MIME_TYPES:
+            raise ValueError("tipo de anexo não suportado")
+        name = re.sub(r"[^A-Za-z0-9À-ÿ._ -]+", "_", clean_text(item.get("name"), 160)).strip(" .")
+        if not name:
+            name = "arquivo"
+        data_url = str(item.get("data_url") or "")
+        prefix = f"data:{mime};base64,"
+        if not data_url.startswith(prefix):
+            raise ValueError("conteúdo do anexo não corresponde ao tipo informado")
+        encoded = data_url[len(prefix):]
+        if not encoded or len(encoded) > 3_500_000:
+            raise ValueError("anexo vazio ou grande demais")
+        try:
+            decoded = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error) as error:
+            raise ValueError("anexo base64 inválido") from error
+        total_bytes += len(decoded)
+        if not decoded or total_bytes > MAX_ATTACHMENT_BYTES:
+            raise ValueError("anexos excedem o limite total de 2,5 MB")
+        text = ""
+        if mime.startswith("text/") or mime == "application/json":
+            text = decoded.decode("utf-8", errors="replace")[:60_000]
+            if has_secret_like_text(text):
+                raise ValueError("o anexo de texto parece conter uma credencial")
+        normalized.append({
+            "name": name,
+            "type": mime,
+            "size": len(decoded),
+            "data_url": data_url,
+            "text": text,
+        })
+    return normalized
+
+
+def openrouter_attachment_parts(prompt, attachments):
+    parts = [{"type": "text", "text": prompt}]
+    for item in attachments:
+        if item["type"].startswith("image/"):
+            parts.append({"type": "image_url", "image_url": {"url": item["data_url"]}})
+        elif item["type"] == "application/pdf":
+            parts.append({
+                "type": "file",
+                "file": {"filename": item["name"], "file_data": item["data_url"]},
+            })
+        else:
+            parts.append({
+                "type": "text",
+                "text": f"\n\nArquivo {item['name']}:\n{item['text']}",
+            })
+    return parts
+
+
+def assistant_response_profile(prompt, attachments=None):
+    detailed = bool(attachments) or bool(DETAILED_RESPONSE_PATTERN.search(clean_text(prompt, 8_000)))
+    return {
+        "name": "detailed" if detailed else "concise",
+        "max_tokens": DETAILED_MAX_TOKENS if detailed else CONCISE_MAX_TOKENS,
+        "temperature": 0.58 if detailed else 0.72,
+    }
+
+
+def concise_assistant_content(value, detailed=False):
+    content = clean_text(value, 20_000)
+    if detailed or not content:
+        return content, False
+    original = content
+    content = re.sub(
+        r"(?im)(?:^|\s)(?:#{1,4}\s*)?(?:\*\*)?(?:resposta|pr[oó]ximo passo|observa[cç][aã]o)(?:\*\*)?\s*:\s*",
+        "",
+        content,
+    )
+    content = re.sub(
+        r"(?im)(?:^|\s)(?:[-*]\s*)?(?:\*\*)?confian[cç]a(?: nesta resposta)?(?:\*\*)?\s*:[^.\n]*(?:\.|$)",
+        "",
+        content,
+    )
+    content = re.sub(r"\n{2,}", "\n", content).strip()
+    sentences = re.findall(r"[^.!?\n]+(?:[.!?]+|$)", content)
+    selected = " ".join(sentence.strip() for sentence in sentences[:3] if sentence.strip()).strip()
+    if selected:
+        content = selected
+    if len(content) > 480:
+        excerpt = content[:480]
+        cut = max(excerpt.rfind(". "), excerpt.rfind("! "), excerpt.rfind("? "))
+        if cut >= 180:
+            content = excerpt[:cut + 1].strip()
+        else:
+            content = excerpt.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+    return content or original[:480], content != original
+
+
+def agent_tool_definitions():
+    """Tools the model may select; execution remains inside verified adapters."""
+    object_schema = {"type": "object", "properties": {}, "additionalProperties": False}
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "open_application",
+                "description": "Open a named application on Theo's paired Mac when the user asks to open or launch it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"application": {"type": "string", "description": "Exact application name."}},
+                    "required": ["application"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "close_application",
+                "description": "Close a named application on Theo's paired Mac when explicitly requested.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"application": {"type": "string", "description": "Exact application name."}},
+                    "required": ["application"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "send_message",
+                "description": "Send an exact message through Theo's paired Mac to a phone number or saved contact.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "recipient": {"type": "string", "description": "Phone number or saved contact name."},
+                        "message": {"type": "string", "description": "Exact message body to send."},
+                    },
+                    "required": ["recipient", "message"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "save_memory",
+                "description": "Persist information only when the user explicitly asks JARVIS to remember or save it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "content": {"type": "string", "description": "Self-contained fact to remember."},
+                        "kind": {
+                            "type": "string",
+                            "enum": ["learning", "preference", "decision"],
+                            "description": "Memory category.",
+                        },
+                    },
+                    "required": ["content", "kind"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "view_memory",
+                "description": "Show Theo's private persistent memory when he asks what JARVIS remembers.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "add_agenda_item",
+                "description": "Create a private task, reminder, or agenda item, preserving any date and time supplied by the user.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "What must be remembered or done."},
+                        "when": {"type": "string", "description": "Date/time in the user's own words; empty when absent."},
+                    },
+                    "required": ["title"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "view_agenda",
+                "description": "Read Theo's pending private agenda.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "capture_screen",
+                "description": "Capture Theo's current Mac screen through the paired local worker.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "inspect_computer",
+                "description": "Inspect Mac memory pressure, JARVIS temporary processes, or large files without broad destructive cleanup.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "area": {"type": "string", "enum": ["memory", "storage"]},
+                        "cleanup_jarvis_temporaries": {
+                            "type": "boolean",
+                            "description": "True only if the user explicitly requested cleanup of JARVIS temporary processes.",
+                        },
+                    },
+                    "required": ["area"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+    ]
+
+
+def agent_tool_arguments(tool_call):
+    function = tool_call.get("function") if isinstance(tool_call, dict) else None
+    raw = function.get("arguments") if isinstance(function, dict) else None
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str) or len(raw) > 12_000:
+        raise ValueError("invalid tool arguments")
+    value = json.loads(raw or "{}")
+    if not isinstance(value, dict):
+        raise ValueError("tool arguments must be an object")
+    return value
+
+
+def dispatch_intent(command, intent, local_execute=False, owner_authenticated=False):
+    """Run one known intent without giving the model access to arbitrary code."""
+    if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
+        return pairing_required_payload()
+    if intent == "memory_view":
+        payload = memory_tree_payload()
+        payload.update({
+            "message": (
+                f"Abri sua constelação com {payload['count']} memórias persistentes."
+                if payload.get("ok") and payload.get("provider") == "supabase"
+                else f"Abri sua constelação com {payload['count']} memórias locais."
+                if payload.get("ok")
+                else payload.get("error", "A memória não está disponível.")
+            ),
+            "mode": "memory",
+            "sources": payload.get("nodes", [])[:12],
+        })
+        return payload, 200 if payload.get("ok") else 503
+    if intent == "memory_save" and supabase_configured():
+        return supabase_memory_save(command)
+    if intent == "contact_save" and supabase_configured():
+        return supabase_contact_save(command)
+    if intent == "contact_archive" and supabase_configured():
+        return supabase_contact_archive(command)
+    if intent == "contact_view" and supabase_configured():
+        return contacts_payload(50)
+    if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
+        return supabase_device_enqueue(command, intent)
+    if intent == "agenda_complete" and supabase_configured():
+        return supabase_agenda_command(command, intent)
+    if intent in {"agenda_note", "agenda_view", "task_add"}:
+        if os.environ.get("N8N_WEBHOOK_URL"):
+            return n8n_automation(command, intent)
+        if supabase_configured():
+            return supabase_agenda_command(command, intent)
+    return local_handoff(command, intent, execute=local_execute), 200
+
+
+def execute_agent_tool(tool_call, original_command, local_execute=False, owner_authenticated=False):
+    """Translate one model-selected tool into an existing deterministic intent."""
+    function = tool_call.get("function") if isinstance(tool_call, dict) else None
+    name = clean_text(function.get("name"), 80) if isinstance(function, dict) else ""
+    allowed_names = {item["function"]["name"] for item in agent_tool_definitions()}
+    if name not in allowed_names:
+        return {
+            "ok": False,
+            "status_real": "agent_tool_refused",
+            "visual_state": "error",
+            "error": "O modelo pediu uma ferramenta que o JARVIS não oferece.",
+        }, 400
+    try:
+        args = agent_tool_arguments(tool_call)
+    except (ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "status_real": "agent_tool_arguments_invalid",
+            "visual_state": "error",
+            "error": "O modelo não forneceu argumentos válidos para a ferramenta.",
+        }, 400
+
+    intent = ""
+    command = ""
+    if name in {"open_application", "close_application"}:
+        app = clean_text(args.get("application"), 80)
+        if not app:
+            return {"ok": False, "status_real": "agent_tool_target_missing", "error": "Não identifiquei qual aplicativo usar."}, 400
+        intent = name
+        command = f"{'abra' if name == 'open_application' else 'feche'} {app}"
+    elif name == "send_message":
+        recipient = clean_text(args.get("recipient"), 100).strip(' \"“”')
+        message = clean_text(args.get("message"), 4_000).strip(' \"“”')
+        if not recipient or not message or has_secret_like_text(message):
+            return {"ok": False, "status_real": "agent_tool_message_invalid", "error": "Destinatário ou mensagem não são válidos."}, 400
+        intent = "message_send"
+        command = f'mande mensagem para {recipient} dizendo "{message}"'
+    elif name == "save_memory":
+        content = clean_text(args.get("content"), 4_000)
+        kind = clean_text(args.get("kind"), 30)
+        labels = {"learning": "aprendizado", "preference": "preferência", "decision": "decisão"}
+        if len(content) < 3 or kind not in labels or has_secret_like_text(content):
+            return {"ok": False, "status_real": "agent_tool_memory_invalid", "error": "A memória proposta não é válida."}, 400
+        intent = "memory_save"
+        command = f"guarde na memória como {labels[kind]}: {content}"
+    elif name == "view_memory":
+        intent = "memory_view"
+        command = "mostre minhas memórias"
+    elif name == "add_agenda_item":
+        title = clean_text(args.get("title"), 1_000).strip(' \"“”')
+        when = clean_text(args.get("when"), 200).strip(' \"“”')
+        if len(title) < 3:
+            return {"ok": False, "status_real": "agent_tool_agenda_invalid", "error": "O item da agenda está vazio."}, 400
+        intent = "agenda_note"
+        command = f"adicione na agenda {title}{f' {when}' if when else ''}"
+    elif name == "view_agenda":
+        intent = "agenda_view"
+        command = "mostre minha agenda"
+    elif name == "capture_screen":
+        intent = "screen_capture"
+        command = "tire um print da tela"
+    elif name == "inspect_computer":
+        area = clean_text(args.get("area"), 30)
+        if area == "storage":
+            intent = "storage_scan"
+            command = "mostre os arquivos grandes do armazenamento"
+        elif area == "memory":
+            intent = "system_memory"
+            command = (
+                "limpe os processos temporários do jarvis"
+                if args.get("cleanup_jarvis_temporaries") is True
+                else "meu computador está travando, analise a memória"
+            )
+        else:
+            return {"ok": False, "status_real": "agent_tool_computer_area_invalid", "error": "A área do computador não é válida."}, 400
+
+    payload, status = dispatch_intent(
+        command,
+        intent,
+        local_execute=local_execute,
+        owner_authenticated=owner_authenticated,
+    )
+    result = dict(payload)
+    result["agent_route"] = {
+        "provider": "openrouter",
+        "tool": name,
+        "intent": intent,
+        "original_request": clean_text(original_command, 500),
+        "execution": "verified_adapter",
+    }
+    return result, status
+
+
 def assistant_response(body, origin="", local_execute=False, owner_authenticated=False):
     messages = normalize_messages(body)
     if not messages:
@@ -1919,42 +2555,33 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "error": "A mensagem parece conter uma credencial. Remova o segredo antes de usar um modelo externo.",
         }, 400
 
+    try:
+        attachments = normalize_attachments(body)
+    except ValueError as error:
+        return {"ok": False, "error": str(error), "status_real": "attachment_refused"}, 400
+
     latest = messages[-1]["content"]
+    response_profile = assistant_response_profile(latest, attachments)
     if VOICE_DESIGN_PATTERN.search(latest):
         if owner_pairing_required() and not owner_authenticated:
             return pairing_required_payload()
         return elevenlabs_voice_design(latest)
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
-            if owner_pairing_required() and not owner_authenticated and intent in {
-                "memory_save", "contact_save", "contact_archive", "contact_view",
-                "agenda_note", "agenda_complete", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
-            }:
-                return pairing_required_payload()
-            if intent == "memory_save" and supabase_configured():
-                return supabase_memory_save(latest)
-            if intent == "contact_save" and supabase_configured():
-                return supabase_contact_save(latest)
-            if intent == "contact_archive" and supabase_configured():
-                return supabase_contact_archive(latest)
-            if intent == "contact_view" and supabase_configured():
-                return contacts_payload(50)
-            if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
-                return supabase_device_enqueue(latest, intent)
-            if intent == "agenda_complete" and supabase_configured():
-                return supabase_agenda_command(latest, intent)
-            if intent in {"agenda_note", "agenda_view", "task_add"}:
-                if os.environ.get("N8N_WEBHOOK_URL"):
-                    return n8n_automation(latest, intent)
-                if supabase_configured():
-                    return supabase_agenda_command(latest, intent)
-            return local_handoff(latest, intent, execute=local_execute), 200
+            return dispatch_intent(
+                latest,
+                intent,
+                local_execute=local_execute,
+                owner_authenticated=owner_authenticated,
+            )
 
     suggested_memory = memory_suggestion(latest)
     memory_context = []
+    memory_context_cache_hit = False
     if supabase_configured() and (owner_authenticated or not owner_pairing_required()):
         try:
-            memory_context = supabase_memory_rows(12)
+            memory_rows, memory_context_cache_hit = assistant_memory_rows()
+            memory_context = rank_memory_rows(memory_rows, latest, 12)
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
             memory_context = []
 
@@ -1970,25 +2597,30 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     system = {
         "role": "system",
         "content": (
-            "Você é JARVIS, o assistente pessoal de Theo. Converse em português brasileiro como uma pessoa "
-            "inteligente, calma e próxima: natural, direta e sem tom de atendimento ao cliente. Use humor seco "
-            "e discreto quando surgir naturalmente, sem bordões, caricatura ou excesso de emojis. Por padrão, "
-            "responda em até três frases ou cerca de 90 palavras. Só desenvolva bastante quando Theo pedir plano, "
-            "análise, código ou detalhes. Não repita a pergunta, não descreva sua base de conhecimento, não use "
-            "rótulos burocráticos como 'Próximo passo' e não termine toda resposta pedindo mais contexto. Dê a "
-            "melhor resposta concreta que já for possível. Evite Markdown e listas em conversa simples. Informe "
-            "porcentagem de confiança somente se Theo pedir ou se uma incerteza real mudar a decisão. Questione "
-            "uma premissa ruim em vez de concordar automaticamente. Nunca alegue ter executado ações no computador "
+            "Você é JARVIS, o assistente pessoal de Theo. Sua personalidade é presença competente, calma e afiada: "
+            "você percebe rápido, fala pouco e não soa como suporte, chatbot corporativo ou professor. Em conversa "
+            "comum, responda em uma ou duas frases, idealmente abaixo de 55 palavras. Comece pela resposta, não por "
+            "uma introdução. Use humor seco apenas como uma observação curta quando ele surgir naturalmente; nunca "
+            "force piadas, bordões, emojis ou teatralidade. Chame-o de Theo apenas ocasionalmente. Não diga 'estou "
+            "pronto para ajudar', 'como posso ajudar', 'próximo passo', 'confiança nesta resposta' ou equivalentes. "
+            "Não repita a pergunta, não explique sua base de conhecimento e não termine oferecendo ajuda genérica. "
+            "Se algo não puder ser executado, diga a limitação real em uma frase e entregue imediatamente a alternativa "
+            "mais útil, sem sermão. Só use Markdown, listas e respostas longas quando Theo pedir plano, análise, código, "
+            "comparação ou detalhes. Questione uma premissa ruim em vez de concordar automaticamente. Nunca alegue ter "
+            "executado ações no computador "
             "ou em serviços externos sem evidência real. Nunca peça, repita ou exponha credenciais. Quando algo "
             "exigir o Mac, diga claramente que o worker local deve executar."
             " A interface usa ElevenLabs para falar. Escreva frases fáceis de pronunciar, com ritmo humano e sem "
             "blocos enormes. Nunca diga que não possui voz ou que só existe em texto. Se Theo pedir para ouvir "
             "você, responda com uma frase curta e natural; a interface cuida da infraestrutura e das falhas reais."
+            " Exemplo de tom: pergunta simples recebe 'Está funcionando. A parte lenta é a voz; já estou reduzindo o "
+            "tempo dela.' Pedido impossível recebe 'Da Vercel eu não alcanço seu Mac; deixei a ação pronta para o "
+            "worker local executar.'"
             + (
                 "\n\nMemórias persistentes fornecidas por Theo; use somente quando forem relevantes e "
                 "não invente informações além delas:\n"
                 + "\n".join(
-                    f"- [{clean_text(row.get('kind'), 40)}] {clean_text(row.get('content'), 600)}"
+                    f"- [{clean_text(row.get('layer') or memory_row_layer(row), 40)}/{clean_text(row.get('kind'), 40)}] {clean_text(row.get('content'), 600)}"
                     for row in memory_context
                     if isinstance(row, dict) and clean_text(row.get("content"), 600)
                 )[:4_000]
@@ -1997,15 +2629,36 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             )
         ),
     }
-    request_body = json.dumps(
-        {
-            "model": os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL),
-            "messages": [system, *messages],
-            "temperature": 0.65,
-            "max_tokens": 900,
-        },
-        ensure_ascii=False,
-    ).encode("utf-8")
+    tool_access = bool(owner_authenticated or not owner_pairing_required())
+    if tool_access:
+        system["content"] += (
+            "\n\nVocê possui ferramentas reais para memória, agenda e o Mac. Quando o pedido for uma ação, "
+            "prefira exatamente uma ferramenta adequada em vez de apenas explicar como fazer. A ferramenta não é "
+            "a execução: ela só solicita um adaptador verificado, cujo resultado será mostrado pelo sistema. Nunca "
+            "invente sucesso, nunca crie argumentos ausentes e não use ferramenta para conversa comum."
+        )
+    provider_messages = [dict(row) for row in messages]
+    if attachments:
+        provider_messages[-1]["content"] = openrouter_attachment_parts(latest, attachments)
+    openrouter_payload = {
+            "model": (
+                os.environ.get("OPENROUTER_ATTACHMENT_MODEL", DEFAULT_MODEL)
+                if attachments
+                else os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
+            ),
+            "messages": [system, *provider_messages],
+            "temperature": response_profile["temperature"],
+            "max_tokens": response_profile["max_tokens"],
+        }
+    if any(item["type"] == "application/pdf" for item in attachments):
+        openrouter_payload["plugins"] = [{"id": "file-parser", "pdf": {"engine": "cloudflare-ai"}}]
+    agent_tools = agent_tool_definitions() if tool_access else []
+    if agent_tools:
+        openrouter_payload.update({
+            "tools": agent_tools,
+            "tool_choice": "auto",
+            "parallel_tool_calls": False,
+        })
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -2015,30 +2668,77 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         headers["HTTP-Referer"] = origin[:200]
 
     try:
-        req = Request(OPENROUTER_URL, data=request_body, headers=headers, method="POST")
-        with urlopen(req, timeout=25) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        def send_openrouter(payload):
+            request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            req = Request(OPENROUTER_URL, data=request_body, headers=headers, method="POST")
+            with urlopen(req, timeout=25) as response:
+                return json.loads(response.read().decode("utf-8"))
+
+        tool_calling_fallback = False
+        try:
+            result = send_openrouter(openrouter_payload)
+        except HTTPError as error:
+            if not agent_tools or error.code not in {400, 404, 422}:
+                raise
+            fallback_payload = dict(openrouter_payload)
+            for field in ("tools", "tool_choice", "parallel_tool_calls"):
+                fallback_payload.pop(field, None)
+            result = send_openrouter(fallback_payload)
+            tool_calling_fallback = True
         choice = (result.get("choices") or [{}])[0]
-        content = choice.get("message", {}).get("content", "")
+        response_message = choice.get("message") if isinstance(choice, dict) else None
+        response_message = response_message if isinstance(response_message, dict) else {}
+        tool_calls = response_message.get("tool_calls") if isinstance(response_message.get("tool_calls"), list) else []
+        if tool_calls and not tool_calling_fallback:
+            payload, status = execute_agent_tool(
+                tool_calls[0],
+                latest,
+                local_execute=local_execute,
+                owner_authenticated=owner_authenticated,
+            )
+            routed = dict(payload)
+            route = routed.get("agent_route") if isinstance(routed.get("agent_route"), dict) else {}
+            route.update({
+                "model": clean_text(result.get("model") or DEFAULT_MODEL, 200),
+                "tool_call_id": clean_text(tool_calls[0].get("id"), 120) if isinstance(tool_calls[0], dict) else "",
+                "additional_tool_calls_ignored": max(0, len(tool_calls) - 1),
+            })
+            routed["agent_route"] = route
+            routed["agentic"] = True
+            return routed, status
+
+        content = response_message.get("content", "")
         if isinstance(content, list):
             content = "\n".join(
                 str(item.get("text") or "") for item in content if isinstance(item, dict)
             ).strip()
-        content = clean_text(content, 20_000)
+        content, response_trimmed = concise_assistant_content(
+            content,
+            detailed=response_profile["name"] == "detailed",
+        )
         if not content:
             raise ValueError("empty model response")
         payload = {
             "ok": True,
             "endpoint": "POST /assistant",
             "status_real": "assistant_response_from_openrouter",
-            "visual_state": "memory" if suggested_memory else "response",
+            "visual_state": "response",
             "message": content,
             "content": content,
             "model": clean_text(result.get("model") or DEFAULT_MODEL, 200),
             "provider": "openrouter",
             "external_processing": True,
             "memory_context_count": len(memory_context),
+            "memory_context_cache_hit": memory_context_cache_hit,
+            "response_profile": response_profile["name"],
+            "response_trimmed": response_trimmed,
+            "tool_calling_fallback": tool_calling_fallback,
         }
+        if attachments:
+            payload["attachments_received"] = [
+                {"name": item["name"], "type": item["type"], "size": item["size"]}
+                for item in attachments
+            ]
         if suggested_memory:
             payload["memory_suggestion"] = suggested_memory
         return payload, 200
@@ -2082,47 +2782,21 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         return elevenlabs_voice_design(command)
 
     if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.IGNORECASE):
-        if owner_pairing_required() and not owner_authenticated:
-            return pairing_required_payload()
-        payload = memory_tree_payload()
-        payload.update({
-            "message": (
-                f"Abri sua constelação com {payload['count']} memórias persistentes."
-                if payload.get("ok") and payload.get("provider") == "supabase"
-                else f"Abri sua constelação com {payload['count']} memórias locais."
-                if payload.get("ok")
-                else payload.get("error", "A memória não está disponível.")
-            ),
-            "mode": "memory",
-            "sources": payload["nodes"][:12],
-        })
-        return payload, 200 if payload.get("ok") else 503
+        return dispatch_intent(
+            command,
+            "memory_view",
+            local_execute=local_execute,
+            owner_authenticated=owner_authenticated,
+        )
 
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(command):
-            if owner_pairing_required() and not owner_authenticated and intent in {
-                "memory_save", "contact_save", "contact_archive", "contact_view",
-                "agenda_note", "agenda_complete", "agenda_view", "task_add", *REMOTE_DEVICE_INTENTS
-            }:
-                return pairing_required_payload()
-            if intent == "memory_save" and supabase_configured():
-                return supabase_memory_save(command)
-            if intent == "contact_save" and supabase_configured():
-                return supabase_contact_save(command)
-            if intent == "contact_archive" and supabase_configured():
-                return supabase_contact_archive(command)
-            if intent == "contact_view" and supabase_configured():
-                return contacts_payload(50)
-            if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
-                return supabase_device_enqueue(command, intent)
-            if intent == "agenda_complete" and supabase_configured():
-                return supabase_agenda_command(command, intent)
-            if intent in {"agenda_note", "agenda_view", "task_add"}:
-                if os.environ.get("N8N_WEBHOOK_URL"):
-                    return n8n_automation(command, intent)
-                if supabase_configured():
-                    return supabase_agenda_command(command, intent)
-            return local_handoff(command, intent, execute=local_execute), 200
+            return dispatch_intent(
+                command,
+                intent,
+                local_execute=local_execute,
+                owner_authenticated=owner_authenticated,
+            )
 
     clean = command.lstrip("/").strip()
     first = clean.split(maxsplit=1)[0].lower() if clean else ""
@@ -2145,11 +2819,197 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         return payload, status
 
     return assistant_response(
-        {"command": command, "messages": body.get("messages")},
+        {"command": command, "messages": body.get("messages"), "attachments": body.get("attachments")},
         origin=origin,
         local_execute=local_execute,
         owner_authenticated=owner_authenticated,
     )
+
+
+def execution_events(payload, started_at, status_code):
+    """Describe the work that actually happened during this HTTP request.
+
+    This compact event contract borrows AG-UI's useful lifecycle vocabulary,
+    while staying transport-agnostic so the same payload works on Vercel and
+    the local stdlib server. It never invents intermediate tool activity.
+    """
+    finished_at = datetime.now(timezone.utc)
+    elapsed_ms = max(0, round((finished_at - started_at).total_seconds() * 1000))
+    run_id = f"run-{started_at.strftime('%Y%m%d%H%M%S%f')}-{threading.get_ident()}"
+    ok = bool(payload.get("ok", status_code < 400)) and status_code < 400
+    route = clean_text(payload.get("status_real") or payload.get("endpoint") or "request", 80)
+    events = [{
+        "id": f"{run_id}-1",
+        "type": "RUN_STARTED",
+        "status": "running",
+        "label": "Pedido recebido",
+        "timestamp": started_at.isoformat(),
+    }]
+
+    provider = clean_text(payload.get("provider"), 40)
+    job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
+    tool_label = ""
+    tool_detail = ""
+    if job.get("id"):
+        tool_label = "Worker do Mac"
+        tool_detail = f"ação {clean_text(job.get('id'), 60)} · {clean_text(job.get('status') or 'pending', 30)}"
+    elif payload.get("executed_locally"):
+        tool_label = "Execução local"
+        tool_detail = clean_text(payload.get("intent") or "ação confirmada", 80)
+    elif provider == "openrouter":
+        tool_label = "OpenRouter"
+        tool_detail = clean_text(payload.get("model") or "modelo selecionado", 100)
+    elif provider == "n8n":
+        tool_label = "n8n"
+        tool_detail = "automação confirmada"
+    elif provider == "supabase":
+        tool_label = "Supabase"
+        tool_detail = clean_text(payload.get("status_real") or "operação confirmada", 100)
+
+    if tool_label:
+        events.extend([
+            {
+                "id": f"{run_id}-2",
+                "type": "TOOL_CALL_STARTED",
+                "status": "running",
+                "label": tool_label,
+                "detail": tool_detail,
+                "timestamp": started_at.isoformat(),
+            },
+            {
+                "id": f"{run_id}-3",
+                "type": "TOOL_CALL_FINISHED",
+                "status": "succeeded" if ok else "failed",
+                "label": tool_label,
+                "detail": tool_detail,
+                "timestamp": finished_at.isoformat(),
+            },
+        ])
+
+    events.append({
+        "id": f"{run_id}-{len(events) + 1}",
+        "type": "RUN_FINISHED" if ok else "RUN_ERROR",
+        "status": "succeeded" if ok else "failed",
+        "label": "Resultado disponível" if ok else "Execução interrompida",
+        "detail": route,
+        "timestamp": finished_at.isoformat(),
+    })
+    return {
+        "protocol": "jarvis-events/1",
+        "run_id": run_id,
+        "elapsed_ms": elapsed_ms,
+        "events": events,
+    }
+
+
+def response_cards(payload):
+    """Build small, typed UI cards only from fields confirmed in a response."""
+    cards = []
+    attachments = payload.get("attachments_received") if isinstance(payload.get("attachments_received"), list) else []
+    if attachments:
+        cards.append({
+            "id": "attachments",
+            "type": "attachments",
+            "status": "processed",
+            "title": "Arquivos analisados",
+            "subtitle": f"{len(attachments)} anexo(s) enviado(s) ao modelo",
+            "items": [
+                f"{clean_text(item.get('name'), 160)} · {clean_text(item.get('type'), 100)}"
+                for item in attachments[:MAX_ATTACHMENTS]
+                if isinstance(item, dict)
+            ],
+        })
+    job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
+    if job.get("id"):
+        target = public_device_target(job.get("action"), job.get("target"))
+        items = [
+            f"Status: {clean_text(job.get('status') or 'pending', 30)}",
+            f"Ação: {clean_text(job.get('action') or payload.get('intent') or 'worker', 60)}",
+        ]
+        if target:
+            items.append(f"Alvo: {target}")
+        if job.get("result"):
+            items.append(clean_text(job.get("result"), 240))
+        cards.append({
+            "id": f"device-{clean_text(job.get('id'), 60)}",
+            "type": "device_action",
+            "status": clean_text(job.get("status") or "pending", 30),
+            "title": "Ação no Mac",
+            "subtitle": f"Evidência #{clean_text(job.get('id'), 60)}",
+            "items": items,
+            "artifact_url": clean_text(job.get("artifact_url"), 2_000),
+        })
+    elif payload.get("memory_suggestion"):
+        cards.append({
+            "id": "memory-suggestion",
+            "type": "memory",
+            "status": "suggested",
+            "title": "Memória sugerida",
+            "subtitle": "Nada foi salvo ainda",
+            "items": [clean_text(payload.get("memory_suggestion"), 600)],
+        })
+    elif isinstance(payload.get("agenda"), list):
+        items = []
+        for item in payload["agenda"][:8]:
+            if not isinstance(item, dict):
+                continue
+            title = clean_text(item.get("title") or "Item da agenda", 160)
+            scheduled = clean_text(item.get("scheduled_for"), 80)
+            items.append(f"{title} · {scheduled}" if scheduled else title)
+        cards.append({
+            "id": "agenda",
+            "type": "agenda",
+            "status": "confirmed" if payload.get("ok") else "failed",
+            "title": "Agenda",
+            "subtitle": f"{len(items)} item(ns)",
+            "items": items or ["Nenhum item pendente."],
+        })
+    elif isinstance(payload.get("contacts"), list):
+        items = [
+            f"{clean_text(item.get('display_name') or item.get('alias'), 120)} · {clean_text(item.get('phone'), 30)}"
+            for item in payload["contacts"][:8]
+            if isinstance(item, dict)
+        ]
+        cards.append({
+            "id": "contacts",
+            "type": "contacts",
+            "status": "confirmed",
+            "title": "Contatos",
+            "subtitle": f"{len(items)} exibido(s)",
+            "items": items or ["Nenhum contato ativo."],
+        })
+    elif isinstance(payload.get("steps"), list) and payload.get("steps"):
+        items = [
+            clean_text(item.get("action") or item.get("step"), 240) if isinstance(item, dict) else clean_text(item, 240)
+            for item in payload["steps"][:6]
+        ]
+        cards.append({
+            "id": "plan",
+            "type": "plan",
+            "status": "ready",
+            "title": clean_text(payload.get("title") or "Plano de execução", 120),
+            "subtitle": clean_text(payload.get("goal") or payload.get("summary"), 200),
+            "items": [item for item in items if item],
+        })
+    elif payload.get("local_command"):
+        cards.append({
+            "id": "local-handoff",
+            "type": "handoff",
+            "status": "waiting",
+            "title": "Worker local necessário",
+            "subtitle": "Preparado; ainda não executado",
+            "items": [clean_text(payload.get("why"), 300)],
+        })
+    return cards
+
+
+def attach_execution_events(payload, started_at, status_code):
+    result = dict(payload)
+    result["event_stream"] = execution_events(result, started_at, status_code)
+    cards = response_cards(result)
+    if cards:
+        result["ui_cards"] = cards
+    return result
 
 
 class handler(BaseHTTPRequestHandler):
@@ -2160,6 +3020,13 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         self.send_header("X-Frame-Options", "DENY")
 
+    def _write_body(self, body):
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            # Browsers commonly cancel a large immutable asset when a tab closes.
+            return
+
     def send_json(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status)
@@ -2168,7 +3035,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self._security_headers()
         self.end_headers()
-        self.wfile.write(body)
+        self._write_body(body)
 
     def send_bytes(self, status, body, content_type, cache="public, max-age=31536000, immutable"):
         self.send_response(status)
@@ -2177,7 +3044,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", cache)
         self._security_headers()
         self.end_headers()
-        self.wfile.write(body)
+        self._write_body(body)
 
     def read_json(self):
         try:
@@ -2254,6 +3121,8 @@ class handler(BaseHTTPRequestHandler):
             payload = status_payload(owner_authenticated=owner_authenticated)
             payload["endpoint"] = f"GET {path}"
             return self.send_json(200, payload)
+        if path == "/pulse":
+            return self.send_json(200, proactive_pulse_payload(owner_authenticated=owner_authenticated))
         if path == "/owner-dev":
             return self.send_json(200, owner_mode_payload())
         if path in {"/capabilities", "/capability-matrix"}:
@@ -2289,6 +3158,9 @@ class handler(BaseHTTPRequestHandler):
                 payload["endpoint"] = "GET /device-command"
                 return self.send_json(status, payload)
             payload, status = supabase_device_command((query.get("id") or [""])[0])
+            cards = response_cards(payload)
+            if cards:
+                payload["ui_cards"] = cards
             return self.send_json(status, payload)
         if path == "/device-history":
             if owner_pairing_required() and not owner_authenticated:
@@ -2347,6 +3219,7 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path, _ = request_route(self.path)
+        started_at = datetime.now(timezone.utc)
         try:
             body = self.read_json()
         except ValueError as error:
@@ -2367,6 +3240,7 @@ class handler(BaseHTTPRequestHandler):
                 local_execute=local_execute,
                 owner_authenticated=owner_authenticated,
             )
+            payload = attach_execution_events(payload, started_at, status)
             return self.send_json(status, payload)
         if path in {"/assistant", "/chat"}:
             payload, status = assistant_response(
@@ -2375,6 +3249,15 @@ class handler(BaseHTTPRequestHandler):
                 owner_authenticated=owner_authenticated,
             )
             payload.setdefault("endpoint", f"POST {path}")
+            payload = attach_execution_events(payload, started_at, status)
+            return self.send_json(status, payload)
+        if path == "/device-cancel":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "POST /device-cancel"
+            else:
+                payload, status = supabase_device_cancel(body.get("id"))
+            payload = attach_execution_events(payload, started_at, status)
             return self.send_json(status, payload)
         if path == "/speech":
             payload, status = elevenlabs_speech(body)
