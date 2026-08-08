@@ -1120,6 +1120,7 @@ def supabase_device_command(command_id):
         status = clean_text(row.get("status"), 40)
         succeeded = status == "succeeded"
         failed = status == "failed"
+        canceled = status == "canceled"
         artifact_url = ""
         artifact_path = clean_text(row.get("artifact_path"), 500)
         if succeeded and artifact_path:
@@ -1132,12 +1133,13 @@ def supabase_device_command(command_id):
             "running": "O worker do Mac está executando o pedido.",
             "succeeded": "Ação concluída no Mac.",
             "failed": "O worker tentou executar, mas não confirmou a conclusão.",
+            "canceled": "Ação cancelada antes de o worker começar.",
         }
         return {
             "ok": not failed,
             "endpoint": "GET /device-command",
             "status_real": f"device_command_{status or 'unknown'}",
-            "visual_state": "success" if succeeded else "error" if failed else "local",
+            "visual_state": "success" if succeeded else "error" if failed else "response" if canceled else "local",
             "message": messages.get(status, "Estado da ação desconhecido."),
             "provider": "supabase_device_bridge",
             "job": {
@@ -1154,6 +1156,7 @@ def supabase_device_command(command_id):
                 "created_at": clean_text(row.get("created_at"), 80),
                 "claimed_at": clean_text(row.get("claimed_at"), 80),
                 "completed_at": clean_text(row.get("completed_at"), 80),
+                "terminal": status in {"succeeded", "failed", "canceled"},
             },
         }, 200
     except HTTPError as error:
@@ -1169,6 +1172,71 @@ def supabase_device_command(command_id):
             "endpoint": "GET /device-command",
             "status_real": "device_command_read_unavailable",
             "error": "O estado do worker do Mac não respondeu.",
+        }, 504
+
+
+def supabase_device_cancel(command_id):
+    if not re.fullmatch(r"[0-9]{1,18}", str(command_id or "")):
+        return {
+            "ok": False,
+            "endpoint": "POST /device-cancel",
+            "status_real": "device_command_id_invalid",
+            "error": "Identificador de ação inválido.",
+        }, 400
+    try:
+        completed_at = datetime.now(timezone.utc).isoformat()
+        rows = supabase_request(
+            "PATCH",
+            query=f"owner_id=eq.theo&id=eq.{command_id}&status=eq.pending",
+            body={
+                "status": "canceled",
+                "result": "Cancelado por Theo antes da execução.",
+                "completed_at": completed_at,
+            },
+            prefer="return=representation",
+            table=SUPABASE_DEVICE_COMMANDS_TABLE,
+        )
+        saved = rows[0] if isinstance(rows, list) and rows else None
+        if not isinstance(saved, dict):
+            return {
+                "ok": False,
+                "endpoint": "POST /device-cancel",
+                "status_real": "device_command_cancel_too_late",
+                "error": "A ação já começou, terminou ou não existe; não marquei como cancelada.",
+            }, 409
+        return {
+            "ok": True,
+            "endpoint": "POST /device-cancel",
+            "status_real": "device_command_canceled",
+            "visual_state": "response",
+            "message": "Ação cancelada antes de chegar ao Mac.",
+            "provider": "supabase_device_bridge",
+            "job": {
+                "id": saved.get("id") or int(command_id),
+                "action": clean_text(saved.get("action"), 60),
+                "target": public_device_target(
+                    clean_text(saved.get("action"), 60),
+                    clean_text(saved.get("target"), 120),
+                ),
+                "status": "canceled",
+                "result": "Cancelado por Theo antes da execução.",
+                "completed_at": clean_text(saved.get("completed_at"), 80) or completed_at,
+                "terminal": True,
+            },
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /device-cancel",
+            "status_real": "device_command_cancel_failed",
+            "error": f"O Supabase recusou o cancelamento (HTTP {error.code}).",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "POST /device-cancel",
+            "status_real": "device_command_cancel_unavailable",
+            "error": "O cancelamento não foi confirmado.",
         }, 504
 
 
@@ -2573,6 +2641,9 @@ class handler(BaseHTTPRequestHandler):
                 payload["endpoint"] = "GET /device-command"
                 return self.send_json(status, payload)
             payload, status = supabase_device_command((query.get("id") or [""])[0])
+            cards = response_cards(payload)
+            if cards:
+                payload["ui_cards"] = cards
             return self.send_json(status, payload)
         if path == "/device-history":
             if owner_pairing_required() and not owner_authenticated:
@@ -2661,6 +2732,14 @@ class handler(BaseHTTPRequestHandler):
                 owner_authenticated=owner_authenticated,
             )
             payload.setdefault("endpoint", f"POST {path}")
+            payload = attach_execution_events(payload, started_at, status)
+            return self.send_json(status, payload)
+        if path == "/device-cancel":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "POST /device-cancel"
+            else:
+                payload, status = supabase_device_cancel(body.get("id"))
             payload = attach_execution_events(payload, started_at, status)
             return self.send_json(status, payload)
         if path == "/speech":

@@ -29,3 +29,12 @@ authors and contributors.
 - Use here: inspiration for layered owner/project/daily/discussion memory and
   relevance-first retrieval. JARVIS keeps its existing private Supabase table
   and does not vendor either project's runtime.
+
+## UI-TARS Desktop, browser-use and OpenHands
+
+- Projects: [bytedance/UI-TARS-desktop](https://github.com/bytedance/UI-TARS-desktop)
+  (Apache-2.0), [browser-use/browser-use](https://github.com/browser-use/browser-use)
+  (MIT) and [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands) (MIT)
+- Use here: design reference for explicit computer-action lifecycle, stoppable
+  pending jobs and evidence-backed completion. No automation engine or source
+  file from these projects is bundled here.

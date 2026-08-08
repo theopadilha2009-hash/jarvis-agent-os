@@ -818,7 +818,8 @@ button {
 
 .copy-command,
 .memory-command,
-.speak-command {
+.speak-command,
+.cancel-job {
   margin-top: 8px;
   margin-right: 6px;
   padding: 6px 8px;
@@ -829,6 +830,13 @@ button {
   font-size: 9px;
   cursor: pointer;
 }
+
+.cancel-job {
+  border-color: rgba(248, 113, 113, 0.24);
+  color: #fca5a5;
+}
+
+.cancel-job:disabled { opacity: 0.55; cursor: wait; }
 
 .memory-command {
   border-color: rgba(167, 139, 250, 0.38);

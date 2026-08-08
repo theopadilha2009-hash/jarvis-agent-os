@@ -35,6 +35,7 @@
     paired: false,
     deviceOnline: false,
     deviceBridge: false,
+    canceledJobs: new Set(),
   };
   let currentAudio = null;
   let currentAudioUrl = "";
@@ -409,6 +410,7 @@
 
   async function monitorDeviceCommand(jobId, message) {
     for (let attempt = 0; attempt < 50; attempt += 1) {
+      if (session.canceledJobs.has(String(jobId))) return;
       await new Promise((resolve) => window.setTimeout(resolve, 1200));
       let data;
       try {
@@ -420,12 +422,12 @@
       if (!data?.job) continue;
       renderLiveCanvas(data);
       byId("activityValue").textContent = `${data.message} · ação ${jobId}`;
-      if (["succeeded", "failed"].includes(data.job.status)) {
+      if (["succeeded", "failed", "canceled"].includes(data.job.status)) {
         const text = data.job.result ? `${data.message}\n${data.job.result}` : data.message;
         message.querySelector("span").textContent = text;
         message.classList.toggle("error", data.job.status === "failed");
         session.responseState = data.visual_state || (data.job.status === "succeeded" ? "success" : "error");
-        byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : "Ação falhou";
+        byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : data.job.status === "canceled" ? "Ação cancelada" : "Ação falhou";
         refreshActionHistory();
         settleState();
         return;
@@ -464,6 +466,9 @@
     if (data.result) {
       extra += `<details><summary>ver resultado completo</summary><code>${escapeHtml(data.result)}</code></details>`;
     }
+    if (data.job?.id && data.job.status === "pending") {
+      extra += `<button class="cancel-job" type="button">Cancelar ação</button>`;
+    }
     if (session.elevenlabs) {
       extra += `<button class="speak-command" type="button">Ouvir</button>`;
     }
@@ -486,6 +491,26 @@
       const played = await speak(answer);
       replay.disabled = false;
       replay.textContent = played ? "Reproduzir novamente" : "Tentar voz novamente";
+    });
+    const cancelJob = message.querySelector(".cancel-job");
+    if (cancelJob) cancelJob.addEventListener("click", async () => {
+      cancelJob.disabled = true;
+      cancelJob.textContent = "Cancelando…";
+      try {
+        const canceled = await request("/device-cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: data.job.id }),
+        });
+        session.canceledJobs.add(String(data.job.id));
+        message.querySelector("span").textContent = canceled.message || "Ação cancelada.";
+        cancelJob.remove();
+        renderLiveCanvas(canceled);
+        refreshActionHistory();
+      } catch (error) {
+        cancelJob.disabled = false;
+        cancelJob.textContent = "Tentar cancelar novamente";
+      }
     });
     byId("activityValue").textContent = data.executed_locally ? `Executado localmente · ${data.intent || "ação"}` : answer;
     byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.job?.id ? "Ação enviada ao Mac" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";

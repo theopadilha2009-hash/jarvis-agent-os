@@ -88,8 +88,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260808-pulse1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260808-pulse1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260808-actions1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260808-actions1', html)
         self.assertIn(b'id="pulseButton"', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
@@ -121,6 +121,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'class="ui-card"', app_js)
         self.assertIn(b"refreshPulse", app_js)
         self.assertIn(b"10 * 60 * 1000", app_js)
+        self.assertIn(b'"/device-cancel"', app_js)
+        self.assertIn(b"canceledJobs", app_js)
 
         status, headers, app_css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
@@ -414,6 +416,32 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["status_real"], "device_command_succeeded")
         self.assertEqual(payload["job"]["result"], "Aplicativo aberto e confirmado.")
+        self.assertTrue(payload["job"]["terminal"])
+
+    def test_pending_device_action_can_be_canceled_with_evidence(self):
+        saved = [{
+            "id": 91,
+            "action": "open_application",
+            "target": "Calculator",
+            "status": "canceled",
+            "completed_at": "2026-08-08T12:00:00Z",
+        }]
+        with patch.object(MODULE, "supabase_request", return_value=saved) as request:
+            payload, status = MODULE.supabase_device_cancel("91")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["job"]["status"], "canceled")
+        self.assertTrue(payload["job"]["terminal"])
+        args, kwargs = request.call_args
+        self.assertEqual(args[0], "PATCH")
+        self.assertIn("status=eq.pending", kwargs["query"])
+        self.assertEqual(kwargs["body"]["status"], "canceled")
+
+    def test_device_cancel_refuses_when_job_is_no_longer_pending(self):
+        with patch.object(MODULE, "supabase_request", return_value=[]):
+            payload, status = MODULE.supabase_device_cancel("91")
+        self.assertEqual(status, 409)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status_real"], "device_command_cancel_too_late")
 
     def test_status_reports_pairing_without_exposing_token(self):
         with patch.dict(os.environ, {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}, clear=False):
