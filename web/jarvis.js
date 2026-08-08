@@ -181,10 +181,21 @@
     return `<div class="event-stream"><div class="event-head"><span>EXECUÇÃO REAL</span><small>${Number(stream.elapsed_ms) || 0} ms</small></div>${rows}</div>`;
   }
 
+  function renderUICards(cards) {
+    if (!Array.isArray(cards) || !cards.length) return "";
+    return `<div class="ui-card-stack">${cards.slice(0, 3).map((card) => {
+      const items = Array.isArray(card.items) ? card.items.slice(0, 6) : [];
+      const artifact = card.artifact_url
+        ? `<a class="artifact-link" href="${escapeHtml(card.artifact_url)}" target="_blank" rel="noopener noreferrer"><img class="artifact-preview" src="${escapeHtml(card.artifact_url)}" alt="Evidência criada pelo worker do Mac"></a>`
+        : "";
+      return `<article class="ui-card" data-type="${escapeHtml(card.type || "result")}" data-status="${escapeHtml(card.status || "unknown")}"><header><span>${escapeHtml(card.title || "Resultado")}</span><small>${escapeHtml(card.status || "")}</small></header>${card.subtitle ? `<p>${escapeHtml(card.subtitle)}</p>` : ""}${items.length ? `<ol>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : ""}${artifact}</article>`;
+    }).join("")}</div>`;
+  }
+
   function renderLiveCanvas(data) {
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
-    let html = renderEventStream(data.event_stream);
+    let html = renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
     if (data.memory_suggestion) {
       html += `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
     }

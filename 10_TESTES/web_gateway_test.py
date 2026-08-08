@@ -116,6 +116,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'data.provider === "openrouter"', app_js)
         self.assertIn(b"renderEventStream", app_js)
         self.assertIn(b'protocol !== "jarvis-events/1"', app_js)
+        self.assertIn(b"renderUICards", app_js)
+        self.assertIn(b'class="ui-card"', app_js)
 
         status, headers, app_css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
@@ -190,6 +192,19 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["event_stream"]["events"][-1]["type"], "RUN_ERROR")
+
+    def test_planning_response_has_typed_ui_card(self):
+        status, _, payload = self.json_request(
+            "/command", "POST", {"command": "/plan melhorar a memória"}
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["ui_cards"][0]["type"], "plan")
+        self.assertEqual(payload["ui_cards"][0]["status"], "ready")
+        self.assertGreaterEqual(len(payload["ui_cards"][0]["items"]), 3)
+
+    def test_plain_answer_does_not_invent_ui_card(self):
+        cards = MODULE.response_cards({"ok": True, "provider": "openrouter", "message": "Olá"})
+        self.assertEqual(cards, [])
 
     def test_open_and_close_apps_route_to_explicit_computer_command(self):
         opened, open_status = MODULE.command_payload(

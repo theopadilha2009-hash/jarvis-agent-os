@@ -2228,9 +2228,99 @@ def execution_events(payload, started_at, status_code):
     }
 
 
+def response_cards(payload):
+    """Build small, typed UI cards only from fields confirmed in a response."""
+    cards = []
+    job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
+    if job.get("id"):
+        target = public_device_target(job.get("action"), job.get("target"))
+        items = [
+            f"Status: {clean_text(job.get('status') or 'pending', 30)}",
+            f"Ação: {clean_text(job.get('action') or payload.get('intent') or 'worker', 60)}",
+        ]
+        if target:
+            items.append(f"Alvo: {target}")
+        if job.get("result"):
+            items.append(clean_text(job.get("result"), 240))
+        cards.append({
+            "id": f"device-{clean_text(job.get('id'), 60)}",
+            "type": "device_action",
+            "status": clean_text(job.get("status") or "pending", 30),
+            "title": "Ação no Mac",
+            "subtitle": f"Evidência #{clean_text(job.get('id'), 60)}",
+            "items": items,
+            "artifact_url": clean_text(job.get("artifact_url"), 2_000),
+        })
+    elif payload.get("memory_suggestion"):
+        cards.append({
+            "id": "memory-suggestion",
+            "type": "memory",
+            "status": "suggested",
+            "title": "Memória sugerida",
+            "subtitle": "Nada foi salvo ainda",
+            "items": [clean_text(payload.get("memory_suggestion"), 600)],
+        })
+    elif isinstance(payload.get("agenda"), list):
+        items = []
+        for item in payload["agenda"][:8]:
+            if not isinstance(item, dict):
+                continue
+            title = clean_text(item.get("title") or "Item da agenda", 160)
+            scheduled = clean_text(item.get("scheduled_for"), 80)
+            items.append(f"{title} · {scheduled}" if scheduled else title)
+        cards.append({
+            "id": "agenda",
+            "type": "agenda",
+            "status": "confirmed" if payload.get("ok") else "failed",
+            "title": "Agenda",
+            "subtitle": f"{len(items)} item(ns)",
+            "items": items or ["Nenhum item pendente."],
+        })
+    elif isinstance(payload.get("contacts"), list):
+        items = [
+            f"{clean_text(item.get('display_name') or item.get('alias'), 120)} · {clean_text(item.get('phone'), 30)}"
+            for item in payload["contacts"][:8]
+            if isinstance(item, dict)
+        ]
+        cards.append({
+            "id": "contacts",
+            "type": "contacts",
+            "status": "confirmed",
+            "title": "Contatos",
+            "subtitle": f"{len(items)} exibido(s)",
+            "items": items or ["Nenhum contato ativo."],
+        })
+    elif isinstance(payload.get("steps"), list) and payload.get("steps"):
+        items = [
+            clean_text(item.get("action") or item.get("step"), 240) if isinstance(item, dict) else clean_text(item, 240)
+            for item in payload["steps"][:6]
+        ]
+        cards.append({
+            "id": "plan",
+            "type": "plan",
+            "status": "ready",
+            "title": clean_text(payload.get("title") or "Plano de execução", 120),
+            "subtitle": clean_text(payload.get("goal") or payload.get("summary"), 200),
+            "items": [item for item in items if item],
+        })
+    elif payload.get("local_command"):
+        cards.append({
+            "id": "local-handoff",
+            "type": "handoff",
+            "status": "waiting",
+            "title": "Worker local necessário",
+            "subtitle": "Preparado; ainda não executado",
+            "items": [clean_text(payload.get("why"), 300)],
+        })
+    return cards
+
+
 def attach_execution_events(payload, started_at, status_code):
     result = dict(payload)
     result["event_stream"] = execution_events(result, started_at, status_code)
+    cards = response_cards(result)
+    if cards:
+        result["ui_cards"] = cards
     return result
 
 

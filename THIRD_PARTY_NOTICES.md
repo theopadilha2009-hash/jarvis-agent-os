@@ -13,3 +13,11 @@ own stdlib/vanilla-JavaScript implementation.
 
 The original project and its license remain the property of their respective
 authors and contributors.
+
+## assistant-ui and CopilotKit
+
+- Projects: [assistant-ui/assistant-ui](https://github.com/assistant-ui/assistant-ui)
+  and [CopilotKit/CopilotKit](https://github.com/CopilotKit/CopilotKit)
+- License: MIT (both projects)
+- Use here: inspiration for typed, generative result cards rendered from real
+  backend state rather than parsing arbitrary model prose.

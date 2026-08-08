@@ -1140,6 +1140,36 @@ dialog::backdrop {
 .event-row b { font-weight: 600; }
 .event-row small { color: var(--faint); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; }
 
+.ui-card-stack {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.ui-card {
+  padding: 11px;
+  border: 1px solid rgba(103, 232, 249, 0.14);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(15, 40, 52, 0.62), rgba(3, 12, 19, 0.5));
+}
+
+.ui-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #d9f7ff;
+  font-size: 10px;
+}
+
+.ui-card header span { font-weight: 650; }
+.ui-card header small { color: var(--cyan-hot); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
+.ui-card p { margin: 5px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.ui-card ol { display: grid; gap: 5px; margin: 9px 0 0; padding: 0; list-style: none; counter-reset: card-items; }
+.ui-card li { position: relative; padding-left: 17px; color: #b9d3dc; font-size: 9px; line-height: 1.45; counter-increment: card-items; }
+.ui-card li::before { content: counter(card-items); position: absolute; left: 0; color: var(--faint); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ui-card[data-status="failed"] { border-color: rgba(248, 113, 113, 0.32); }
+.ui-card[data-type="memory"] { border-color: rgba(167, 139, 250, 0.3); }
+
 @media (max-width: 1120px) {
   .hud-rail { width: 220px; }
   .conversation { width: min(720px, calc(100% - 48px)); }
