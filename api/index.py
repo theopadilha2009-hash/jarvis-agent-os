@@ -1537,6 +1537,13 @@ def status_payload(owner_authenticated=False):
             "required": owner_pairing_required(),
             "authenticated": bool(owner_authenticated),
         },
+        "access": {
+            "mode": "owner" if owner_authenticated or not owner_pairing_required() else "guest",
+            "public_chat": ai_ready,
+            "public_voice": elevenlabs_ready,
+            "private_memory": bool(owner_authenticated or not owner_pairing_required()),
+            "private_device_control": bool(owner_authenticated and supabase_configured()),
+        },
         "device_bridge": {
             "configured": bool(supabase_configured() and owner_pairing_required()),
             "execution": "local_worker",
@@ -2395,7 +2402,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "ok": True,
             "endpoint": "POST /assistant",
             "status_real": "assistant_response_from_openrouter",
-            "visual_state": "memory" if suggested_memory else "response",
+            "visual_state": "response",
             "message": content,
             "content": content,
             "model": clean_text(result.get("model") or DEFAULT_MODEL, 200),

@@ -75,6 +75,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("voice", payload)
         self.assertEqual(payload["voice"]["fallback"], "text_only")
         self.assertIn("n8n", payload["automations"])
+        self.assertIn("access", payload)
+        self.assertIn("public_chat", payload["access"])
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["X-Frame-Options"], "DENY")
 
@@ -99,8 +101,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260808-perf1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260808-perf1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260808-spatial1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260808-spatial1', html)
+        self.assertIn(b'id="stateBeacon"', html)
+        self.assertIn(b'id="accessMode"', html)
         self.assertIn(b'id="pulseButton"', html)
         self.assertIn(b'id="attachmentInput"', html)
         self.assertIn(b'id="attachmentTray"', html)
@@ -146,6 +150,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"__jarvisFinish", app_js)
         self.assertIn(b"renderMessageContext", app_js)
         self.assertIn(b'class="message-card"', app_js)
+        self.assertIn(b"workingStateFor", app_js)
+        self.assertIn(b"responseVisualState", app_js)
+        self.assertIn(b'forge: ["FORJA"', app_js)
 
         status, headers, app_css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
@@ -164,8 +171,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"drawMemory", visual_js)
         self.assertIn(b"drawForge", visual_js)
         self.assertIn(b"makeCoreEntity", visual_js)
-        self.assertIn(b"MEMORY CONSTELLATION", visual_js)
+        self.assertIn("MEMÓRIA · REGISTRO CONFIRMADO".encode(), visual_js)
+        self.assertIn("FORJA · CONSTRUÇÃO EM CURSO".encode(), visual_js)
         self.assertIn(b"visualModeForState", visual_js)
+        self.assertIn(b"modeBlend", visual_js)
+        self.assertIn(b'["thinking", "planning"].includes(state)', visual_js)
+        self.assertNotIn(b"rgba(192,107,255", visual_js)
         self.assertIn(b"AnimationMixer", visual_js)
         self.assertIn(b"20260807-voicecyan1", visual_js)
         self.assertIn(b"installCyanRemap", visual_js)
@@ -868,6 +879,41 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("nunca diga que não possui voz", system_prompt.casefold())
         self.assertEqual(payload["response_profile"], "concise")
 
+    def test_guest_can_chat_without_private_memory_or_device_access(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Olá. O modo visitante está funcionando."}}],
+                }).encode("utf-8")
+
+        env = {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_OWNER_TOKEN": "private-owner-token",
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "urlopen", return_value=FakeResponse()
+        ):
+            status_payload = MODULE.status_payload(owner_authenticated=False)
+            payload, status = MODULE.assistant_response(
+                {"command": "oi jarvis"}, owner_authenticated=False
+            )
+        self.assertEqual(status_payload["access"]["mode"], "guest")
+        self.assertTrue(status_payload["access"]["public_chat"])
+        self.assertFalse(status_payload["access"]["private_memory"])
+        self.assertFalse(status_payload["access"]["private_device_control"])
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "openrouter")
+        self.assertEqual(payload["memory_context_count"], 0)
+
     def test_simple_chat_is_trimmed_without_bureaucratic_labels(self):
         raw = (
             "**Resposta:** Está funcionando. "
@@ -912,7 +958,7 @@ class WebGatewayTest(unittest.TestCase):
                 payload, status = MODULE.assistant_response({"command": preference})
         self.assertEqual(status, 200)
         self.assertEqual(payload["provider"], "openrouter")
-        self.assertEqual(payload["visual_state"], "memory")
+        self.assertEqual(payload["visual_state"], "response")
         self.assertEqual(payload["memory_suggestion"], preference)
         self.assertNotIn("executed_locally", payload)
 

@@ -24,6 +24,7 @@
     speaking: false,
     voicePending: false,
     working: false,
+    workingState: "thinking",
     elevenlabs: false,
     voiceError: "",
     muted: (() => {
@@ -59,16 +60,33 @@
   const stateLabels = {
     idle: ["PRESENÇA", "aguardando você"],
     listening: ["ESCUTA", "ouvindo sua voz"],
-    thinking: ["RACIOCÍNIO", "conectando contexto e ferramentas"],
+    thinking: ["NÚCLEO", "raciocinando com o contexto"],
     voice: ["VOZ", "preparando uma resposta natural"],
-    planning: ["PLANO", "organizando a execução"],
+    planning: ["NÚCLEO", "organizando possibilidades"],
+    forge: ["FORJA", "construindo e verificando"],
     speaking: ["RESPOSTA", "falando com você"],
     response: ["RESPOSTA", "resultado disponível"],
-    memory: ["MEMÓRIA", "indexando conhecimento local"],
-    local: ["WORKER LOCAL", "ação preparada no Mac"],
+    memory: ["MEMÓRIA", "gravando conhecimento confirmado"],
+    local: ["FORJA", "executando pelo worker local"],
     success: ["CONCLUÍDO", "ação finalizada"],
     error: ["ATENÇÃO", "a ação encontrou um problema"],
     offline: ["OFFLINE", "runtime indisponível"],
+  };
+
+  const statePresentation = {
+    idle: ["●", "PRESENÇA", "JARVIS", "ambiente em espera"],
+    listening: ["◌", "ESCUTA", "CANAL ABERTO", "captando sua voz"],
+    thinking: ["◉", "NÚCLEO", "RACIOCÍNIO", "conectando contexto"],
+    planning: ["◉", "NÚCLEO", "PLANEJAMENTO", "organizando possibilidades"],
+    forge: ["◆", "FORJA", "CONSTRUÇÃO", "montando e verificando"],
+    local: ["◆", "FORJA", "EXECUÇÃO", "worker local em atividade"],
+    memory: ["◇", "MEMÓRIA", "ARQUIVO", "gravando contexto confirmado"],
+    speaking: ["≈", "VOZ", "TRANSMISSÃO", "falando com você"],
+    voice: ["≈", "VOZ", "SÍNTESE", "preparando áudio"],
+    response: ["✓", "RESULTADO", "CONCLUÍDO", "resposta disponível"],
+    success: ["✓", "RESULTADO", "CONCLUÍDO", "ação confirmada"],
+    error: ["!", "SISTEMA", "ATENÇÃO", "algo precisa ser revisto"],
+    offline: ["×", "SISTEMA", "OFFLINE", "runtime indisponível"],
   };
 
   function setVisualState(state) {
@@ -78,6 +96,11 @@
     byId("modeLabel").textContent = mode;
     byId("stateLabel").textContent = label;
     byId("conversationState").textContent = label;
+    const [symbol, phase, name, description] = statePresentation[normalized] || statePresentation.idle;
+    byId("stateSymbol").textContent = symbol;
+    byId("statePhase").textContent = phase;
+    byId("stateName").textContent = name;
+    byId("stateDescription").textContent = description;
     byId("voiceLink").textContent = normalized === "listening"
       ? "recebendo voz"
       : normalized === "speaking"
@@ -94,15 +117,30 @@
     if (session.listening) return setVisualState("listening");
     if (session.speaking) return setVisualState("speaking");
     if (session.voicePending) return setVisualState("voice");
-    if (session.working) return setVisualState("thinking");
+    if (session.working) return setVisualState(session.workingState || "thinking");
     setVisualState(session.responseState || "idle");
   }
 
-  function setWorking(value) {
+  function setWorking(value, state = "thinking") {
     session.working = value;
+    if (value) session.workingState = state;
     sendButton.disabled = value;
-    sendButton.textContent = value ? "Pensando…" : "Enviar";
+    sendButton.textContent = value ? (state === "forge" ? "Construindo…" : state === "memory" ? "Gravando…" : "Pensando…") : "Enviar";
     settleState();
+  }
+
+  function workingStateFor(command) {
+    const text = String(command || "");
+    if (/\b(?:guard(?:a|e|ar)|salv(?:a|e|ar)|memor(?:ize|izar)|lembre)\b.{0,80}\bmem[oó]ria\b|\bmem[oó]ria\b.{0,80}\b(?:guard(?:a|e|ar)|salv(?:a|e|ar))\b/i.test(text)) return "memory";
+    if (/\b(?:cri(?:a|e|ar)|constru(?:a|ir)|implement(?:a|e|ar)|edit(?:a|e|ar)|corrig(?:e|ir)|arrum(?:a|e|ar)|deploy|public(?:a|ar)|sub(?:a|ir)|automatiz(?:a|e|ar))\b/i.test(text)) return "forge";
+    return "thinking";
+  }
+
+  function responseVisualState(data) {
+    const state = data?.visual_state || (data?.executed_locally ? "success" : "response");
+    if (state === "local" || (data?.job && ["pending", "running"].includes(data.job.status))) return "forge";
+    if (state === "planning") return "response";
+    return state;
   }
 
   function escapeHtml(value) {
@@ -573,7 +611,7 @@
         return;
       }
       message.querySelector("span").textContent = data.message;
-      session.responseState = "local";
+      session.responseState = "forge";
       settleState();
     }
     message.querySelector("span").textContent = "O pedido continua na fila; o worker do Mac não confirmou dentro de um minuto.";
@@ -594,12 +632,12 @@
       return;
     }
 
-    session.responseState = data.visual_state || (data.executed_locally ? "success" : "response");
+    session.responseState = responseVisualState(data);
     const answer = data.message || data.summary || data.next_action || data.status_real || "Pronto.";
     let extra = "";
     extra += renderMessageContext(data);
     if (data.memory_suggestion) {
-      extra = `<button class="memory-command" type="button">Guardar na memória</button>`;
+      extra = `<button class="memory-command" type="button">${session.paired ? "Guardar na memória" : "Memória privada"}</button>`;
     }
     if (data.local_command) {
       extra += `<button class="copy-command" type="button">Copiar comando local</button><details><summary>ver comando</summary><code>${escapeHtml(data.local_command)}</code></details>`;
@@ -621,6 +659,11 @@
     });
     const memory = message.querySelector(".memory-command");
     if (memory) memory.addEventListener("click", () => {
+      if (!session.paired) {
+        dialog.showModal();
+        byId("ownerTokenInput").focus();
+        return;
+      }
       memory.disabled = true;
       memory.textContent = "Preparando memória…";
       sendCommand(`guarde na memória como preferência: ${data.memory_suggestion}`);
@@ -675,7 +718,7 @@
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-12);
     setRequest(command);
-    setWorking(true);
+    setWorking(true, workingStateFor(command));
     try {
       const data = await request("/command", {
         method: "POST",
@@ -762,6 +805,17 @@
       byId("aiValue").textContent = status.ai?.configured ? "OpenRouter conectado" : "OpenRouter não configurado";
       byId("modelValue").textContent = status.ai?.model || "—";
       session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
+      const accessMode = session.paired ? "owner" : "guest";
+      stage.dataset.access = accessMode;
+      byId("accessMode").textContent = session.paired ? "Theo conectado" : "modo visitante";
+      byId("accessValue").textContent = session.paired
+        ? "Theo · memória e Mac privados disponíveis"
+        : status.access?.public_chat
+          ? "Visitante · conversa liberada, memória e Mac privados"
+          : "Visitante · conversa aguarda OpenRouter";
+      byId("welcomeHint").textContent = session.paired
+        ? "Escreva ou fale naturalmente."
+        : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
       session.deviceBridge = Boolean(status.device_bridge?.configured);
       session.elevenlabs = Boolean(status.voice?.configured);
       session.voiceError = "";

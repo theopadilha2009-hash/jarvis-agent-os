@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260808-perf1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260808-spatial1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -28,6 +28,7 @@
       <div class="connection">
         <span class="connection-dot" id="connectionDot"></span>
         <span id="connectionText">acordando</span>
+        <span class="access-mode" id="accessMode">verificando acesso</span>
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false">Fala ligada</button>
         <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
@@ -37,8 +38,25 @@
     <main class="stage" id="stage" data-state="idle">
       <section class="presence" aria-label="Presença visual do JARVIS">
         <div class="grid-plane" aria-hidden="true"></div>
+        <div class="environment-depth" aria-hidden="true">
+          <i class="depth-horizon"></i>
+          <i class="depth-arc depth-arc-one"></i>
+          <i class="depth-arc depth-arc-two"></i>
+          <i class="depth-light depth-light-left"></i>
+          <i class="depth-light depth-light-right"></i>
+        </div>
         <div class="avatar" id="avatar3d" aria-hidden="true"></div>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
+
+        <div class="state-beacon" id="stateBeacon" aria-live="polite">
+          <span class="state-symbol" id="stateSymbol" aria-hidden="true">●</span>
+          <span class="state-copy">
+            <small id="statePhase">PRESENÇA</small>
+            <strong id="stateName">JARVIS</strong>
+            <em id="stateDescription">ambiente em espera</em>
+          </span>
+          <span class="state-progress" aria-hidden="true"><i></i></span>
+        </div>
 
         <aside class="hud-rail hud-left" aria-label="Contexto atual">
           <section class="hud-surface signal-surface">
@@ -86,7 +104,7 @@
         <div class="conversation-feed" id="conversationFeed" aria-live="polite">
           <div class="welcome" id="welcomeMessage">
             <strong>Estou aqui.</strong>
-            <span>Escreva ou fale naturalmente.</span>
+            <span id="welcomeHint">Escreva ou fale naturalmente.</span>
           </div>
         </div>
         <form class="composer" id="commandForm">
@@ -119,6 +137,7 @@
       <section><span>Inteligência</span><strong id="aiValue">—</strong></section>
       <section><span>Modelo</span><strong id="modelValue">—</strong></section>
       <section><span>Voz</span><strong id="voiceValue">detectando</strong></section>
+      <section class="dialog-wide"><span>Acesso atual</span><strong id="accessValue">verificando</strong></section>
       <section class="dialog-wide pairing-panel">
         <span>Conexão privada</span>
         <strong id="workerValue">verificando worker do Mac</strong>
@@ -138,9 +157,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260808-perf1" defer></script>
+  <script src="/ui/jarvis.js?v=20260808-spatial1" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260808-perf1");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260808-spatial1");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });
