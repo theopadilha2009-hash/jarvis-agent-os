@@ -78,6 +78,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["X-Frame-Options"], "DENY")
 
+    def test_client_disconnect_during_asset_write_is_ignored(self):
+        class ClosedPipe:
+            def write(self, _body):
+                raise BrokenPipeError("browser closed the tab")
+
+        class FakeHandler:
+            wfile = ClosedPipe()
+
+        MODULE.handler._write_body(FakeHandler(), b"model bytes")
+
     def test_cockpit_and_model_asset(self):
         status, _, html = self.request("/")
         self.assertEqual(status, 200)
@@ -89,8 +99,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260808-mobilecards1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260808-mobilecards1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260808-perf1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260808-perf1', html)
         self.assertIn(b'id="pulseButton"', html)
         self.assertIn(b'id="attachmentInput"', html)
         self.assertIn(b'id="attachmentTray"', html)
@@ -119,6 +129,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"session.voicePending", app_js)
         self.assertIn(b'data.provider === "openrouter"', app_js)
         self.assertIn(b"renderEventStream", app_js)
+        self.assertIn(b"refreshWorkerStatus", app_js)
+        self.assertIn(b"verificando o Mac em segundo plano", app_js)
         self.assertIn(b'protocol !== "jarvis-events/1"', app_js)
         self.assertIn(b"renderUICards", app_js)
         self.assertIn(b'class="ui-card"', app_js)
@@ -159,12 +171,17 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"installCyanRemap", visual_js)
         self.assertIn(b"jarvisRedMask", visual_js)
         self.assertIn(b"BASE_FRAME_INTERVAL_MS", visual_js)
-        self.assertIn(b"adaptive-lite-18fps", visual_js)
+        self.assertIn(b"ACTIVE_TARGET_FPS", visual_js)
+        self.assertIn(b"IDLE_TARGET_FPS", visual_js)
+        self.assertIn(b"BACKGROUND_TARGET_FPS", visual_js)
+        self.assertIn(b"EFFECT_TARGET_FPS", visual_js)
         self.assertIn(b"slowFrameWindows", visual_js)
         self.assertIn(b'renderer.setPixelRatio(1)', visual_js)
         self.assertIn(b'GPU 3D desativada', visual_js)
         self.assertIn(b"frameIntervalMs", visual_js)
         self.assertIn(b"document.hidden", visual_js)
+        self.assertIn(b"resizeObserver.disconnect()", visual_js)
+        self.assertIn(b"renderer.dispose()", visual_js)
         self.assertIn(b"X-Jarvis-Owner-Token", visual_js)
 
         status, headers, three_js = self.request("/ui/vendor/three.module.js")
@@ -730,6 +747,44 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(MODULE.memory_layer("prefiro respostas curtas", "preference"), "owner")
         self.assertEqual(MODULE.memory_layer("deploy do projeto na Vercel", "decision"), "project")
         self.assertEqual(MODULE.memory_layer("reunião amanhã às nove", "learning"), "daily")
+
+    def test_assistant_memory_cache_avoids_repeat_remote_reads(self):
+        rows = [{"id": 1, "kind": "preference", "content": "respostas curtas"}]
+        env = {"SUPABASE_URL": "https://cache-test.supabase.co"}
+        MODULE.invalidate_assistant_memory_cache()
+        try:
+            with patch.dict(os.environ, env, clear=False), patch.object(
+                MODULE, "supabase_memory_rows", return_value=rows
+            ) as remote_read:
+                first, first_hit = MODULE.assistant_memory_rows()
+                second, second_hit = MODULE.assistant_memory_rows()
+            self.assertEqual(first, rows)
+            self.assertEqual(second, rows)
+            self.assertFalse(first_hit)
+            self.assertTrue(second_hit)
+            remote_read.assert_called_once_with(80)
+        finally:
+            MODULE.invalidate_assistant_memory_cache()
+
+    def test_assistant_memory_cache_is_invalidated_after_write(self):
+        env = {"SUPABASE_URL": "https://cache-test.supabase.co"}
+        MODULE.invalidate_assistant_memory_cache()
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "supabase_memory_rows", return_value=[]
+        ):
+            MODULE.assistant_memory_rows()
+            with patch.object(MODULE, "supabase_request", return_value=[{
+                "id": 7,
+                "kind": "preference",
+                "content": "respostas curtas",
+                "created_at": "2026-08-08T12:00:00Z",
+            }]):
+                payload, status = MODULE.supabase_memory_save(
+                    "guarde na memória como preferência: respostas curtas"
+                )
+        self.assertEqual(status, 201)
+        self.assertTrue(payload["persistent_write"])
+        self.assertEqual(MODULE._ASSISTANT_MEMORY_CACHE["backend"], "")
 
     def test_proactive_pulse_returns_only_one_confirmable_matter(self):
         rows = [

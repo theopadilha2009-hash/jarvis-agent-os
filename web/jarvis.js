@@ -371,6 +371,20 @@
     }
   }
 
+  async function refreshWorkerStatus(target) {
+    try {
+      const worker = await request("/device-worker-status");
+      session.deviceOnline = Boolean(worker.online);
+      target.textContent = worker.online
+        ? `Mac conectado · ${worker.hostname || "worker local"}`
+        : "Mac offline · abra ou instale o worker local";
+      await refreshActionHistory({ revealLatest: true });
+    } catch {
+      session.deviceOnline = false;
+      target.textContent = "Mac offline · verificação indisponível";
+    }
+  }
+
   async function request(path, options) {
     const requestOptions = { ...(options || {}) };
     const headers = new Headers(requestOptions.headers || {});
@@ -779,12 +793,8 @@
           : "Pareamento ainda não foi exigido neste ambiente.";
       const workerValue = byId("workerValue");
       if (session.paired && status.device_bridge?.configured) {
-        const worker = await request("/device-worker-status");
-        session.deviceOnline = Boolean(worker.online);
-        workerValue.textContent = worker.online
-          ? `Mac conectado · ${worker.hostname || "worker local"}`
-          : "Mac offline · abra ou instale o worker local";
-        await refreshActionHistory({ revealLatest: true });
+        workerValue.textContent = "verificando o Mac em segundo plano";
+        refreshWorkerStatus(workerValue);
       } else {
         session.deviceOnline = status.runtime === "local_web_preview";
         workerValue.textContent = session.paired
@@ -792,7 +802,7 @@
           : "Navegador não pareado";
       }
       setVisualState(status.ok ? "idle" : "offline");
-      await refreshPulse();
+      refreshPulse();
     } catch {
       byId("connectionText").textContent = "offline";
       session.responseState = "offline";

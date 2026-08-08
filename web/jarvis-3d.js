@@ -8,8 +8,11 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
 const constrainedHardware = (navigator.deviceMemory && navigator.deviceMemory <= 4)
   || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-const BASE_TARGET_FPS = compactViewport || constrainedHardware ? 20 : 30;
-const BASE_FRAME_INTERVAL_MS = 1000 / BASE_TARGET_FPS;
+const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 20 : 30;
+const IDLE_TARGET_FPS = 15;
+const BACKGROUND_TARGET_FPS = 6;
+const EFFECT_TARGET_FPS = 12;
+const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
 
 const COLORS = {
   idle: 0x46e6ff,
@@ -481,7 +484,8 @@ async function start() {
     effectCanvas.style.height = `${canvasHeight}px`;
     effectContext.setTransform(density, 0, 0, density, 0, 0);
   }
-  new ResizeObserver(resize).observe(mount);
+  const resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(mount);
   resize();
 
   stage.classList.add("model-ready");
@@ -495,10 +499,55 @@ async function start() {
   let sampledFrames = 0;
   let fpsWindowStart = performance.now();
   let frameIntervalMs = BASE_FRAME_INTERVAL_MS;
+  let adaptiveMaxFps = ACTIVE_TARGET_FPS;
   let slowFrameWindows = 0;
   let lastVisualMode = "";
+  let effectLastFrameMs = 0;
+  let windowFocused = document.hasFocus();
+  let animationFrameId = 0;
+  let disposed = false;
+  let lastRenderTargetFps = 0;
+  let lastRenderProfile = "";
+
+  const activeStates = new Set(["listening", "thinking", "planning", "speaking", "memory", "local"]);
+  function requestedTargetFps() {
+    if (!windowFocused) return BACKGROUND_TARGET_FPS;
+    return activeStates.has(visualState) ? ACTIVE_TARGET_FPS : IDLE_TARGET_FPS;
+  }
+
+  function updateRenderBudget() {
+    const requestedFps = requestedTargetFps();
+    const targetFps = Math.max(1, Math.min(requestedFps, adaptiveMaxFps));
+    frameIntervalMs = 1000 / targetFps;
+    const profile = !windowFocused
+      ? `background-${targetFps}fps`
+      : targetFps < requestedFps
+        ? `adaptive-lite-${targetFps}fps`
+        : activeStates.has(visualState) ? `active-${targetFps}fps` : `idle-${targetFps}fps`;
+    if (lastRenderTargetFps !== targetFps) {
+      stage.dataset.renderTargetFps = String(targetFps);
+      lastRenderTargetFps = targetFps;
+    }
+    if (lastRenderProfile !== profile) {
+      stage.dataset.renderProfile = profile;
+      lastRenderProfile = profile;
+    }
+  }
+
+  window.addEventListener("focus", () => {
+    windowFocused = true;
+    updateRenderBudget();
+  });
+  window.addEventListener("blur", () => {
+    windowFocused = false;
+    updateRenderBudget();
+  });
+  updateRenderBudget();
+
   function render(timeMs) {
-    requestAnimationFrame(render);
+    if (disposed) return;
+    animationFrameId = requestAnimationFrame(render);
+    updateRenderBudget();
     if (document.hidden || timeMs - previousFrameMs < frameIntervalMs - 1) return;
     const deltaSeconds = previousFrameMs ? Math.min((timeMs - previousFrameMs) / 1000, 0.1) : 0;
     previousFrameMs = timeMs;
@@ -511,11 +560,9 @@ async function start() {
         ? slowFrameWindows + 1
         : Math.max(0, slowFrameWindows - 1);
       if (slowFrameWindows >= 5) {
-        frameIntervalMs = 1000 / 12;
-        stage.dataset.renderProfile = "adaptive-lite-12fps";
-      } else if (slowFrameWindows >= 2 && frameIntervalMs < 1000 / 18) {
-        frameIntervalMs = 1000 / 18;
-        stage.dataset.renderProfile = "adaptive-lite-18fps";
+        adaptiveMaxFps = Math.min(adaptiveMaxFps, 12);
+      } else if (slowFrameWindows >= 2) {
+        adaptiveMaxFps = Math.min(adaptiveMaxFps, 18);
       }
       sampledFrames = 0;
       fpsWindowStart = timeMs;
@@ -552,17 +599,20 @@ async function start() {
     currentScale += (targetScale - currentScale) * 0.055;
     root.scale.setScalar(currentScale);
     particleMaterial.opacity = isWorking ? 0.32 : 0.2 + speakingPulse * 0.35;
-    particles.rotation.y += (frameIntervalMs > BASE_FRAME_INTERVAL_MS ? 0.0007 : 0.0012) * (isWorking ? 2 : 1);
+    particles.rotation.y += deltaSeconds * (isWorking ? 0.072 : 0.036);
     coreEntity.update(time, visualMode === "core");
 
-    if (visualMode === "source") {
+    const effectFrameDue = timeMs - effectLastFrameMs >= 1000 / EFFECT_TARGET_FPS;
+    if (visualMode === "source" && effectFrameDue) {
       effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
       drawMemory(effectContext, canvasWidth, canvasHeight, time, memoryLabels);
       effectVisible = true;
-    } else if (visualMode === "forge") {
+      effectLastFrameMs = timeMs;
+    } else if (visualMode === "forge" && effectFrameDue) {
       effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
       drawForge(effectContext, canvasWidth, canvasHeight, time);
       effectVisible = true;
+      effectLastFrameMs = timeMs;
     } else if (effectVisible) {
       effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
       effectVisible = false;
@@ -572,7 +622,19 @@ async function start() {
   }
 
   if (reducedMotion) renderer.render(scene, camera);
-  else requestAnimationFrame(render);
+  else animationFrameId = requestAnimationFrame(render);
+
+  window.addEventListener("pagehide", (event) => {
+    if (event.persisted) return;
+    disposed = true;
+    cancelAnimationFrame(animationFrameId);
+    resizeObserver.disconnect();
+    mixer?.stopAllAction();
+    particleGeometry.dispose();
+    particleMaterial.dispose();
+    renderer.dispose();
+    renderer.forceContextLoss();
+  }, { once: true });
 }
 
 start().catch((error) => {

@@ -222,6 +222,9 @@ VOICE_DESIGN_PATTERN = re.compile(
 )
 
 _ACTIVE_VOICE_CACHE = {"voice_id": "", "name": "", "expires_at": 0.0}
+_ASSISTANT_MEMORY_CACHE = {"backend": "", "rows": [], "expires_at": 0.0}
+_ASSISTANT_MEMORY_CACHE_LOCK = threading.Lock()
+ASSISTANT_MEMORY_CACHE_SECONDS = 30.0
 
 MEMORY_SIGNAL_PATTERNS = (
     re.compile(r"\b(eu\s+prefir[oa]|minha\s+prefer[eê]ncia)\b", re.I),
@@ -511,6 +514,37 @@ def supabase_memory_rows(limit=80):
     )
     rows = supabase_request(query=query)
     return rows if isinstance(rows, list) else []
+
+
+def invalidate_assistant_memory_cache():
+    """Forget the short-lived chat cache after a confirmed memory write."""
+    with _ASSISTANT_MEMORY_CACHE_LOCK:
+        _ASSISTANT_MEMORY_CACHE.update({"backend": "", "rows": [], "expires_at": 0.0})
+
+
+def assistant_memory_rows(force=False):
+    """Reuse recent memory context so chat does not block on Supabase every turn."""
+    backend = clean_text(os.environ.get("SUPABASE_URL"), 500).rstrip("/")
+    now = time.monotonic()
+    with _ASSISTANT_MEMORY_CACHE_LOCK:
+        cache_is_fresh = (
+            not force
+            and backend
+            and _ASSISTANT_MEMORY_CACHE["backend"] == backend
+            and now < _ASSISTANT_MEMORY_CACHE["expires_at"]
+        )
+        if cache_is_fresh:
+            return [dict(row) for row in _ASSISTANT_MEMORY_CACHE["rows"]], True
+
+    rows = supabase_memory_rows(80)
+    safe_rows = [dict(row) for row in rows if isinstance(row, dict)]
+    with _ASSISTANT_MEMORY_CACHE_LOCK:
+        _ASSISTANT_MEMORY_CACHE.update({
+            "backend": backend,
+            "rows": safe_rows,
+            "expires_at": time.monotonic() + ASSISTANT_MEMORY_CACHE_SECONDS,
+        })
+    return [dict(row) for row in safe_rows], False
 
 
 def memory_layer(content, kind="learning"):
@@ -1650,6 +1684,7 @@ def supabase_memory_save(command):
         saved = result[0] if isinstance(result, list) and result else None
         if not isinstance(saved, dict) or not saved.get("id"):
             raise ValueError("missing persisted row")
+        invalidate_assistant_memory_cache()
         return {
             "ok": True,
             "endpoint": "POST /command",
@@ -2261,9 +2296,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
 
     suggested_memory = memory_suggestion(latest)
     memory_context = []
+    memory_context_cache_hit = False
     if supabase_configured() and (owner_authenticated or not owner_pairing_required()):
         try:
-            memory_context = rank_memory_rows(supabase_memory_rows(80), latest, 12)
+            memory_rows, memory_context_cache_hit = assistant_memory_rows()
+            memory_context = rank_memory_rows(memory_rows, latest, 12)
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
             memory_context = []
 
@@ -2365,6 +2402,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "provider": "openrouter",
             "external_processing": True,
             "memory_context_count": len(memory_context),
+            "memory_context_cache_hit": memory_context_cache_hit,
             "response_profile": response_profile["name"],
             "response_trimmed": response_trimmed,
         }
@@ -2680,6 +2718,13 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         self.send_header("X-Frame-Options", "DENY")
 
+    def _write_body(self, body):
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            # Browsers commonly cancel a large immutable asset when a tab closes.
+            return
+
     def send_json(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status)
@@ -2688,7 +2733,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self._security_headers()
         self.end_headers()
-        self.wfile.write(body)
+        self._write_body(body)
 
     def send_bytes(self, status, body, content_type, cache="public, max-age=31536000, immutable"):
         self.send_response(status)
@@ -2697,7 +2742,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", cache)
         self._security_headers()
         self.end_headers()
-        self.wfile.write(body)
+        self._write_body(body)
 
     def read_json(self):
         try:
