@@ -134,6 +134,32 @@
       : sentence.trim();
   }
 
+  function speechChunks(value, maxLength = 260) {
+    const clean = speechText(value);
+    if (!clean) return [];
+    const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
+    const pieces = [];
+    sentences.forEach((sentence) => {
+      let remaining = sentence.trim();
+      while (remaining.length > maxLength) {
+        const windowText = remaining.slice(0, maxLength + 1);
+        const comma = Math.max(windowText.lastIndexOf(", "), windowText.lastIndexOf("; "), windowText.lastIndexOf(": "));
+        const space = windowText.lastIndexOf(" ");
+        const cut = comma > maxLength * 0.55 ? comma + 1 : space > 0 ? space : maxLength;
+        pieces.push(remaining.slice(0, cut).trim());
+        remaining = remaining.slice(cut).trim();
+      }
+      if (remaining) pieces.push(remaining);
+    });
+    const chunks = [];
+    pieces.forEach((piece) => {
+      const previous = chunks.at(-1);
+      if (previous && `${previous} ${piece}`.length <= maxLength) chunks[chunks.length - 1] = `${previous} ${piece}`;
+      else chunks.push(piece);
+    });
+    return chunks.slice(0, 6);
+  }
+
   function messageHtml(value) {
     return escapeHtml(value)
       .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
@@ -365,11 +391,60 @@
     session.voicePending = false;
     currentSpeechController?.abort();
     currentSpeechController = null;
+    currentAudio?.__jarvisFinish?.(false);
     currentAudio?.pause();
     currentAudio = null;
     if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
     currentAudioUrl = "";
     if (session.speaking) finishSpeaking();
+  }
+
+  async function fetchSpeechChunk(text, generation) {
+    const controller = new AbortController();
+    currentSpeechController = controller;
+    const response = await fetch("/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: controller.signal,
+    });
+    if (generation !== speechGeneration) throw new DOMException("Speech stopped", "AbortError");
+    if (!response.ok) {
+      const failure = await response.json().catch(() => ({}));
+      throw new Error(failure.error_code || "elevenlabs_unavailable");
+    }
+    return response.blob();
+  }
+
+  function playSpeechChunk(blob, text, generation) {
+    return new Promise((resolve, reject) => {
+      if (generation !== speechGeneration) return resolve(false);
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      let settled = false;
+      const finish = (played) => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(audioUrl);
+        if (currentAudio === audio) {
+          currentAudio = null;
+          currentAudioUrl = "";
+        }
+        resolve(played);
+      };
+      audio.__jarvisFinish = finish;
+      currentAudioUrl = audioUrl;
+      currentAudio = audio;
+      audio.onplay = () => {
+        if (generation === speechGeneration) beginSpeaking(text);
+      };
+      audio.onended = () => finish(true);
+      audio.onerror = () => finish(false);
+      audio.play().catch((error) => {
+        finish(false);
+        reject(error);
+      });
+    });
   }
 
   function renderMuteState() {
@@ -393,8 +468,8 @@
 
   async function speak(text) {
     if (!text) return;
-    const clean = speechText(text);
-    if (!clean) return false;
+    const chunks = speechChunks(text);
+    if (!chunks.length) return false;
     stopSpeechOutput();
     if (session.muted) return false;
     const generation = speechGeneration;
@@ -402,43 +477,26 @@
     session.voicePending = true;
     byId("spokenCaption").textContent = "Preparando voz…";
     settleState();
-    const controller = new AbortController();
-    currentSpeechController = controller;
+    let played = false;
     try {
-      const response = await fetch("/speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean }),
-        signal: controller.signal,
-      });
-      if (generation !== speechGeneration || controller !== currentSpeechController) return false;
-      if (!response.ok) {
-        const failure = await response.json().catch(() => ({}));
-        throw new Error(failure.error_code || "elevenlabs_unavailable");
+      let prepared = fetchSpeechChunk(chunks[0], generation)
+        .then((blob) => ({ blob }))
+        .catch((error) => ({ error }));
+      for (let index = 0; index < chunks.length; index += 1) {
+        const result = await prepared;
+        if (result.error) throw result.error;
+        if (generation !== speechGeneration) return false;
+        prepared = index + 1 < chunks.length
+          ? fetchSpeechChunk(chunks[index + 1], generation).then((blob) => ({ blob })).catch((error) => ({ error }))
+          : null;
+        const chunkPlayed = await playSpeechChunk(result.blob, chunks[index], generation);
+        if (generation !== speechGeneration) return false;
+        played = played || chunkPlayed;
       }
-      const audioBlob = await response.blob();
-      if (generation !== speechGeneration || controller !== currentSpeechController) return false;
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      currentAudioUrl = audioUrl;
-      currentAudio = audio;
-      audio.onplay = () => {
-        if (generation === speechGeneration) beginSpeaking(clean);
-      };
-      audio.onended = () => {
-        if (generation === speechGeneration) finishSpeaking();
-      };
-      audio.onerror = () => {
-        if (generation === speechGeneration) finishSpeaking();
-      };
-      if (generation !== speechGeneration || controller !== currentSpeechController) {
-        URL.revokeObjectURL(audioUrl);
-        return false;
-      }
-      await audio.play();
       session.voiceError = "";
       voiceFailureNotified = false;
-      return true;
+      if (generation === speechGeneration) finishSpeaking();
+      return played;
     } catch (error) {
       if (error?.name === "AbortError") return false;
       if (generation === speechGeneration) {
@@ -457,7 +515,7 @@
         session.voicePending = false;
         settleState();
       }
-      if (controller === currentSpeechController) currentSpeechController = null;
+      if (generation === speechGeneration) currentSpeechController = null;
     }
   }
 

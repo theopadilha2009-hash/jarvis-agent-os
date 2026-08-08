@@ -38,3 +38,13 @@ authors and contributors.
 - Use here: design reference for explicit computer-action lifecycle, stoppable
   pending jobs and evidence-backed completion. No automation engine or source
   file from these projects is bundled here.
+
+## Pipecat and LiveKit Agents
+
+- Projects: [pipecat-ai/pipecat](https://github.com/pipecat-ai/pipecat)
+  (BSD-2-Clause) and
+  [livekit-examples/agent-starter-react](https://github.com/livekit-examples/agent-starter-react)
+  (MIT)
+- Use here: voice-turn inspiration for short speech segments, interruption and
+  preparing the next segment while the current one plays. JARVIS still uses
+  its own ElevenLabs HTTP endpoint rather than either realtime stack.
