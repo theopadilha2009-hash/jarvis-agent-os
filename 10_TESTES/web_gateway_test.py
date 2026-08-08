@@ -803,14 +803,39 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["message"], "Resposta conectada.")
         sent_request = request.call_args.args[0]
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
-        self.assertEqual(sent_payload["temperature"], 0.65)
-        self.assertEqual(sent_payload["max_tokens"], 900)
+        self.assertEqual(sent_payload["temperature"], 0.72)
+        self.assertEqual(sent_payload["max_tokens"], 220)
         system_prompt = sent_payload["messages"][0]["content"]
         self.assertIn("humor seco", system_prompt)
-        self.assertIn("até três frases", system_prompt)
-        self.assertIn("porcentagem de confiança somente", system_prompt)
-        self.assertIn("não use rótulos burocráticos", system_prompt)
+        self.assertIn("uma ou duas frases", system_prompt)
+        self.assertIn("presença competente", system_prompt)
+        self.assertIn("sem sermão", system_prompt)
         self.assertIn("nunca diga que não possui voz", system_prompt.casefold())
+        self.assertEqual(payload["response_profile"], "concise")
+
+    def test_simple_chat_is_trimmed_without_bureaucratic_labels(self):
+        raw = (
+            "**Resposta:** Está funcionando. "
+            "**Próximo passo:** Vou reduzir o atraso da voz. "
+            "Também vou manter as respostas curtas. "
+            "Esta quarta frase não deve aparecer. "
+            "**Confiança nesta resposta:** 95%."
+        )
+        content, trimmed = MODULE.concise_assistant_content(raw, detailed=False)
+        self.assertTrue(trimmed)
+        self.assertNotIn("Próximo passo", content)
+        self.assertNotIn("Confiança", content)
+        self.assertNotIn("quarta frase", content)
+        self.assertLessEqual(len(content), 480)
+
+    def test_detailed_requests_keep_room_for_real_analysis(self):
+        profile = MODULE.assistant_response_profile("faça uma análise detalhada da arquitetura")
+        self.assertEqual(profile["name"], "detailed")
+        self.assertEqual(profile["max_tokens"], 900)
+        content = "Uma análise longa. Com todos os detalhes. Sem corte."
+        normalized, trimmed = MODULE.concise_assistant_content(content, detailed=True)
+        self.assertEqual(normalized, content)
+        self.assertFalse(trimmed)
 
     def test_openrouter_can_suggest_real_memory_without_saving_it(self):
         class FakeResponse:

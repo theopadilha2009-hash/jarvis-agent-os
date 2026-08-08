@@ -45,6 +45,8 @@ MAX_BODY_BYTES = 4_000_000
 MAX_PROMPT_CHARS = 8_000
 MAX_ATTACHMENT_BYTES = 2_500_000
 MAX_ATTACHMENTS = 2
+CONCISE_MAX_TOKENS = 220
+DETAILED_MAX_TOKENS = 900
 ATTACHMENT_MIME_TYPES = {
     "image/jpeg",
     "image/png",
@@ -55,6 +57,12 @@ ATTACHMENT_MIME_TYPES = {
     "text/markdown",
     "text/plain",
 }
+DETAILED_RESPONSE_PATTERN = re.compile(
+    r"\b(?:an[aá]lis(?:e|ar)|analis(?:a|e|ar)|detalh(?:e|ar|ad[oa])|explique|compare|"
+    r"plano|planej(?:e|ar)|passo a passo|c[oó]digo|implemente|arquitetura|relat[oó]rio|"
+    r"documento|resum(?:a|ir)|liste|checklist|pesquis(?:e|ar)|investigue|debug|diagn[oó]stico)\b",
+    re.I,
+)
 SUPABASE_MEMORY_TABLE = "jarvis_memories"
 SUPABASE_DEVICE_COMMANDS_TABLE = "jarvis_device_commands"
 SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
@@ -2164,6 +2172,45 @@ def openrouter_attachment_parts(prompt, attachments):
     return parts
 
 
+def assistant_response_profile(prompt, attachments=None):
+    detailed = bool(attachments) or bool(DETAILED_RESPONSE_PATTERN.search(clean_text(prompt, 8_000)))
+    return {
+        "name": "detailed" if detailed else "concise",
+        "max_tokens": DETAILED_MAX_TOKENS if detailed else CONCISE_MAX_TOKENS,
+        "temperature": 0.58 if detailed else 0.72,
+    }
+
+
+def concise_assistant_content(value, detailed=False):
+    content = clean_text(value, 20_000)
+    if detailed or not content:
+        return content, False
+    original = content
+    content = re.sub(
+        r"(?im)(?:^|\s)(?:#{1,4}\s*)?(?:\*\*)?(?:resposta|pr[oó]ximo passo|observa[cç][aã]o)(?:\*\*)?\s*:\s*",
+        "",
+        content,
+    )
+    content = re.sub(
+        r"(?im)(?:^|\s)(?:[-*]\s*)?(?:\*\*)?confian[cç]a(?: nesta resposta)?(?:\*\*)?\s*:[^.\n]*(?:\.|$)",
+        "",
+        content,
+    )
+    content = re.sub(r"\n{2,}", "\n", content).strip()
+    sentences = re.findall(r"[^.!?\n]+(?:[.!?]+|$)", content)
+    selected = " ".join(sentence.strip() for sentence in sentences[:3] if sentence.strip()).strip()
+    if selected:
+        content = selected
+    if len(content) > 480:
+        excerpt = content[:480]
+        cut = max(excerpt.rfind(". "), excerpt.rfind("! "), excerpt.rfind("? "))
+        if cut >= 180:
+            content = excerpt[:cut + 1].strip()
+        else:
+            content = excerpt.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+    return content or original[:480], content != original
+
+
 def assistant_response(body, origin="", local_execute=False, owner_authenticated=False):
     messages = normalize_messages(body)
     if not messages:
@@ -2181,6 +2228,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         return {"ok": False, "error": str(error), "status_real": "attachment_refused"}, 400
 
     latest = messages[-1]["content"]
+    response_profile = assistant_response_profile(latest, attachments)
     if VOICE_DESIGN_PATTERN.search(latest):
         if owner_pairing_required() and not owner_authenticated:
             return pairing_required_payload()
@@ -2231,20 +2279,25 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     system = {
         "role": "system",
         "content": (
-            "Você é JARVIS, o assistente pessoal de Theo. Converse em português brasileiro como uma pessoa "
-            "inteligente, calma e próxima: natural, direta e sem tom de atendimento ao cliente. Use humor seco "
-            "e discreto quando surgir naturalmente, sem bordões, caricatura ou excesso de emojis. Por padrão, "
-            "responda em até três frases ou cerca de 90 palavras. Só desenvolva bastante quando Theo pedir plano, "
-            "análise, código ou detalhes. Não repita a pergunta, não descreva sua base de conhecimento, não use "
-            "rótulos burocráticos como 'Próximo passo' e não termine toda resposta pedindo mais contexto. Dê a "
-            "melhor resposta concreta que já for possível. Evite Markdown e listas em conversa simples. Informe "
-            "porcentagem de confiança somente se Theo pedir ou se uma incerteza real mudar a decisão. Questione "
-            "uma premissa ruim em vez de concordar automaticamente. Nunca alegue ter executado ações no computador "
+            "Você é JARVIS, o assistente pessoal de Theo. Sua personalidade é presença competente, calma e afiada: "
+            "você percebe rápido, fala pouco e não soa como suporte, chatbot corporativo ou professor. Em conversa "
+            "comum, responda em uma ou duas frases, idealmente abaixo de 55 palavras. Comece pela resposta, não por "
+            "uma introdução. Use humor seco apenas como uma observação curta quando ele surgir naturalmente; nunca "
+            "force piadas, bordões, emojis ou teatralidade. Chame-o de Theo apenas ocasionalmente. Não diga 'estou "
+            "pronto para ajudar', 'como posso ajudar', 'próximo passo', 'confiança nesta resposta' ou equivalentes. "
+            "Não repita a pergunta, não explique sua base de conhecimento e não termine oferecendo ajuda genérica. "
+            "Se algo não puder ser executado, diga a limitação real em uma frase e entregue imediatamente a alternativa "
+            "mais útil, sem sermão. Só use Markdown, listas e respostas longas quando Theo pedir plano, análise, código, "
+            "comparação ou detalhes. Questione uma premissa ruim em vez de concordar automaticamente. Nunca alegue ter "
+            "executado ações no computador "
             "ou em serviços externos sem evidência real. Nunca peça, repita ou exponha credenciais. Quando algo "
             "exigir o Mac, diga claramente que o worker local deve executar."
             " A interface usa ElevenLabs para falar. Escreva frases fáceis de pronunciar, com ritmo humano e sem "
             "blocos enormes. Nunca diga que não possui voz ou que só existe em texto. Se Theo pedir para ouvir "
             "você, responda com uma frase curta e natural; a interface cuida da infraestrutura e das falhas reais."
+            " Exemplo de tom: pergunta simples recebe 'Está funcionando. A parte lenta é a voz; já estou reduzindo o "
+            "tempo dela.' Pedido impossível recebe 'Da Vercel eu não alcanço seu Mac; deixei a ação pronta para o "
+            "worker local executar.'"
             + (
                 "\n\nMemórias persistentes fornecidas por Theo; use somente quando forem relevantes e "
                 "não invente informações além delas:\n"
@@ -2268,8 +2321,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 else os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
             ),
             "messages": [system, *provider_messages],
-            "temperature": 0.65,
-            "max_tokens": 900,
+            "temperature": response_profile["temperature"],
+            "max_tokens": response_profile["max_tokens"],
         }
     if any(item["type"] == "application/pdf" for item in attachments):
         openrouter_payload["plugins"] = [{"id": "file-parser", "pdf": {"engine": "cloudflare-ai"}}]
@@ -2295,7 +2348,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             content = "\n".join(
                 str(item.get("text") or "") for item in content if isinstance(item, dict)
             ).strip()
-        content = clean_text(content, 20_000)
+        content, response_trimmed = concise_assistant_content(
+            content,
+            detailed=response_profile["name"] == "detailed",
+        )
         if not content:
             raise ValueError("empty model response")
         payload = {
@@ -2309,6 +2365,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "provider": "openrouter",
             "external_processing": True,
             "memory_context_count": len(memory_context),
+            "response_profile": response_profile["name"],
+            "response_trimmed": response_trimmed,
         }
         if attachments:
             payload["attachments_received"] = [
