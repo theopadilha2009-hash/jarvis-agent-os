@@ -274,6 +274,21 @@
     }).join("")}</div>`;
   }
 
+  function renderMessageContext(data) {
+    let html = "";
+    if (Array.isArray(data.ui_cards) && data.ui_cards.length) {
+      html += data.ui_cards.slice(0, 2).map((card) => {
+        const items = Array.isArray(card.items) ? card.items.slice(0, 6) : [];
+        return `<details class="message-card"><summary>${escapeHtml(card.title || "Resultado")}<small>${escapeHtml(card.status || "")}</small></summary>${card.subtitle ? `<p>${escapeHtml(card.subtitle)}</p>` : ""}${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}</details>`;
+      }).join("");
+    }
+    const stream = data.event_stream;
+    if (stream?.protocol === "jarvis-events/1" && Array.isArray(stream.events)) {
+      html += `<details class="message-events"><summary>Execução real<small>${Number(stream.elapsed_ms) || 0} ms</small></summary>${stream.events.slice(-5).map((event) => `<div><i data-status="${escapeHtml(event.status || "unknown")}"></i><span>${escapeHtml(event.label || event.type)}</span></div>`).join("")}</details>`;
+    }
+    return html;
+  }
+
   function renderLiveCanvas(data) {
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
@@ -568,6 +583,7 @@
     session.responseState = data.visual_state || (data.executed_locally ? "success" : "response");
     const answer = data.message || data.summary || data.next_action || data.status_real || "Pronto.";
     let extra = "";
+    extra += renderMessageContext(data);
     if (data.memory_suggestion) {
       extra = `<button class="memory-command" type="button">Guardar na memória</button>`;
     }

@@ -795,6 +795,35 @@ button {
   font-size: 9px;
 }
 
+.message-card,
+.message-events {
+  padding: 7px 9px;
+  border: 1px solid rgba(103, 232, 249, 0.1);
+  border-radius: 9px;
+  background: rgba(5, 18, 27, 0.52);
+}
+
+.message-card summary,
+.message-events summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  color: #cceaf1;
+  list-style: none;
+}
+
+.message-card summary::-webkit-details-marker,
+.message-events summary::-webkit-details-marker { display: none; }
+.message-card summary small,
+.message-events summary small { color: var(--faint); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
+.message-card p { margin: 7px 0 0; color: var(--muted); line-height: 1.45; }
+.message-card ul { display: grid; gap: 5px; margin: 8px 0 0; padding-left: 16px; color: #b9d3dc; line-height: 1.45; }
+.message-events > div { display: flex; gap: 7px; align-items: center; margin-top: 6px; color: var(--muted); }
+.message-events i { width: 5px; height: 5px; border-radius: 50%; background: var(--amber); }
+.message-events i[data-status="succeeded"] { background: var(--green); }
+.message-events i[data-status="failed"] { background: var(--red); }
+
 .message code {
   display: block;
   margin-top: 6px;
