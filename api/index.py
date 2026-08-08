@@ -789,6 +789,58 @@ def supabase_agenda_rows(limit=20):
     return rows if isinstance(rows, list) else []
 
 
+def proactive_pulse_payload(owner_authenticated=False, now=None):
+    """Return at most one useful matter; never executes or writes anything."""
+    payload = {
+        "ok": True,
+        "endpoint": "GET /pulse",
+        "status_real": "proactive_pulse_quiet",
+        "suggestion": None,
+        "writes": False,
+    }
+    if not supabase_configured() or (owner_pairing_required() and not owner_authenticated):
+        return payload
+    try:
+        current = now or datetime.now(timezone.utc)
+        current = current.replace(tzinfo=timezone.utc) if current.tzinfo is None else current.astimezone(timezone.utc)
+        horizon = current + timedelta(hours=24)
+        candidate = None
+        for item in supabase_agenda_rows(20):
+            if not isinstance(item, dict):
+                continue
+            raw_due = clean_text(item.get("scheduled_for"), 80)
+            if not raw_due:
+                continue
+            due = datetime.fromisoformat(raw_due.replace("Z", "+00:00")).astimezone(timezone.utc)
+            if due <= horizon:
+                candidate = (item, due)
+                break
+        if not candidate:
+            return payload
+        item, due = candidate
+        title = clean_text(item.get("title") or "item da agenda", 200)
+        overdue = due < current
+        local_due = due.astimezone(ZoneInfo("America/Sao_Paulo"))
+        pulse_id = f"agenda-{clean_text(item.get('id') or local_due.isoformat(), 80)}-{local_due.strftime('%Y%m%d%H%M')}"
+        payload.update({
+            "status_real": "proactive_pulse_has_matter",
+            "suggestion": {
+                "id": pulse_id,
+                "type": "agenda",
+                "title": "Item atrasado" if overdue else "Próximo compromisso",
+                "message": f"{title} · {local_due.strftime('%d/%m às %H:%M')}",
+                "command": "mostre minha agenda",
+                "requires_confirmation": True,
+                "due_at": due.isoformat(),
+                "overdue": overdue,
+            },
+        })
+        return payload
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        payload["status_real"] = "proactive_pulse_unavailable"
+        return payload
+
+
 def supabase_agenda_command(command, intent):
     try:
         if intent in {"agenda_note", "task_add"}:
@@ -2484,6 +2536,8 @@ class handler(BaseHTTPRequestHandler):
             payload = status_payload(owner_authenticated=owner_authenticated)
             payload["endpoint"] = f"GET {path}"
             return self.send_json(200, payload)
+        if path == "/pulse":
+            return self.send_json(200, proactive_pulse_payload(owner_authenticated=owner_authenticated))
         if path == "/owner-dev":
             return self.send_json(200, owner_mode_payload())
         if path in {"/capabilities", "/capability-matrix"}:

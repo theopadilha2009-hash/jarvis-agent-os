@@ -88,8 +88,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260808-events1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260808-events1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260808-pulse1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260808-pulse1', html)
+        self.assertIn(b'id="pulseButton"', html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b"fallback-core", html)
@@ -118,6 +119,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'protocol !== "jarvis-events/1"', app_js)
         self.assertIn(b"renderUICards", app_js)
         self.assertIn(b'class="ui-card"', app_js)
+        self.assertIn(b"refreshPulse", app_js)
+        self.assertIn(b"10 * 60 * 1000", app_js)
 
         status, headers, app_css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
@@ -688,6 +691,29 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(MODULE.memory_layer("prefiro respostas curtas", "preference"), "owner")
         self.assertEqual(MODULE.memory_layer("deploy do projeto na Vercel", "decision"), "project")
         self.assertEqual(MODULE.memory_layer("reunião amanhã às nove", "learning"), "daily")
+
+    def test_proactive_pulse_returns_only_one_confirmable_matter(self):
+        rows = [
+            {"id": 7, "title": "Revisar apresentação", "scheduled_for": "2026-08-08T13:00:00Z"},
+            {"id": 8, "title": "Segunda tarefa", "scheduled_for": "2026-08-08T14:00:00Z"},
+        ]
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        now = datetime.fromisoformat("2026-08-08T12:00:00+00:00")
+        with patch.dict(os.environ, env, clear=False), patch.object(MODULE, "supabase_agenda_rows", return_value=rows):
+            payload = MODULE.proactive_pulse_payload(owner_authenticated=True, now=now)
+        self.assertEqual(payload["status_real"], "proactive_pulse_has_matter")
+        self.assertEqual(payload["suggestion"]["message"], "Revisar apresentação · 08/08 às 10:00")
+        self.assertTrue(payload["suggestion"]["requires_confirmation"])
+        self.assertFalse(payload["writes"])
+
+    def test_proactive_pulse_stays_quiet_without_backend(self):
+        with patch.dict(os.environ, {"SUPABASE_URL": "", "SUPABASE_SERVICE_ROLE_KEY": ""}, clear=False):
+            payload = MODULE.proactive_pulse_payload()
+        self.assertIsNone(payload["suggestion"])
+        self.assertEqual(payload["status_real"], "proactive_pulse_quiet")
 
     def test_memory_save_never_claims_success_without_file_evidence(self):
         completed = MODULE.subprocess.CompletedProcess(

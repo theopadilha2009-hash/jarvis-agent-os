@@ -172,6 +172,20 @@ button {
   cursor: pointer;
 }
 
+.pulse-button {
+  margin-left: 10px;
+  padding: 6px 9px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.06);
+  color: #f8d477;
+  cursor: pointer;
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+.pulse-button:hover { background: rgba(251, 191, 36, 0.11); }
+
 .system-button {
   width: 32px;
   padding: 0;

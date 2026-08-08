@@ -8,6 +8,7 @@
   const sendButton = byId("sendButton");
   const voiceButton = byId("voiceButton");
   const muteButton = byId("muteButton");
+  const pulseButton = byId("pulseButton");
   const dialog = byId("systemDialog");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -40,6 +41,7 @@
   let currentSpeechController = null;
   let speechGeneration = 0;
   let voiceFailureNotified = false;
+  let currentPulse = null;
 
   function ownerToken() {
     try {
@@ -253,6 +255,24 @@
       }
     } catch {
       renderActionHistory([]);
+    }
+  }
+
+  async function refreshPulse() {
+    if (document.hidden) return;
+    try {
+      const data = await request("/pulse");
+      const suggestion = data?.suggestion;
+      const dismissed = suggestion?.id && localStorage.getItem("jarvis-last-pulse") === suggestion.id;
+      currentPulse = suggestion && !dismissed ? suggestion : null;
+      pulseButton.hidden = !currentPulse;
+      if (currentPulse) {
+        pulseButton.textContent = currentPulse.overdue ? "1 pendência" : "1 lembrete";
+        pulseButton.title = currentPulse.message;
+      }
+    } catch {
+      currentPulse = null;
+      pulseButton.hidden = true;
     }
   }
 
@@ -614,6 +634,7 @@
           : "Navegador não pareado";
       }
       setVisualState(status.ok ? "idle" : "offline");
+      await refreshPulse();
     } catch {
       byId("connectionText").textContent = "offline";
       session.responseState = "offline";
@@ -624,6 +645,25 @@
   byId("commandForm").addEventListener("submit", (event) => {
     event.preventDefault();
     sendCommand(input.value);
+  });
+  pulseButton.addEventListener("click", () => {
+    if (!currentPulse) return;
+    addMessage(currentPulse.message, "jarvis");
+    renderLiveCanvas({
+      ui_cards: [{
+        id: currentPulse.id,
+        type: "agenda",
+        status: currentPulse.overdue ? "overdue" : "upcoming",
+        title: currentPulse.title,
+        subtitle: "Sugestão; nenhuma ação executada",
+        items: [currentPulse.message],
+      }],
+    });
+    input.value = currentPulse.command || "";
+    input.focus();
+    try { localStorage.setItem("jarvis-last-pulse", currentPulse.id); } catch { /* session-only dismissal */ }
+    currentPulse = null;
+    pulseButton.hidden = true;
   });
   byId("detailsButton").addEventListener("click", () => {
     dialog.showModal();
@@ -673,4 +713,5 @@
   renderMuteState();
   installVoiceInput();
   boot();
+  window.setInterval(refreshPulse, 10 * 60 * 1000);
 })();
