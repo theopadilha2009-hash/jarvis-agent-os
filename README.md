@@ -36,6 +36,10 @@ uma lista de capacidades.
   capturar tela, abrir o gravador, analisar Downloads, diagnosticar memória,
   consultar GitHub e enviar mensagem com número/texto explícitos. Cada pedido
   recebe estado e evidência; o worker não aceita shell ou caminho arbitrário.
+- Pedidos explicitamente encadeados, como “abra o Spotify e depois tire um
+  print”, viram um run de duas a seis etapas. O worker respeita dependências,
+  não executa uma etapa depois da falha anterior e a interface só chama o run
+  de concluído quando todas as linhas persistidas confirmam sucesso.
 - Com `N8N_WEBHOOK_URL` (e opcionalmente `N8N_WEBHOOK_TOKEN`), pedidos de
   agenda e tarefas são executados pelo webhook n8n.
 - Print e análise de armazenamento usam a fila privada do worker. Conversões e
@@ -81,6 +85,8 @@ No estado atual, JARVIS já possui estrutura local de laboratório, inbox para e
 ## Limites atuais
 O runtime na Vercel não acessa o Mac diretamente: ele grava um pedido
 allowlisted no Supabase, e o worker local pareado executa e devolve a evidência.
+Aceitação da fila não é apresentada como conclusão; runs pendentes permanecem
+visivelmente em andamento até o worker devolver estado terminal.
 ElevenLabs e n8n só ficam ativos quando suas variáveis de ambiente estão
 configuradas no projeto Vercel. A voz continua em texto quando a cota externa
 acaba.

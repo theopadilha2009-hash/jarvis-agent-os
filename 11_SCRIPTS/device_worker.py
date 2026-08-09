@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "7"
+WORKER_VERSION = "8"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -238,6 +238,37 @@ def contains_secret(value: str) -> bool:
     return any(pattern.search(str(value or "")) for _name, pattern in SECRET_PATTERNS)
 
 
+def request_envelope(job: dict) -> dict:
+    raw = str(job.get("request_text") or "")[:8_000].strip()
+    if not raw.startswith("{"):
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(value, dict) or value.get("schema") != "jarvis-device-run/1":
+        return {}
+    return value
+
+
+def job_request_text(job: dict) -> str:
+    envelope = request_envelope(job)
+    return str(envelope.get("request") if envelope else job.get("request_text") or "")[:8_000].strip()
+
+
+def job_dependency_id(job: dict) -> int | None:
+    value = request_envelope(job).get("depends_on")
+    return int(value) if re.fullmatch(r"[0-9]{1,18}", str(value or "")) else None
+
+
+def dependency_status(command_id: int) -> str:
+    rows = rest_request(
+        COMMANDS_TABLE,
+        query=f"select=id,status&owner_id=eq.theo&id=eq.{int(command_id)}&limit=1",
+    )
+    return str(rows[0].get("status") or "") if rows else "missing"
+
+
 def heartbeat() -> None:
     row = {
         "worker_id": WORKER_ID,
@@ -307,7 +338,7 @@ def command_argv(job: dict) -> list[str]:
     if not TARGET_PATTERN.fullmatch(target):
         raise WorkerError("Aplicativo recebido com nome inválido.")
     if action == "self_edit":
-        request_text = str(job.get("request_text") or "")[:2_000].strip()
+        request_text = job_request_text(job)[:2_000]
         if len(request_text) < 12 or contains_secret(request_text):
             raise WorkerError("Autoedição recebida sem objetivo seguro e explícito.")
         argv = [str(ROOT / "jarvis"), "self-edit", request_text]
@@ -316,7 +347,7 @@ def command_argv(job: dict) -> list[str]:
         return argv
     if action == "system_memory":
         argv = [str(ROOT / "jarvis"), "system-memory"]
-        request_text = str(job.get("request_text") or "")[:8_000]
+        request_text = job_request_text(job)
         if JARVIS_CLEANUP_PATTERN.search(request_text):
             argv.append("--cleanup-jarvis")
         return argv
@@ -339,7 +370,7 @@ def command_argv(job: dict) -> list[str]:
             "50",
         ]
     if action == "message_send":
-        details = message_details(str(job.get("request_text") or ""), target)
+        details = message_details(job_request_text(job), target)
         if not details:
             raise WorkerError("Mensagem recebida sem telefone e texto válidos.")
         return [
@@ -503,6 +534,21 @@ def run_once(preview: bool = False) -> str:
     target = str(job.get("target") or "")
     if preview:
         return f"Preview: ação {command_id} aguardando ({action} {target})."
+    dependency = job_dependency_id(job)
+    if dependency is not None:
+        dependency_state = dependency_status(dependency)
+        if dependency_state in {"pending", "running"}:
+            return f"Ação {command_id} aguarda a etapa anterior {dependency}."
+        if dependency_state != "succeeded":
+            claimed = claim_command(command_id)
+            if not claimed:
+                return f"Ação {command_id} já foi assumida por outro worker."
+            finish_command(
+                command_id,
+                False,
+                f"Etapa não executada: a dependência {dependency} terminou como {dependency_state}.",
+            )
+            return f"Ação {command_id} bloqueada pela falha da etapa {dependency}."
     claimed = claim_command(command_id)
     if not claimed:
         return f"Ação {command_id} já foi assumida por outro worker."
