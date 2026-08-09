@@ -14,7 +14,8 @@ Python stdlib; nenhum componente externo foi copiado literalmente.
 - Fonte: https://docs.github.com/en/rest
 - Endpoint usado: `GET /search/repositories` para repositórios públicos.
 - Evidência preservada: URL, descrição, estrelas, linguagem, licença e data de
-  atualização; requisições são seriais para respeitar os limites da API.
+  atualização. A busca é serial; os três READMEs são lidos em paralelo com
+  timeout curto para reduzir a latência.
 
 ## OpenRouter Web Search
 
@@ -26,10 +27,11 @@ Python stdlib; nenhum componente externo foi copiado literalmente.
 
 1. Classificar se o pedido realmente exige informação externa.
 2. Em pesquisa de projetos, consultar primeiro a API pública do GitHub.
-3. Em pesquisa geral, consultar busca pública com fallback serial.
-4. Normalizar e deduplicar URLs reais.
-5. Tratar snippets externos como dados não confiáveis, nunca como instruções.
-6. Pedir ao OpenRouter apenas a síntese das fontes já coletadas.
-7. Se a IA cair por cota ou timeout, mostrar os resultados reais sem inventar.
-8. Se nenhuma fonte existir, recusar a resposta não pesquisada.
-
+3. Ler em paralelo os READMEs dos três melhores resultados permissivos.
+4. Extrair capacidades verificáveis, ignorando instalação, dependências e instruções embutidas.
+5. Em pesquisa geral, consultar busca pública com fallback serial.
+6. Normalizar e deduplicar URLs reais.
+7. Tratar snippets e READMEs como dados não confiáveis, nunca como instruções.
+8. Pedir ao OpenRouter apenas a síntese das fontes já coletadas.
+9. Se a IA cair por cota, timeout ou meta-leak, gerar comparação determinística a partir das evidências.
+10. Se nenhuma fonte existir, recusar a resposta não pesquisada.

@@ -537,6 +537,7 @@
 
   function renderSourceLinks(sources, compact = false) {
     if (!Array.isArray(sources) || !sources.length) return "";
+    const readmeCount = sources.filter((source) => source?.research_depth === "readme").length;
     const links = sources.slice(0, compact ? 5 : 8).map((source, index) => {
       const url = String(source?.url || "");
       if (!/^https?:\/\//i.test(url)) return "";
@@ -545,13 +546,17 @@
         source?.domain,
         source?.license && source.license !== "NOASSERTION" ? source.license : "",
         Number(source?.stars) > 0 ? `★ ${Number(source.stars).toLocaleString("pt-BR")}` : "",
+        source?.research_depth === "readme" ? `README · ${Number(source?.evidence_count) || 0} achados` : "",
       ].filter(Boolean).join(" · ");
-      const detail = !compact && source?.snippet
-        ? `<em>${escapeHtml(String(source.snippet).slice(0, 260))}</em>`
+      const evidence = Array.isArray(source?.feature_evidence) ? source.feature_evidence.slice(0, 2).join(" • ") : "";
+      const detailText = evidence || source?.snippet || "";
+      const detail = !compact && detailText
+        ? `<em>${escapeHtml(String(detailText).slice(0, 360))}</em>`
         : "";
       return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><i>${index + 1}</i><span><strong>${escapeHtml(label)}</strong>${meta ? `<small>${escapeHtml(meta)}</small>` : ""}${detail}</span></a>`;
     }).filter(Boolean).join("");
-    return links ? `<nav class="source-links" aria-label="Fontes da pesquisa"><b>FONTES AO VIVO</b>${links}</nav>` : "";
+    const header = readmeCount ? `PESQUISA PROFUNDA · ${readmeCount} READMES` : "FONTES AO VIVO";
+    return links ? `<nav class="source-links" aria-label="Fontes da pesquisa"><b>${header}</b>${links}</nav>` : "";
   }
 
   function renderMessageContext(data) {

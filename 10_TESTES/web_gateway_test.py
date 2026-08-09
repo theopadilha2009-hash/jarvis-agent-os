@@ -104,9 +104,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260809-research2', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260809-research2', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-research2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260809-research3', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260809-research3', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-research3', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -182,6 +182,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b' research: ["PESQUISA"', app_js)
         self.assertIn("Pesquisando…".encode("utf-8"), app_js)
         self.assertIn(b"source?.snippet", app_js)
+        self.assertIn(b"feature_evidence", app_js)
+        self.assertIn(b"PESQUISA PROFUNDA", app_js)
         self.assertIn(b'class="message-card"', app_js)
         self.assertIn(b"workingStateFor", app_js)
         self.assertIn(b"responseVisualState", app_js)
@@ -261,7 +263,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260809-research2", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260809-research3", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -1253,6 +1255,66 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("api.github.com/search/repositories", requested_url)
         self.assertIn("sort=stars", requested_url)
         self.assertIn("jarvis+personal+assistant", requested_url)
+
+    def test_github_deep_research_reads_readme_and_extracts_feature_evidence(self):
+        source = {
+            "title": "example/strong-jarvis",
+            "repo_full_name": "example/strong-jarvis",
+            "url": "https://github.com/example/strong-jarvis",
+            "provider": "github_api",
+            "license": "MIT",
+            "stars": 4200,
+        }
+        readme = """
+# Strong JARVIS
+## Features
+- Natural voice commands with speech-to-text and text-to-speech.
+- Open desktop applications and automate keyboard actions.
+- Persistent memory keeps relevant context between sessions.
+"""
+        with patch.object(MODULE, "_public_search_request", return_value=readme) as request:
+            enriched = MODULE.enrich_github_sources([source], 1)
+
+        self.assertEqual(enriched[0]["research_depth"], "readme")
+        self.assertEqual(enriched[0]["evidence_count"], 3)
+        self.assertTrue(any("voice commands" in item for item in enriched[0]["feature_evidence"]))
+        self.assertTrue(enriched[0]["readme_url"].endswith("#readme"))
+        self.assertIn("api.github.com/repos/example/strong-jarvis/readme", request.call_args.args[0])
+
+    def test_deep_research_has_useful_deterministic_comparison_without_model(self):
+        bundle = {
+            "query": "jarvis",
+            "mode": "github_deep_research",
+            "provider": "github_api",
+            "sources": [{
+                "title": "example/strong-jarvis",
+                "url": "https://github.com/example/strong-jarvis",
+                "provider": "github_api",
+                "license": "MIT",
+                "stars": 4200,
+                "research_depth": "readme",
+                "evidence_count": 2,
+                "feature_evidence": [
+                    "Natural voice commands with speech-to-text.",
+                    "Open desktop applications and automate keyboard actions.",
+                ],
+            }],
+            "research": {
+                "depth": "repository_readme",
+                "repositories_found": 1,
+                "repositories_read": 1,
+                "evidence_count": 2,
+                "themes": ["voz e comandos naturais", "automação de aplicativos e desktop"],
+            },
+        }
+
+        payload = MODULE.search_results_without_synthesis(bundle, "openrouter_meta_leak")
+
+        self.assertIn("Pesquisa profunda concluída", payload["message"])
+        self.assertIn("Confirmado no README", payload["message"])
+        self.assertIn("Padrões reaproveitáveis", payload["message"])
+        self.assertEqual(payload["web_search"]["research"]["repositories_read"], 1)
+        self.assertEqual(payload["ui_cards"][0]["title"], "Pesquisa profunda")
 
     def test_bing_redirect_is_normalized_to_the_real_source_url(self):
         source_url = "https://openrouter.ai/docs/guides/routing/routers/free-router"

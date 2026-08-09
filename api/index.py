@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 import argparse
 import base64
 import binascii
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 import html as html_lib
 import hmac
@@ -85,6 +86,7 @@ GITHUB_RESEARCH_PATTERN = re.compile(
     re.I,
 )
 FREE_SEARCH_RESULT_LIMIT = 6
+GITHUB_DEEP_RESULT_LIMIT = 3
 FREE_SEARCH_USER_AGENT = "Mozilla/5.0 (compatible; TheoJarvisResearch/1.0; +https://jarvis-agent-os-delta.vercel.app)"
 PERMISSIVE_LICENSES = {"apache-2.0", "bsd-2-clause", "bsd-3-clause", "isc", "mit", "mpl-2.0"}
 GITHUB_QUERY_STOPWORDS = {
@@ -93,6 +95,17 @@ GITHUB_QUERY_STOPWORDS = {
     "no", "nos", "o", "os", "para", "parecido", "parecidos", "por", "projeto", "projetos", "publico", "publicos",
     "que", "repos", "repositorio", "repositorios", "sobre", "um", "uma", "usar",
 }
+RESEARCH_CAPABILITY_PATTERNS = (
+    ("voz e comandos naturais", re.compile(r"\b(?:voice|speech|microphone|wake\s*word|text.to.speech|speech.to.text|tts|stt|audio)\b", re.I)),
+    ("automação de aplicativos e desktop", re.compile(r"\b(?:desktop|application|applications|app|apps|open|launch|automation|keyboard|mouse)\b", re.I)),
+    ("memória e contexto", re.compile(r"\b(?:memory|context|history|remember|knowledge\s*base|vector|embedding)\b", re.I)),
+    ("integrações e plugins", re.compile(r"\b(?:plugin|plugins|integration|integrations|skill|skills|module|modules|api)\b", re.I)),
+    ("tarefas, agenda e produtividade", re.compile(r"\b(?:todo|task|tasks|calendar|agenda|reminder|email|productivity)\b", re.I)),
+    ("visão, tela e documentos", re.compile(r"\b(?:screen|screenshot|vision|camera|ocr|document|pdf|image)\b", re.I)),
+    ("arquivos e armazenamento", re.compile(r"\b(?:file|files|folder|folders|storage|organize|convert|conversion)\b", re.I)),
+    ("pesquisa e navegação", re.compile(r"\b(?:browser|website|web|google|search|wikipedia|news|weather)\b", re.I)),
+    ("execução local e modo offline", re.compile(r"\b(?:local|offline|on.device|macos|linux|windows|shell|command)\b", re.I)),
+)
 SUPABASE_MEMORY_TABLE = "jarvis_memories"
 SUPABASE_DEVICE_COMMANDS_TABLE = "jarvis_device_commands"
 SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
@@ -2636,12 +2649,174 @@ def github_repository_search(query, limit=FREE_SEARCH_RESULT_LIMIT):
             "url": clean_text(item.get("html_url"), 2_000),
             "snippet": " · ".join(part for part in details if part),
             "provider": "github_api",
+            "repo_full_name": clean_text(item.get("full_name"), 200),
+            "default_branch": clean_text(item.get("default_branch"), 100) or "main",
+            "topics": [clean_text(topic, 60) for topic in item.get("topics", [])[:8] if clean_text(topic, 60)],
             "license": license_id or "NOASSERTION",
             "permissive_license": license_id.casefold() in PERMISSIVE_LICENSES,
             "stars": stars,
+            "forks": int(item.get("forks_count") or 0),
+            "open_issues": int(item.get("open_issues_count") or 0),
         })
     sources.sort(key=lambda row: (not bool(row.get("permissive_license")), -int(row.get("stars") or 0)))
     return _dedupe_public_sources(sources, limit)
+
+
+def _markdown_evidence_lines(raw, limit=5):
+    """Extract feature claims from a README without treating it as instructions."""
+    text = re.sub(r"(?s)```.*?```", " ", str(raw or ""))
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", text)
+    text = re.sub(
+        r"(?is)<h[1-6][^>]*>(.*?)</h[1-6]>",
+        lambda match: "\n# " + _search_text(match.group(1), 180) + "\n",
+        text,
+    )
+    text = re.sub(r"(?is)<li[^>]*>(.*?)</li>", lambda match: "\n- " + _search_text(match.group(1), 240) + "\n", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    rows = []
+    section_relevant = False
+    section_penalty = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if line.startswith("#"):
+            heading = re.sub(r"^#+\s*", "", line)
+            section_relevant = bool(re.search(
+                r"(?i)\b(?:feature|capabilit|what .* do|task|can\b|function|command|integration|module|skill|usage|overview|demo)\b",
+                heading,
+            ))
+            section_penalty = bool(re.search(
+                r"(?i)\b(?:install|dependenc|setup|requirement|api\s*keys?|issue|troubleshoot|contribut|license)\b",
+                heading,
+            ))
+            continue
+        bullet = re.match(r"^(?:[-*+]\s+|\d+[.)]\s+)(.+)$", line)
+        if not bullet:
+            continue
+        value = bullet.group(1)
+        value = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", value)
+        value = re.sub(r"[`*_~]+", "", value)
+        value = re.sub(r"^#+\s*", "", value)
+        value = clean_text(value, 220)
+        if len(value) < 12 or value.startswith(("http://", "https://")):
+            continue
+        themes = tuple(label for label, pattern in RESEARCH_CAPABILITY_PATTERNS if pattern.search(value))
+        action = bool(re.match(
+            r"(?i)(?:can\s+)?(?:access|answer|capture|check|convert|create|display|find|get|launch|manage|open|organize|"
+            r"perform|play|read|record|save|search|send|take|tell|track|translate|upload)",
+            value,
+        ))
+        setup_noise = bool(re.search(r"(?i)\b(?:install|packages?|dependencies|dependency|environment|clone|installer)\b", value))
+        if setup_noise:
+            continue
+        score = (
+            (5 if section_relevant else 0)
+            + len(themes) * 3
+            + (2 if action else 0)
+            + (1 if len(value) <= 160 else 0)
+            - (7 if section_penalty else 0)
+        )
+        rows.append((score, value, themes))
+    rows.sort(key=lambda row: (-row[0], len(row[1])))
+    evidence = []
+    seen = set()
+    used_themes = set()
+    for diversity_pass in (True, False):
+        for score, value, themes in rows:
+            if len(evidence) >= limit:
+                break
+            if diversity_pass:
+                if not themes or not any(theme not in used_themes for theme in themes):
+                    continue
+            if not diversity_pass and value in evidence:
+                continue
+            if score <= 0:
+                continue
+            key = re.sub(r"\W+", "", value.casefold())[:120]
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            evidence.append(value)
+            used_themes.update(themes)
+        if len(evidence) >= limit:
+            break
+    return evidence
+
+
+def _github_readme_research(source):
+    row = dict(source)
+    full_name = clean_text(row.get("repo_full_name") or row.get("title"), 200)
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", full_name):
+        return row
+    owner, repository = full_name.split("/", 1)
+    url = f"https://api.github.com/repos/{quote(owner, safe='')}/{quote(repository, safe='')}/readme"
+    try:
+        raw = _public_search_request(url, accept="application/vnd.github.raw+json", timeout=5)
+        evidence = _markdown_evidence_lines(raw)
+    except (HTTPError, URLError, TimeoutError, ValueError, UnicodeError):
+        return row
+    if not evidence:
+        return row
+    row.update({
+        "research_depth": "readme",
+        "readme_url": f"{row.get('url', '').rstrip('/')}#readme",
+        "feature_evidence": evidence,
+        "evidence_count": len(evidence),
+    })
+    return row
+
+
+def enrich_github_sources(sources, limit=GITHUB_DEEP_RESULT_LIMIT):
+    """Read the top READMEs concurrently so research compares projects, not search cards."""
+    rows = [dict(source) for source in sources]
+    candidates = [index for index, row in enumerate(rows[:limit]) if row.get("provider") == "github_api"]
+    if not candidates:
+        return rows
+    with ThreadPoolExecutor(max_workers=min(len(candidates), GITHUB_DEEP_RESULT_LIMIT)) as executor:
+        futures = {executor.submit(_github_readme_research, rows[index]): index for index in candidates}
+        for future in as_completed(futures):
+            index = futures[future]
+            try:
+                rows[index] = future.result()
+            except Exception:
+                continue
+    return rows
+
+
+def research_summary(sources):
+    deep = [row for row in sources if row.get("research_depth") == "readme"]
+    combined = "\n".join(
+        "\n".join(str(item) for item in row.get("feature_evidence", []))
+        for row in deep
+    )
+    themes = [
+        label for label, pattern in RESEARCH_CAPABILITY_PATTERNS
+        if pattern.search(combined)
+    ]
+    return {
+        "depth": "repository_readme" if deep else "search_metadata",
+        "repositories_found": sum(row.get("provider") == "github_api" for row in sources),
+        "repositories_read": len(deep),
+        "evidence_count": sum(int(row.get("evidence_count") or 0) for row in deep),
+        "themes": themes[:6],
+    }
+
+
+def research_ui_card(bundle):
+    research = bundle.get("research") if isinstance(bundle, dict) else {}
+    if not isinstance(research, dict) or not research.get("repositories_read"):
+        return None
+    themes = [clean_text(item, 100) for item in research.get("themes", []) if clean_text(item, 100)]
+    return {
+        "type": "research",
+        "status": "verified",
+        "title": "Pesquisa profunda",
+        "subtitle": (
+            f"{int(research.get('repositories_found') or 0)} projetos encontrados · "
+            f"{int(research.get('repositories_read') or 0)} READMEs lidos · "
+            f"{int(research.get('evidence_count') or 0)} evidências"
+        ),
+        "items": themes[:6],
+    }
 
 
 def parse_public_search_html(raw, provider, limit=FREE_SEARCH_RESULT_LIMIT):
@@ -2724,14 +2899,26 @@ def public_search_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
             sources = _dedupe_public_sources([*sources, *fallback], limit)
             attempts.extend(web_attempts)
             mode = "github_api_with_web_fallback" if sources else "github_search_unavailable"
+        if sources:
+            sources = enrich_github_sources(sources)
+            if any(row.get("research_depth") == "readme" for row in sources):
+                mode = "github_deep_research"
     else:
         sources, attempts = public_web_search(query, limit)
+    research = research_summary(sources) if GITHUB_RESEARCH_PATTERN.search(prompt) else {
+        "depth": "search_metadata",
+        "repositories_found": 0,
+        "repositories_read": 0,
+        "evidence_count": 0,
+        "themes": [],
+    }
     return {
         "query": query,
         "mode": mode,
         "provider": "+".join(dict.fromkeys(item.get("provider", "") for item in sources if item.get("provider"))) or "none",
         "sources": sources,
         "attempts": attempts,
+        "research": research,
     }
 
 
@@ -2747,16 +2934,41 @@ def free_search_context(bundle):
             f"URL: {clean_text(item.get('url'), 2_000)}",
             f"EVIDÊNCIA: {clean_text(item.get('snippet'), 700) or 'Somente título e URL confirmados.'}",
         ])
+        feature_evidence = item.get("feature_evidence") if isinstance(item.get("feature_evidence"), list) else []
+        for evidence in feature_evidence[:4]:
+            lines.append(f"README CONFIRMADO: {clean_text(evidence, 260)}")
     return "\n".join(lines)[:7_500]
 
 
 def search_results_without_synthesis(bundle, reason=""):
     sources = bundle.get("sources") if isinstance(bundle, dict) else []
-    lines = ["Encontrei resultados reais, mas a síntese da IA não respondeu. Aqui está o material verificado:"]
-    for index, item in enumerate(sources[:5], start=1):
-        detail = clean_text(item.get("snippet"), 220)
-        lines.append(f"{index}. {clean_text(item.get('title'), 180)}{f' — {detail}' if detail else ''}")
-    return {
+    research_value = bundle.get("research") if isinstance(bundle, dict) else {}
+    research = research_value if isinstance(research_value, dict) else {}
+    deep_sources = [item for item in sources if item.get("research_depth") == "readme"]
+    if deep_sources:
+        lines = [
+            f"Pesquisa profunda concluída: {len(sources)} projetos encontrados, "
+            f"{len(deep_sources)} READMEs lidos e {int(research.get('evidence_count') or 0)} evidências extraídas."
+        ]
+        for index, item in enumerate(deep_sources[:3], start=1):
+            meta = [
+                item.get("license") if item.get("license") != "NOASSERTION" else "licença não declarada",
+                f"★ {int(item.get('stars') or 0):,}".replace(",", "."),
+            ]
+            evidence = item.get("feature_evidence") if isinstance(item.get("feature_evidence"), list) else []
+            lines.append(f"{index}. {clean_text(item.get('title'), 180)} — {' · '.join(meta)}")
+            if evidence:
+                lines.append("   Confirmado no README: " + "; ".join(clean_text(value, 150) for value in evidence[:2]))
+        themes = [clean_text(item, 100) for item in research.get("themes", []) if clean_text(item, 100)]
+        if themes:
+            lines.append("Padrões reaproveitáveis: " + "; ".join(themes[:5]) + ".")
+        lines.append("A síntese do modelo falhou, então mantive somente o que as fontes confirmam.")
+    else:
+        lines = ["A síntese da IA não respondeu. Mantive os resultados reais encontrados:"]
+        for index, item in enumerate(sources[:5], start=1):
+            detail = clean_text(item.get("snippet"), 220)
+            lines.append(f"{index}. {clean_text(item.get('title'), 180)}{f' — {detail}' if detail else ''}")
+    payload = {
         "ok": True,
         "endpoint": "POST /assistant",
         "status_real": "live_web_search_results_without_synthesis",
@@ -2772,10 +2984,15 @@ def search_results_without_synthesis(bundle, reason=""):
             "provider": bundle.get("provider") or "public_search",
             "mode": bundle.get("mode") or "public_search",
             "source_count": len(sources),
+            "research": research,
             "searched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "degraded_reason": clean_text(reason, 160),
         },
     }
+    card = research_ui_card(bundle)
+    if card:
+        payload["ui_cards"] = [card]
+    return payload
 
 
 def normalize_attachments(body):
@@ -3588,9 +3805,13 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                     "mode": web_search_mode,
                     "source_count": len(sources),
                     "attempts": free_search_bundle.get("attempts", []) if free_search_sources else [],
+                    "research": free_search_bundle.get("research", {}) if free_search_sources else {},
                     "searched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 },
             })
+            card = research_ui_card(free_search_bundle) if free_search_sources else None
+            if card:
+                payload["ui_cards"] = [card]
         if attachments:
             payload["attachments_received"] = [
                 {"name": item["name"], "type": item["type"], "size": item["size"]}
