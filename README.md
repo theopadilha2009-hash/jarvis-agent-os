@@ -12,6 +12,12 @@ web compacto em `web/index.html` e a configuração em `vercel.json`. Ele public
 planejamento e chat opcional sem importar o backend local que escreve arquivos
 ou inicia processos.
 
+O cockpit funciona como central pessoal, não como outro chatbot: `GET
+/personal-overview` reúne o estado real de conversa, memória, agenda, worker do
+Mac e atividade recente. Pedidos como “o que você consegue fazer?” e “resumo do
+meu dia” usam esse estado determinístico em vez de pedir ao modelo para inventar
+uma lista de capacidades.
+
 - Sem credencial, texto livre cai em uma resposta local explícita, sem fingir
   que executou integrações externas.
 - Com `OPENROUTER_API_KEY` configurada no ambiente da hospedagem, texto livre
@@ -27,8 +33,9 @@ ou inicia processos.
   no painel Sistema. O valor fica somente no armazenamento local do navegador.
 - `./jarvis computer-worker --install` mantém uma ponte leve entre a fila
   privada do Supabase e o Mac. O worker aceita apenas abrir/fechar aplicativo,
-  capturar a janela do Chrome, analisar Downloads, diagnosticar memória e
-  enviar mensagem com número/texto explícitos; não aceita shell ou caminho arbitrário.
+  capturar tela, abrir o gravador, analisar Downloads, diagnosticar memória,
+  consultar GitHub e enviar mensagem com número/texto explícitos. Cada pedido
+  recebe estado e evidência; o worker não aceita shell ou caminho arbitrário.
 - Com `N8N_WEBHOOK_URL` (e opcionalmente `N8N_WEBHOOK_TOKEN`), pedidos de
   agenda e tarefas são executados pelo webhook n8n.
 - Print e análise de armazenamento usam a fila privada do worker. Conversões e

@@ -1766,6 +1766,17 @@ dialog::backdrop {
 .action-hub header button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.02); color: var(--muted); cursor: pointer; font-size: 20px; }
 .action-hub > p { margin: 13px 0 16px; color: var(--muted); font-size: 11px; line-height: 1.55; }
 
+.action-hub-overview {
+  margin: -4px 0 14px;
+  padding: 11px 12px;
+  border: 1px solid rgba(103, 232, 249, 0.13);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.08), rgba(255, 255, 255, 0.012));
+  color: #c7e7ee;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
 .action-hub-status {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1777,13 +1788,41 @@ dialog::backdrop {
 .action-hub-status small { color: var(--faint); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
 .action-hub-status b { color: #cceaf1; font-size: 10px; font-weight: 600; }
 
+.action-hub-last {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(103, 232, 249, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.action-hub-last small { color: var(--faint); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.16em; }
+.action-hub-last b { color: #bddbe3; font-size: 10px; font-weight: 500; }
+
+.action-hub-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 2px 9px;
+  color: var(--faint);
+  font: 7px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.16em;
+}
+
+.action-hub-section small { color: var(--cyan); font: inherit; letter-spacing: 0.08em; }
+
 .action-hub-grid { display: grid; gap: 8px; }
 .action-hub-grid button { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 12px 13px; text-align: left; border: 1px solid rgba(103,232,249,.11); border-radius: 12px; background: rgba(255,255,255,.018); color: #d7edf3; cursor: pointer; }
 .action-hub-grid button:hover { border-color: var(--line-hot); background: rgba(34,211,238,.055); }
 .action-hub-grid button.recommended { border-color: rgba(103,232,249,.25); background: linear-gradient(135deg, rgba(8,145,178,.1), rgba(255,255,255,.015)); }
 .action-hub-grid i { grid-column: 1 / -1; color: var(--faint); font: normal 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
 .action-hub-grid span { font-size: 12px; }
+.action-hub-grid span small { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; font-weight: 400; line-height: 1.35; }
 .action-hub-grid b { color: var(--cyan); font-weight: 500; }
+.action-hub-grid button[data-locked="true"] { opacity: 0.62; }
+.action-hub-grid button[data-locked="true"] b { color: var(--faint); }
 
 .capability-list { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(103,232,249,.1); }
 .capability-list summary { color: #b8d8e1; cursor: pointer; font-size: 10px; }

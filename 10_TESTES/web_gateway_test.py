@@ -104,9 +104,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260809-research3', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260809-research3', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-research3', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260809-control4', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260809-control4', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-control4', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -122,6 +122,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="mobileChatToggle"', html)
         self.assertIn(b'id="installButton"', html)
         self.assertIn(b'id="installDialog"', html)
+        self.assertIn(b'id="actionHubOverview"', html)
+        self.assertIn(b'id="hubMemoryValue"', html)
+        self.assertIn(b'id="hubAgendaValue"', html)
+        self.assertIn("Peça. Eu executo.".encode(), html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b"fallback-core", html)
@@ -138,6 +142,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"monitorDeviceCommand", app_js)
         self.assertIn(b"agendaDate", app_js)
         self.assertIn(b"revealLatest", app_js)
+        self.assertIn(b"refreshPersonalOverview", app_js)
+        self.assertIn(b'"/personal-overview"', app_js)
         self.assertIn(b"saveOwnerToken", app_js)
         self.assertIn(b"restoreConversationHistory", app_js)
         self.assertIn(b"syncConversationHistory", app_js)
@@ -263,7 +269,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260809-research3", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260809-control4", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -321,6 +327,76 @@ class WebGatewayTest(unittest.TestCase):
     def test_plain_answer_does_not_invent_ui_card(self):
         cards = MODULE.response_cards({"ok": True, "provider": "openrouter", "message": "Olá"})
         self.assertEqual(cards, [])
+
+    def test_personal_overview_guest_never_exposes_private_counts(self):
+        env = {
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            payload = MODULE.personal_overview_payload(owner_authenticated=False)
+        self.assertEqual(payload["status_real"], "personal_control_plane_guest")
+        self.assertFalse(payload["private"])
+        self.assertIsNone(payload["summary"]["memory_count"])
+        self.assertTrue(any(row["status"] == "locked" for row in payload["domains"]))
+        self.assertFalse(next(row for row in payload["actions"] if row["id"] == "memory")["available"])
+
+    def test_personal_overview_aggregates_real_adapters(self):
+        sources = {
+            "memory": {"ok": True, "count": 14},
+            "agenda": {"ok": True, "agenda": [{"id": 8, "title": "Revisar deploy", "scheduled_for": "2026-08-09T20:00:00Z"}]},
+            "worker": {"ok": True, "online": True, "age_seconds": 3, "message": "Worker do Mac conectado."},
+            "activity": {"ok": True, "history": [{"action": "open_application", "status": "succeeded"}]},
+        }
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "_private_overview_calls", return_value=sources
+        ):
+            payload = MODULE.personal_overview_payload(owner_authenticated=True)
+        self.assertEqual(payload["status_real"], "personal_control_plane_ready")
+        self.assertTrue(payload["private"])
+        self.assertEqual(payload["summary"]["memory_count"], 14)
+        self.assertEqual(payload["summary"]["agenda_count"], 1)
+        self.assertTrue(payload["summary"]["worker_online"])
+        self.assertEqual(payload["summary"]["latest_action"], "open_application · succeeded")
+        self.assertTrue(next(row for row in payload["actions"] if row["id"] == "spotify")["available"])
+
+    def test_capability_question_uses_control_plane_without_model(self):
+        expected = {
+            "ok": True,
+            "message": "Central operacional.",
+            "domains": [{"label": "Mac", "status": "online", "detail": "conectado"}],
+            "actions": [],
+            "private": True,
+        }
+        with patch.object(MODULE, "personal_overview_payload", return_value=expected) as overview:
+            payload, status = MODULE.command_payload(
+                {"command": "o que você consegue fazer?"},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "jarvis_control_plane")
+        self.assertEqual(payload["intent"], "personal_overview")
+        overview.assert_called_once_with(owner_authenticated=True)
+
+    def test_daily_brief_uses_private_control_plane(self):
+        overview = {
+            "ok": True,
+            "summary": {"agenda_count": 2, "worker_online": True, "memory_count": 9},
+            "agenda_preview": [{"title": "Entregar relatório", "scheduled_for": "2026-08-10T12:00:00Z"}],
+        }
+        with patch.object(MODULE, "personal_overview_payload", return_value=overview):
+            payload, status = MODULE.daily_brief_payload(owner_authenticated=True)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "daily_operational_brief")
+        self.assertIn("2 itens pendentes", payload["message"])
+        self.assertIn("Entregar relatório", payload["message"])
+        cards = MODULE.response_cards({
+            **payload,
+            "domains": [{"label": "Mac", "status": "online", "detail": "conectado"}],
+            "private": True,
+        })
+        self.assertEqual(cards[0]["type"], "control_plane")
 
     def test_open_and_close_apps_route_to_explicit_computer_command(self):
         opened, open_status = MODULE.command_payload(
