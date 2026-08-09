@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
   <meta name="theme-color" content="#03090f">
-  <meta name="description" content="JARVIS, assistente pessoal de Theo.">
+  <meta name="description" content="JARVIS, central pessoal de memória, automação e controle do Mac de Theo.">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260809-research3">
-  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260809-research3" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260809-research3">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260809-research3">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260809-control4">
+  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260809-control4" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260809-control4">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260809-control4">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -39,7 +39,7 @@
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
         <button class="quiet-button" id="tourButton" type="button">Guia</button>
         <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
-        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir ações · ⌘K">Ações <kbd>⌘K</kbd></button>
+        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir central pessoal · ⌘K">Central <kbd>⌘K</kbd></button>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Fala ligada</span><span class="mobile-label">Voz</span></button>
         <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
       </div>
@@ -187,17 +187,22 @@
 
   <aside class="action-hub" id="actionHub" hidden aria-label="Ações contextuais do JARVIS">
     <header>
-      <span><small>HUB CONTEXTUAL</small><strong>O que posso fazer agora</strong></span>
+      <span><small>CENTRAL PESSOAL</small><strong>Peça. Eu executo.</strong></span>
       <button id="closeActionHub" type="button" aria-label="Fechar ações">×</button>
     </header>
-    <p id="actionHubHint">Escolha uma ação ou continue conversando. Nada é executado só por abrir este painel.</p>
+    <p id="actionHubHint">Visão real da sua memória, agenda, Mac e últimas execuções.</p>
+    <div class="action-hub-overview" id="actionHubOverview">Carregando o estado real das conexões…</div>
     <div class="action-hub-status">
       <span><small>CONVERSA</small><b id="conversationMemoryValue">sessão local</b></span>
       <span><small>MAC</small><b id="hubWorkerValue">verificando</b></span>
+      <span><small>MEMÓRIA</small><b id="hubMemoryValue">verificando</b></span>
+      <span><small>AGENDA</small><b id="hubAgendaValue">verificando</b></span>
     </div>
+    <div class="action-hub-last"><small>ÚLTIMA EVIDÊNCIA</small><b id="hubLastActionValue">nenhuma execução carregada</b></div>
+    <div class="action-hub-section"><span>AÇÕES REAIS</span><small id="hubReadyValue">checando disponibilidade</small></div>
     <div class="action-hub-grid" id="actionHubGrid"></div>
     <details class="capability-list">
-      <summary>Ver tudo que o JARVIS sabe fazer</summary>
+      <summary>Ver conexões e capacidades</summary>
       <ul id="capabilityList"></ul>
     </details>
   </aside>
@@ -208,10 +213,10 @@
       <button id="closeTour" type="button" aria-label="Fechar guia">×</button>
     </div>
     <div class="tour-grid">
-      <section><i>01</i><strong>Converse</strong><p>Escreva, fale ou anexe arquivos. Perguntas comuns ficam rápidas e diretas.</p></section>
-      <section><i>02</i><strong>Veja o estado</strong><p>Núcleo pensa, Forja executa, Memória grava algo confirmado e Resultado mostra evidência.</p></section>
-      <section><i>03</i><strong>Use o Mac</strong><p>O worker abre Spotify ou Steam, captura e grava tela, consulta GitHub e analisa memória.</p></section>
-      <section><i>04</i><strong>Memória real</strong><p>A conversa privada pode voltar pelo Supabase; memórias semânticas só entram quando você pede ou confirma.</p></section>
+      <section><i>01</i><strong>Peça naturalmente</strong><p>Escreva, fale ou anexe arquivos. O JARVIS decide se responde, pesquisa, salva ou executa.</p></section>
+      <section><i>02</i><strong>Veja a execução</strong><p>Núcleo pensa, Forja trabalha, Memória grava e Resultado exibe a evidência real.</p></section>
+      <section><i>03</i><strong>Controle o Mac</strong><p>O worker abre apps, captura e grava tela, consulta GitHub e diagnostica o computador.</p></section>
+      <section><i>04</i><strong>Continue de onde parou</strong><p>Agenda, conversa e memórias confirmadas persistem no Supabase privado.</p></section>
     </div>
     <button class="tour-primary" id="tourActionButton" type="button">Ver ações disponíveis</button>
   </dialog>
@@ -228,9 +233,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260809-research3" defer></script>
+  <script src="/ui/jarvis.js?v=20260809-control4" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260809-research3");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260809-control4");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

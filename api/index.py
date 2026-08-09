@@ -126,6 +126,7 @@ REMOTE_DEVICE_INTENTS = {
 }
 
 PRIVATE_INTENTS = {
+    "daily_brief",
     "memory_save",
     "memory_view",
     "contact_save",
@@ -137,6 +138,20 @@ PRIVATE_INTENTS = {
     "task_add",
     *REMOTE_DEVICE_INTENTS,
 }
+
+CAPABILITY_OVERVIEW_PATTERN = re.compile(
+    r"\b(?:o\s+que\s+(?:voc[eê]|o\s+jarvis)\s+(?:faz|consegue)|"
+    r"(?:mostr(?:a|e|ar)|abr(?:a|e|ir)|ver)\s+(?:meu\s+)?(?:painel|central|vis[aã]o\s+geral)|"
+    r"quais\s+(?:s[aã]o\s+)?(?:suas\s+)?(?:fun[cç][oõ]es|capacidades)|central\s+pessoal)\b",
+    re.I,
+)
+
+DAILY_BRIEF_PATTERN = re.compile(
+    r"\b(?:resumo\s+(?:operacional\s+)?d[oa]\s+(?:meu\s+)?dia|"
+    r"como\s+(?:est[aá]|vai)\s+(?:o\s+)?meu\s+dia|brief(?:ing)?\s+(?:do\s+)?dia|"
+    r"o\s+que\s+tenho\s+(?:para|pra)\s+(?:hoje|fazer)|meu\s+dia\s+hoje)\b",
+    re.I,
+)
 
 SELF_EDIT_PATTERN = re.compile(
     r"(?:\b(?:auto[-\s]?(?:edit(?:e|ar)|melhor(?:e|ar))|"
@@ -237,6 +252,73 @@ BASE_WEB_CAPABILITIES = [
         "what": "Agenda persistente no Supabase, com n8n opcional quando configurado.",
     },
 ]
+
+PERSONAL_ACTION_CATALOG = (
+    {
+        "id": "daily",
+        "label": "Resumo do meu dia",
+        "description": "Cruza agenda, memória e atividade recente.",
+        "command": "me dê um resumo operacional do meu dia",
+        "executor": "jarvis",
+        "private": True,
+    },
+    {
+        "id": "spotify",
+        "label": "Abrir Spotify",
+        "description": "Abre o aplicativo no Mac pareado.",
+        "command": "abra o Spotify",
+        "executor": "mac",
+        "private": True,
+    },
+    {
+        "id": "screen",
+        "label": "Capturar minha tela",
+        "description": "Tira um print e devolve evidência da execução.",
+        "command": "tire um print da tela",
+        "executor": "mac",
+        "private": True,
+    },
+    {
+        "id": "computer",
+        "label": "Diagnosticar o Mac",
+        "description": "Analisa memória e processos sem limpeza ampla automática.",
+        "command": "meu computador está travando, analise a memória",
+        "executor": "mac",
+        "private": True,
+    },
+    {
+        "id": "memory",
+        "label": "Abrir memória",
+        "description": "Mostra o que foi confirmado e salvo para Theo.",
+        "command": "mostre minhas memórias",
+        "executor": "memory",
+        "private": True,
+    },
+    {
+        "id": "agenda",
+        "label": "Ver agenda",
+        "description": "Lista tarefas e lembretes pendentes.",
+        "command": "mostre minha agenda",
+        "executor": "agenda",
+        "private": True,
+    },
+    {
+        "id": "github",
+        "label": "Inspecionar GitHub",
+        "description": "Consulta a conta autenticada pelo worker local.",
+        "command": "mostre meus repositórios do GitHub",
+        "executor": "mac",
+        "private": True,
+    },
+    {
+        "id": "research",
+        "label": "Pesquisar com fontes",
+        "description": "Pesquisa a web e abre READMEs quando o alvo é GitHub.",
+        "command": "pesquise projetos públicos de assistente pessoal no GitHub e compare as funções comprovadas",
+        "executor": "web",
+        "private": False,
+    },
+)
 
 APPLICATION_INTENT_PATTERNS = {
     "open_application": re.compile(
@@ -1749,6 +1831,156 @@ def memory_tree_payload():
         "persistent_write": True,
         "provider": "supabase",
     }
+
+
+def personal_action_catalog(owner_authenticated=False, worker_online=False):
+    """Describe actions from real adapters, never from model claims."""
+    private_access = bool(owner_authenticated or not owner_pairing_required())
+    rows = []
+    for configured in PERSONAL_ACTION_CATALOG:
+        row = dict(configured)
+        available = True
+        reason = "disponível"
+        if row.get("private") and not private_access:
+            available = False
+            reason = "entre no modo master"
+        elif row.get("executor") == "mac" and not worker_online:
+            reason = "worker offline; o pedido fica na fila"
+        elif row.get("executor") == "agenda" and not (supabase_configured() or os.environ.get("N8N_WEBHOOK_URL")):
+            available = False
+            reason = "agenda persistente não configurada"
+        status = "queued" if available and row.get("executor") == "mac" and not worker_online else "ready" if available else "unavailable"
+        row.update({"available": available, "status": status, "reason": reason})
+        rows.append(row)
+    return rows
+
+
+def _private_overview_calls():
+    """Read independent personal surfaces concurrently to keep the dashboard fast."""
+    tasks = {
+        "memory": memory_tree_payload,
+        "agenda": lambda: supabase_agenda_command("", "agenda_view")[0],
+        "worker": lambda: device_worker_status_payload()[0],
+        "activity": lambda: device_history_payload(5)[0],
+    }
+    results = {}
+    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+        pending = {executor.submit(callback): name for name, callback in tasks.items()}
+        for future in as_completed(pending):
+            name = pending[future]
+            try:
+                value = future.result()
+                results[name] = value if isinstance(value, dict) else {"ok": False}
+            except Exception:
+                results[name] = {"ok": False}
+    return results
+
+
+def personal_overview_payload(owner_authenticated=False):
+    """Return a compact control-plane snapshot without leaking private content to guests."""
+    private_access = bool(owner_authenticated or not owner_pairing_required())
+    if not private_access:
+        return {
+            "ok": True,
+            "endpoint": "GET /personal-overview",
+            "status_real": "personal_control_plane_guest",
+            "visual_state": "response",
+            "access": "guest",
+            "message": "Conversa e pesquisa estão disponíveis. Entre no modo master para liberar memória, agenda e o Mac.",
+            "summary": {"memory_count": None, "agenda_count": None, "worker_online": False, "latest_action": None},
+            "domains": [
+                {"id": "brain", "label": "Conversa", "status": "online", "detail": "OpenRouter + pesquisa com fontes"},
+                {"id": "memory", "label": "Memória", "status": "locked", "detail": "privada de Theo"},
+                {"id": "agenda", "label": "Agenda", "status": "locked", "detail": "privada de Theo"},
+                {"id": "mac", "label": "Mac", "status": "locked", "detail": "requer modo master"},
+            ],
+            "actions": personal_action_catalog(False, False),
+            "capabilities": web_capabilities(),
+            "private": False,
+        }
+
+    sources = _private_overview_calls()
+    memory = sources.get("memory", {})
+    agenda = sources.get("agenda", {})
+    worker = sources.get("worker", {})
+    activity = sources.get("activity", {})
+    memory_count = int(memory.get("count") or 0) if memory.get("ok") else 0
+    agenda_rows = agenda.get("agenda") if isinstance(agenda.get("agenda"), list) else []
+    history = activity.get("history") if isinstance(activity.get("history"), list) else []
+    latest = history[0] if history and isinstance(history[0], dict) else None
+    direct_local_execution = bool(
+        not os.environ.get("VERCEL")
+        and os.environ.get("JARVIS_WEB_LOCAL_EXEC", "1") != "0"
+    )
+    worker_online = bool(worker.get("online") or direct_local_execution)
+    latest_label = (
+        f"{clean_text(latest.get('action'), 60)} · {clean_text(latest.get('status'), 30)}"
+        if latest else "nenhuma ainda"
+    )
+    actions = personal_action_catalog(True, worker_online)
+    ready_count = sum(bool(row.get("available")) for row in actions)
+    domains = [
+        {"id": "brain", "label": "Conversa", "status": "online" if os.environ.get("OPENROUTER_API_KEY") else "offline", "detail": "OpenRouter + pesquisa com fontes"},
+        {"id": "memory", "label": "Memória", "status": "online" if memory.get("ok") else "degraded", "detail": f"{memory_count} registro(s) persistente(s)"},
+        {"id": "agenda", "label": "Agenda", "status": "online" if agenda.get("ok") else "degraded", "detail": f"{len(agenda_rows)} item(ns) pendente(s)"},
+        {"id": "mac", "label": "Mac", "status": "online" if worker_online else "offline", "detail": clean_text(worker.get("message") or "sem heartbeat", 140)},
+    ]
+    message = (
+        f"Central operacional: Mac {'online' if worker_online else 'offline'}, {memory_count} memórias, "
+        f"{len(agenda_rows)} itens pendentes e {ready_count} ações disponíveis agora."
+    )
+    return {
+        "ok": True,
+        "endpoint": "GET /personal-overview",
+        "status_real": "personal_control_plane_ready",
+        "visual_state": "response",
+        "access": "owner_master",
+        "message": message,
+        "summary": {
+            "memory_count": memory_count,
+            "agenda_count": len(agenda_rows),
+            "worker_online": worker_online,
+            "worker_age_seconds": worker.get("age_seconds"),
+            "latest_action": latest_label,
+            "ready_actions": ready_count,
+        },
+        "domains": domains,
+        "actions": actions,
+        "agenda_preview": agenda_rows[:3],
+        "latest_activity": latest,
+        "capabilities": web_capabilities(),
+        "private": True,
+    }
+
+
+def daily_brief_payload(owner_authenticated=False):
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    overview = personal_overview_payload(owner_authenticated=True)
+    summary = overview.get("summary") if isinstance(overview.get("summary"), dict) else {}
+    agenda = overview.get("agenda_preview") if isinstance(overview.get("agenda_preview"), list) else []
+    agenda_count = int(summary.get("agenda_count") or 0)
+    memory_count = int(summary.get("memory_count") or 0)
+    message = (
+        f"Hoje você tem {agenda_count} {'item pendente' if agenda_count == 1 else 'itens pendentes'}; "
+        f"o Mac está {'online' if summary.get('worker_online') else 'offline'} e "
+        f"{memory_count} {'memória está disponível' if memory_count == 1 else 'memórias estão disponíveis'}."
+    )
+    if agenda:
+        first = agenda[0]
+        title = clean_text(first.get("title") if isinstance(first, dict) else "", 180)
+        scheduled = clean_text(first.get("scheduled_for") if isinstance(first, dict) else "", 80)
+        if title:
+            message += f" Próximo foco: {title}{f' · {scheduled}' if scheduled else ''}."
+    overview.update({
+        "endpoint": "POST /command",
+        "status_real": "daily_operational_brief",
+        "intent": "daily_brief",
+        "visual_state": "planning",
+        "message": message,
+        "provider": "jarvis_control_plane",
+    })
+    return overview, 200
 
 
 def status_payload(owner_authenticated=False):
@@ -3302,6 +3534,22 @@ def agent_tool_definitions():
         {
             "type": "function",
             "function": {
+                "name": "get_daily_brief",
+                "description": "Summarize Theo's agenda, persistent memory state, Mac worker, and recent activity for today.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "show_control_center",
+                "description": "Show the real JARVIS control plane and currently available personal actions.",
+                "parameters": dict(object_schema),
+            },
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "capture_screen",
                 "description": "Capture Theo's current Mac screen through the paired local worker.",
                 "parameters": dict(object_schema),
@@ -3454,6 +3702,12 @@ def execute_agent_tool(tool_call, original_command, local_execute=False, owner_a
     elif name == "view_agenda":
         intent = "agenda_view"
         command = "mostre minha agenda"
+    elif name == "get_daily_brief":
+        return daily_brief_payload(owner_authenticated=owner_authenticated)
+    elif name == "show_control_center":
+        result = personal_overview_payload(owner_authenticated=owner_authenticated)
+        result.update({"endpoint": "POST /command", "intent": "personal_overview", "provider": "jarvis_control_plane"})
+        return result, 200
     elif name == "capture_screen":
         intent = "screen_capture"
         command = "tire um print da tela"
@@ -3514,6 +3768,12 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     latest = messages[-1]["content"]
     response_profile = assistant_response_profile(latest, attachments)
     web_search_requested = should_search_web(messages)
+    if DAILY_BRIEF_PATTERN.search(latest):
+        return daily_brief_payload(owner_authenticated=owner_authenticated)
+    if CAPABILITY_OVERVIEW_PATTERN.search(latest):
+        payload = personal_overview_payload(owner_authenticated=owner_authenticated)
+        payload.update({"endpoint": "POST /assistant", "intent": "personal_overview", "provider": "jarvis_control_plane"})
+        return payload, 200
     if VOICE_DESIGN_PATTERN.search(latest):
         if owner_pairing_required() and not owner_authenticated:
             return pairing_required_payload()
@@ -3871,6 +4131,14 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             return pairing_required_payload()
         return elevenlabs_voice_design(command)
 
+    if DAILY_BRIEF_PATTERN.search(command):
+        return daily_brief_payload(owner_authenticated=owner_authenticated)
+
+    if CAPABILITY_OVERVIEW_PATTERN.search(command):
+        payload = personal_overview_payload(owner_authenticated=owner_authenticated)
+        payload.update({"endpoint": "POST /command", "intent": "personal_overview", "provider": "jarvis_control_plane"})
+        return payload, 200
+
     if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.IGNORECASE):
         return dispatch_intent(
             command,
@@ -3999,6 +4267,20 @@ def execution_events(payload, started_at, status_code):
 def response_cards(payload):
     """Build small, typed UI cards only from fields confirmed in a response."""
     cards = []
+    domains = payload.get("domains") if isinstance(payload.get("domains"), list) else []
+    if domains:
+        cards.append({
+            "id": "personal-control-plane",
+            "type": "control_plane",
+            "status": "ready" if payload.get("private") else "guest",
+            "title": "Central pessoal",
+            "subtitle": clean_text(payload.get("message"), 220),
+            "items": [
+                f"{clean_text(item.get('label'), 80)} · {clean_text(item.get('status'), 30)} · {clean_text(item.get('detail'), 160)}"
+                for item in domains[:6]
+                if isinstance(item, dict)
+            ],
+        })
     attachments = payload.get("attachments_received") if isinstance(payload.get("attachments_received"), list) else []
     if attachments:
         cards.append({
@@ -4235,6 +4517,8 @@ class handler(BaseHTTPRequestHandler):
             payload = status_payload(owner_authenticated=owner_authenticated)
             payload["endpoint"] = f"GET {path}"
             return self.send_json(200, payload)
+        if path == "/personal-overview":
+            return self.send_json(200, personal_overview_payload(owner_authenticated=owner_authenticated))
         if path == "/pulse":
             return self.send_json(200, proactive_pulse_payload(owner_authenticated=owner_authenticated))
         if path == "/owner-dev":

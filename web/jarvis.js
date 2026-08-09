@@ -50,6 +50,7 @@
     attachments: [],
     historyRestored: false,
     currentCommand: "",
+    overview: null,
     workingStartedAt: 0,
     lastResponseOk: true,
   };
@@ -74,15 +75,14 @@
   }
 
   const ACTION_CATALOG = [
-    { id: "search", label: "Pesquisar na web", command: "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes", keywords: /pesquis|busc|google|internet|not[ií]cia|atual/i },
-    { id: "spotify", label: "Abrir Spotify", command: "abra o Spotify", keywords: /m[uú]sica|spotify/i },
-    { id: "steam", label: "Abrir Steam", command: "abra a Steam", keywords: /jogo|steam/i },
-    { id: "record", label: "Gravar a tela", command: "abra o gravador de tela", keywords: /grav|tela|v[ií]deo/i },
-    { id: "github", label: "Ver meu GitHub", command: "mostre meus repositórios do GitHub", keywords: /github|repo|c[oó]digo|pull/i },
-    { id: "n8n", label: "Projetar fluxo n8n", command: "crie um blueprint n8n para a automação que eu descrever", keywords: /n\s*8\s*n|workflow|automa/i },
-    { id: "memory", label: "Abrir memória", command: "mostre minhas memórias", keywords: /mem[oó]ria|lembr/i },
-    { id: "agenda", label: "Ver agenda", command: "mostre minha agenda", keywords: /agenda|tarefa|lembrete/i },
-    { id: "computer", label: "Analisar o Mac", command: "meu computador está travando, analise a memória", keywords: /mac|computador|trav|ram|mem[oó]ria/i },
+    { id: "daily", label: "Resumo do meu dia", description: "Agenda, memória e atividade recente", command: "me dê um resumo operacional do meu dia", executor: "jarvis", keywords: /dia|hoje|agenda|resumo/i },
+    { id: "spotify", label: "Abrir Spotify", description: "Executar no Mac", command: "abra o Spotify", executor: "mac", keywords: /m[uú]sica|spotify/i },
+    { id: "screen", label: "Capturar minha tela", description: "Executar no Mac e devolver evidência", command: "tire um print da tela", executor: "mac", keywords: /print|captur|tela|imagem/i },
+    { id: "computer", label: "Diagnosticar o Mac", description: "Memória e processos", command: "meu computador está travando, analise a memória", executor: "mac", keywords: /mac|computador|trav|ram/i },
+    { id: "memory", label: "Abrir memória", description: "Persistente ou local", command: "mostre minhas memórias", executor: "memory", keywords: /mem[oó]ria|lembr/i },
+    { id: "agenda", label: "Ver agenda", description: "Tarefas e lembretes", command: "mostre minha agenda", executor: "agenda", keywords: /agenda|tarefa|lembrete/i },
+    { id: "github", label: "Inspecionar GitHub", description: "Conta autenticada no Mac", command: "mostre meus repositórios do GitHub", executor: "mac", keywords: /github|repo|c[oó]digo|pull/i },
+    { id: "research", label: "Pesquisar com fontes", description: "Web e READMEs reais", command: "pesquise projetos públicos de assistente pessoal no GitHub e compare as funções comprovadas", executor: "web", keywords: /pesquis|busc|github|internet/i },
   ];
 
   const CAPABILITIES = [
@@ -104,7 +104,7 @@
       ["Testar sua voz", "fale uma frase curta para mim"],
     ],
     owner: [
-      ["Pesquisar agora", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
+      ["Resumo do meu dia", "me dê um resumo operacional do meu dia"],
       ["Analisar meu Mac", "meu computador está travando, analise a memória"],
       ["Abrir Spotify", "abra o Spotify"],
     ],
@@ -117,12 +117,18 @@
     target.innerHTML = actions.map(([label, command]) => (
       `<button type="button" data-starter-command="${escapeHtml(command)}">${escapeHtml(label)}</button>`
     )).join("");
+    target.querySelectorAll("[data-starter-command]").forEach((button) => {
+      button.addEventListener("click", () => sendCommand(button.dataset.starterCommand || ""));
+    });
   }
 
   function setActionHub(open) {
     actionHub.hidden = !open;
     actionHubButton.setAttribute("aria-expanded", String(open));
-    if (open && mobileLayout.matches) input.blur();
+    if (open) {
+      refreshPersonalOverview();
+      if (mobileLayout.matches) input.blur();
+    }
   }
 
   function setMobileChatExpanded(expanded) {
@@ -179,19 +185,73 @@
   }
 
   function updateActionHub(command = session.currentCommand, data = {}) {
+    if (Array.isArray(data.actions) || Array.isArray(data.domains)) session.overview = data;
     const context = `${command || ""} ${data.intent || ""}`;
-    const ranked = [...ACTION_CATALOG].sort((left, right) => Number(right.keywords.test(context)) - Number(left.keywords.test(context)));
-    byId("actionHubGrid").innerHTML = ranked.map((item, index) => (
-      `<button type="button" data-hub-command="${escapeHtml(item.command)}" class="${index < 2 ? "recommended" : ""}"><i>${index < 2 ? "SUGESTÃO" : "AÇÃO"}</i><span>${escapeHtml(item.label)}</span><b>→</b></button>`
+    const source = Array.isArray(session.overview?.actions) && session.overview.actions.length
+      ? session.overview.actions.map((item) => ({
+          ...item,
+          keywords: ACTION_CATALOG.find((fallback) => fallback.id === item.id)?.keywords || /$^/,
+        }))
+      : ACTION_CATALOG;
+    const ranked = [...source].sort((left, right) => Number(right.keywords.test(context)) - Number(left.keywords.test(context)));
+    const grid = byId("actionHubGrid");
+    grid.innerHTML = ranked.map((item, index) => (
+      `<button type="button" data-hub-command="${escapeHtml(item.command)}" class="${index < 2 ? "recommended" : ""}" ${item.available === false ? "data-locked=\"true\"" : ""}>`
+      + `<i>${escapeHtml(index < 2 ? "SUGESTÃO" : item.executor || "AÇÃO")}</i>`
+      + `<span>${escapeHtml(item.label)}<small>${escapeHtml(item.description || item.reason || "")}</small></span>`
+      + `<b>${item.available === false ? "•" : "→"}</b></button>`
     )).join("");
-    byId("capabilityList").innerHTML = CAPABILITIES.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    grid.querySelectorAll("[data-hub-command]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (button.dataset.locked === "true") {
+          setActionHub(false);
+          dialog.showModal();
+          window.setTimeout(() => byId("adminPassword").focus(), 30);
+          return;
+        }
+        const nextCommand = button.dataset.hubCommand || "";
+        setActionHub(false);
+        sendCommand(nextCommand);
+      });
+    });
+    const domainCapabilities = Array.isArray(session.overview?.domains)
+      ? session.overview.domains.map((item) => `${item.label}: ${item.status} · ${item.detail}`)
+      : [];
+    byId("capabilityList").innerHTML = (domainCapabilities.length ? domainCapabilities : CAPABILITIES)
+      .map((item) => `<li>${escapeHtml(item)}</li>`).join("");
     byId("hubWorkerValue").textContent = session.deviceOnline ? "conectado" : session.deviceBridge ? "offline" : "não configurado";
     byId("actionHubHint").textContent = data.job?.id
       ? "A ação foi enviada ao Mac. Aqui ficam os próximos comandos úteis."
       : data.agentic || data.executed_locally
         ? "O JARVIS escolheu uma ferramenta real. Você pode encadear outra ação."
-        : "Escolha uma ação ou continue conversando. Nada é executado só por abrir este painel.";
+        : session.paired
+          ? "Escolha uma ação real ou continue conversando normalmente."
+          : "Conversa e pesquisa são públicas; ações pessoais exigem o modo master.";
     if (data.job?.id || data.agentic || data.executed_locally) setActionHub(true);
+  }
+
+  async function refreshPersonalOverview() {
+    try {
+      const data = await request("/personal-overview");
+      session.overview = data;
+      const summary = data.summary || {};
+      session.deviceOnline = Boolean(summary.worker_online);
+      byId("hubWorkerValue").textContent = session.paired
+        ? session.deviceOnline ? "online" : "offline · aceita fila"
+        : "modo master necessário";
+      byId("hubMemoryValue").textContent = summary.memory_count == null ? "privada" : `${summary.memory_count} registros`;
+      byId("hubAgendaValue").textContent = summary.agenda_count == null ? "privada" : `${summary.agenda_count} pendentes`;
+      byId("hubLastActionValue").textContent = summary.latest_action || "nenhuma execução registrada";
+      byId("hubReadyValue").textContent = summary.ready_actions == null
+        ? "entre no modo master"
+        : `${summary.ready_actions} disponíveis`;
+      byId("actionHubOverview").textContent = data.message || "Central pessoal carregada.";
+      updateActionHub(session.currentCommand, data);
+      return data;
+    } catch {
+      byId("actionHubOverview").textContent = "O estado das conexões não respondeu agora; a conversa continua disponível.";
+      return null;
+    }
   }
 
   async function restoreConversationHistory() {
@@ -862,6 +922,7 @@
         session.responseState = data.visual_state || (data.job.status === "succeeded" ? "success" : "error");
         byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : data.job.status === "canceled" ? "Ação cancelada" : "Ação falhou";
         refreshActionHistory();
+        refreshPersonalOverview();
         settleState();
         return;
       }
@@ -1137,7 +1198,11 @@
       }
       setVisualState(status.ok ? "idle" : "offline");
       updateActionHub();
-      if (session.paired) await restoreConversationHistory();
+      if (session.paired) {
+        await Promise.all([restoreConversationHistory(), refreshPersonalOverview()]);
+      } else {
+        refreshPersonalOverview();
+      }
       refreshPulse();
     } catch {
       byId("connectionText").textContent = "offline";
@@ -1157,12 +1222,6 @@
   input.addEventListener("blur", () => window.setTimeout(syncMobileViewport, 80));
   attachmentButton.addEventListener("click", () => attachmentInput.click());
   attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
-  feed.addEventListener("click", (event) => {
-    const suggestion = event.target.closest("[data-starter-command]");
-    if (!suggestion) return;
-    input.value = suggestion.dataset.starterCommand || "";
-    input.focus();
-  });
   pulseButton.addEventListener("click", () => {
     if (!currentPulse) return;
     addMessage(currentPulse.message, "jarvis");
@@ -1258,13 +1317,6 @@
     if (event.target === installDialog) installDialog.close();
   });
   byId("closeActionHub").addEventListener("click", () => setActionHub(false));
-  actionHub.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-hub-command]");
-    if (!button) return;
-    input.value = button.dataset.hubCommand || "";
-    setActionHub(false);
-    input.focus();
-  });
   byId("tourButton").addEventListener("click", () => tourDialog.showModal());
   byId("closeTour").addEventListener("click", () => tourDialog.close());
   byId("tourActionButton").addEventListener("click", () => {
