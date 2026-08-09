@@ -1823,7 +1823,7 @@ def planning_payload(path, body):
         "status_real": "web_plan_generated_no_persistent_write",
         "visual_state": "planning",
         "goal": goal,
-        "title": "JARVIS execution brief",
+        "title": "Plano de execução JARVIS",
         "summary": f"Plano direto para: {goal}",
         "steps": steps,
         "acceptance": [

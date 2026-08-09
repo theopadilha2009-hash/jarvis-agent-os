@@ -8,10 +8,10 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
 const constrainedHardware = (navigator.deviceMemory && navigator.deviceMemory <= 4)
   || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 20 : 30;
-const IDLE_TARGET_FPS = 15;
-const BACKGROUND_TARGET_FPS = 6;
-const EFFECT_TARGET_FPS = 12;
+const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 18 : 24;
+const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 8 : 10;
+const BACKGROUND_TARGET_FPS = 1;
+const EFFECT_TARGET_FPS = 10;
 const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
 
 const COLORS = {
@@ -517,6 +517,7 @@ async function start() {
   let effectLastFrameMs = 0;
   let windowFocused = document.hasFocus();
   let animationFrameId = 0;
+  let animationTimerId = 0;
   let disposed = false;
   let lastRenderTargetFps = 0;
   let lastRenderProfile = "";
@@ -550,6 +551,7 @@ async function start() {
   window.addEventListener("focus", () => {
     windowFocused = true;
     updateRenderBudget();
+    scheduleRender(0);
   });
   window.addEventListener("blur", () => {
     windowFocused = false;
@@ -557,11 +559,30 @@ async function start() {
   });
   updateRenderBudget();
 
+  function scheduleRender(delay = frameIntervalMs) {
+    if (disposed || reducedMotion) return;
+    window.clearTimeout(animationTimerId);
+    animationTimerId = window.setTimeout(() => {
+      animationFrameId = requestAnimationFrame(render);
+    }, Math.max(0, delay));
+  }
+
+  function wakeRender() {
+    previousFrameMs = 0;
+    scheduleRender(0);
+  }
+
+  window.addEventListener("jarvis-state", wakeRender);
+  document.addEventListener("visibilitychange", wakeRender);
+
   function render(timeMs) {
     if (disposed) return;
-    animationFrameId = requestAnimationFrame(render);
     updateRenderBudget();
-    if (document.hidden || timeMs - previousFrameMs < frameIntervalMs - 1) return;
+    if (document.hidden) {
+      previousFrameMs = timeMs;
+      scheduleRender(1000);
+      return;
+    }
     const deltaSeconds = previousFrameMs ? Math.min((timeMs - previousFrameMs) / 1000, 0.1) : 0;
     previousFrameMs = timeMs;
     sampledFrames += 1;
@@ -634,17 +655,36 @@ async function start() {
     }
 
     renderer.render(scene, camera);
+    scheduleRender(frameIntervalMs);
   }
 
   if (reducedMotion) renderer.render(scene, camera);
-  else animationFrameId = requestAnimationFrame(render);
+  else scheduleRender(0);
 
   window.addEventListener("pagehide", (event) => {
     if (event.persisted) return;
     disposed = true;
+    window.clearTimeout(animationTimerId);
     cancelAnimationFrame(animationFrameId);
+    window.removeEventListener("jarvis-state", wakeRender);
+    document.removeEventListener("visibilitychange", wakeRender);
     resizeObserver.disconnect();
     mixer?.stopAllAction();
+    const disposedTextures = new Set();
+    model.traverse((object) => {
+      if (!object.isMesh) return;
+      object.geometry?.dispose();
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.filter(Boolean).forEach((material) => {
+        Object.values(material).forEach((value) => {
+          if (value?.isTexture && !disposedTextures.has(value)) {
+            disposedTextures.add(value);
+            value.dispose();
+          }
+        });
+        material.dispose();
+      });
+    });
     particleGeometry.dispose();
     particleMaterial.dispose();
     renderer.dispose();
