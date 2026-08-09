@@ -1190,6 +1190,46 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["sources"][0]["url"], "https://example.com/projeto")
         self.assertIn("Projeto real", payload["message"])
 
+    def test_free_search_replaces_model_meta_leak_with_real_results(self):
+        free_search = {
+            "query": "assistentes locais",
+            "mode": "github_api",
+            "provider": "github_api",
+            "attempts": [{"provider": "github_api", "ok": True, "count": 1}],
+            "sources": [{
+                "title": "example/real-assistant",
+                "url": "https://github.com/example/real-assistant",
+                "domain": "github.com",
+                "snippet": "Assistente local real · MIT",
+                "license": "MIT",
+            }],
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "We need to respond as JARVIS under 55 words."}}],
+                }).encode("utf-8")
+
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "public_search_sources", return_value=free_search
+        ), patch.object(MODULE, "urlopen", return_value=FakeResponse()):
+            payload, status = MODULE.assistant_response({"command": "pesquise assistentes no GitHub"})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "live_web_search_results_without_synthesis")
+        self.assertEqual(payload["web_search"]["degraded_reason"], "openrouter_meta_leak")
+        self.assertFalse(payload["web_search"]["synthesized"])
+        self.assertIn("example/real-assistant", payload["message"])
+        self.assertNotIn("Reformule", payload["message"])
+
     def test_github_repository_search_returns_ranked_license_evidence(self):
         response = json.dumps({
             "items": [{
