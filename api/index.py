@@ -3537,6 +3537,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         )
         meta_leak_recovered = False
         if not content and response_trimmed:
+            if free_search_sources:
+                return search_results_without_synthesis(free_search_bundle, "openrouter_meta_leak"), 200
             content = meta_leak_recovery(messages)
             meta_leak_recovered = True
         if not content:
