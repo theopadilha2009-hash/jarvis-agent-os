@@ -50,6 +50,7 @@ APP_ALIASES = {
     "messages": ("Messages", "com.apple.MobileSMS"),
     "whatsapp": ("WhatsApp", "net.whatsapp.WhatsApp"),
     "spotify": ("Spotify", "com.spotify.client"),
+    "steam": ("Steam", "com.valvesoftware.steam"),
     "discord": ("Discord", "com.hnc.Discord"),
     "vscode": ("Visual Studio Code", "com.microsoft.VSCode"),
     "visual studio code": ("Visual Studio Code", "com.microsoft.VSCode"),
@@ -359,6 +360,84 @@ def cmd_screen_capture(args: argparse.Namespace) -> None:
     if not output.exists():
         _fail("captura cancelada ou arquivo não criado.")
     print("OK — captura criada localmente.")
+    print("Produção: nada alterado.")
+
+
+def cmd_screen_record(args: argparse.Namespace) -> None:
+    print("JARVIS — Screen Recorder")
+    print("Status real: abertura do gravador nativo do macOS sob pedido explícito.")
+    print("modo: painel interativo de gravação; o usuário confirma início, área e término")
+    if args.dry_run:
+        print("Modo: --dry-run (o gravador não foi aberto).")
+        print("Produção: nada alterado.")
+        return
+    binary = _require_binary("screencapture")
+    try:
+        subprocess.Popen(
+            [binary, "-i", "-v", "-Jvideo", "-U"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        _fail("não foi possível abrir o gravador nativo do macOS.")
+    print("OK — painel de gravação aberto; escolha a área e clique em Gravar.")
+    print("Produção: nada alterado.")
+
+
+def cmd_github_overview(args: argparse.Namespace) -> None:
+    print("JARVIS — GitHub Overview")
+    print("Status real: leitura da conta GitHub autenticada no Mac; nenhum repositório foi alterado.")
+    if args.dry_run:
+        print(f"Modo: --dry-run (consultaria até {args.limit} repositórios via gh).")
+        print("Produção: nada alterado.")
+        return
+    binary = _require_binary("gh")
+    auth = subprocess.run(
+        [binary, "auth", "status", "--active", "--hostname", "github.com"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=15,
+    )
+    if auth.returncode != 0:
+        _fail("GitHub CLI não está autenticado neste Mac.")
+    user = subprocess.run(
+        [binary, "api", "user", "--jq", ".login"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=15,
+    )
+    login = user.stdout.strip() if user.returncode == 0 else "@conta autenticada"
+    result = subprocess.run(
+        [
+            binary,
+            "repo",
+            "list",
+            login,
+            "--limit",
+            str(args.limit),
+            "--json",
+            "nameWithOwner,isPrivate,updatedAt,url",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=25,
+    )
+    if result.returncode != 0:
+        _fail("GitHub não respondeu à listagem de repositórios.")
+    try:
+        repos = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        _fail("GitHub retornou uma resposta inválida.")
+    print(f"conta: {login}")
+    print(f"repositórios recentes: {len(repos)}")
+    for repo in repos:
+        visibility = "privado" if repo.get("isPrivate") else "público"
+        print(f"- {repo.get('nameWithOwner')} · {visibility} · {repo.get('updatedAt', '')}")
+        print(f"  {repo.get('url', '')}")
     print("Produção: nada alterado.")
 
 
@@ -853,6 +932,13 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument("--interactive", action="store_true")
     capture.add_argument("--dry-run", action="store_true")
 
+    record = sub.add_parser("screen-record")
+    record.add_argument("--dry-run", action="store_true")
+
+    github = sub.add_parser("github-overview")
+    github.add_argument("--limit", type=int, default=12, choices=range(1, 51))
+    github.add_argument("--dry-run", action="store_true")
+
     image = sub.add_parser("image-to-pdf")
     image.add_argument("image")
     image.add_argument("--output")
@@ -915,6 +1001,8 @@ def main() -> None:
     handlers = {
         "doctor": cmd_doctor,
         "screen-capture": cmd_screen_capture,
+        "screen-record": cmd_screen_record,
+        "github-overview": cmd_github_overview,
         "image-to-pdf": cmd_image_to_pdf,
         "image-convert": cmd_image_convert,
         "speak": cmd_speak,

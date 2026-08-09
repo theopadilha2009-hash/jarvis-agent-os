@@ -640,6 +640,16 @@ CHECKS = [
         "expect": ["Screen Capture", "Modo: --dry-run", "nenhuma captura realizada", "Produção: nada alterado"],
     },
     {
+        "name": "screen-record-dry-run",
+        "cmd": ["./jarvis", "screen-record", "--dry-run"],
+        "expect": ["Screen Recorder", "Status real:", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "github-overview-dry-run",
+        "cmd": ["./jarvis", "github-overview", "--dry-run"],
+        "expect": ["GitHub Overview", "Status real:", "--dry-run", "Produção: nada alterado"],
+    },
+    {
         "name": "image-to-pdf-dry-run",
         "cmd": ["./jarvis", "image-to-pdf", "10_TESTES/FIXTURES/personal-tools-sample.svg", "--dry-run"],
         "expect": ["Image to PDF", "geração de PDF bloqueada", "nenhum PDF criado", "Produção: nada alterado"],

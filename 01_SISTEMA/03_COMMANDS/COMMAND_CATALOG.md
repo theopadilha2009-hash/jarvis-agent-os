@@ -46,6 +46,8 @@ Storage: `05_EXECUCAO/63_DECISIONS/decisions.jsonl` (gitignored, JSONL append-on
 - `./jarvis web [--no-open|--check]` — inicia o cockpit visual, abre o navegador e conecta conversa/voz ao worker local; usa OpenRouter quando `OPENROUTER_API_KEY` estiver disponível no processo.
 - `./jarvis assistant-doctor` — verifica se o macOS oferece captura, conversão, voz, abertura e clipboard.
 - `./jarvis screen-capture [--interactive] [--output PATH] [--dry-run]` — captura somente quando chamado; o padrão salva em `05_EXECUCAO/64_PERSONAL_TOOLS/screenshots/`.
+- `./jarvis screen-record [--dry-run]` — abre o painel nativo do macOS para gravar uma área ou a tela inteira; a confirmação continua visível no Mac.
+- `./jarvis github-overview [--limit N] [--dry-run]` — mostra a conta autenticada e repositórios recentes via `gh`, sem imprimir credenciais ou alterar o GitHub.
 - `./jarvis image-to-pdf IMAGEM --dry-run` — mostra o plano, mas recusa gerar PDF enquanto `AGENTS.md` mantiver esse formato bloqueado.
 - `./jarvis image-convert IMAGEM --to png|jpg|tiff [--output PATH] [--dry-run]` — usa `sips`, preserva o original e recusa sobrescrever o destino.
 - `./jarvis speak "texto" [--voice VOZ] [--rate N] [--output audio.aiff] [--dry-run]` — fala ou gera AIFF localmente com `say`.

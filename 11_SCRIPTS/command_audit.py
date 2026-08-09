@@ -87,6 +87,8 @@ CRITICAL_COMMANDS = [
     "assistant-doctor",
     "web",
     "screen-capture",
+    "screen-record",
+    "github-overview",
     "image-to-pdf",
     "image-convert",
     "speak",

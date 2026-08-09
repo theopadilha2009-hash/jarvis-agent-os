@@ -66,6 +66,8 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertTrue(MODULE.self_publish_requested("crie a melhoria e suba para produção"))
 
         capture = MODULE.command_argv({"action": "screen_capture", "target": ""})
+        recording = MODULE.command_argv({"action": "screen_record", "target": "native-recorder"})
+        github = MODULE.command_argv({"action": "github_overview", "target": "theopadilha2009-hash"})
         storage = MODULE.command_argv({"action": "storage_scan", "target": "downloads"})
         message = MODULE.command_argv({
             "action": "message_send",
@@ -73,6 +75,8 @@ class DeviceWorkerTest(unittest.TestCase):
             "request_text": 'mande mensagem para 5511999999999 "teste real"',
         })
         self.assertEqual(capture, [str(ROOT / "jarvis"), "screen-capture"])
+        self.assertEqual(recording, [str(ROOT / "jarvis"), "screen-record"])
+        self.assertEqual(github, [str(ROOT / "jarvis"), "github-overview", "--limit", "12"])
         self.assertEqual(storage[:3], [str(ROOT / "jarvis"), "storage-scan", str(Path.home() / "Downloads")])
         self.assertEqual(
             message,
@@ -127,7 +131,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
-        self.assertEqual(kwargs["body"]["version"], "6")
+        self.assertEqual(kwargs["body"]["version"], "7")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):
