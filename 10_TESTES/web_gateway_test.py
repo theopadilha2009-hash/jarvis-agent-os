@@ -104,9 +104,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260809-search1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260809-search1', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-search1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260809-research2', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260809-research2', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-research2', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -179,6 +179,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"renderSourceLinks", app_js)
         self.assertIn(b'class="source-links"', app_js)
         self.assertIn(b"web ao vivo", app_js)
+        self.assertIn(b' research: ["PESQUISA"', app_js)
+        self.assertIn("Pesquisando…".encode("utf-8"), app_js)
+        self.assertIn(b"source?.snippet", app_js)
         self.assertIn(b'class="message-card"', app_js)
         self.assertIn(b"workingStateFor", app_js)
         self.assertIn(b"responseVisualState", app_js)
@@ -202,6 +205,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'.stage[data-state="thinking"] .hud-right', app_css)
         self.assertIn(b".source-links", app_css)
         self.assertIn(b".message-link", app_css)
+        self.assertIn(b".source-links a em", app_css)
         self.assertIn(b".compact-surface {\n  display: none", app_css)
         self.assertIn(b'error?.name === "AbortError"', app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
@@ -216,7 +220,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("FORJA · CONSTRUÇÃO EM CURSO".encode(), visual_js)
         self.assertIn(b"visualModeForState", visual_js)
         self.assertIn(b"modeBlend", visual_js)
-        self.assertIn(b'["thinking", "planning"].includes(state)', visual_js)
+        self.assertIn(b'["thinking", "planning", "research"].includes(state)', visual_js)
         self.assertNotIn(b"rgba(192,107,255", visual_js)
         self.assertIn(b"AnimationMixer", visual_js)
         self.assertIn(b"20260807-voicecyan1", visual_js)
@@ -233,6 +237,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"frameIntervalMs", visual_js)
         self.assertIn(b"document.hidden", visual_js)
         self.assertIn(b"scheduleRender", visual_js)
+        self.assertIn(b'"research"', visual_js)
         self.assertIn(b"animationTimerId", visual_js)
         self.assertIn(b"disposedTextures", visual_js)
         self.assertIn(b"resizeObserver.disconnect()", visual_js)
@@ -256,7 +261,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260809-search1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260809-research2", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -1036,8 +1041,12 @@ class WebGatewayTest(unittest.TestCase):
         env = {
             "OPENROUTER_API_KEY": "test-key",
             "JARVIS_OWNER_TOKEN": "private-owner-token",
+            "JARVIS_ALLOW_PAID_WEB_SEARCH": "1",
         }
-        with patch.dict(os.environ, env, clear=False), patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+        empty_search = {"query": "OpenRouter", "mode": "unavailable", "provider": "none", "sources": [], "attempts": []}
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "public_search_sources", return_value=empty_search
+        ), patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
             payload, status = MODULE.assistant_response(
                 {"command": "pesquise na web como funciona a busca do OpenRouter"},
                 owner_authenticated=False,
@@ -1084,7 +1093,11 @@ class WebGatewayTest(unittest.TestCase):
                 raise HTTPError(MODULE.OPENROUTER_URL, 422, "server tool unsupported", {}, None)
             return FakeResponse()
 
-        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+        empty_search = {"query": "resultado", "mode": "unavailable", "provider": "none", "sources": [], "attempts": []}
+        with patch.dict(os.environ, {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_ALLOW_PAID_WEB_SEARCH": "1",
+        }, clear=False), patch.object(MODULE, "public_search_sources", return_value=empty_search), patch.object(
             MODULE, "urlopen", side_effect=fake_urlopen
         ):
             payload, status = MODULE.assistant_response({"command": "busque na internet o resultado mais recente"})
@@ -1095,10 +1108,155 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(requests[1]["plugins"][-1]["id"], "web")
         self.assertNotIn("tools", requests[1])
 
+    def test_free_github_research_collects_sources_before_openrouter_synthesis(self):
+        free_search = {
+            "query": "assistente pessoal de IA",
+            "mode": "github_api",
+            "provider": "github_api",
+            "attempts": [{"provider": "github_api", "ok": True, "count": 2}],
+            "sources": [
+                {
+                    "title": "example/jarvis-one",
+                    "url": "https://github.com/example/jarvis-one",
+                    "domain": "github.com",
+                    "snippet": "Assistente pessoal · ★ 1200 · Python · MIT",
+                    "license": "MIT",
+                },
+                {
+                    "title": "example/jarvis-two",
+                    "url": "https://github.com/example/jarvis-two",
+                    "domain": "github.com",
+                    "snippet": "Automação local · ★ 800 · TypeScript · Apache-2.0",
+                    "license": "Apache-2.0",
+                },
+            ],
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Os dois projetos têm ideias úteis e licenças permissivas."}}],
+                }).encode("utf-8")
+
+        with patch.dict(os.environ, {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_ALLOW_PAID_WEB_SEARCH": "0",
+        }, clear=False), patch.object(MODULE, "public_search_sources", return_value=free_search), patch.object(
+            MODULE, "urlopen", return_value=FakeResponse()
+        ) as request:
+            payload, status = MODULE.assistant_response({"command": "procure projetos públicos de Jarvis no GitHub"})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "assistant_response_grounded_by_live_web")
+        self.assertEqual(payload["web_search"]["mode"], "github_api")
+        self.assertEqual(payload["web_search"]["provider"], "github_api")
+        self.assertTrue(payload["web_search"]["synthesized"])
+        self.assertEqual(payload["sources"], free_search["sources"])
+        sent_payload = json.loads(request.call_args.args[0].data.decode("utf-8"))
+        self.assertFalse(any(item.get("type") == "openrouter:web_search" for item in sent_payload.get("tools", [])))
+        self.assertIn("https://github.com/example/jarvis-one", sent_payload["messages"][0]["content"])
+        self.assertIn("dados não confiáveis", sent_payload["messages"][0]["content"])
+
+    def test_free_search_still_returns_real_sources_when_openrouter_quota_fails(self):
+        free_search = {
+            "query": "assistentes locais",
+            "mode": "public_web",
+            "provider": "duckduckgo",
+            "attempts": [{"provider": "duckduckgo", "ok": True, "count": 1}],
+            "sources": [{
+                "title": "Projeto real",
+                "url": "https://example.com/projeto",
+                "domain": "example.com",
+                "snippet": "Resultado coletado antes da síntese.",
+            }],
+        }
+        error = HTTPError(MODULE.OPENROUTER_URL, 429, "quota", {}, None)
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "public_search_sources", return_value=free_search
+        ), patch.object(MODULE, "urlopen", side_effect=error):
+            payload, status = MODULE.assistant_response({"command": "pesquise assistentes locais"})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "live_web_search_results_without_synthesis")
+        self.assertTrue(payload["web_search"]["used"])
+        self.assertFalse(payload["web_search"]["synthesized"])
+        self.assertEqual(payload["sources"][0]["url"], "https://example.com/projeto")
+        self.assertIn("Projeto real", payload["message"])
+
+    def test_github_repository_search_returns_ranked_license_evidence(self):
+        response = json.dumps({
+            "items": [{
+                "full_name": "example/strong-jarvis",
+                "html_url": "https://github.com/example/strong-jarvis",
+                "description": "Local personal assistant with real tools.",
+                "stargazers_count": 4200,
+                "language": "Python",
+                "updated_at": "2026-08-08T12:00:00Z",
+                "license": {"spdx_id": "Apache-2.0"},
+            }],
+        })
+        with patch.object(MODULE, "_public_search_request", return_value=response) as request:
+            sources = MODULE.github_repository_search("procure Jarvis no GitHub", 5)
+
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0]["title"], "example/strong-jarvis")
+        self.assertTrue(sources[0]["permissive_license"])
+        self.assertIn("Apache-2.0", sources[0]["snippet"])
+        requested_url = request.call_args.args[0]
+        self.assertIn("api.github.com/search/repositories", requested_url)
+        self.assertIn("sort=stars", requested_url)
+        self.assertIn("jarvis+personal+assistant", requested_url)
+
+    def test_bing_redirect_is_normalized_to_the_real_source_url(self):
+        source_url = "https://openrouter.ai/docs/guides/routing/routers/free-router"
+        encoded = base64.urlsafe_b64encode(source_url.encode("utf-8")).decode("ascii").rstrip("=")
+        html = (
+            '<li class="b_algo"><h2><a href="https://www.bing.com/ck/a?u=a1'
+            + encoded
+            + '">OpenRouter Free Models Router</a></h2>'
+            + '<p>Documentação oficial do roteador gratuito.</p></li>'
+        )
+
+        sources = MODULE.parse_public_search_html(html, "bing", 5)
+
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0]["url"], source_url)
+        self.assertEqual(sources[0]["domain"], "openrouter.ai")
+        self.assertIn("Documentação oficial", sources[0]["snippet"])
+
+    def test_unavailable_free_search_never_fakes_an_unresearched_answer(self):
+        empty_search = {
+            "query": "algo atual",
+            "mode": "public_web",
+            "provider": "none",
+            "attempts": [{"provider": "duckduckgo", "ok": False, "count": 0}],
+            "sources": [],
+        }
+        with patch.dict(os.environ, {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_ALLOW_PAID_WEB_SEARCH": "0",
+        }, clear=False), patch.object(MODULE, "public_search_sources", return_value=empty_search), patch.object(
+            MODULE, "urlopen"
+        ) as request:
+            payload, status = MODULE.assistant_response({"command": "pesquise algo atual"})
+
+        self.assertEqual(status, 502)
+        self.assertEqual(payload["status_real"], "free_web_search_unavailable")
+        self.assertFalse(payload["web_search"]["used"])
+        request.assert_not_called()
+
     def test_time_sensitive_question_routes_to_live_search(self):
         self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "qual é a cotação do dólar hoje?"}]))
         self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "pesquise isso no Google"}]))
         self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "busque modelos 3D de robô"}]))
+        self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "procure projetos públicos no GitHub"}]))
         self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "explique o que é inflação"}]))
 
     def test_guest_can_chat_without_private_memory_or_device_access(self):

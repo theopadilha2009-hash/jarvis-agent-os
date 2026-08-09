@@ -1,7 +1,7 @@
 {
   "schema": "jarvis-capability-registry-v0.1",
-  "updated_at": "2026-08-06",
-  "status_real": "Registry local. Sem produção, sem API paga, sem rede.",
+  "updated_at": "2026-08-09",
+  "status_real": "Registry local alinhado ao runtime: pesquisa pública, GitHub público e ações allowlisted no Mac disponíveis; sem API paga.",
 
   "groups": {
     "available": {
@@ -29,6 +29,10 @@
         {"name": "local_blueprint", "what": "Blueprints locais (n8n/app/automation/research).", "safe_now": "blueprint --type T --goal '...'.", "notes": "Nunca cria workflow real."},
         {"name": "local_task_queue", "what": "Task queue append-only JSONL (05_EXECUCAO/34_TASKS/tasks.jsonl).", "safe_now": "task-add/list/next/show/done/block.", "notes": "Arquivo gitignored."},
         {"name": "screen_capture_local", "what": "Capturar tela inteira ou uma seleção no macOS.", "safe_now": "screen-capture; preview com --dry-run.", "notes": "Só captura quando chamado explicitamente; saída gitignored."},
+        {"name": "local_app_control", "what": "Abrir, observar e fechar aplicativos allowlisted no Mac.", "safe_now": "computer list|inspect|open|close APP; abrir e fechar exigem pedido explícito.", "notes": "Usa o Computer Use do Orca e confirma o resultado; Finder e Orca não podem ser fechados."},
+        {"name": "web_research", "what": "Pesquisar fontes públicas reais na web com links e evidências.", "safe_now": "A interface web consulta busca pública; projetos open-source usam primeiro GET /search/repositories do GitHub.", "notes": "OpenRouter apenas sintetiza as fontes; sem cota da IA, os resultados reais continuam visíveis. Busca paga é opt-in."},
+        {"name": "github_public_research", "what": "Encontrar e comparar repositórios públicos do GitHub.", "safe_now": "Pesquisa read-only por descrição, estrelas, linguagem, licença e atualização.", "notes": "Não exige token para a rota pública e não altera repositórios."},
+        {"name": "github_overview_local", "what": "Listar repositórios da conta autenticada no GitHub CLI.", "safe_now": "github-overview; preview com --dry-run.", "notes": "Leitura somente; não cria commit, push, PR ou merge."},
         {"name": "image_convert_local", "what": "Converter imagens entre PNG, JPG e TIFF com ferramenta nativa.", "safe_now": "image-convert IMAGEM --to FORMATO; preview com --dry-run.", "notes": "Preserva o original e nunca sobrescreve a saída; PDF continua bloqueado pela doutrina."},
         {"name": "speech_local", "what": "Falar texto ou gerar áudio AIFF com voz local.", "safe_now": "speak TEXTO; preview com --dry-run.", "notes": "Recusa conteúdo com aparência de segredo."},
         {"name": "message_draft_local", "what": "Criar rascunho de WhatsApp para revisão humana.", "safe_now": "message-draft --phone NUMERO TEXTO.", "notes": "Nunca pressiona Enviar; --open apenas abre o rascunho."},
@@ -73,7 +77,6 @@
       "summary": "Possível um dia, mas exige adapter + aprovação + credenciais. JARVIS hoje só roteia para alternativa local.",
       "capabilities": [
         {"name": "google_calendar", "what": "Integrar com Google Calendar real.", "local_alternative": "./jarvis agenda-add (markdown local).", "setup_needed": ["OAuth consent", "client_id/secret armazenados fora de .env do projeto-alvo", "scopes mínimos", "modo read-only inicial", "ack humano por evento criado"]},
-        {"name": "web_research", "what": "Buscar conteúdo na web.", "local_alternative": "./jarvis blueprint --type research (template estruturado).", "setup_needed": ["adapter HTTP com timeout curto", "lista de domínios permitidos", "cache local", "sem PII em queries", "sem JS execution"]},
         {"name": "gmail", "what": "Ler/enviar email.", "local_alternative": "(nenhuma — manter manual no Gmail).", "setup_needed": ["OAuth Gmail", "scope read-only primeiro", "ack humano por envio"]},
         {"name": "github_api", "what": "Interagir com GitHub via API (issues/PRs/comments).", "local_alternative": "./jarvis project-open + gh CLI manual.", "setup_needed": ["fine-grained token com scope mínimo", "lista de repos permitidos", "modo dry-run primeiro"]},
         {"name": "chatwoot", "what": "Postar/ler em Chatwoot.", "local_alternative": "(nenhuma — manter manual).", "setup_needed": ["API key Chatwoot", "ack humano por mensagem"]},

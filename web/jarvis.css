@@ -234,7 +234,8 @@ button {
 }
 
 .stage[data-state="thinking"],
-.stage[data-state="planning"] {
+.stage[data-state="planning"],
+.stage[data-state="research"] {
   --state: #67e8f9;
 }
 
@@ -437,7 +438,8 @@ button {
 }
 
 .stage[data-state="thinking"] .target-ring,
-.stage[data-state="planning"] .target-ring {
+.stage[data-state="planning"] .target-ring,
+.stage[data-state="research"] .target-ring {
   width: min(39vw, 490px);
   opacity: 0.78;
   filter: drop-shadow(0 0 20px rgba(103, 232, 249, 0.08));
@@ -525,6 +527,7 @@ button {
 
 .stage[data-state="thinking"] .state-progress i,
 .stage[data-state="planning"] .state-progress i,
+.stage[data-state="research"] .state-progress i,
 .stage[data-state="forge"] .state-progress i,
 .stage[data-state="local"] .state-progress i,
 .stage[data-state="memory"] .state-progress i,
@@ -1207,10 +1210,16 @@ button {
 
 .source-links a > span {
   min-width: 0;
-  overflow: hidden;
+  display: grid;
+  gap: 1px;
   color: inherit;
-  font-size: 9px;
   line-height: 1.35;
+}
+
+.source-links a strong {
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1221,6 +1230,17 @@ button {
   color: var(--faint);
   font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
   text-overflow: ellipsis;
+}
+
+.source-links a em {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #87aeb8;
+  font-size: 8px;
+  font-style: normal;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .source-links a:hover,

@@ -236,6 +236,7 @@
     idle: ["PRESENÇA", "aguardando você"],
     listening: ["ESCUTA", "ouvindo sua voz"],
     thinking: ["NÚCLEO", "raciocinando com o contexto"],
+    research: ["PESQUISA", "consultando fontes reais"],
     voice: ["VOZ", "preparando uma resposta natural"],
     planning: ["NÚCLEO", "organizando possibilidades"],
     forge: ["FORJA", "construindo e verificando"],
@@ -252,6 +253,7 @@
     idle: ["●", "PRESENÇA", "JARVIS", "ambiente em espera"],
     listening: ["◌", "ESCUTA", "CANAL ABERTO", "captando sua voz"],
     thinking: ["◉", "NÚCLEO", "RACIOCÍNIO", "conectando contexto"],
+    research: ["⌕", "PESQUISA", "FONTES AO VIVO", "coletando evidências"],
     planning: ["◉", "NÚCLEO", "PLANEJAMENTO", "organizando possibilidades"],
     forge: ["◆", "FORJA", "CONSTRUÇÃO", "montando e verificando"],
     local: ["◆", "FORJA", "EXECUÇÃO", "worker local em atividade"],
@@ -302,7 +304,7 @@
     sendButton.disabled = value;
     voiceButton.disabled = value || !voiceSupport.input;
     attachmentButton.disabled = value;
-    sendButton.textContent = value ? (state === "forge" ? "Construindo…" : state === "memory" ? "Gravando…" : "Pensando…") : "Enviar";
+    sendButton.textContent = value ? (state === "forge" ? "Construindo…" : state === "memory" ? "Gravando…" : state === "research" ? "Pesquisando…" : "Pensando…") : "Enviar";
     settleState();
   }
 
@@ -326,7 +328,7 @@
     const target = byId("requestProgress");
     target.hidden = false;
     target.setAttribute("aria-busy", "true");
-    byId("requestCoreLabel").textContent = state === "forge" ? "Forja" : state === "memory" ? "Memória" : "Núcleo";
+    byId("requestCoreLabel").textContent = state === "forge" ? "Forja" : state === "memory" ? "Memória" : state === "research" ? "Pesquisa" : "Núcleo";
     setProgressStep("request", "completed");
     setProgressStep("core", "running");
     setProgressStep("result", "pending");
@@ -350,6 +352,7 @@
   function workingStateFor(command) {
     const text = String(command || "");
     if (/\b(?:guard(?:a|e|ar)|salv(?:a|e|ar)|memor(?:ize|izar)|lembre)\b.{0,80}\bmem[oó]ria\b|\bmem[oó]ria\b.{0,80}\b(?:guard(?:a|e|ar)|salv(?:a|e|ar))\b/i.test(text)) return "memory";
+    if (/\b(?:pesquis\w*|busc\w*|procur\w*|investig\w*|not[ií]cias?|cota[cç][aã]o|mais recente)\b/i.test(text)) return "research";
     if (/\b(?:cri(?:a|e|ar)|constru(?:a|ir)|implement(?:a|e|ar)|edit(?:a|e|ar)|corrig(?:e|ir)|arrum(?:a|e|ar)|deploy|public(?:a|ar)|sub(?:a|ir)|automatiz(?:a|e|ar))\b/i.test(text)) return "forge";
     return "thinking";
   }
@@ -538,8 +541,15 @@
       const url = String(source?.url || "");
       if (!/^https?:\/\//i.test(url)) return "";
       const label = source?.title || source?.domain || `Fonte ${index + 1}`;
-      const domain = source?.domain ? `<small>${escapeHtml(source.domain)}</small>` : "";
-      return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><i>${index + 1}</i><span>${escapeHtml(label)}${domain}</span></a>`;
+      const meta = [
+        source?.domain,
+        source?.license && source.license !== "NOASSERTION" ? source.license : "",
+        Number(source?.stars) > 0 ? `★ ${Number(source.stars).toLocaleString("pt-BR")}` : "",
+      ].filter(Boolean).join(" · ");
+      const detail = !compact && source?.snippet
+        ? `<em>${escapeHtml(String(source.snippet).slice(0, 260))}</em>`
+        : "";
+      return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><i>${index + 1}</i><span><strong>${escapeHtml(label)}</strong>${meta ? `<small>${escapeHtml(meta)}</small>` : ""}${detail}</span></a>`;
     }).filter(Boolean).join("");
     return links ? `<nav class="source-links" aria-label="Fontes da pesquisa"><b>FONTES AO VIVO</b>${links}</nav>` : "";
   }
