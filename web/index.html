@@ -10,10 +10,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260809-research2">
-  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260809-research2" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260809-research2">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260809-research2">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260809-research3">
+  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260809-research3" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260809-research3">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260809-research3">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -228,9 +228,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260809-research2" defer></script>
+  <script src="/ui/jarvis.js?v=20260809-research3" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260809-research2");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260809-research3");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });
