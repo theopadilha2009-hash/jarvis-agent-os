@@ -31,6 +31,7 @@ body {
   width: 100%;
   height: 100%;
   margin: 0;
+  overscroll-behavior: none;
 }
 
 body {
@@ -50,10 +51,12 @@ input {
 
 button {
   color: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app {
-  height: 100%;
+  height: var(--jarvis-viewport-height, 100dvh);
   display: grid;
   grid-template-rows: 54px minmax(0, 1fr);
 }
@@ -183,6 +186,12 @@ button {
   background: transparent;
   color: var(--muted);
   cursor: pointer;
+}
+
+.mobile-label,
+.mobile-install-button,
+.mobile-chat-toggle {
+  display: none;
 }
 
 .pulse-button {
@@ -870,6 +879,37 @@ button {
   gap: 8px;
 }
 
+.mobile-chat-toggle {
+  align-items: center;
+  gap: 7px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 9px;
+  border: 1px solid rgba(103, 232, 249, 0.12);
+  border-radius: 999px;
+  background: rgba(8, 24, 33, 0.52);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.mobile-chat-toggle i {
+  width: 7px;
+  height: 7px;
+  border: 0;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: rotate(225deg) translate(-1px, -1px);
+  transition: transform 180ms ease;
+}
+
+.mobile-chat-toggle[aria-expanded="true"] i {
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
 .conversation-head i {
   width: 6px;
   height: 6px;
@@ -1288,6 +1328,44 @@ dialog::backdrop {
   backdrop-filter: blur(8px);
 }
 
+.install-dialog {
+  width: min(460px, calc(100% - 28px));
+}
+
+.install-guide {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.install-guide span {
+  display: grid;
+  gap: 6px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.install-guide i {
+  color: var(--cyan);
+  font: normal 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.16em;
+}
+
+.install-guide strong {
+  color: #d8f2f8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.install-guide p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
 .dialog-head {
   display: flex;
   align-items: center;
@@ -1641,40 +1719,162 @@ dialog::backdrop {
 }
 
 @media (max-width: 720px) {
+  :root { --mobile-edge: max(8px, env(safe-area-inset-left)); }
+  body { background: #02070c; }
+  .app {
+    grid-template-rows: calc(54px + env(safe-area-inset-top)) minmax(0, 1fr);
+  }
   .identity small { display: none; }
   .identity-name small { display: block; }
-  .topbar { padding: 0 12px; }
-  .connection { letter-spacing: 0.05em; }
+  .identity { gap: 7px; }
+  .identity-mark { width: 30px; height: 30px; flex-basis: 30px; }
+  .identity-mark svg { width: 29px; height: 29px; }
+  .identity-name b { font-size: 10px; }
+  .identity-name small { font-size: 7px; }
+  .topbar {
+    min-height: calc(54px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) var(--mobile-edge) 0;
+  }
+  .connection { gap: 5px; letter-spacing: 0.04em; }
   .connection #connectionText { display: none; }
+  .connection-dot { margin-right: 1px; }
   .access-mode { display: none; }
-  .quiet-button { margin-left: 2px; }
+  .quiet-button {
+    min-width: 44px;
+    min-height: 44px;
+    margin-left: 0;
+    padding: 0 9px;
+    border-radius: 13px;
+    font-size: 9px;
+  }
+  .system-button { width: 44px; font-size: 14px; }
   .quiet-button kbd { display: none; }
+  .desktop-label { display: none; }
+  .mobile-label { display: inline; }
+  .mobile-install-button:not([hidden]) { display: inline-flex; align-items: center; justify-content: center; }
+  .pulse-button { min-height: 44px; margin-left: 0; }
   .state-beacon { top: 14px; min-width: 200px; transform: translate(-50%, -5px) scale(0.9); }
   .stage:not([data-state="idle"]):not([data-state="response"]) .state-beacon { transform: translate(-50%, 0) scale(0.9); }
   .state-copy em { display: none; }
-  .avatar { inset: -7% -32% 37%; }
-  .target-ring { top: 26%; width: 230px; }
-  .spoken-caption { bottom: calc(40% + 22px); width: calc(100% - 34px); font-size: 12px; }
-  .conversation { bottom: 8px; width: calc(100% - 16px); height: 190px; }
-  .stage.has-conversation .conversation { width: calc(100% - 16px); height: 40%; min-height: 250px; }
+  .avatar { inset: -1% -18% 42%; transition: inset 280ms ease, bottom 280ms ease, opacity 280ms ease; }
+  .target-ring { top: 25%; width: 220px; }
+  .spoken-caption { bottom: calc(43% + 22px); width: calc(100% - 28px); font-size: 12px; }
+  .conversation {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: calc(100% - 16px);
+    height: 218px;
+    border-radius: 24px 24px 18px 18px;
+    transition: width 260ms ease, height 260ms ease, background 260ms ease;
+  }
+  .stage.has-conversation .conversation,
+  .stage.mobile-chat-expanded .conversation {
+    width: calc(100% - 16px);
+    height: min(64%, 540px);
+    min-height: 330px;
+  }
+  .stage.mobile-chat-expanded .avatar,
+  .stage.has-conversation .avatar { bottom: 54%; opacity: 0.34; }
+  .stage.mobile-chat-expanded .target-ring,
+  .stage.has-conversation .target-ring { opacity: 0.28; }
+  .conversation-head {
+    min-height: 42px;
+    padding: 5px 9px 2px 14px;
+  }
+  .conversation-channel { display: none; }
+  .mobile-chat-toggle { display: inline-flex; }
   .message { max-width: 94%; }
-  .request-progress { grid-template-columns: repeat(3, 1fr) auto; margin-inline: 9px; }
+  .conversation-feed { padding: 7px 12px 11px; }
+  .request-progress { min-height: 34px; grid-template-columns: repeat(3, 1fr) auto; margin-inline: 9px; }
   .request-progress span { gap: 4px; }
   .request-progress span::after { display: none; }
   .starter-actions { gap: 5px; }
-  .starter-actions button { padding-inline: 8px; }
+  .starter-actions button { min-height: 42px; padding: 8px 11px; font-size: 9px; }
   .composer { grid-template-columns: 44px 38px minmax(0, 1fr) auto; }
+  .composer {
+    grid-template-columns: 44px 44px minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+  }
+  .composer input { min-height: 44px; padding: 10px 12px; border-radius: 14px; font-size: 16px; }
+  .voice-button,
+  .attachment-button,
+  .send-button { min-width: 44px; min-height: 44px; border-radius: 14px; }
   .voice-button { padding: 0; }
   .voice-button b { display: none; }
-  .send-button { padding: 0 13px; }
+  .send-button { padding: 0 12px; }
+  .attachment-tray { padding: 0 9px max(8px, env(safe-area-inset-bottom)) 9px; }
+  .action-hub {
+    top: calc(58px + env(safe-area-inset-top));
+    right: 6px;
+    bottom: max(6px, env(safe-area-inset-bottom));
+    width: calc(100vw - 12px);
+    padding: 17px 15px max(17px, env(safe-area-inset-bottom));
+    border-radius: 24px;
+  }
+  .action-hub header button,
+  .action-hub-grid button,
+  .capability-list summary { min-height: 44px; }
+  dialog {
+    width: calc(100% - 16px);
+    max-height: calc(var(--jarvis-viewport-height, 100dvh) - max(16px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)));
+    overflow: auto;
+    border-radius: 22px;
+  }
+  .dialog-head { position: sticky; z-index: 2; top: 0; background: #06111b; }
+  .dialog-head button { width: 44px; height: 44px; }
   .dialog-grid { grid-template-columns: 1fr; }
   .dialog-wide { grid-column: auto; }
   .pairing-controls { grid-template-columns: 1fr 1fr; }
   .pairing-controls input { grid-column: 1 / -1; }
   .admin-login { grid-template-columns: 1fr; }
-  .admin-login button { min-height: 38px; }
+  .admin-login input,
+  .admin-login button,
+  .pairing-controls input,
+  .pairing-controls button { min-height: 44px; font-size: 16px; }
   .tour-grid { grid-template-columns: 1fr; }
   #tourButton { display: none; }
+
+  .stage.mobile-keyboard-open .presence { opacity: 0.12; }
+  .stage.mobile-keyboard-open .conversation {
+    top: 6px;
+    right: 6px;
+    bottom: max(4px, env(safe-area-inset-bottom));
+    left: 6px;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    transform: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .identity-name small { display: none; }
+  .mobile-install-button { font-size: 8px; }
+  .welcome span { font-size: 11px; }
+  .message { font-size: 13.5px; line-height: 1.52; }
+}
+
+@media (max-width: 350px) {
+  .identity-name { display: none; }
+  .send-button { width: 44px; padding: 0; font-size: 0; }
+  .send-button::after { content: "↑"; font-size: 18px; line-height: 1; }
+  .starter-actions {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .starter-actions::-webkit-scrollbar { display: none; }
+  .starter-actions button { flex: 0 0 auto; scroll-snap-align: start; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .quiet-button:active,
+  .starter-actions button:active,
+  .action-hub-grid button:active,
+  .send-button:active { transform: scale(0.97); }
 }
 
 @media (max-height: 700px) and (min-width: 721px) {

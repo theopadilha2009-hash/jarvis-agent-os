@@ -130,6 +130,7 @@ ASSET_TYPES = {
     ".json": "application/json; charset=utf-8",
     ".png": "image/png",
     ".svg": "image/svg+xml",
+    ".webmanifest": "application/manifest+json; charset=utf-8",
     ".webp": "image/webp",
 }
 
@@ -3454,6 +3455,12 @@ class handler(BaseHTTPRequestHandler):
             return self.serve_ui()
         if path == "/favicon.ico":
             return self.send_bytes(200, b"", "image/x-icon", "public, max-age=86400")
+        if path == "/jarvis-sw.js":
+            try:
+                body = (WEB_DIR / "jarvis-sw.js").read_bytes()
+            except OSError:
+                return self.send_json(404, {"ok": False, "error": "service worker unavailable"})
+            return self.send_bytes(200, body, "text/javascript; charset=utf-8", "no-cache")
         if path.startswith("/ui/"):
             return self.serve_web_asset(path[len("/ui/"):])
         if path.startswith("/asset/"):
@@ -3680,7 +3687,17 @@ def main():
     parser.add_argument("--no-open", action="store_true")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    required = [UI_FILE, WEB_DIR / "jarvis.css", WEB_DIR / "jarvis.js", WEB_DIR / "jarvis-3d.js", UI_ASSET_DIR / "models" / "jarvis-humanoid.glb"]
+    required = [
+        UI_FILE,
+        WEB_DIR / "jarvis.css",
+        WEB_DIR / "jarvis.js",
+        WEB_DIR / "jarvis-3d.js",
+        WEB_DIR / "manifest.webmanifest",
+        WEB_DIR / "jarvis-sw.js",
+        WEB_DIR / "jarvis-icon-192.png",
+        WEB_DIR / "jarvis-icon-512.png",
+        UI_ASSET_DIR / "models" / "jarvis-humanoid.glb",
+    ]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.is_file()]
     if args.check:
         print("JARVIS Web Check")

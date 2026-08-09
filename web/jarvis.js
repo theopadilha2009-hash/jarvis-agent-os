@@ -16,6 +16,10 @@
   const tourDialog = byId("tourDialog");
   const actionHub = byId("actionHub");
   const actionHubButton = byId("actionHubButton");
+  const mobileChatToggle = byId("mobileChatToggle");
+  const installButton = byId("installButton");
+  const installDialog = byId("installDialog");
+  const mobileLayout = window.matchMedia("(max-width: 720px)");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
@@ -57,6 +61,9 @@
   let currentPulse = null;
   let progressInterval = 0;
   let progressHideTimer = 0;
+  let deferredInstallPrompt = null;
+  let viewportCeiling = Math.round(window.visualViewport?.height || window.innerHeight);
+  let viewportWidth = window.innerWidth;
 
   function ownerToken() {
     try {
@@ -113,6 +120,60 @@
   function setActionHub(open) {
     actionHub.hidden = !open;
     actionHubButton.setAttribute("aria-expanded", String(open));
+    if (open && mobileLayout.matches) input.blur();
+  }
+
+  function setMobileChatExpanded(expanded) {
+    const active = Boolean(expanded && mobileLayout.matches);
+    stage.classList.toggle("mobile-chat-expanded", active);
+    mobileChatToggle?.setAttribute("aria-expanded", String(active));
+    mobileChatToggle?.setAttribute("aria-label", active ? "Reduzir conversa" : "Expandir conversa");
+    const label = mobileChatToggle?.querySelector("span");
+    if (label) label.textContent = active ? "Reduzir" : "Expandir";
+  }
+
+  function syncMobileViewport() {
+    const height = Math.round(window.visualViewport?.height || window.innerHeight);
+    if (Math.abs(window.innerWidth - viewportWidth) > 80) {
+      viewportWidth = window.innerWidth;
+      viewportCeiling = height;
+    }
+    viewportCeiling = Math.max(viewportCeiling, height);
+    document.documentElement.style.setProperty("--jarvis-viewport-height", `${height}px`);
+    input.placeholder = mobileLayout.matches ? "Fale ou escreva…" : "Escreva ou fale comigo…";
+    const composerFocused = document.activeElement === input || byId("commandForm")?.contains(document.activeElement);
+    const keyboardOpen = mobileLayout.matches && composerFocused && viewportCeiling - height > 120;
+    stage.classList.toggle("mobile-keyboard-open", keyboardOpen);
+    if (keyboardOpen) setMobileChatExpanded(true);
+    if (!mobileLayout.matches) setMobileChatExpanded(false);
+  }
+
+  function standaloneMode() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+
+  function renderInstallAvailability() {
+    if (!installButton) return;
+    installButton.hidden = !mobileLayout.matches || standaloneMode();
+  }
+
+  async function requestInstall() {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice.catch(() => null);
+      deferredInstallPrompt = null;
+      renderInstallAvailability();
+      return;
+    }
+    installDialog?.showModal();
+  }
+
+  function registerMobileShell() {
+    const localSecure = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (!("serviceWorker" in navigator) || (window.location.protocol !== "https:" && !localSecure)) return;
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/jarvis-sw.js", { scope: "/" }).catch(() => null);
+    }, { once: true });
   }
 
   function updateActionHub(command = session.currentCommand, data = {}) {
@@ -362,6 +423,7 @@
   function addMessage(text, type = "jarvis", extraHtml = "") {
     byId("welcomeMessage")?.remove();
     stage.classList.add("has-conversation");
+    if (mobileLayout.matches) setMobileChatExpanded(true);
     const message = document.createElement("div");
     message.className = `message ${type}`;
     message.innerHTML = `<span>${messageHtml(text)}</span>${extraHtml}`;
@@ -675,7 +737,9 @@
   }
 
   function renderMuteState() {
-    muteButton.textContent = session.muted ? "Fala muda" : "Fala ligada";
+    const desktopLabel = session.muted ? "Fala muda" : "Fala ligada";
+    const mobileLabel = session.muted ? "Mudo" : "Voz";
+    muteButton.innerHTML = `<span class="desktop-label">${desktopLabel}</span><span class="mobile-label">${mobileLabel}</span>`;
     muteButton.setAttribute("aria-pressed", String(session.muted));
     muteButton.title = session.muted ? "Ativar a voz do JARVIS" : "Mutar a voz do JARVIS";
   }
@@ -1053,6 +1117,11 @@
     event.preventDefault();
     sendCommand(input.value, { includeAttachments: true });
   });
+  input.addEventListener("focus", () => {
+    if (mobileLayout.matches) setMobileChatExpanded(true);
+    window.setTimeout(syncMobileViewport, 80);
+  });
+  input.addEventListener("blur", () => window.setTimeout(syncMobileViewport, 80));
   attachmentButton.addEventListener("click", () => attachmentInput.click());
   attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
   feed.addEventListener("click", (event) => {
@@ -1147,6 +1216,14 @@
     await boot();
   });
   actionHubButton.addEventListener("click", () => setActionHub(actionHub.hidden));
+  mobileChatToggle?.addEventListener("click", () => {
+    setMobileChatExpanded(mobileChatToggle.getAttribute("aria-expanded") !== "true");
+  });
+  installButton?.addEventListener("click", requestInstall);
+  byId("closeInstallDialog")?.addEventListener("click", () => installDialog.close());
+  installDialog?.addEventListener("click", (event) => {
+    if (event.target === installDialog) installDialog.close();
+  });
   byId("closeActionHub").addEventListener("click", () => setActionHub(false));
   actionHub.addEventListener("click", (event) => {
     const button = event.target.closest("[data-hub-command]");
@@ -1186,7 +1263,24 @@
       return;
     }
     if (event.key === "Escape" && !actionHub.hidden) setActionHub(false);
+    else if (event.key === "Escape" && mobileLayout.matches && stage.classList.contains("mobile-chat-expanded")) setMobileChatExpanded(false);
   });
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    renderInstallAvailability();
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    renderInstallAvailability();
+  });
+  mobileLayout.addEventListener?.("change", () => {
+    renderInstallAvailability();
+    syncMobileViewport();
+  });
+  window.visualViewport?.addEventListener("resize", syncMobileViewport);
+  window.visualViewport?.addEventListener("scroll", syncMobileViewport);
+  window.addEventListener("resize", syncMobileViewport);
   window.addEventListener("pagehide", () => {
     window.clearInterval(progressInterval);
     window.clearTimeout(progressHideTimer);
@@ -1195,6 +1289,9 @@
 
   renderMuteState();
   renderStarterActions();
+  renderInstallAvailability();
+  syncMobileViewport();
+  registerMobileShell();
   installVoiceInput();
   boot();
   window.setInterval(refreshPulse, 10 * 60 * 1000);

@@ -2,11 +2,18 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260809-commanddeck3">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260809-mobile3">
+  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260809-mobile3" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260809-mobile3">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260809-mobile3">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -31,8 +38,9 @@
         <span class="access-mode" id="accessMode">verificando acesso</span>
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
         <button class="quiet-button" id="tourButton" type="button">Guia</button>
+        <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
         <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir ações · ⌘K">Ações <kbd>⌘K</kbd></button>
-        <button class="quiet-button" id="muteButton" type="button" aria-pressed="false">Fala ligada</button>
+        <button class="quiet-button" id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Fala ligada</span><span class="mobile-label">Voz</span></button>
         <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
       </div>
     </header>
@@ -101,7 +109,10 @@
       <section class="conversation" aria-label="Conversa com JARVIS">
         <div class="conversation-head">
           <span><i aria-hidden="true"></i><b>JARVIS</b><small id="conversationState">pronto</small></span>
-          <small>voz + texto</small>
+          <small class="conversation-channel">voz + texto</small>
+          <button class="mobile-chat-toggle" id="mobileChatToggle" type="button" aria-expanded="false" aria-label="Expandir conversa">
+            <span>Expandir</span><i aria-hidden="true"></i>
+          </button>
         </div>
         <div class="request-progress" id="requestProgress" role="status" aria-live="polite" aria-busy="false" hidden>
           <span data-run-step="request"><i></i><b>Pedido</b></span>
@@ -205,9 +216,21 @@
     <button class="tour-primary" id="tourActionButton" type="button">Ver ações disponíveis</button>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260809-commanddeck3" defer></script>
+  <dialog id="installDialog" class="install-dialog">
+    <div class="dialog-head">
+      <b>JARVIS NO CELULAR</b>
+      <button id="closeInstallDialog" type="button" aria-label="Fechar instalação">×</button>
+    </div>
+    <div class="install-guide">
+      <span><i>ANDROID</i><strong>Toque em “Instalar aplicativo” no menu do navegador.</strong></span>
+      <span><i>IPHONE</i><strong>No Safari, toque em Compartilhar e depois “Adicionar à Tela de Início”.</strong></span>
+      <p>O ícone abre o cockpit em tela cheia. Conversa e voz funcionam pela internet; o controle do Mac depende do worker local online.</p>
+    </div>
+  </dialog>
+
+  <script src="/ui/jarvis.js?v=20260809-mobile3" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260809-commanddeck3");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260809-mobile3");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });
