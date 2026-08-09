@@ -18,6 +18,7 @@ const COLORS = {
   idle: 0x46e6ff,
   listening: 0x22d3ee,
   thinking: 0x67e8f9,
+  research: 0x38bdf8,
   planning: 0x38bdf8,
   forge: 0xf5b957,
   speaking: 0x67e8f9,
@@ -31,7 +32,7 @@ const COLORS = {
 
 let visualState = stage.dataset.state || "idle";
 function visualModeForState(state) {
-  if (["thinking", "planning"].includes(state)) return "core";
+  if (["thinking", "planning", "research"].includes(state)) return "core";
   if (["forge", "local"].includes(state)) return "forge";
   if (state === "memory") return "memory";
   return "avatar";
@@ -523,7 +524,7 @@ async function start() {
   let lastRenderProfile = "";
   const modeBlend = { core: 0, forge: 0, memory: 0 };
 
-  const activeStates = new Set(["listening", "thinking", "planning", "forge", "speaking", "memory", "local"]);
+  const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "speaking", "memory", "local"]);
   function requestedTargetFps() {
     if (!windowFocused) return BACKGROUND_TARGET_FPS;
     return activeStates.has(visualState) ? ACTIVE_TARGET_FPS : IDLE_TARGET_FPS;

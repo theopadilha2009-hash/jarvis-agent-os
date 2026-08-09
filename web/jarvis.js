@@ -16,6 +16,10 @@
   const tourDialog = byId("tourDialog");
   const actionHub = byId("actionHub");
   const actionHubButton = byId("actionHubButton");
+  const mobileChatToggle = byId("mobileChatToggle");
+  const installButton = byId("installButton");
+  const installDialog = byId("installDialog");
+  const mobileLayout = window.matchMedia("(max-width: 720px)");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
@@ -57,6 +61,9 @@
   let currentPulse = null;
   let progressInterval = 0;
   let progressHideTimer = 0;
+  let deferredInstallPrompt = null;
+  let viewportCeiling = Math.round(window.visualViewport?.height || window.innerHeight);
+  let viewportWidth = window.innerWidth;
 
   function ownerToken() {
     try {
@@ -67,6 +74,7 @@
   }
 
   const ACTION_CATALOG = [
+    { id: "search", label: "Pesquisar na web", command: "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes", keywords: /pesquis|busc|google|internet|not[ií]cia|atual/i },
     { id: "spotify", label: "Abrir Spotify", command: "abra o Spotify", keywords: /m[uú]sica|spotify/i },
     { id: "steam", label: "Abrir Steam", command: "abra a Steam", keywords: /jogo|steam/i },
     { id: "record", label: "Gravar a tela", command: "abra o gravador de tela", keywords: /grav|tela|v[ií]deo/i },
@@ -79,6 +87,7 @@
 
   const CAPABILITIES = [
     "Conversar com OpenRouter sem expor instruções internas",
+    "Pesquisar a web ao vivo e mostrar fontes clicáveis",
     "Ouvir pelo microfone e falar com ElevenLabs",
     "Abrir e fechar aplicativos pelo worker do Mac",
     "Tirar print, abrir o gravador e analisar arquivos",
@@ -90,14 +99,14 @@
 
   const STARTER_ACTIONS = {
     guest: [
+      ["Pesquisar agora", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
       ["O que você faz?", "me diga em poucas frases as melhores coisas que você consegue fazer"],
       ["Testar sua voz", "fale uma frase curta para mim"],
-      ["Como funciona?", "explique de forma curta como o núcleo, a forja e a memória funcionam"],
     ],
     owner: [
+      ["Pesquisar agora", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
       ["Analisar meu Mac", "meu computador está travando, analise a memória"],
       ["Abrir Spotify", "abra o Spotify"],
-      ["Ver minha agenda", "mostre minha agenda"],
     ],
   };
 
@@ -113,6 +122,60 @@
   function setActionHub(open) {
     actionHub.hidden = !open;
     actionHubButton.setAttribute("aria-expanded", String(open));
+    if (open && mobileLayout.matches) input.blur();
+  }
+
+  function setMobileChatExpanded(expanded) {
+    const active = Boolean(expanded && mobileLayout.matches);
+    stage.classList.toggle("mobile-chat-expanded", active);
+    mobileChatToggle?.setAttribute("aria-expanded", String(active));
+    mobileChatToggle?.setAttribute("aria-label", active ? "Reduzir conversa" : "Expandir conversa");
+    const label = mobileChatToggle?.querySelector("span");
+    if (label) label.textContent = active ? "Reduzir" : "Expandir";
+  }
+
+  function syncMobileViewport() {
+    const height = Math.round(window.visualViewport?.height || window.innerHeight);
+    if (Math.abs(window.innerWidth - viewportWidth) > 80) {
+      viewportWidth = window.innerWidth;
+      viewportCeiling = height;
+    }
+    viewportCeiling = Math.max(viewportCeiling, height);
+    document.documentElement.style.setProperty("--jarvis-viewport-height", `${height}px`);
+    input.placeholder = mobileLayout.matches ? "Fale ou escreva…" : "Escreva ou fale comigo…";
+    const composerFocused = document.activeElement === input || byId("commandForm")?.contains(document.activeElement);
+    const keyboardOpen = mobileLayout.matches && composerFocused && viewportCeiling - height > 120;
+    stage.classList.toggle("mobile-keyboard-open", keyboardOpen);
+    if (keyboardOpen) setMobileChatExpanded(true);
+    if (!mobileLayout.matches) setMobileChatExpanded(false);
+  }
+
+  function standaloneMode() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+
+  function renderInstallAvailability() {
+    if (!installButton) return;
+    installButton.hidden = !mobileLayout.matches || standaloneMode();
+  }
+
+  async function requestInstall() {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice.catch(() => null);
+      deferredInstallPrompt = null;
+      renderInstallAvailability();
+      return;
+    }
+    installDialog?.showModal();
+  }
+
+  function registerMobileShell() {
+    const localSecure = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (!("serviceWorker" in navigator) || (window.location.protocol !== "https:" && !localSecure)) return;
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/jarvis-sw.js", { scope: "/" }).catch(() => null);
+    }, { once: true });
   }
 
   function updateActionHub(command = session.currentCommand, data = {}) {
@@ -173,6 +236,7 @@
     idle: ["PRESENÇA", "aguardando você"],
     listening: ["ESCUTA", "ouvindo sua voz"],
     thinking: ["NÚCLEO", "raciocinando com o contexto"],
+    research: ["PESQUISA", "consultando fontes reais"],
     voice: ["VOZ", "preparando uma resposta natural"],
     planning: ["NÚCLEO", "organizando possibilidades"],
     forge: ["FORJA", "construindo e verificando"],
@@ -189,6 +253,7 @@
     idle: ["●", "PRESENÇA", "JARVIS", "ambiente em espera"],
     listening: ["◌", "ESCUTA", "CANAL ABERTO", "captando sua voz"],
     thinking: ["◉", "NÚCLEO", "RACIOCÍNIO", "conectando contexto"],
+    research: ["⌕", "PESQUISA", "FONTES AO VIVO", "coletando evidências"],
     planning: ["◉", "NÚCLEO", "PLANEJAMENTO", "organizando possibilidades"],
     forge: ["◆", "FORJA", "CONSTRUÇÃO", "montando e verificando"],
     local: ["◆", "FORJA", "EXECUÇÃO", "worker local em atividade"],
@@ -239,7 +304,7 @@
     sendButton.disabled = value;
     voiceButton.disabled = value || !voiceSupport.input;
     attachmentButton.disabled = value;
-    sendButton.textContent = value ? (state === "forge" ? "Construindo…" : state === "memory" ? "Gravando…" : "Pensando…") : "Enviar";
+    sendButton.textContent = value ? (state === "forge" ? "Construindo…" : state === "memory" ? "Gravando…" : state === "research" ? "Pesquisando…" : "Pensando…") : "Enviar";
     settleState();
   }
 
@@ -263,7 +328,7 @@
     const target = byId("requestProgress");
     target.hidden = false;
     target.setAttribute("aria-busy", "true");
-    byId("requestCoreLabel").textContent = state === "forge" ? "Forja" : state === "memory" ? "Memória" : "Núcleo";
+    byId("requestCoreLabel").textContent = state === "forge" ? "Forja" : state === "memory" ? "Memória" : state === "research" ? "Pesquisa" : "Núcleo";
     setProgressStep("request", "completed");
     setProgressStep("core", "running");
     setProgressStep("result", "pending");
@@ -287,6 +352,7 @@
   function workingStateFor(command) {
     const text = String(command || "");
     if (/\b(?:guard(?:a|e|ar)|salv(?:a|e|ar)|memor(?:ize|izar)|lembre)\b.{0,80}\bmem[oó]ria\b|\bmem[oó]ria\b.{0,80}\b(?:guard(?:a|e|ar)|salv(?:a|e|ar))\b/i.test(text)) return "memory";
+    if (/\b(?:pesquis\w*|busc\w*|procur\w*|investig\w*|not[ií]cias?|cota[cç][aã]o|mais recente)\b/i.test(text)) return "research";
     if (/\b(?:cri(?:a|e|ar)|constru(?:a|ir)|implement(?:a|e|ar)|edit(?:a|e|ar)|corrig(?:e|ir)|arrum(?:a|e|ar)|deploy|public(?:a|ar)|sub(?:a|ir)|automatiz(?:a|e|ar))\b/i.test(text)) return "forge";
     return "thinking";
   }
@@ -355,6 +421,7 @@
 
   function messageHtml(value) {
     return escapeHtml(value)
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a class="message-link" href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
       .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
       .replace(/`([^`\n]+)`/g, "<code class=\"inline-code\">$1</code>");
   }
@@ -362,6 +429,7 @@
   function addMessage(text, type = "jarvis", extraHtml = "") {
     byId("welcomeMessage")?.remove();
     stage.classList.add("has-conversation");
+    if (mobileLayout.matches) setMobileChatExpanded(true);
     const message = document.createElement("div");
     message.className = `message ${type}`;
     message.innerHTML = `<span>${messageHtml(text)}</span>${extraHtml}`;
@@ -467,8 +535,28 @@
     }).join("")}</div>`;
   }
 
+  function renderSourceLinks(sources, compact = false) {
+    if (!Array.isArray(sources) || !sources.length) return "";
+    const links = sources.slice(0, compact ? 5 : 8).map((source, index) => {
+      const url = String(source?.url || "");
+      if (!/^https?:\/\//i.test(url)) return "";
+      const label = source?.title || source?.domain || `Fonte ${index + 1}`;
+      const meta = [
+        source?.domain,
+        source?.license && source.license !== "NOASSERTION" ? source.license : "",
+        Number(source?.stars) > 0 ? `★ ${Number(source.stars).toLocaleString("pt-BR")}` : "",
+      ].filter(Boolean).join(" · ");
+      const detail = !compact && source?.snippet
+        ? `<em>${escapeHtml(String(source.snippet).slice(0, 260))}</em>`
+        : "";
+      return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><i>${index + 1}</i><span><strong>${escapeHtml(label)}</strong>${meta ? `<small>${escapeHtml(meta)}</small>` : ""}${detail}</span></a>`;
+    }).filter(Boolean).join("");
+    return links ? `<nav class="source-links" aria-label="Fontes da pesquisa"><b>FONTES AO VIVO</b>${links}</nav>` : "";
+  }
+
   function renderMessageContext(data) {
     let html = "";
+    html += renderSourceLinks(data.sources, true);
     if (Array.isArray(data.ui_cards) && data.ui_cards.length) {
       html += data.ui_cards.slice(0, 2).map((card) => {
         const items = Array.isArray(card.items) ? card.items.slice(0, 6) : [];
@@ -485,7 +573,7 @@
   function renderLiveCanvas(data) {
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
-    let html = renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
+    let html = renderSourceLinks(data.sources) + renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
     if (data.memory_suggestion) {
       html += `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
     }
@@ -510,7 +598,7 @@
       )).join("");
     }
     else if (Array.isArray(data.steps) && data.steps.length) html += canvasRows(data.steps);
-    else if (Array.isArray(data.sources) && data.sources.length) html += canvasRows(data.sources);
+    else if (Array.isArray(data.sources) && data.sources.length && !data.web_search?.used) html += canvasRows(data.sources);
     else if (data.result) html += `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
     else if (data.local_command) html += `<div class="canvas-row"><i>→</i><span>Worker local preparado</span></div><div class="canvas-result">${escapeHtml(data.local_command)}</div>`;
     else if (data.provider === "openrouter") html += `<div class="canvas-row"><i>✓</i><span>Resposta pronta para você</span></div>`;
@@ -675,7 +763,9 @@
   }
 
   function renderMuteState() {
-    muteButton.textContent = session.muted ? "Fala muda" : "Fala ligada";
+    const desktopLabel = session.muted ? "Fala muda" : "Fala ligada";
+    const mobileLabel = session.muted ? "Mudo" : "Voz";
+    muteButton.innerHTML = `<span class="desktop-label">${desktopLabel}</span><span class="mobile-label">${mobileLabel}</span>`;
     muteButton.setAttribute("aria-pressed", String(session.muted));
     muteButton.title = session.muted ? "Ativar a voz do JARVIS" : "Mutar a voz do JARVIS";
   }
@@ -981,7 +1071,7 @@
       session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
       const toolCount = session.paired ? Number(status.agent_runtime?.available_tools) || 0 : 0;
       byId("aiValue").textContent = status.ai?.configured
-        ? `OpenRouter conectado${toolCount ? ` · ${toolCount} ferramentas` : ""}`
+        ? `OpenRouter conectado${status.web_search?.configured ? " · web ao vivo" : ""}${toolCount ? ` · ${toolCount} ferramentas` : ""}`
         : "OpenRouter não configurado";
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
@@ -1004,18 +1094,20 @@
           ? "microfone ativo · saída aguarda ElevenLabs"
           : "ElevenLabs aguarda chave";
       const ready = [
-        status.ai?.configured ? (toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
+        status.ai?.configured ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
         status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
         status.automations?.n8n?.configured ? "n8n" : "",
         session.paired && status.device_bridge?.configured ? "Mac pareado" : "",
         status.runtime === "local_web_preview" ? "worker local" : "",
       ].filter(Boolean);
       byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
-      byId("integrationHint").textContent = status.automations?.n8n?.configured
-        ? "O JARVIS escolhe ferramentas pelo contexto; agenda e tarefas estão conectadas ao n8n."
+      byId("integrationHint").textContent = !status.web_search?.configured
+        ? "Pesquisa ao vivo aguarda o OpenRouter; as demais integrações continuam independentes."
+        : status.automations?.n8n?.configured
+        ? "Pesquisa ao vivo e roteamento contextual ativos; agenda e tarefas estão conectadas ao n8n."
         : status.automations?.agenda?.provider === "supabase"
-          ? "Roteamento contextual ativo; memória e agenda ficam no Supabase e ações usam o worker local."
-          : "Roteamento contextual ativo; persistência aguarda Supabase ou n8n e o Mac usa o worker local.";
+          ? "Pesquisa ao vivo ativa; memória e agenda ficam no Supabase e ações usam o worker local."
+          : "Pesquisa ao vivo ativa; persistência aguarda Supabase ou n8n e o Mac usa o worker local.";
       byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
       const tokenInput = byId("ownerTokenInput");
       tokenInput.value = ownerToken();
@@ -1053,6 +1145,11 @@
     event.preventDefault();
     sendCommand(input.value, { includeAttachments: true });
   });
+  input.addEventListener("focus", () => {
+    if (mobileLayout.matches) setMobileChatExpanded(true);
+    window.setTimeout(syncMobileViewport, 80);
+  });
+  input.addEventListener("blur", () => window.setTimeout(syncMobileViewport, 80));
   attachmentButton.addEventListener("click", () => attachmentInput.click());
   attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
   feed.addEventListener("click", (event) => {
@@ -1147,6 +1244,14 @@
     await boot();
   });
   actionHubButton.addEventListener("click", () => setActionHub(actionHub.hidden));
+  mobileChatToggle?.addEventListener("click", () => {
+    setMobileChatExpanded(mobileChatToggle.getAttribute("aria-expanded") !== "true");
+  });
+  installButton?.addEventListener("click", requestInstall);
+  byId("closeInstallDialog")?.addEventListener("click", () => installDialog.close());
+  installDialog?.addEventListener("click", (event) => {
+    if (event.target === installDialog) installDialog.close();
+  });
   byId("closeActionHub").addEventListener("click", () => setActionHub(false));
   actionHub.addEventListener("click", (event) => {
     const button = event.target.closest("[data-hub-command]");
@@ -1186,7 +1291,24 @@
       return;
     }
     if (event.key === "Escape" && !actionHub.hidden) setActionHub(false);
+    else if (event.key === "Escape" && mobileLayout.matches && stage.classList.contains("mobile-chat-expanded")) setMobileChatExpanded(false);
   });
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    renderInstallAvailability();
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    renderInstallAvailability();
+  });
+  mobileLayout.addEventListener?.("change", () => {
+    renderInstallAvailability();
+    syncMobileViewport();
+  });
+  window.visualViewport?.addEventListener("resize", syncMobileViewport);
+  window.visualViewport?.addEventListener("scroll", syncMobileViewport);
+  window.addEventListener("resize", syncMobileViewport);
   window.addEventListener("pagehide", () => {
     window.clearInterval(progressInterval);
     window.clearTimeout(progressHideTimer);
@@ -1195,6 +1317,9 @@
 
   renderMuteState();
   renderStarterActions();
+  renderInstallAvailability();
+  syncMobileViewport();
+  registerMobileShell();
   installVoiceInput();
   boot();
   window.setInterval(refreshPulse, 10 * 60 * 1000);
