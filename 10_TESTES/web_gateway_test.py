@@ -104,9 +104,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260809-mobile3', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260809-mobile3', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-mobile3', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260809-search1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260809-search1', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-search1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -176,6 +176,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"playSpeechChunk", app_js)
         self.assertIn(b"__jarvisFinish", app_js)
         self.assertIn(b"renderMessageContext", app_js)
+        self.assertIn(b"renderSourceLinks", app_js)
+        self.assertIn(b'class="source-links"', app_js)
+        self.assertIn(b"web ao vivo", app_js)
         self.assertIn(b'class="message-card"', app_js)
         self.assertIn(b"workingStateFor", app_js)
         self.assertIn(b"responseVisualState", app_js)
@@ -197,6 +200,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"-webkit-line-clamp: 2", app_css)
         self.assertIn(b'.stage.has-conversation .conversation', app_css)
         self.assertIn(b'.stage[data-state="thinking"] .hud-right', app_css)
+        self.assertIn(b".source-links", app_css)
+        self.assertIn(b".message-link", app_css)
         self.assertIn(b".compact-surface {\n  display: none", app_css)
         self.assertIn(b'error?.name === "AbortError"', app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
@@ -251,7 +256,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260809-3", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260809-search1", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -1001,6 +1006,100 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("sem sermão", system_prompt)
         self.assertIn("nunca diga que não possui voz", system_prompt.casefold())
         self.assertEqual(payload["response_profile"], "concise")
+
+    def test_live_web_search_uses_openrouter_server_tool_and_returns_sources(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "search-capable/free",
+                    "choices": [{
+                        "message": {
+                            "content": "A documentação confirma a busca ao vivo [OpenRouter](https://openrouter.ai/docs/guides/features/server-tools/web-search).",
+                            "annotations": [{
+                                "type": "url_citation",
+                                "url_citation": {
+                                    "url": "https://openrouter.ai/docs/guides/features/server-tools/web-search",
+                                    "title": "Web Search Server Tool",
+                                    "content": "Real-time web information with citations.",
+                                },
+                            }],
+                        },
+                    }],
+                }).encode("utf-8")
+
+        env = {
+            "OPENROUTER_API_KEY": "test-key",
+            "JARVIS_OWNER_TOKEN": "private-owner-token",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+            payload, status = MODULE.assistant_response(
+                {"command": "pesquise na web como funciona a busca do OpenRouter"},
+                owner_authenticated=False,
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "assistant_response_grounded_by_live_web")
+        self.assertTrue(payload["web_search"]["used"])
+        self.assertEqual(payload["web_search"]["source_count"], 1)
+        self.assertEqual(payload["sources"][0]["domain"], "openrouter.ai")
+        sent_payload = json.loads(request.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(sent_payload["tools"][0]["type"], "openrouter:web_search")
+        self.assertEqual(sent_payload["tools"][0]["parameters"]["max_results"], 5)
+        self.assertFalse(any(item.get("type") == "function" for item in sent_payload["tools"]))
+        self.assertIn("pesquisa ao vivo", sent_payload["messages"][0]["content"])
+
+    def test_live_web_search_falls_back_to_compatibility_plugin(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "legacy/free",
+                    "choices": [{
+                        "message": {
+                            "content": "Resultado atual [Fonte](https://example.com/resultado).",
+                            "annotations": [{
+                                "type": "url_citation",
+                                "url_citation": {"url": "https://example.com/resultado", "title": "Fonte atual"},
+                            }],
+                        },
+                    }],
+                }).encode("utf-8")
+
+        requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            requests.append(json.loads(request.data.decode("utf-8")))
+            if len(requests) == 1:
+                raise HTTPError(MODULE.OPENROUTER_URL, 422, "server tool unsupported", {}, None)
+            return FakeResponse()
+
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "urlopen", side_effect=fake_urlopen
+        ):
+            payload, status = MODULE.assistant_response({"command": "busque na internet o resultado mais recente"})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["web_search"]["mode"], "plugin_compatibility")
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[1]["plugins"][-1]["id"], "web")
+        self.assertNotIn("tools", requests[1])
+
+    def test_time_sensitive_question_routes_to_live_search(self):
+        self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "qual é a cotação do dólar hoje?"}]))
+        self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "pesquise isso no Google"}]))
+        self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "busque modelos 3D de robô"}]))
+        self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "explique o que é inflação"}]))
 
     def test_guest_can_chat_without_private_memory_or_device_access(self):
         class FakeResponse:

@@ -74,6 +74,7 @@
   }
 
   const ACTION_CATALOG = [
+    { id: "search", label: "Pesquisar na web", command: "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes", keywords: /pesquis|busc|google|internet|not[ií]cia|atual/i },
     { id: "spotify", label: "Abrir Spotify", command: "abra o Spotify", keywords: /m[uú]sica|spotify/i },
     { id: "steam", label: "Abrir Steam", command: "abra a Steam", keywords: /jogo|steam/i },
     { id: "record", label: "Gravar a tela", command: "abra o gravador de tela", keywords: /grav|tela|v[ií]deo/i },
@@ -86,6 +87,7 @@
 
   const CAPABILITIES = [
     "Conversar com OpenRouter sem expor instruções internas",
+    "Pesquisar a web ao vivo e mostrar fontes clicáveis",
     "Ouvir pelo microfone e falar com ElevenLabs",
     "Abrir e fechar aplicativos pelo worker do Mac",
     "Tirar print, abrir o gravador e analisar arquivos",
@@ -97,14 +99,14 @@
 
   const STARTER_ACTIONS = {
     guest: [
+      ["Pesquisar agora", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
       ["O que você faz?", "me diga em poucas frases as melhores coisas que você consegue fazer"],
       ["Testar sua voz", "fale uma frase curta para mim"],
-      ["Como funciona?", "explique de forma curta como o núcleo, a forja e a memória funcionam"],
     ],
     owner: [
+      ["Pesquisar agora", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
       ["Analisar meu Mac", "meu computador está travando, analise a memória"],
       ["Abrir Spotify", "abra o Spotify"],
-      ["Ver minha agenda", "mostre minha agenda"],
     ],
   };
 
@@ -416,6 +418,7 @@
 
   function messageHtml(value) {
     return escapeHtml(value)
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a class="message-link" href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
       .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
       .replace(/`([^`\n]+)`/g, "<code class=\"inline-code\">$1</code>");
   }
@@ -529,8 +532,21 @@
     }).join("")}</div>`;
   }
 
+  function renderSourceLinks(sources, compact = false) {
+    if (!Array.isArray(sources) || !sources.length) return "";
+    const links = sources.slice(0, compact ? 5 : 8).map((source, index) => {
+      const url = String(source?.url || "");
+      if (!/^https?:\/\//i.test(url)) return "";
+      const label = source?.title || source?.domain || `Fonte ${index + 1}`;
+      const domain = source?.domain ? `<small>${escapeHtml(source.domain)}</small>` : "";
+      return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><i>${index + 1}</i><span>${escapeHtml(label)}${domain}</span></a>`;
+    }).filter(Boolean).join("");
+    return links ? `<nav class="source-links" aria-label="Fontes da pesquisa"><b>FONTES AO VIVO</b>${links}</nav>` : "";
+  }
+
   function renderMessageContext(data) {
     let html = "";
+    html += renderSourceLinks(data.sources, true);
     if (Array.isArray(data.ui_cards) && data.ui_cards.length) {
       html += data.ui_cards.slice(0, 2).map((card) => {
         const items = Array.isArray(card.items) ? card.items.slice(0, 6) : [];
@@ -547,7 +563,7 @@
   function renderLiveCanvas(data) {
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
-    let html = renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
+    let html = renderSourceLinks(data.sources) + renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
     if (data.memory_suggestion) {
       html += `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
     }
@@ -572,7 +588,7 @@
       )).join("");
     }
     else if (Array.isArray(data.steps) && data.steps.length) html += canvasRows(data.steps);
-    else if (Array.isArray(data.sources) && data.sources.length) html += canvasRows(data.sources);
+    else if (Array.isArray(data.sources) && data.sources.length && !data.web_search?.used) html += canvasRows(data.sources);
     else if (data.result) html += `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
     else if (data.local_command) html += `<div class="canvas-row"><i>→</i><span>Worker local preparado</span></div><div class="canvas-result">${escapeHtml(data.local_command)}</div>`;
     else if (data.provider === "openrouter") html += `<div class="canvas-row"><i>✓</i><span>Resposta pronta para você</span></div>`;
@@ -1045,7 +1061,7 @@
       session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
       const toolCount = session.paired ? Number(status.agent_runtime?.available_tools) || 0 : 0;
       byId("aiValue").textContent = status.ai?.configured
-        ? `OpenRouter conectado${toolCount ? ` · ${toolCount} ferramentas` : ""}`
+        ? `OpenRouter conectado${status.web_search?.configured ? " · web ao vivo" : ""}${toolCount ? ` · ${toolCount} ferramentas` : ""}`
         : "OpenRouter não configurado";
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
@@ -1068,18 +1084,20 @@
           ? "microfone ativo · saída aguarda ElevenLabs"
           : "ElevenLabs aguarda chave";
       const ready = [
-        status.ai?.configured ? (toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
+        status.ai?.configured ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
         status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
         status.automations?.n8n?.configured ? "n8n" : "",
         session.paired && status.device_bridge?.configured ? "Mac pareado" : "",
         status.runtime === "local_web_preview" ? "worker local" : "",
       ].filter(Boolean);
       byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
-      byId("integrationHint").textContent = status.automations?.n8n?.configured
-        ? "O JARVIS escolhe ferramentas pelo contexto; agenda e tarefas estão conectadas ao n8n."
+      byId("integrationHint").textContent = !status.web_search?.configured
+        ? "Pesquisa ao vivo aguarda o OpenRouter; as demais integrações continuam independentes."
+        : status.automations?.n8n?.configured
+        ? "Pesquisa ao vivo e roteamento contextual ativos; agenda e tarefas estão conectadas ao n8n."
         : status.automations?.agenda?.provider === "supabase"
-          ? "Roteamento contextual ativo; memória e agenda ficam no Supabase e ações usam o worker local."
-          : "Roteamento contextual ativo; persistência aguarda Supabase ou n8n e o Mac usa o worker local.";
+          ? "Pesquisa ao vivo ativa; memória e agenda ficam no Supabase e ações usam o worker local."
+          : "Pesquisa ao vivo ativa; persistência aguarda Supabase ou n8n e o Mac usa o worker local.";
       byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
       const tokenInput = byId("ownerTokenInput");
       tokenInput.value = ownerToken();

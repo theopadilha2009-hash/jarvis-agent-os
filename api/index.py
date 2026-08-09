@@ -65,6 +65,19 @@ DETAILED_RESPONSE_PATTERN = re.compile(
     r"documento|resum(?:a|ir)|liste|checklist|pesquis(?:e|ar)|investigue|debug|diagn[oó]stico)\b",
     re.I,
 )
+WEB_SEARCH_EXPLICIT_PATTERN = re.compile(
+    r"\b(?:pesquis(?:a|e|ar|ando)|busc(?:a|ar|ando)|busqu(?:e|em|es)|procur(?:a|e|ar)\s+(?:na\s+)?(?:web|internet|google)|"
+    r"google\s+(?:isso|isto|por|sobre)|consulta(?:r)?\s+(?:a\s+)?(?:web|internet)|busca\s+ao\s+vivo|"
+    r"pesquisa\s+online|fontes?\s+(?:atuais|online|da\s+web)|na\s+internet)\b",
+    re.I,
+)
+WEB_SEARCH_FRESHNESS_PATTERN = re.compile(
+    r"\b(?:not[ií]cias?\s+(?:de\s+)?hoje|[uú]ltim(?:a|as|o|os)|mais\s+recente|recentemente|"
+    r"em\s+tempo\s+real|ao\s+vivo|pre[cç]o\s+(?:agora|atual|hoje)|cota[cç][aã]o|"
+    r"placar|resultado\s+(?:do|da|de)\s+jogo|clima\s+(?:agora|hoje)|previs[aã]o\s+do\s+tempo|"
+    r"quem\s+[eé]\s+(?:o|a)\s+atual|vers[aã]o\s+(?:atual|mais\s+nova)|lan[cç]amento\s+mais\s+recente)\b",
+    re.I,
+)
 SUPABASE_MEMORY_TABLE = "jarvis_memories"
 SUPABASE_DEVICE_COMMANDS_TABLE = "jarvis_device_commands"
 SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
@@ -144,6 +157,11 @@ BASE_WEB_CAPABILITIES = [
         "name": "assistant_chat",
         "status": "configured" if bool(os.environ.get("OPENROUTER_API_KEY")) else "needs_environment",
         "what": "Conversa via OpenRouter usando o roteador de modelos gratuitos.",
+    },
+    {
+        "name": "live_web_search",
+        "status": "configured" if bool(os.environ.get("OPENROUTER_API_KEY")) else "needs_environment",
+        "what": "Pesquisa a web em tempo real pelo OpenRouter e devolve fontes verificáveis.",
     },
     {
         "name": "assistant_voice",
@@ -419,6 +437,7 @@ def web_capabilities():
     rows = [dict(row) for row in BASE_WEB_CAPABILITIES]
     configured = {
         "assistant_chat": bool(os.environ.get("OPENROUTER_API_KEY")),
+        "live_web_search": bool(os.environ.get("OPENROUTER_API_KEY")),
         "assistant_voice": bool(os.environ.get("ELEVENLABS_API_KEY")),
         "n8n_agenda": bool(os.environ.get("N8N_WEBHOOK_URL")),
     }
@@ -1722,6 +1741,12 @@ def status_payload(owner_authenticated=False):
             "configured": ai_ready,
             "privacy": "Prompts sent to free models may be retained by their providers; do not send secrets.",
         },
+        "web_search": {
+            "configured": ai_ready,
+            "provider": "openrouter:web_search" if ai_ready else "none",
+            "mode": "live_with_citations" if ai_ready else "unavailable",
+            "engine": clean_text(os.environ.get("OPENROUTER_WEB_SEARCH_ENGINE") or "auto", 30),
+        },
         "voice": {
             "provider": "elevenlabs" if elevenlabs_ready else "browser",
             "configured": elevenlabs_ready,
@@ -1761,6 +1786,7 @@ def status_payload(owner_authenticated=False):
         "agent_runtime": {
             "tool_calling": ai_ready,
             "available_tools": len(agent_tool_definitions()) if ai_ready else 0,
+            "live_web_search": ai_ready,
             "execution": "verified_adapters",
             "arbitrary_shell": False,
         },
@@ -2380,6 +2406,81 @@ def normalize_messages(body):
     return messages[-12:]
 
 
+def should_search_web(messages):
+    """Route explicit research and time-sensitive questions to live search."""
+    if not messages:
+        return False
+    latest = clean_text(messages[-1].get("content"), 8_000)
+    return bool(
+        WEB_SEARCH_EXPLICIT_PATTERN.search(latest)
+        or WEB_SEARCH_FRESHNESS_PATTERN.search(latest)
+    )
+
+
+def web_search_server_tool():
+    """OpenRouter-operated search tool; the model never receives a search API key."""
+    configured_engine = clean_text(os.environ.get("OPENROUTER_WEB_SEARCH_ENGINE") or "auto", 30).casefold()
+    engine = configured_engine if configured_engine in {
+        "auto", "native", "exa", "firecrawl", "parallel", "perplexity",
+    } else "auto"
+    return {
+        "type": "openrouter:web_search",
+        "parameters": {
+            "engine": engine,
+            "max_results": 5,
+            "max_total_results": 8,
+            "search_context_size": "medium",
+        },
+    }
+
+
+def web_search_plugin(existing=None):
+    """Compatibility fallback for models that reject the newer server tool."""
+    plugins = [dict(item) for item in (existing or []) if isinstance(item, dict)]
+    if not any(item.get("id") == "web" for item in plugins):
+        plugins.append({"id": "web", "max_results": 5})
+    return plugins
+
+
+def web_search_sources(message):
+    """Normalize provider citations into a small, safe UI contract."""
+    if not isinstance(message, dict):
+        return []
+    sources = []
+    seen = set()
+
+    def add_source(url, title="", snippet=""):
+        safe_url = clean_text(url, 2_000)
+        parsed = urlparse(safe_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return
+        canonical = f"{parsed.scheme}://{parsed.netloc}{parsed.path or '/'}"
+        if parsed.query:
+            canonical += f"?{parsed.query}"
+        if canonical in seen:
+            return
+        seen.add(canonical)
+        sources.append({
+            "title": clean_text(title, 240) or parsed.netloc,
+            "url": canonical,
+            "domain": parsed.netloc.removeprefix("www.")[:160],
+            "snippet": clean_text(snippet, 500),
+        })
+
+    annotations = message.get("annotations") if isinstance(message.get("annotations"), list) else []
+    for annotation in annotations:
+        if not isinstance(annotation, dict) or annotation.get("type") != "url_citation":
+            continue
+        citation = annotation.get("url_citation") if isinstance(annotation.get("url_citation"), dict) else {}
+        add_source(citation.get("url"), citation.get("title"), citation.get("content"))
+
+    content = message.get("content")
+    if isinstance(content, str):
+        for match in re.finditer(r"\[([^\]\n]{1,240})\]\((https?://[^\s)]+)\)", content):
+            add_source(match.group(2), match.group(1))
+    return sources[:8]
+
+
 def normalize_attachments(body):
     raw_items = body.get("attachments") or []
     if not isinstance(raw_items, list):
@@ -2554,14 +2655,21 @@ def capability_question_payload(prompt):
     if not re.search(r"\b(?:consegue|pode|sabe|d[aá]\s+para|j[aá]\s+tem)\b", text, re.I):
         return None
     topics = {
+        "search": bool(re.search(r"\b(?:pesquis(?:a|ar)|busca(?:r|s)?|google|internet|web)\b", text, re.I)),
         "n8n": bool(re.search(r"\bn\s*8\s*n\b", text, re.I)),
         "computer": bool(re.search(r"\b(?:computador|mac|aplicativos?|spotify|steam|tela)\b", text, re.I)),
         "evolve": bool(re.search(r"\b(?:aprimor\w*|melhorar sozinho|auto[- ]?evol\w*|pr[oó]prios? scripts?)\b", text, re.I)),
         "github": bool(re.search(r"\b(?:github|reposit[oó]rios?)\b", text, re.I)),
     }
-    if sum(topics.values()) < 2:
+    if sum(topics.values()) < 2 and not topics["search"]:
         return None
     pieces = []
+    if topics["search"]:
+        pieces.append(
+            "a pesquisa ao vivo está conectada ao OpenRouter e toda resposta pesquisada precisa voltar com fontes clicáveis"
+            if os.environ.get("OPENROUTER_API_KEY")
+            else "a pesquisa ao vivo está implementada, mas este runtime ainda precisa da chave OpenRouter"
+        )
     if topics["n8n"]:
         pieces.append("no n8n eu monto o fluxo e aciono webhooks configurados; criar dentro da sua conta exige a API ou credencial do n8n conectada")
     if topics["computer"]:
@@ -2893,6 +3001,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
 
     latest = messages[-1]["content"]
     response_profile = assistant_response_profile(latest, attachments)
+    web_search_requested = should_search_web(messages)
     if VOICE_DESIGN_PATTERN.search(latest):
         if owner_pairing_required() and not owner_authenticated:
             return pairing_required_payload()
@@ -2974,6 +3083,13 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "a execução: ela só solicita um adaptador verificado, cujo resultado será mostrado pelo sistema. Nunca "
             "invente sucesso, nunca crie argumentos ausentes e não use ferramenta para conversa comum."
         )
+    if web_search_requested:
+        system["content"] += (
+            f"\n\nEste pedido exige pesquisa ao vivo em {datetime.now(timezone.utc).date().isoformat()}. "
+            "Use a ferramenta de busca web antes de responder. Baseie afirmações atuais somente nos resultados "
+            "encontrados, cite links reais e nunca diga que não consegue pesquisar se a ferramenta estiver disponível. "
+            "Se a pesquisa não trouxer evidência, diga isso claramente em vez de completar com memória do modelo."
+        )
     provider_messages = [dict(row) for row in messages]
     if attachments:
         provider_messages[-1]["content"] = openrouter_attachment_parts(latest, attachments)
@@ -2990,12 +3106,14 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     if any(item["type"] == "application/pdf" for item in attachments):
         openrouter_payload["plugins"] = [{"id": "file-parser", "pdf": {"engine": "cloudflare-ai"}}]
     agent_tools = agent_tool_definitions() if tool_access and should_offer_agent_tools(messages) else []
-    if agent_tools:
+    provider_tools = ([web_search_server_tool()] if web_search_requested else []) + agent_tools
+    if provider_tools:
         openrouter_payload.update({
-            "tools": agent_tools,
+            "tools": provider_tools,
             "tool_choice": "auto",
-            "parallel_tool_calls": False,
         })
+        if agent_tools:
+            openrouter_payload["parallel_tool_calls"] = False
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -3011,21 +3129,44 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             with urlopen(req, timeout=25) as response:
                 return json.loads(response.read().decode("utf-8"))
 
+        def search_plugin_payload():
+            fallback = dict(openrouter_payload)
+            for field in ("tools", "tool_choice", "parallel_tool_calls"):
+                fallback.pop(field, None)
+            fallback["plugins"] = web_search_plugin(fallback.get("plugins"))
+            return fallback
+
         tool_calling_fallback = False
+        web_search_mode = "server_tool" if web_search_requested else "not_requested"
         try:
             result = send_openrouter(openrouter_payload)
         except HTTPError as error:
-            if not agent_tools or error.code not in {400, 404, 422}:
+            if error.code not in {400, 404, 422} or not provider_tools:
                 raise
-            fallback_payload = dict(openrouter_payload)
-            for field in ("tools", "tool_choice", "parallel_tool_calls"):
-                fallback_payload.pop(field, None)
-            result = send_openrouter(fallback_payload)
-            tool_calling_fallback = True
+            if web_search_requested:
+                result = send_openrouter(search_plugin_payload())
+                web_search_mode = "plugin_compatibility"
+                tool_calling_fallback = bool(agent_tools)
+            else:
+                fallback_payload = dict(openrouter_payload)
+                for field in ("tools", "tool_choice", "parallel_tool_calls"):
+                    fallback_payload.pop(field, None)
+                result = send_openrouter(fallback_payload)
+                tool_calling_fallback = True
         choice = (result.get("choices") or [{}])[0]
         response_message = choice.get("message") if isinstance(choice, dict) else None
         response_message = response_message if isinstance(response_message, dict) else {}
         tool_calls = response_message.get("tool_calls") if isinstance(response_message.get("tool_calls"), list) else []
+        sources = web_search_sources(response_message)
+        if web_search_requested and not sources and not tool_calls and web_search_mode == "server_tool":
+            result = send_openrouter(search_plugin_payload())
+            web_search_mode = "plugin_evidence_retry"
+            tool_calling_fallback = bool(agent_tools)
+            choice = (result.get("choices") or [{}])[0]
+            response_message = choice.get("message") if isinstance(choice, dict) else None
+            response_message = response_message if isinstance(response_message, dict) else {}
+            tool_calls = response_message.get("tool_calls") if isinstance(response_message.get("tool_calls"), list) else []
+            sources = web_search_sources(response_message)
         if tool_calls and agent_tools and not tool_calling_fallback:
             payload, status = execute_agent_tool(
                 tool_calls[0],
@@ -3059,6 +3200,22 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             meta_leak_recovered = True
         if not content:
             raise ValueError("empty model response")
+        if web_search_requested and not sources:
+            return {
+                "ok": False,
+                "endpoint": "POST /assistant",
+                "status_real": "live_web_search_unverified",
+                "visual_state": "error",
+                "error": "A busca ao vivo não devolveu fontes verificáveis; descartei a resposta em vez de inventar.",
+                "retryable": True,
+                "web_search": {
+                    "requested": True,
+                    "used": False,
+                    "provider": "openrouter:web_search",
+                    "mode": web_search_mode,
+                    "source_count": 0,
+                },
+            }, 502
         payload = {
             "ok": True,
             "endpoint": "POST /assistant",
@@ -3076,6 +3233,19 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "meta_leak_recovered": meta_leak_recovered,
             "tool_calling_fallback": tool_calling_fallback,
         }
+        if web_search_requested:
+            payload.update({
+                "status_real": "assistant_response_grounded_by_live_web",
+                "sources": sources,
+                "web_search": {
+                    "requested": True,
+                    "used": True,
+                    "provider": "openrouter:web_search",
+                    "mode": web_search_mode,
+                    "source_count": len(sources),
+                    "searched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                },
+            })
         if attachments:
             payload["attachments_received"] = [
                 {"name": item["name"], "type": item["type"], "size": item["size"]}
@@ -3085,10 +3255,16 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             payload["memory_suggestion"] = suggested_memory
         return payload, 200
     except HTTPError as error:
+        search_error = (
+            "A busca ao vivo do OpenRouter precisa de saldo para o mecanismo de pesquisa (HTTP 402)."
+            if web_search_requested and error.code == 402
+            else f"OpenRouter recusou a requisição (HTTP {error.code})."
+        )
         return {
             "ok": False,
             "endpoint": "POST /assistant",
-            "error": f"OpenRouter recusou a requisição (HTTP {error.code}).",
+            "status_real": "live_web_search_billing_required" if web_search_requested and error.code == 402 else "openrouter_request_failed",
+            "error": search_error,
             "retryable": error.code in {408, 409, 429, 500, 502, 503, 504},
         }, 502
     except (URLError, TimeoutError):
@@ -3189,10 +3365,14 @@ def execution_events(payload, started_at, status_code):
     }]
 
     provider = clean_text(payload.get("provider"), 40)
+    web_search = payload.get("web_search") if isinstance(payload.get("web_search"), dict) else {}
     job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
     tool_label = ""
     tool_detail = ""
-    if job.get("id"):
+    if web_search.get("used"):
+        tool_label = "Pesquisa web ao vivo"
+        tool_detail = f"{int(web_search.get('source_count') or 0)} fonte(s) verificável(is)"
+    elif job.get("id"):
         tool_label = "Worker do Mac"
         tool_detail = f"ação {clean_text(job.get('id'), 60)} · {clean_text(job.get('status') or 'pending', 30)}"
     elif payload.get("executed_locally"):
@@ -3258,6 +3438,20 @@ def response_cards(payload):
             "items": [
                 f"{clean_text(item.get('name'), 160)} · {clean_text(item.get('type'), 100)}"
                 for item in attachments[:MAX_ATTACHMENTS]
+                if isinstance(item, dict)
+            ],
+        })
+    sources = payload.get("sources") if isinstance(payload.get("sources"), list) else []
+    if sources:
+        cards.append({
+            "id": "live-web-sources",
+            "type": "sources",
+            "status": "verified",
+            "title": "Pesquisa ao vivo",
+            "subtitle": f"{len(sources)} fonte(s) consultada(s)",
+            "items": [
+                f"{clean_text(item.get('title') or item.get('domain'), 180)} · {clean_text(item.get('domain'), 120)}"
+                for item in sources[:8]
                 if isinstance(item, dict)
             ],
         })
@@ -3641,6 +3835,7 @@ class handler(BaseHTTPRequestHandler):
                 {"name": "model_asset", "ok": (UI_ASSET_DIR / "models" / "jarvis-humanoid.glb").is_file()},
                 {"name": "stateless_gateway", "ok": True},
                 {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},
+                {"name": "live_web_search_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},
                 {"name": "elevenlabs_configured", "ok": bool(os.environ.get("ELEVENLABS_API_KEY")), "required": False},
                 {"name": "supabase_memory_configured", "ok": supabase_configured(), "required": False},
                 {"name": "owner_pairing_configured", "ok": owner_pairing_required(), "required": False},

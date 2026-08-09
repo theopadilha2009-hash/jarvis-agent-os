@@ -1154,6 +1154,81 @@ button {
   font-weight: 700;
 }
 
+.message-link {
+  color: var(--cyan-hot);
+  text-decoration-color: rgba(103, 232, 249, 0.38);
+  text-underline-offset: 3px;
+}
+
+.message-link:hover,
+.message-link:focus-visible {
+  color: #ecfeff;
+  text-decoration-color: currentColor;
+  outline: none;
+}
+
+.source-links {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 9px;
+  border: 1px solid rgba(103, 232, 249, 0.14);
+  border-radius: 10px;
+  background: rgba(4, 19, 28, 0.58);
+  white-space: normal;
+}
+
+.source-links > b {
+  color: var(--cyan);
+  font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.16em;
+}
+
+.source-links a {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 19px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  color: #cceaf1;
+  text-decoration: none;
+}
+
+.source-links a > i {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(103, 232, 249, 0.24);
+  border-radius: 50%;
+  color: var(--cyan-hot);
+  font: normal 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.source-links a > span {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-links a small {
+  display: block;
+  overflow: hidden;
+  color: var(--faint);
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-overflow: ellipsis;
+}
+
+.source-links a:hover,
+.source-links a:focus-visible {
+  color: #ecfeff;
+  outline: none;
+}
+
 .copy-command,
 .memory-command,
 .speak-command,
