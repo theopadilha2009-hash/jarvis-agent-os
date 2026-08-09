@@ -776,6 +776,31 @@ button {
   line-height: 1.45;
 }
 
+.canvas-row span small {
+  display: block;
+  margin-top: 2px;
+  color: #6f929e;
+  font: 7px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.canvas-row[data-status="succeeded"] i { color: #6ee7b7; border-color: rgba(110, 231, 183, 0.38); }
+.canvas-row[data-status="failed"] i { color: #fca5a5; border-color: rgba(252, 165, 165, 0.38); }
+
+.canvas-run-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0 7px;
+  color: #9cecff;
+  font: 7px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.16em;
+}
+
+.canvas-run-head span { color: #7797a2; letter-spacing: 0.04em; }
+
 .canvas-result {
   max-height: 92px;
   overflow: hidden;
@@ -1252,7 +1277,8 @@ button {
 .copy-command,
 .memory-command,
 .speak-command,
-.cancel-job {
+.cancel-job,
+.cancel-run {
   margin-top: 8px;
   margin-right: 6px;
   padding: 6px 8px;
@@ -1264,12 +1290,14 @@ button {
   cursor: pointer;
 }
 
-.cancel-job {
+.cancel-job,
+.cancel-run {
   border-color: rgba(248, 113, 113, 0.24);
   color: #fca5a5;
 }
 
-.cancel-job:disabled { opacity: 0.55; cursor: wait; }
+.cancel-job:disabled,
+.cancel-run:disabled { opacity: 0.55; cursor: wait; }
 
 .memory-command {
   border-color: rgba(94, 234, 212, 0.34);

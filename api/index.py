@@ -125,6 +125,27 @@ REMOTE_DEVICE_INTENTS = {
     "self_edit",
 }
 
+# Compound runs intentionally exclude messaging and self-edit. Those actions can
+# have external or publishing side effects and must remain one explicit request.
+CHAINABLE_DEVICE_INTENTS = {
+    "open_application",
+    "close_application",
+    "screen_capture",
+    "screen_record",
+    "github_overview",
+    "storage_scan",
+    "system_memory",
+}
+
+ACTION_SEQUENCE_SPLIT_PATTERN = re.compile(
+    r"\s+(?:e\s+depois|depois|e\s+ent[aã]o|ent[aã]o|e)\s+"
+    r"(?=(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|captur\w*|"
+    r"faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*))|"
+    r"\s*[;,]\s*(?=(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|"
+    r"captur\w*|faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*))",
+    re.I,
+)
+
 PRIVATE_INTENTS = {
     "daily_brief",
     "memory_save",
@@ -271,6 +292,14 @@ PERSONAL_ACTION_CATALOG = (
         "private": True,
     },
     {
+        "id": "mac-run",
+        "label": "Executar sequência no Mac",
+        "description": "Encadeia ações, acompanha cada etapa e interrompe após falha.",
+        "command": "abra o Spotify e depois tire um print da tela",
+        "executor": "mac",
+        "private": True,
+    },
+    {
         "id": "screen",
         "label": "Capturar minha tela",
         "description": "Tira um print e devolve evidência da execução.",
@@ -374,6 +403,32 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(ver|list(?:a|e|ar)|encontr(?:a|e|ar)|procur(?:a|e|ar)|mostr(?:a|e|ar)|analis(?:a|e|ar))\b.{0,60}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
     (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
 )
+
+
+def device_intent_for_clause(clause):
+    """Return one deterministic, chain-safe device intent for a clause."""
+    text = clean_text(clause, 2_000)
+    for pattern, intent in LOCAL_INTENTS:
+        if intent in CHAINABLE_DEVICE_INTENTS and pattern.search(text):
+            return intent
+    return ""
+
+
+def compound_device_plan(command):
+    """Parse explicit sequential Mac actions without asking a model to guess."""
+    text = clean_text(command, 8_000)
+    if has_secret_like_text(text):
+        return []
+    clauses = [part.strip(" .") for part in ACTION_SEQUENCE_SPLIT_PATTERN.split(text) if part.strip(" .")]
+    if not 2 <= len(clauses) <= 6:
+        return []
+    steps = []
+    for index, clause in enumerate(clauses, start=1):
+        intent = device_intent_for_clause(clause)
+        if not intent:
+            return []
+        steps.append({"index": index, "intent": intent, "command": clause})
+    return steps
 
 VOICE_DESIGN_PATTERN = re.compile(
     r"\b(?:cri(?:a|e|ar)|invent(?:a|e|ar)|desenh(?:a|e|ar)|ger(?:a|e|ar))\b"
@@ -1490,6 +1545,273 @@ def supabase_device_enqueue(command, intent):
         }, 504
 
 
+def chain_step_target(step):
+    """Resolve a chain step to the same allowlisted target used by one-shot jobs."""
+    command = clean_text(step.get("command"), 2_000)
+    intent = clean_text(step.get("intent"), 60)
+    if intent in {"open_application", "close_application"}:
+        command_args = computer_app_command(command, intent)
+        if not command_args:
+            raise ValueError("Não identifiquei qual aplicativo usar em uma das etapas.")
+        return clean_text(command_args[-1], 120)
+    if intent == "storage_scan":
+        return "downloads"
+    if intent == "screen_record":
+        return "native-recorder"
+    if intent == "github_overview":
+        return "theopadilha2009-hash"
+    if intent == "system_memory" and JARVIS_CLEANUP_PATTERN.search(command):
+        return "jarvis-temporaries"
+    if intent in CHAINABLE_DEVICE_INTENTS:
+        return ""
+    raise ValueError("Uma das etapas está fora do executor encadeado.")
+
+
+def cancel_pending_device_jobs(job_ids, reason):
+    """Best-effort compensation when a run could not be queued completely."""
+    ids = [str(value) for value in job_ids if re.fullmatch(r"[0-9]{1,18}", str(value or ""))]
+    if not ids:
+        return 0
+    rows = supabase_request(
+        "PATCH",
+        query=f"owner_id=eq.theo&id=in.({','.join(ids)})&status=eq.pending",
+        body={
+            "status": "canceled",
+            "result": clean_text(reason, 500),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        },
+        prefer="return=representation",
+        table=SUPABASE_DEVICE_COMMANDS_TABLE,
+    )
+    return len(rows) if isinstance(rows, list) else 0
+
+
+def supabase_device_enqueue_plan(command, steps):
+    """Queue a dependency-ordered run; each step remains independently auditable."""
+    if not 2 <= len(steps) <= 6:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "device_run_invalid",
+            "error": "A execução encadeada precisa ter entre duas e seis etapas.",
+        }, 400
+    run_id = f"run-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(4)}"
+    jobs = []
+    dependency_id = None
+    try:
+        for step in steps:
+            intent = clean_text(step.get("intent"), 60)
+            step_command = clean_text(step.get("command"), 2_000)
+            target = chain_step_target(step)
+            envelope = json.dumps({
+                "schema": "jarvis-device-run/1",
+                "run_id": run_id,
+                "step": int(step.get("index") or len(jobs) + 1),
+                "total": len(steps),
+                "depends_on": dependency_id,
+                "request": step_command,
+                "original_request": clean_text(command, 4_000),
+            }, ensure_ascii=False, separators=(",", ":"))
+            rows = supabase_request(
+                "POST",
+                body={
+                    "owner_id": "theo",
+                    "action": intent,
+                    "target": target,
+                    "request_text": envelope,
+                    "status": "pending",
+                },
+                prefer="return=representation",
+                table=SUPABASE_DEVICE_COMMANDS_TABLE,
+            )
+            saved = rows[0] if isinstance(rows, list) and rows else None
+            if not isinstance(saved, dict) or not saved.get("id"):
+                raise ValueError("missing queued step")
+            dependency_id = saved["id"]
+            jobs.append({
+                "id": saved["id"],
+                "step": len(jobs) + 1,
+                "status": "pending",
+                "action": intent,
+                "target": public_device_target(intent, target),
+                "terminal": False,
+            })
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "device_run_queued",
+            "visual_state": "forge",
+            "message": f"Encadeei {len(jobs)} etapas no Mac. Só vou marcar como concluído quando todas confirmarem resultado.",
+            "intent": "device_run",
+            "provider": "supabase_device_bridge",
+            "run": {
+                "id": run_id,
+                "status": "pending",
+                "total": len(jobs),
+                "completed": 0,
+                "failed": 0,
+                "terminal": False,
+            },
+            "jobs": jobs,
+            "job": jobs[0],
+        }, 202
+    except ValueError as error:
+        canceled = 0
+        try:
+            canceled = cancel_pending_device_jobs([job["id"] for job in jobs], "Run cancelado: nem todas as etapas entraram na fila.")
+        except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+            canceled = 0
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "device_run_invalid",
+            "visual_state": "error",
+            "error": str(error),
+            "queued_steps_canceled": canceled,
+            "cancel_confirmed": canceled == len(jobs),
+        }, 400
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
+        canceled = 0
+        try:
+            canceled = cancel_pending_device_jobs([job["id"] for job in jobs], "Run cancelado após falha parcial da fila.")
+        except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+            canceled = 0
+        cancel_confirmed = canceled == len(jobs)
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "device_run_queue_failed",
+            "visual_state": "error",
+            "error": (
+                "Não consegui confirmar todas as etapas; confirmei o cancelamento das etapas parciais."
+                if cancel_confirmed
+                else "Não consegui confirmar todas as etapas nem confirmar o cancelamento de todas as etapas parciais."
+            ),
+            "queued_steps_canceled": canceled,
+            "cancel_confirmed": cancel_confirmed,
+        }, 502
+
+
+def public_device_job(row, artifact_url=""):
+    status = clean_text(row.get("status"), 40)
+    action = clean_text(row.get("action"), 60)
+    return {
+        "id": row.get("id"),
+        "action": action,
+        "target": public_device_target(action, clean_text(row.get("target"), 120)),
+        "status": status,
+        "result": clean_text(row.get("result"), 8_000),
+        "artifact_url": artifact_url,
+        "artifact_mime": clean_text(row.get("artifact_mime"), 100),
+        "created_at": clean_text(row.get("created_at"), 80),
+        "claimed_at": clean_text(row.get("claimed_at"), 80),
+        "completed_at": clean_text(row.get("completed_at"), 80),
+        "terminal": status in {"succeeded", "failed", "canceled"},
+    }
+
+
+def supabase_device_run(command_ids):
+    raw_ids = command_ids if isinstance(command_ids, (list, tuple)) else str(command_ids or "").split(",")
+    ids = []
+    for value in raw_ids:
+        text = str(value or "").strip()
+        if not re.fullmatch(r"[0-9]{1,18}", text):
+            return {
+                "ok": False,
+                "endpoint": "GET /device-run",
+                "status_real": "device_run_ids_invalid",
+                "error": "Identificadores de execução inválidos.",
+            }, 400
+        if text not in ids:
+            ids.append(text)
+    if not 2 <= len(ids) <= 6:
+        return {
+            "ok": False,
+            "endpoint": "GET /device-run",
+            "status_real": "device_run_size_invalid",
+            "error": "Uma execução encadeada deve consultar entre duas e seis etapas.",
+        }, 400
+    try:
+        query = (
+            "select=id,action,target,status,result,artifact_path,artifact_mime,created_at,claimed_at,completed_at"
+            f"&owner_id=eq.theo&id=in.({','.join(ids)})&limit={len(ids)}"
+        )
+        rows = supabase_request(query=query, table=SUPABASE_DEVICE_COMMANDS_TABLE)
+        by_id = {str(row.get("id")): row for row in rows if isinstance(row, dict)}
+        if any(value not in by_id for value in ids):
+            return {
+                "ok": False,
+                "endpoint": "GET /device-run",
+                "status_real": "device_run_not_found",
+                "error": "Uma ou mais etapas não foram encontradas.",
+            }, 404
+        jobs = []
+        for value in ids:
+            row = by_id[value]
+            artifact_url = ""
+            artifact_path = clean_text(row.get("artifact_path"), 500)
+            if clean_text(row.get("status"), 40) == "succeeded" and artifact_path:
+                try:
+                    artifact_url = signed_artifact_url(artifact_path)
+                except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+                    artifact_url = ""
+            job = public_device_job(row, artifact_url)
+            job["step"] = len(jobs) + 1
+            jobs.append(job)
+        completed = sum(job["status"] == "succeeded" for job in jobs)
+        failed = sum(job["status"] == "failed" for job in jobs)
+        canceled = sum(job["status"] == "canceled" for job in jobs)
+        terminal = all(job["terminal"] for job in jobs)
+        if failed:
+            status = "failed"
+            message = f"A execução parou: {failed} etapa(s) falharam e {completed} foram confirmadas."
+        elif canceled:
+            status = "canceled" if terminal else "running"
+            message = f"A execução tem {canceled} etapa(s) canceladas."
+        elif terminal:
+            status = "succeeded"
+            message = f"Execução concluída: {completed} de {len(jobs)} etapas confirmadas."
+        elif any(job["status"] == "running" for job in jobs):
+            status = "running"
+            message = f"Executando no Mac: {completed} de {len(jobs)} etapas concluídas."
+        else:
+            status = "pending"
+            message = f"Execução na fila: {completed} de {len(jobs)} etapas concluídas."
+        return {
+            "ok": not failed,
+            "endpoint": "GET /device-run",
+            "status_real": f"device_run_{status}",
+            "visual_state": "success" if status == "succeeded" else "error" if status == "failed" else "response" if status == "canceled" else "forge",
+            "message": message,
+            "provider": "supabase_device_bridge",
+            "run": {
+                "id": "run-" + "-".join(ids),
+                "status": status,
+                "total": len(jobs),
+                "completed": completed,
+                "failed": failed,
+                "canceled": canceled,
+                "terminal": terminal,
+            },
+            "jobs": jobs,
+            "job": next((job for job in jobs if not job["terminal"]), jobs[-1]),
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "GET /device-run",
+            "status_real": "device_run_read_failed",
+            "error": f"O Supabase recusou a consulta da execução (HTTP {error.code}).",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "GET /device-run",
+            "status_real": "device_run_read_unavailable",
+            "error": "O estado da execução não respondeu.",
+        }, 504
+
+
 def supabase_device_command(command_id):
     if not re.fullmatch(r"[0-9]{1,18}", str(command_id or "")):
         return {
@@ -2305,10 +2627,17 @@ def local_handoff(command, intent, execute=False):
         command_args = ["./jarvis", "system-memory"]
         if cleanup_requested:
             command_args.append("--cleanup-jarvis")
+    elif intent == "screen_capture":
+        command_args = ["./jarvis", "screen-capture"]
     elif intent == "screen_record":
         command_args = ["./jarvis", "screen-record"]
     elif intent == "github_overview":
         command_args = ["./jarvis", "github-overview", "--limit", "12"]
+    elif intent == "storage_scan":
+        command_args = [
+            "./jarvis", "storage-scan", str(Path.home() / "Downloads"),
+            "--top", "20", "--min-mb", "50",
+        ]
     else:
         command_args = ["./jarvis", "do", command]
     if not command_args:
@@ -3644,6 +3973,80 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
     return local_handoff(command, intent, execute=local_execute), 200
 
 
+def dispatch_device_plan(command, steps, local_execute=False, owner_authenticated=False):
+    """Execute locally or queue an ordered run; never report unobserved success."""
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    if supabase_configured() and not local_execute:
+        return supabase_device_enqueue_plan(command, steps)
+    if not local_execute:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "device_run_bridge_required",
+            "visual_state": "error",
+            "error": "A execução tem várias etapas, mas o worker remoto não está configurado.",
+        }, 503
+
+    jobs = []
+    failed = False
+    for step in steps:
+        if failed:
+            jobs.append({
+                "id": f"local-{step['index']}",
+                "step": step["index"],
+                "action": step["intent"],
+                "target": "",
+                "status": "canceled",
+                "result": "Não executada porque a etapa anterior falhou.",
+                "terminal": True,
+            })
+            continue
+        payload, status = dispatch_intent(
+            step["command"],
+            step["intent"],
+            local_execute=True,
+            owner_authenticated=owner_authenticated,
+        )
+        succeeded = bool(payload.get("ok")) and status < 400
+        failed = not succeeded
+        jobs.append({
+            "id": f"local-{step['index']}",
+            "step": step["index"],
+            "action": step["intent"],
+            "target": "",
+            "status": "succeeded" if succeeded else "failed",
+            "result": clean_text(payload.get("result") or payload.get("message") or payload.get("error"), 8_000),
+            "terminal": True,
+        })
+    completed = sum(job["status"] == "succeeded" for job in jobs)
+    failures = sum(job["status"] == "failed" for job in jobs)
+    return {
+        "ok": failures == 0,
+        "endpoint": "POST /command",
+        "status_real": "local_device_run_succeeded" if failures == 0 else "local_device_run_failed",
+        "visual_state": "success" if failures == 0 else "error",
+        "message": (
+            f"Execução concluída: {completed} de {len(jobs)} etapas confirmadas."
+            if failures == 0
+            else f"A execução parou após {completed} etapa(s); uma etapa falhou e as seguintes não foram executadas."
+        ),
+        "intent": "device_run",
+        "provider": "jarvis_local_worker",
+        "executed_locally": True,
+        "run": {
+            "id": f"local-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+            "status": "succeeded" if failures == 0 else "failed",
+            "total": len(jobs),
+            "completed": completed,
+            "failed": failures,
+            "terminal": True,
+        },
+        "jobs": jobs,
+        "job": jobs[-1],
+    }, 200 if failures == 0 else 500
+
+
 def execute_agent_tool(tool_call, original_command, local_execute=False, owner_authenticated=False):
     """Translate one model-selected tool into an existing deterministic intent."""
     function = tool_call.get("function") if isinstance(tool_call, dict) else None
@@ -3778,6 +4181,14 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         if owner_pairing_required() and not owner_authenticated:
             return pairing_required_payload()
         return elevenlabs_voice_design(latest)
+    device_plan = compound_device_plan(latest)
+    if device_plan:
+        return dispatch_device_plan(
+            latest,
+            device_plan,
+            local_execute=local_execute,
+            owner_authenticated=owner_authenticated,
+        )
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
             return dispatch_intent(
@@ -4139,6 +4550,15 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         payload.update({"endpoint": "POST /command", "intent": "personal_overview", "provider": "jarvis_control_plane"})
         return payload, 200
 
+    device_plan = compound_device_plan(command)
+    if device_plan:
+        return dispatch_device_plan(
+            command,
+            device_plan,
+            local_execute=local_execute,
+            owner_authenticated=owner_authenticated,
+        )
+
     if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.IGNORECASE):
         return dispatch_intent(
             command,
@@ -4193,7 +4613,8 @@ def execution_events(payload, started_at, status_code):
     """
     finished_at = datetime.now(timezone.utc)
     elapsed_ms = max(0, round((finished_at - started_at).total_seconds() * 1000))
-    run_id = f"run-{started_at.strftime('%Y%m%d%H%M%S%f')}-{threading.get_ident()}"
+    run = payload.get("run") if isinstance(payload.get("run"), dict) else {}
+    run_id = clean_text(run.get("id"), 120) or f"run-{started_at.strftime('%Y%m%d%H%M%S%f')}-{threading.get_ident()}"
     ok = bool(payload.get("ok", status_code < 400)) and status_code < 400
     route = clean_text(payload.get("status_real") or payload.get("endpoint") or "request", 80)
     events = [{
@@ -4207,11 +4628,19 @@ def execution_events(payload, started_at, status_code):
     provider = clean_text(payload.get("provider"), 40)
     web_search = payload.get("web_search") if isinstance(payload.get("web_search"), dict) else {}
     job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
+    jobs = payload.get("jobs") if isinstance(payload.get("jobs"), list) else []
+    pending_work = bool(
+        run and not run.get("terminal")
+        or job.get("status") in {"pending", "running"}
+    )
     tool_label = ""
     tool_detail = ""
     if web_search.get("used"):
         tool_label = "Pesquisa web ao vivo"
         tool_detail = f"{int(web_search.get('source_count') or 0)} fonte(s) verificável(is)"
+    elif len(jobs) > 1:
+        tool_label = "Worker do Mac"
+        tool_detail = f"run com {len(jobs)} etapas · {clean_text(run.get('status') or 'pending', 30)}"
     elif job.get("id"):
         tool_label = "Worker do Mac"
         tool_detail = f"ação {clean_text(job.get('id'), 60)} · {clean_text(job.get('status') or 'pending', 30)}"
@@ -4229,30 +4658,38 @@ def execution_events(payload, started_at, status_code):
         tool_detail = clean_text(payload.get("status_real") or "operação confirmada", 100)
 
     if tool_label:
-        events.extend([
-            {
-                "id": f"{run_id}-2",
-                "type": "TOOL_CALL_STARTED",
+        events.append({
+            "id": f"{run_id}-2",
+            "type": "TOOL_CALL_STARTED",
+            "status": "running",
+            "label": tool_label,
+            "detail": tool_detail,
+            "timestamp": started_at.isoformat(),
+        })
+        if pending_work:
+            events.append({
+                "id": f"{run_id}-3",
+                "type": "TOOL_CALL_QUEUED",
                 "status": "running",
-                "label": tool_label,
+                "label": "Aguardando confirmação do Mac",
                 "detail": tool_detail,
-                "timestamp": started_at.isoformat(),
-            },
-            {
+                "timestamp": finished_at.isoformat(),
+            })
+        else:
+            events.append({
                 "id": f"{run_id}-3",
                 "type": "TOOL_CALL_FINISHED",
                 "status": "succeeded" if ok else "failed",
                 "label": tool_label,
                 "detail": tool_detail,
                 "timestamp": finished_at.isoformat(),
-            },
-        ])
+            })
 
     events.append({
         "id": f"{run_id}-{len(events) + 1}",
-        "type": "RUN_FINISHED" if ok else "RUN_ERROR",
-        "status": "succeeded" if ok else "failed",
-        "label": "Resultado disponível" if ok else "Execução interrompida",
+        "type": "RUN_WAITING" if pending_work else "RUN_FINISHED" if ok else "RUN_ERROR",
+        "status": "running" if pending_work else "succeeded" if ok else "failed",
+        "label": "Execução em andamento" if pending_work else "Resultado confirmado" if ok else "Execução interrompida",
         "detail": route,
         "timestamp": finished_at.isoformat(),
     })
@@ -4309,8 +4746,28 @@ def response_cards(payload):
                 if isinstance(item, dict)
             ],
         })
+    jobs = payload.get("jobs") if isinstance(payload.get("jobs"), list) else []
+    run = payload.get("run") if isinstance(payload.get("run"), dict) else {}
     job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
-    if job.get("id"):
+    if len(jobs) > 1:
+        cards.append({
+            "id": clean_text(run.get("id"), 120) or "device-run",
+            "type": "device_run",
+            "status": clean_text(run.get("status") or "pending", 30),
+            "title": "Execução no Mac",
+            "subtitle": f"{int(run.get('completed') or 0)} de {len(jobs)} etapas confirmadas",
+            "items": [
+                (
+                    f"{int(item.get('step') or index + 1)}. {clean_text(item.get('action'), 60)}"
+                    + (f" · {clean_text(item.get('target'), 120)}" if item.get("target") else "")
+                    + f" · {clean_text(item.get('status') or 'pending', 30)}"
+                )
+                for index, item in enumerate(jobs[:6])
+                if isinstance(item, dict)
+            ],
+            "artifact_url": next((clean_text(item.get("artifact_url"), 2_000) for item in jobs if isinstance(item, dict) and item.get("artifact_url")), ""),
+        })
+    elif job.get("id"):
         target = public_device_target(job.get("action"), job.get("target"))
         items = [
             f"Status: {clean_text(job.get('status') or 'pending', 30)}",
@@ -4564,6 +5021,16 @@ class handler(BaseHTTPRequestHandler):
                 payload["endpoint"] = "GET /device-command"
                 return self.send_json(status, payload)
             payload, status = supabase_device_command((query.get("id") or [""])[0])
+            cards = response_cards(payload)
+            if cards:
+                payload["ui_cards"] = cards
+            return self.send_json(status, payload)
+        if path == "/device-run":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /device-run"
+                return self.send_json(status, payload)
+            payload, status = supabase_device_run((query.get("ids") or [""])[0])
             cards = response_cards(payload)
             if cards:
                 payload["ui_cards"] = cards

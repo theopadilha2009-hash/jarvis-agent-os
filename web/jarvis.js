@@ -77,6 +77,7 @@
   const ACTION_CATALOG = [
     { id: "daily", label: "Resumo do meu dia", description: "Agenda, memória e atividade recente", command: "me dê um resumo operacional do meu dia", executor: "jarvis", keywords: /dia|hoje|agenda|resumo/i },
     { id: "spotify", label: "Abrir Spotify", description: "Executar no Mac", command: "abra o Spotify", executor: "mac", keywords: /m[uú]sica|spotify/i },
+    { id: "mac-run", label: "Executar sequência", description: "Várias ações com confirmação por etapa", command: "abra o Spotify e depois tire um print da tela", executor: "mac", keywords: /sequ[eê]ncia|etapa|depois|execut/i },
     { id: "screen", label: "Capturar minha tela", description: "Executar no Mac e devolver evidência", command: "tire um print da tela", executor: "mac", keywords: /print|captur|tela|imagem/i },
     { id: "computer", label: "Diagnosticar o Mac", description: "Memória e processos", command: "meu computador está travando, analise a memória", executor: "mac", keywords: /mac|computador|trav|ram/i },
     { id: "memory", label: "Abrir memória", description: "Persistente ou local", command: "mostre minhas memórias", executor: "memory", keywords: /mem[oó]ria|lembr/i },
@@ -90,6 +91,7 @@
     "Pesquisar a web ao vivo e mostrar fontes clicáveis",
     "Ouvir pelo microfone e falar com ElevenLabs",
     "Abrir e fechar aplicativos pelo worker do Mac",
+    "Encadear até seis ações no Mac e interromper as seguintes se uma falhar",
     "Tirar print, abrir o gravador e analisar arquivos",
     "Consultar GitHub autenticado sem mostrar credenciais",
     "Ler agenda, criar tarefas e usar n8n quando conectado",
@@ -419,6 +421,7 @@
 
   function responseVisualState(data) {
     const state = data?.visual_state || (data?.executed_locally ? "success" : "response");
+    if (data?.run && ["pending", "running"].includes(data.run.status)) return "forge";
     if (state === "local" || (data?.job && ["pending", "running"].includes(data.job.status))) return "forge";
     if (state === "planning") return "response";
     return state;
@@ -635,12 +638,30 @@
     return html;
   }
 
+  function refreshMessageExecutionContext(message, data) {
+    message.querySelectorAll(".message-card, .message-events").forEach((card) => card.remove());
+    const context = renderMessageContext({ ui_cards: data.ui_cards || [] });
+    if (context) message.insertAdjacentHTML("beforeend", context);
+  }
+
   function renderLiveCanvas(data) {
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
     let html = renderSourceLinks(data.sources) + renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
     if (data.memory_suggestion) {
       html += `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
+    }
+    else if (Array.isArray(data.jobs) && data.jobs.length > 1) {
+      const completed = Number(data.run?.completed) || 0;
+      html += `<div class="canvas-run-head"><b>EXECUÇÃO NO MAC</b><span>${completed}/${data.jobs.length} confirmadas</span></div>`;
+      html += data.jobs.slice(0, 6).map((job, index) => {
+        const target = job.target ? ` · ${job.target}` : "";
+        return `<div class="canvas-row" data-status="${escapeHtml(job.status || "pending")}"><i>${index + 1}</i><span>${escapeHtml(job.action || "ação")}${escapeHtml(target)}<small>${escapeHtml(job.status || "pending")}</small></span></div>`;
+      }).join("");
+      const artifact = data.jobs.find((job) => job?.artifact_url);
+      if (artifact) {
+        html += `<a class="artifact-link" href="${escapeHtml(artifact.artifact_url)}" target="_blank" rel="noopener noreferrer"><img class="artifact-preview" src="${escapeHtml(artifact.artifact_url)}" alt="Evidência criada durante a execução no Mac"></a>`;
+      }
     }
     else if (data.job?.id) {
       const target = data.job.target ? ` · ${data.job.target}` : "";
@@ -914,11 +935,13 @@
       if (data?.pairing_required) return;
       if (!data?.job) continue;
       renderLiveCanvas(data);
+      refreshMessageExecutionContext(message, data);
       byId("activityValue").textContent = `${data.message} · ação ${jobId}`;
       if (["succeeded", "failed", "canceled"].includes(data.job.status)) {
         const text = data.job.result ? `${data.message}\n${data.job.result}` : data.message;
         message.querySelector("span").textContent = text;
         message.classList.toggle("error", data.job.status === "failed");
+        message.querySelector(".cancel-job")?.remove();
         session.responseState = data.visual_state || (data.job.status === "succeeded" ? "success" : "error");
         byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : data.job.status === "canceled" ? "Ação cancelada" : "Ação falhou";
         refreshActionHistory();
@@ -931,6 +954,42 @@
       settleState();
     }
     message.querySelector("span").textContent = "O pedido continua na fila; o worker do Mac não confirmou dentro de um minuto.";
+  }
+
+  async function monitorDeviceRun(jobIds, message) {
+    const ids = jobIds.map(String);
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (ids.every((id) => session.canceledJobs.has(id))) return;
+      await new Promise((resolve) => window.setTimeout(resolve, 1200));
+      let data;
+      try {
+        data = await request(`/device-run?ids=${encodeURIComponent(ids.join(","))}`);
+      } catch {
+        continue;
+      }
+      if (data?.pairing_required) return;
+      if (!data?.run || !Array.isArray(data.jobs)) continue;
+      renderLiveCanvas(data);
+      refreshMessageExecutionContext(message, data);
+      byId("activityValue").textContent = data.message;
+      message.querySelector("span").textContent = data.message;
+      if (data.run.terminal) {
+        const failed = data.jobs.find((job) => job.status === "failed");
+        if (failed?.result) message.querySelector("span").textContent = `${data.message}\n${failed.result}`;
+        message.classList.toggle("error", data.run.status === "failed");
+        message.querySelector(".cancel-run")?.remove();
+        session.responseState = data.visual_state || (data.run.status === "succeeded" ? "success" : "error");
+        byId("requestTitle").textContent = data.run.status === "succeeded" ? "Execução concluída" : data.run.status === "canceled" ? "Execução cancelada" : "Execução interrompida";
+        refreshActionHistory();
+        refreshPersonalOverview();
+        settleState();
+        if (data.run.status === "succeeded") speak(data.message);
+        return;
+      }
+      session.responseState = "forge";
+      settleState();
+    }
+    message.querySelector("span").textContent = "A execução continua registrada, mas o Mac não confirmou todas as etapas dentro do tempo de acompanhamento.";
   }
 
   function showResponse(data) {
@@ -961,7 +1020,9 @@
     if (data.result) {
       extra += `<details><summary>ver resultado completo</summary><code>${escapeHtml(data.result)}</code></details>`;
     }
-    if (data.job?.id && data.job.status === "pending") {
+    if (Array.isArray(data.jobs) && data.jobs.length > 1 && !data.run?.terminal) {
+      extra += `<button class="cancel-run" type="button">Cancelar etapas pendentes</button>`;
+    } else if (data.job?.id && data.job.status === "pending") {
       extra += `<button class="cancel-job" type="button">Cancelar ação</button>`;
     }
     if (session.elevenlabs) {
@@ -1012,11 +1073,29 @@
         cancelJob.textContent = "Tentar cancelar novamente";
       }
     });
+    const cancelRun = message.querySelector(".cancel-run");
+    if (cancelRun) cancelRun.addEventListener("click", async () => {
+      cancelRun.disabled = true;
+      cancelRun.textContent = "Cancelando pendentes…";
+      const ids = data.jobs.map((job) => String(job.id));
+      const results = await Promise.all(ids.map((id) => request("/device-cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      }).catch(() => ({ ok: false }))));
+      results.forEach((result, index) => {
+        if (result?.ok) session.canceledJobs.add(ids[index]);
+      });
+      cancelRun.textContent = "Cancelamento solicitado";
+      refreshActionHistory();
+    });
     byId("activityValue").textContent = data.executed_locally ? `Executado localmente · ${data.intent || "ação"}` : answer;
-    byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.job?.id ? "Ação enviada ao Mac" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
+    byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.jobs?.length > 1 ? "Execução enviada ao Mac" : data.job?.id ? "Ação enviada ao Mac" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
     renderLiveCanvas(data);
     updateActionHub(session.currentCommand, data);
-    if (data.job?.id && ["pending", "running"].includes(data.job.status)) {
+    if (Array.isArray(data.jobs) && data.jobs.length > 1 && !data.run?.terminal) {
+      monitorDeviceRun(data.jobs.map((job) => job.id), message);
+    } else if (data.job?.id && ["pending", "running"].includes(data.job.status)) {
       monitorDeviceCommand(data.job.id, message);
     }
     if (session.responseState === "memory") window.dispatchEvent(new CustomEvent("jarvis-memory-refresh"));

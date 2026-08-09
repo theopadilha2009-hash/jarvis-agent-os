@@ -104,9 +104,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260809-control4', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260809-control4', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-control4', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260809-action2', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260809-action2', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-action2', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -140,6 +140,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"memory-command", app_js)
         self.assertIn(b"X-Jarvis-Owner-Token", app_js)
         self.assertIn(b"monitorDeviceCommand", app_js)
+        self.assertIn(b"monitorDeviceRun", app_js)
+        self.assertIn(b"/device-run?ids=", app_js)
         self.assertIn(b"agendaDate", app_js)
         self.assertIn(b"revealLatest", app_js)
         self.assertIn(b"refreshPersonalOverview", app_js)
@@ -269,7 +271,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260809-control4", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260809-action2", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -302,7 +304,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["intent"], "screen_capture")
         self.assertTrue(payload["requires_local_worker"])
-        self.assertTrue(payload["local_command"].startswith("./jarvis do "))
+        self.assertEqual(payload["local_command"], "./jarvis screen-capture")
         stream = payload["event_stream"]
         self.assertEqual(stream["protocol"], "jarvis-events/1")
         self.assertEqual(stream["events"][0]["type"], "RUN_STARTED")
@@ -463,6 +465,108 @@ class WebGatewayTest(unittest.TestCase):
         sent_request = request.call_args.args[0]
         self.assertEqual(sent_request.method, "POST")
         self.assertIn("/rest/v1/jarvis_device_commands", sent_request.full_url)
+
+    def test_compound_device_request_queues_dependency_ordered_run(self):
+        command = "abra o Spotify e depois tire um print da tela e então abra a Steam"
+        steps = MODULE.compound_device_plan(command)
+        self.assertEqual(
+            [step["intent"] for step in steps],
+            ["open_application", "screen_capture", "open_application"],
+        )
+        saved = [
+            [{"id": 101, "status": "pending"}],
+            [{"id": 102, "status": "pending"}],
+            [{"id": 103, "status": "pending"}],
+        ]
+        with patch.object(MODULE, "supabase_request", side_effect=saved) as request:
+            payload, status = MODULE.supabase_device_enqueue_plan(command, steps)
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["status_real"], "device_run_queued")
+        self.assertEqual([job["id"] for job in payload["jobs"]], [101, 102, 103])
+        self.assertFalse(payload["run"]["terminal"])
+        envelopes = [json.loads(call.kwargs["body"]["request_text"]) for call in request.call_args_list]
+        self.assertIsNone(envelopes[0]["depends_on"])
+        self.assertEqual(envelopes[1]["depends_on"], 101)
+        self.assertEqual(envelopes[2]["depends_on"], 102)
+        self.assertEqual(envelopes[1]["request"], "tire um print da tela")
+
+    def test_partial_run_queue_failure_reports_only_confirmed_compensation(self):
+        command = "abra o Spotify e depois tire um print da tela"
+        failure = HTTPError("https://jarvis.example", 503, "unavailable", {}, None)
+        with patch.object(MODULE, "supabase_request", side_effect=[
+            [{"id": 301, "status": "pending"}],
+            failure,
+            [{"id": 301, "status": "canceled"}],
+        ]) as request:
+            payload, status = MODULE.supabase_device_enqueue_plan(
+                command,
+                MODULE.compound_device_plan(command),
+            )
+        self.assertEqual(status, 502)
+        self.assertTrue(payload["cancel_confirmed"])
+        self.assertEqual(payload["queued_steps_canceled"], 1)
+        self.assertIn("confirmei o cancelamento", payload["error"])
+        self.assertEqual(request.call_args_list[-1].args[0], "PATCH")
+        self.assertEqual(request.call_args_list[-1].kwargs["prefer"], "return=representation")
+
+    def test_compound_request_requires_owner_and_bypasses_chat_model(self):
+        command = "abra o Spotify e depois tire um print da tela"
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        queued = ({
+            "ok": True,
+            "status_real": "device_run_queued",
+            "jobs": [{"id": 1}, {"id": 2}],
+            "run": {"status": "pending", "terminal": False},
+        }, 202)
+        with patch.dict(os.environ, env, clear=False):
+            blocked, blocked_status = MODULE.command_payload({"command": command}, owner_authenticated=False)
+            with patch.object(MODULE, "supabase_device_enqueue_plan", return_value=queued) as enqueue:
+                payload, status = MODULE.command_payload({"command": command}, owner_authenticated=True)
+        self.assertEqual(blocked_status, 401)
+        self.assertTrue(blocked["pairing_required"])
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["status_real"], "device_run_queued")
+        enqueue.assert_called_once()
+
+    def test_device_run_reports_each_persisted_result_in_requested_order(self):
+        rows = [
+            {"id": 202, "action": "screen_capture", "target": "", "status": "pending"},
+            {"id": 201, "action": "open_application", "target": "Spotify", "status": "succeeded", "result": "aberto"},
+        ]
+        with patch.object(MODULE, "supabase_request", return_value=rows):
+            payload, status = MODULE.supabase_device_run("201,202")
+        self.assertEqual(status, 200)
+        self.assertEqual([job["id"] for job in payload["jobs"]], [201, 202])
+        self.assertEqual(payload["run"]["completed"], 1)
+        self.assertEqual(payload["run"]["status"], "pending")
+        self.assertFalse(payload["run"]["terminal"])
+
+    def test_queued_execution_events_never_claim_finished(self):
+        started = datetime.now(MODULE.timezone.utc)
+        stream = MODULE.execution_events({
+            "ok": True,
+            "status_real": "device_run_queued",
+            "provider": "supabase_device_bridge",
+            "run": {"id": "run-real", "status": "pending", "terminal": False},
+            "jobs": [{"id": 1, "status": "pending"}, {"id": 2, "status": "pending"}],
+            "job": {"id": 1, "status": "pending"},
+        }, started, 202)
+        self.assertEqual(stream["run_id"], "run-real")
+        self.assertEqual(stream["events"][-1]["type"], "RUN_WAITING")
+        self.assertFalse(any(event["type"] == "TOOL_CALL_FINISHED" for event in stream["events"]))
+        cards = MODULE.response_cards({
+            "run": {"id": "run-real", "status": "pending", "completed": 0},
+            "jobs": [
+                {"id": 1, "step": 1, "action": "open_application", "target": "Spotify", "status": "pending"},
+                {"id": 2, "step": 2, "action": "screen_capture", "target": "", "status": "pending"},
+            ],
+        })
+        self.assertEqual(cards[0]["type"], "device_run")
+        self.assertEqual(len(cards[0]["items"]), 2)
 
     def test_self_edit_routes_only_to_paired_local_worker(self):
         env = {
@@ -778,7 +882,7 @@ class WebGatewayTest(unittest.TestCase):
 
     def test_local_device_request_can_execute_allowlisted_worker(self):
         completed = MODULE.subprocess.CompletedProcess(
-            args=["./jarvis", "do", "tirar um print da tela"],
+            args=["./jarvis", "screen-capture"],
             returncode=0,
             stdout="Status real: captura concluída",
             stderr="",
@@ -791,7 +895,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(payload["executed_locally"])
         self.assertEqual(payload["status_real"], "local_action_executed")
-        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0], completed.args)
 
     def test_message_send_routes_to_local_worker(self):
         payload, status = MODULE.command_payload(

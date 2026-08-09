@@ -1,12 +1,12 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260809-control4";
+const CACHE_VERSION = "jarvis-mobile-shell-20260809-action2";
 const SHELL = [
   "/",
-  "/ui/manifest.webmanifest?v=20260809-control4",
-  "/ui/jarvis-icon.svg?v=20260809-control4",
-  "/ui/jarvis.css?v=20260809-control4",
-  "/ui/jarvis.js?v=20260809-control4",
+  "/ui/manifest.webmanifest?v=20260809-action2",
+  "/ui/jarvis-icon.svg?v=20260809-action2",
+  "/ui/jarvis.css?v=20260809-action2",
+  "/ui/jarvis.js?v=20260809-action2",
 ];
 
 self.addEventListener("install", (event) => {

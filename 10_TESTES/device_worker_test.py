@@ -4,6 +4,7 @@
 from pathlib import Path
 from datetime import datetime, timezone
 import importlib.util
+import json
 import unittest
 from unittest.mock import patch
 
@@ -124,6 +125,68 @@ class DeviceWorkerTest(unittest.TestCase):
         execute.assert_called_once_with(pending)
         finish.assert_called_once_with(17, True, "aberto")
 
+    def test_run_envelope_preserves_step_request_and_dependency(self):
+        envelope = json.dumps({
+            "schema": "jarvis-device-run/1",
+            "run_id": "run-test",
+            "step": 2,
+            "total": 3,
+            "depends_on": 41,
+            "request": "limpe os processos temporários do jarvis",
+            "original_request": "abra o Spotify e depois limpe os processos temporários do jarvis",
+        })
+        job = {"action": "system_memory", "target": "jarvis-temporaries", "request_text": envelope}
+        self.assertEqual(MODULE.job_dependency_id(job), 41)
+        self.assertEqual(MODULE.job_request_text(job), "limpe os processos temporários do jarvis")
+        self.assertEqual(
+            MODULE.command_argv(job),
+            [str(ROOT / "jarvis"), "system-memory", "--cleanup-jarvis"],
+        )
+
+    def test_run_once_never_executes_step_after_failed_dependency(self):
+        envelope = json.dumps({
+            "schema": "jarvis-device-run/1",
+            "run_id": "run-test",
+            "step": 2,
+            "total": 2,
+            "depends_on": 51,
+            "request": "tire um print da tela",
+        })
+        pending = {"id": 52, "action": "screen_capture", "target": "", "request_text": envelope}
+        with patch.object(MODULE, "pending_command", return_value=pending), patch.object(
+            MODULE, "dependency_status", return_value="failed"
+        ), patch.object(MODULE, "claim_command", return_value=pending), patch.object(
+            MODULE, "execute_job"
+        ) as execute, patch.object(MODULE, "finish_command") as finish:
+            message = MODULE.run_once()
+        self.assertIn("bloqueada pela falha", message)
+        execute.assert_not_called()
+        finish.assert_called_once()
+        self.assertEqual(finish.call_args.args[:2], (52, False))
+        self.assertIn("dependência 51", finish.call_args.args[2])
+
+    def test_run_once_executes_step_after_succeeded_dependency(self):
+        envelope = json.dumps({
+            "schema": "jarvis-device-run/1",
+            "run_id": "run-test",
+            "step": 2,
+            "total": 2,
+            "depends_on": 61,
+            "request": "tire um print da tela",
+        })
+        pending = {"id": 62, "action": "screen_capture", "target": "", "request_text": envelope}
+        with patch.object(MODULE, "pending_command", return_value=pending), patch.object(
+            MODULE, "dependency_status", return_value="succeeded"
+        ), patch.object(MODULE, "claim_command", return_value=pending), patch.object(
+            MODULE, "execute_job", return_value=(True, "capturado")
+        ) as execute, patch.object(MODULE, "screenshot_path", return_value=None), patch.object(
+            MODULE, "finish_command"
+        ) as finish:
+            message = MODULE.run_once()
+        self.assertIn("Ação 62 concluída", message)
+        execute.assert_called_once_with(pending)
+        finish.assert_called_once()
+
     def test_heartbeat_upserts_single_worker_identity(self):
         with patch.object(MODULE, "rest_request", return_value=[]) as request:
             MODULE.heartbeat()
@@ -131,7 +194,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
-        self.assertEqual(kwargs["body"]["version"], "7")
+        self.assertEqual(kwargs["body"]["version"], "8")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):
