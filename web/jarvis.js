@@ -46,6 +46,8 @@
     attachments: [],
     historyRestored: false,
     currentCommand: "",
+    workingStartedAt: 0,
+    lastResponseOk: true,
   };
   let currentAudio = null;
   let currentAudioUrl = "";
@@ -53,6 +55,8 @@
   let speechGeneration = 0;
   let voiceFailureNotified = false;
   let currentPulse = null;
+  let progressInterval = 0;
+  let progressHideTimer = 0;
 
   function ownerToken() {
     try {
@@ -84,6 +88,28 @@
     "Editar o próprio projeto; deploy só com pedido explícito",
   ];
 
+  const STARTER_ACTIONS = {
+    guest: [
+      ["O que você faz?", "me diga em poucas frases as melhores coisas que você consegue fazer"],
+      ["Testar sua voz", "fale uma frase curta para mim"],
+      ["Como funciona?", "explique de forma curta como o núcleo, a forja e a memória funcionam"],
+    ],
+    owner: [
+      ["Analisar meu Mac", "meu computador está travando, analise a memória"],
+      ["Abrir Spotify", "abra o Spotify"],
+      ["Ver minha agenda", "mostre minha agenda"],
+    ],
+  };
+
+  function renderStarterActions() {
+    const target = byId("starterActions");
+    if (!target) return;
+    const actions = session.paired ? STARTER_ACTIONS.owner : STARTER_ACTIONS.guest;
+    target.innerHTML = actions.map(([label, command]) => (
+      `<button type="button" data-starter-command="${escapeHtml(command)}">${escapeHtml(label)}</button>`
+    )).join("");
+  }
+
   function setActionHub(open) {
     actionHub.hidden = !open;
     actionHubButton.setAttribute("aria-expanded", String(open));
@@ -112,6 +138,13 @@
       if (data.ok && Array.isArray(data.messages)) {
         session.history = data.messages.slice(-24);
         session.historyRestored = true;
+        if (session.history.length && byId("welcomeMessage")) {
+          session.history.forEach((message) => {
+            const role = message.role === "user" ? "user" : "jarvis";
+            addMessage(message.content, role);
+          });
+          feed.scrollTop = feed.scrollHeight;
+        }
         byId("conversationMemoryValue").textContent = data.persistent
           ? `${Math.ceil(session.history.length / 2)} turnos no Supabase`
           : "sessão local";
@@ -204,8 +237,51 @@
     session.working = value;
     if (value) session.workingState = state;
     sendButton.disabled = value;
+    voiceButton.disabled = value || !voiceSupport.input;
+    attachmentButton.disabled = value;
     sendButton.textContent = value ? (state === "forge" ? "Construindo…" : state === "memory" ? "Gravando…" : "Pensando…") : "Enviar";
     settleState();
+  }
+
+  function setProgressStep(name, status) {
+    const step = byId("requestProgress")?.querySelector(`[data-run-step="${name}"]`);
+    if (step) step.dataset.status = status;
+  }
+
+  function updateProgressClock() {
+    const elapsed = Math.max(0, performance.now() - session.workingStartedAt);
+    const target = byId("requestElapsed");
+    if (!target) return;
+    target.textContent = `${(elapsed / 1000).toFixed(1).replace(".", ",")} s`;
+    target.dateTime = `PT${(elapsed / 1000).toFixed(1)}S`;
+  }
+
+  function beginRequestProgress(state) {
+    window.clearTimeout(progressHideTimer);
+    window.clearInterval(progressInterval);
+    session.workingStartedAt = performance.now();
+    const target = byId("requestProgress");
+    target.hidden = false;
+    target.setAttribute("aria-busy", "true");
+    byId("requestCoreLabel").textContent = state === "forge" ? "Forja" : state === "memory" ? "Memória" : "Núcleo";
+    setProgressStep("request", "completed");
+    setProgressStep("core", "running");
+    setProgressStep("result", "pending");
+    updateProgressClock();
+    progressInterval = window.setInterval(updateProgressClock, 200);
+  }
+
+  function finishRequestProgress(ok) {
+    window.clearInterval(progressInterval);
+    progressInterval = 0;
+    updateProgressClock();
+    setProgressStep("core", "completed");
+    setProgressStep("result", ok ? "completed" : "failed");
+    const target = byId("requestProgress");
+    target.setAttribute("aria-busy", "false");
+    progressHideTimer = window.setTimeout(() => {
+      if (!session.working) target.hidden = true;
+    }, 4200);
   }
 
   function workingStateFor(command) {
@@ -510,6 +586,9 @@
     const token = ownerToken();
     if (token) headers.set("X-Jarvis-Owner-Token", token);
     requestOptions.headers = headers;
+    if (!requestOptions.signal && typeof window.AbortSignal?.timeout === "function") {
+      requestOptions.signal = window.AbortSignal.timeout(path === "/command" ? 45000 : 20000);
+    }
     const response = await fetch(path, requestOptions);
     let data;
     try {
@@ -718,7 +797,7 @@
     let extra = "";
     extra += renderMessageContext(data);
     if (data.memory_suggestion) {
-      extra = `<button class="memory-command" type="button">${session.paired ? "Guardar na memória" : "Memória privada"}</button>`;
+      extra += `<button class="memory-command" type="button">${session.paired ? "Guardar na memória" : "Memória privada"}</button>`;
     }
     if (data.local_command) {
       extra += `<button class="copy-command" type="button">Copiar comando local</button><details><summary>ver comando</summary><code>${escapeHtml(data.local_command)}</code></details>`;
@@ -790,6 +869,10 @@
   }
 
   async function sendCommand(rawValue, options = {}) {
+    if (session.working) {
+      input.focus();
+      return;
+    }
     const attachments = options.includeAttachments ? session.attachments.slice() : [];
     const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
@@ -801,7 +884,9 @@
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-24);
     setRequest(command);
-    setWorking(true, workingStateFor(command));
+    const workingState = workingStateFor(command);
+    beginRequestProgress(workingState);
+    setWorking(true, workingState);
     try {
       const data = await request("/command", {
         method: "POST",
@@ -812,6 +897,7 @@
         session.attachments = [];
         renderAttachmentTray();
       }
+      session.lastResponseOk = data?.ok !== false;
       showResponse(data);
       const answer = data.message || data.summary;
       if (answer) {
@@ -820,9 +906,11 @@
         window.setTimeout(syncConversationHistory, 0);
       }
     } catch {
+      session.lastResponseOk = false;
       showResponse({ ok: false, error: "A conexão com o núcleo do JARVIS caiu." });
     } finally {
       setWorking(false);
+      finishRequestProgress(session.lastResponseOk);
       input.focus();
     }
   }
@@ -906,6 +994,7 @@
       byId("welcomeHint").textContent = session.paired
         ? "Escreva ou fale naturalmente."
         : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
+      renderStarterActions();
       session.deviceBridge = Boolean(status.device_bridge?.configured);
       session.elevenlabs = Boolean(status.voice?.configured);
       session.voiceError = "";
@@ -966,6 +1055,12 @@
   });
   attachmentButton.addEventListener("click", () => attachmentInput.click());
   attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
+  feed.addEventListener("click", (event) => {
+    const suggestion = event.target.closest("[data-starter-command]");
+    if (!suggestion) return;
+    input.value = suggestion.dataset.starterCommand || "";
+    input.focus();
+  });
   pulseButton.addEventListener("click", () => {
     if (!currentPulse) return;
     addMessage(currentPulse.message, "jarvis");
@@ -1083,8 +1178,23 @@
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
+  window.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      setActionHub(actionHub.hidden);
+      if (!actionHub.hidden) actionHub.querySelector("button[data-hub-command]")?.focus();
+      return;
+    }
+    if (event.key === "Escape" && !actionHub.hidden) setActionHub(false);
+  });
+  window.addEventListener("pagehide", () => {
+    window.clearInterval(progressInterval);
+    window.clearTimeout(progressHideTimer);
+    stopSpeechOutput();
+  }, { once: true });
 
   renderMuteState();
+  renderStarterActions();
   installVoiceInput();
   boot();
   window.setInterval(refreshPulse, 10 * 60 * 1000);

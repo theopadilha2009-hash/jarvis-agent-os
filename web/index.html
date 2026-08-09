@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#03090f">
   <meta name="description" content="JARVIS, assistente pessoal de Theo.">
   <title>JARVIS · Theo</title>
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260808-hub1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260809-commanddeck3">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -31,7 +31,7 @@
         <span class="access-mode" id="accessMode">verificando acesso</span>
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
         <button class="quiet-button" id="tourButton" type="button">Guia</button>
-        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false">Ações</button>
+        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir ações · ⌘K">Ações <kbd>⌘K</kbd></button>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false">Fala ligada</button>
         <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
       </div>
@@ -103,10 +103,17 @@
           <span><i aria-hidden="true"></i><b>JARVIS</b><small id="conversationState">pronto</small></span>
           <small>voz + texto</small>
         </div>
+        <div class="request-progress" id="requestProgress" role="status" aria-live="polite" aria-busy="false" hidden>
+          <span data-run-step="request"><i></i><b>Pedido</b></span>
+          <span data-run-step="core"><i></i><b id="requestCoreLabel">Núcleo</b></span>
+          <span data-run-step="result"><i></i><b>Resultado</b></span>
+          <time id="requestElapsed" datetime="PT0S">0,0 s</time>
+        </div>
         <div class="conversation-feed" id="conversationFeed" aria-live="polite">
           <div class="welcome" id="welcomeMessage">
             <strong>Estou aqui.</strong>
             <span id="welcomeHint">Escreva ou fale naturalmente.</span>
+            <div class="starter-actions" id="starterActions" aria-label="Sugestões para começar"></div>
           </div>
         </div>
         <form class="composer" id="commandForm">
@@ -198,9 +205,9 @@
     <button class="tour-primary" id="tourActionButton" type="button">Ver ações disponíveis</button>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260808-hub1" defer></script>
+  <script src="/ui/jarvis.js?v=20260809-commanddeck3" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260808-spatial1");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260809-commanddeck3");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });
