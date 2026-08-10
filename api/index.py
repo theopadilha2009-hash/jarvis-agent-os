@@ -102,9 +102,10 @@ FREE_SEARCH_USER_AGENT = "Mozilla/5.0 (compatible; TheoJarvisResearch/1.0; +http
 PUBLIC_READER_URL = "https://r.jina.ai/"
 PUBLIC_SEARCH_CACHE_SECONDS = 300.0
 DEFAULT_FREE_MODEL_POOL = (
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+    "google/gemma-4-31b-it:free",
     "openai/gpt-oss-20b:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
     "openrouter/free",
 )
 AUTOMOTIVE_BRANDS = {
@@ -4889,6 +4890,16 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "messages": [system, *provider_messages],
             "temperature": response_profile["temperature"],
             "max_tokens": response_profile["max_tokens"],
+            "stream": False,
+            # Free endpoints vary throughout the day. Rank all eligible
+            # endpoints by observed latency instead of waiting behind the
+            # first large model in the list, while keeping zero-cost routing.
+            "provider": {
+                "sort": {"by": "latency", "partition": "none"},
+                "preferred_max_latency": {"p90": 6},
+                "max_price": {"prompt": 0, "completion": 0},
+                "allow_fallbacks": True,
+            },
         }
     if len(model_candidates) > 1:
         # OpenRouter's official model-fallback route tries these in order on
@@ -4919,7 +4930,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         def send_openrouter(payload):
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             req = Request(OPENROUTER_URL, data=request_body, headers=headers, method="POST")
-            with urlopen(req, timeout=25) as response:
+            with urlopen(req, timeout=14) as response:
                 return json.loads(response.read().decode("utf-8"))
 
         def search_plugin_payload():

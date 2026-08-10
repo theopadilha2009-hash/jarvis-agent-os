@@ -1585,6 +1585,10 @@ R$122.186,50 Preços atualizados em agosto 2026
         self.assertEqual(sent["models"][0], "nvidia/nemotron-3-ultra-550b-a55b:free")
         self.assertEqual(sent["models"][1], "nvidia/nemotron-3-super-120b-a12b:free")
         self.assertIn("openrouter/free", sent["models"])
+        self.assertFalse(sent["stream"])
+        self.assertEqual(sent["provider"]["sort"], {"by": "latency", "partition": "none"})
+        self.assertEqual(sent["provider"]["max_price"], {"prompt": 0, "completion": 0})
+        self.assertTrue(sent["provider"]["allow_fallbacks"])
         self.assertEqual(payload["model_routing"]["selected"], "nvidia/nemotron-3-super-120b-a12b:free")
 
     def test_openrouter_retries_one_model_when_models_contract_is_rejected(self):
