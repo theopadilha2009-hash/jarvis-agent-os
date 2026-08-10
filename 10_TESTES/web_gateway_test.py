@@ -1510,6 +1510,51 @@ R$122.186,50 Preços atualizados em agosto 2026
         self.assertIn("R$ 120.000", payload["message"])
         self.assertEqual(payload["ui_cards"][0]["type"], "automotive_market")
 
+    def test_automotive_research_returns_structured_sources_without_waiting_for_model(self):
+        bundle = {
+            "query": "preços do Honda Civic 2020",
+            "mode": "automotive_deep_research",
+            "provider": "olx_marketplace+webmotors_fipe",
+            "sources": [{
+                "title": "Honda Civic EX 2020",
+                "url": "https://sp.olx.com.br/autos/civic-1",
+                "domain": "sp.olx.com.br",
+                "snippet": "R$ 120.000 · 80.000 km · Campinas - SP",
+                "provider": "olx_marketplace",
+                "price_brl": 120000,
+            }, {
+                "title": "Honda Civic EX 2020",
+                "url": "https://www.webmotors.com.br/tabela-fipe/carros/honda/civic/2020/ex",
+                "domain": "webmotors.com.br",
+                "snippet": "FIPE R$ 119.471 · média Webmotors R$ 122.186",
+                "provider": "webmotors_fipe",
+                "fipe_price_brl": 119471,
+            }],
+            "research": {
+                "kind": "automotive_market",
+                "subject": "Honda Civic 2020",
+                "listing_count": 1,
+                "reference_count": 1,
+                "price_min_brl": 120000,
+                "price_median_brl": 120000,
+                "price_max_brl": 120000,
+                "marketplaces_reached": ["OLX", "Webmotors"],
+            },
+        }
+
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "public_search_sources", return_value=bundle
+        ), patch.object(MODULE, "urlopen") as openrouter:
+            payload, status = MODULE.assistant_response({"command": "quais os preços do Honda Civic 2020?"})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "automotive_research_from_structured_sources")
+        self.assertFalse(payload["web_search"]["synthesized"])
+        self.assertEqual(payload["web_search"]["source_count"], 2)
+        self.assertEqual(payload["web_search"]["degraded_reason"], "")
+        self.assertNotIn("síntese do modelo falhou", payload["message"])
+        openrouter.assert_not_called()
+
     def test_openrouter_uses_official_ordered_free_model_fallbacks(self):
         class FakeResponse:
             def __enter__(self):

@@ -4030,11 +4030,14 @@ def search_results_without_synthesis(bundle, reason=""):
             for item in references[:4]:
                 lines.append(f"- {clean_text(item.get('title'), 150)} — {clean_text(item.get('snippet'), 180)}")
         lines.append("São preços anunciados e referências; versão, km, local e estado do carro mudam a comparação.")
-        lines.append("A síntese do modelo falhou; mantive somente os valores extraídos das páginas ligadas abaixo.")
+        if reason:
+            lines.append("A síntese do modelo falhou; mantive somente os valores extraídos das páginas ligadas abaixo.")
+        else:
+            lines.append("Compare anúncios da mesma versão e região; a amostra foi resumida diretamente dos dados para evitar espera e opinião inventada.")
         payload = {
             "ok": True,
             "endpoint": "POST /assistant",
-            "status_real": "automotive_research_without_model_synthesis",
+            "status_real": "automotive_research_without_model_synthesis" if reason else "automotive_research_from_structured_sources",
             "visual_state": "response",
             "message": "\n".join(lines),
             "content": "\n".join(lines),
@@ -4797,6 +4800,16 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 "attempts": free_search_bundle.get("attempts", []),
             },
         }, 502
+    free_search_research = (
+        free_search_bundle.get("research")
+        if isinstance(free_search_bundle.get("research"), dict)
+        else {}
+    )
+    if free_search_sources and free_search_research.get("kind") == "automotive_market":
+        # Marketplace rows and FIPE references are already structured facts.
+        # Returning them directly is faster and more reliable than asking a
+        # free text model to restate the same arithmetic.
+        return search_results_without_synthesis(free_search_bundle), 200
 
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
