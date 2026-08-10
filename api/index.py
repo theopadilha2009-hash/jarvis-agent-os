@@ -3059,6 +3059,9 @@ def is_automotive_research(prompt):
 
 def openrouter_model_candidates(attachments=False):
     """Return one legal OpenRouter key's ordered free-model fallbacks."""
+    if attachments:
+        attachment_model = clean_text(os.environ.get("OPENROUTER_ATTACHMENT_MODEL"), 200) or DEFAULT_MODEL
+        return [attachment_model] if re.fullmatch(r"[A-Za-z0-9_.~:-]+/[A-Za-z0-9_.~:-]+", attachment_model) else [DEFAULT_MODEL]
     configured_pool = clean_text(os.environ.get("OPENROUTER_MODEL_POOL"), 2_000)
     configured_primary = clean_text(
         os.environ.get("OPENROUTER_ATTACHMENT_MODEL" if attachments else "OPENROUTER_MODEL"),
@@ -4870,7 +4873,6 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         provider_messages[-1]["content"] = openrouter_attachment_parts(latest, attachments)
     model_candidates = openrouter_model_candidates(attachments=bool(attachments))
     openrouter_payload = {
-            "model": model_candidates[0],
             "messages": [system, *provider_messages],
             "temperature": response_profile["temperature"],
             "max_tokens": response_profile["max_tokens"],
@@ -4878,7 +4880,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     if len(model_candidates) > 1:
         # OpenRouter's official model-fallback route tries these in order on
         # rate limits, downtime or provider refusal while using the same key.
-        openrouter_payload["models"] = model_candidates[1:]
+        openrouter_payload["models"] = model_candidates
+    else:
+        openrouter_payload["model"] = model_candidates[0]
     if any(item["type"] == "application/pdf" for item in attachments):
         openrouter_payload["plugins"] = [{"id": "file-parser", "pdf": {"engine": "cloudflare-ai"}}]
     agent_tools = agent_tool_definitions() if tool_access and should_offer_agent_tools(messages) else []
@@ -4913,6 +4917,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             return fallback
 
         tool_calling_fallback = False
+        model_routing_compatibility_fallback = False
         if free_search_sources:
             web_search_mode = free_search_bundle.get("mode") or "public_search"
         elif provider_web_search:
@@ -4921,19 +4926,31 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             web_search_mode = "not_requested"
         try:
             result = send_openrouter(openrouter_payload)
-        except HTTPError as error:
-            if error.code not in {400, 404, 422} or not provider_tools:
-                raise
-            if provider_web_search:
-                result = send_openrouter(search_plugin_payload())
-                web_search_mode = "plugin_compatibility"
-                tool_calling_fallback = bool(agent_tools)
-            else:
-                fallback_payload = dict(openrouter_payload)
-                for field in ("tools", "tool_choice", "parallel_tool_calls"):
-                    fallback_payload.pop(field, None)
-                result = send_openrouter(fallback_payload)
-                tool_calling_fallback = True
+        except HTTPError as first_error:
+            error = first_error
+            if first_error.code in {400, 404, 422} and openrouter_payload.get("models") and not provider_tools:
+                single_model_payload = dict(openrouter_payload)
+                single_model_payload.pop("models", None)
+                single_model_payload["model"] = model_candidates[0]
+                try:
+                    result = send_openrouter(single_model_payload)
+                    error = None
+                    model_routing_compatibility_fallback = True
+                except HTTPError as single_model_error:
+                    error = single_model_error
+            if error is not None:
+                if error.code not in {400, 404, 422} or not provider_tools:
+                    raise error
+                if provider_web_search:
+                    result = send_openrouter(search_plugin_payload())
+                    web_search_mode = "plugin_compatibility"
+                    tool_calling_fallback = bool(agent_tools)
+                else:
+                    fallback_payload = dict(openrouter_payload)
+                    for field in ("tools", "tool_choice", "parallel_tool_calls"):
+                        fallback_payload.pop(field, None)
+                    result = send_openrouter(fallback_payload)
+                    tool_calling_fallback = True
         choice = (result.get("choices") or [{}])[0]
         response_message = choice.get("message") if isinstance(choice, dict) else None
         response_message = response_message if isinstance(response_message, dict) else {}
@@ -5021,6 +5038,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 "strategy": "openrouter_ordered_fallbacks",
                 "selected": clean_text(result.get("model") or DEFAULT_MODEL, 200),
                 "candidates": model_candidates,
+                "compatibility_fallback": model_routing_compatibility_fallback,
             },
         }
         if web_search_requested:
