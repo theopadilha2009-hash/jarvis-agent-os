@@ -1536,10 +1536,48 @@ R$122.186,50 Preços atualizados em agosto 2026
 
         self.assertEqual(status, 200)
         sent = json.loads(request.call_args.args[0].data.decode("utf-8"))
-        self.assertEqual(sent["model"], "nvidia/nemotron-3-ultra-550b-a55b:free")
-        self.assertEqual(sent["models"][0], "nvidia/nemotron-3-super-120b-a12b:free")
+        self.assertNotIn("model", sent)
+        self.assertEqual(sent["models"][0], "nvidia/nemotron-3-ultra-550b-a55b:free")
+        self.assertEqual(sent["models"][1], "nvidia/nemotron-3-super-120b-a12b:free")
         self.assertIn("openrouter/free", sent["models"])
         self.assertEqual(payload["model_routing"]["selected"], "nvidia/nemotron-3-super-120b-a12b:free")
+
+    def test_openrouter_retries_one_model_when_models_contract_is_rejected(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+                    "choices": [{"message": {"content": "Compatibilidade confirmada."}}],
+                }).encode("utf-8")
+
+        requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            requests.append(json.loads(request.data.decode("utf-8")))
+            if len(requests) == 1:
+                raise HTTPError(MODULE.OPENROUTER_URL, 400, "models unsupported", {}, None)
+            return FakeResponse()
+
+        with patch.dict(os.environ, {
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_MODEL_POOL": (
+                "nvidia/nemotron-3-ultra-550b-a55b:free,"
+                "nvidia/nemotron-3-super-120b-a12b:free"
+            ),
+        }, clear=False), patch.object(MODULE, "urlopen", side_effect=fake_urlopen):
+            payload, status = MODULE.assistant_response({"command": "responda uma frase"})
+
+        self.assertEqual(status, 200)
+        self.assertIn("models", requests[0])
+        self.assertNotIn("models", requests[1])
+        self.assertEqual(requests[1]["model"], "nvidia/nemotron-3-ultra-550b-a55b:free")
+        self.assertTrue(payload["model_routing"]["compatibility_fallback"])
 
     def test_github_repository_search_returns_ranked_license_evidence(self):
         response = json.dumps({
