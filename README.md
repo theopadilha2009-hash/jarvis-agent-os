@@ -21,7 +21,14 @@ uma lista de capacidades.
 - Sem credencial, texto livre cai em uma resposta local explícita, sem fingir
   que executou integrações externas.
 - Com `OPENROUTER_API_KEY` configurada no ambiente da hospedagem, texto livre
-  usa `openrouter/free` (ou `OPENROUTER_MODEL`). Nunca coloque a chave no repo.
+  usa uma lista ordenada de modelos gratuitos e o fallback oficial do
+  OpenRouter. `OPENROUTER_MODEL_POOL` pode definir a ordem sem criar contas ou
+  contornar limites; `OPENROUTER_MODEL` continua sendo aceito. Nunca coloque a
+  chave no repo.
+- Pesquisa gratuita coleta fontes antes da síntese. Consultas de carros leem
+  anúncios OLX com preço, km e local e cruzam referências FIPE/média da
+  Webmotors por versão. Se o modelo estiver sem cota, os dados e links reais
+  ainda são devolvidos sem uma conclusão inventada. O cache dura cinco minutos.
 - Com `ELEVENLABS_API_KEY`, a rota `/speech` usa a voz definida por
   `ELEVENLABS_VOICE_ID`; sem cota disponível, a interface continua em texto e
   informa a falha real.
