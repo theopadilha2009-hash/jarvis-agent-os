@@ -1412,6 +1412,135 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("example/real-assistant", payload["message"])
         self.assertNotIn("Reformule", payload["message"])
 
+    def test_car_price_question_routes_to_live_automotive_research(self):
+        prompt = "quais os preços do Honda Civic 2020?"
+        self.assertTrue(MODULE.should_search_web([{"role": "user", "content": prompt}]))
+        self.assertFalse(MODULE.is_automotive_research("qual o preço do iPhone 15 em 2025?"))
+        self.assertTrue(MODULE.is_automotive_research("quanto custa um Golf 2019?"))
+        self.assertEqual(MODULE.assistant_response_profile(prompt)["name"], "detailed")
+        self.assertEqual(MODULE.automotive_vehicle_details(prompt), {
+            "subject": "Honda Civic 2020",
+            "brand": "honda",
+            "model": "civic",
+            "year": "2020",
+        })
+
+    def test_automotive_research_reads_olx_listings_and_webmotors_references(self):
+        olx = """
+## [Honda Civic EX 2020](https://sp.olx.com.br/autos/honda-civic-ex-2020-1 "Honda Civic EX 2020")
+80.000 km
+### R$ 120.000
+Campinas - SP
+## [Honda Civic LX 2020](https://rj.olx.com.br/autos/honda-civic-lx-2020-2 "Honda Civic LX 2020")
+60.000 km
+### R$ 110.000
+Rio de Janeiro - RJ
+"""
+        index = """
+| [Honda Civic 2.0 Ex 2020](https://www.webmotors.com.br/tabela-fipe/carros/honda/civic/2020/20-ex) | 014091-0 |
+| [Honda Civic 2.0 Exl 2020](https://www.webmotors.com.br/tabela-fipe/carros/honda/civic/2020/20-exl) | 014090-2 |
+"""
+        fipe = """
+R$119.471,00 Preços atualizados em agosto 2026
+R$122.186,50 Preços atualizados em agosto 2026
+"""
+
+        def reader(url, **_kwargs):
+            if "olx.com.br" in url:
+                return olx
+            if url.rstrip("/").endswith("/2020"):
+                return index
+            return fipe
+
+        MODULE._PUBLIC_SEARCH_CACHE.clear()
+        with patch.object(MODULE, "_public_reader_request", side_effect=reader) as reader_mock:
+            bundle = MODULE.public_search_sources("preços do Honda Civic 2020")
+            first_call_count = reader_mock.call_count
+            cached = MODULE.public_search_sources("preços do Honda Civic 2020")
+
+        research = bundle["research"]
+        self.assertEqual(bundle["mode"], "automotive_deep_research")
+        self.assertEqual(research["kind"], "automotive_market")
+        self.assertEqual(research["listing_count"], 2)
+        self.assertEqual(research["reference_count"], 2)
+        self.assertEqual(research["price_min_brl"], 110000)
+        self.assertEqual(research["price_median_brl"], 115000)
+        self.assertEqual(research["price_max_brl"], 120000)
+        self.assertEqual(research["marketplaces_reached"], ["OLX", "Webmotors"])
+        self.assertEqual(bundle["sources"][0]["mileage_km"], 80000)
+        self.assertEqual(bundle["sources"][-1]["fipe_price_brl"], 119471)
+        self.assertIn("webmotors.com.br/carros-usados", research["webmotors_search_url"])
+        self.assertTrue(cached["cache_hit"])
+        self.assertEqual(reader_mock.call_count, first_call_count)
+
+    def test_automotive_research_remains_useful_when_model_quota_fails(self):
+        sources = [{
+            "title": "Honda Civic EX 2020",
+            "url": "https://sp.olx.com.br/autos/civic-1",
+            "domain": "sp.olx.com.br",
+            "snippet": "R$ 120.000 · 80.000 km · Campinas - SP",
+            "provider": "olx_marketplace",
+            "price_brl": 120000,
+        }, {
+            "title": "Honda Civic EX 2020",
+            "url": "https://www.webmotors.com.br/tabela-fipe/carros/honda/civic/2020/ex",
+            "domain": "webmotors.com.br",
+            "snippet": "FIPE R$ 119.471 · média Webmotors R$ 122.186",
+            "provider": "webmotors_fipe",
+            "fipe_price_brl": 119471,
+        }]
+        research = {
+            "kind": "automotive_market",
+            "subject": "Honda Civic 2020",
+            "listing_count": 1,
+            "reference_count": 1,
+            "price_min_brl": 120000,
+            "price_median_brl": 120000,
+            "price_max_brl": 120000,
+            "marketplaces_reached": ["OLX", "Webmotors"],
+        }
+        payload = MODULE.search_results_without_synthesis({
+            "sources": sources,
+            "research": research,
+            "provider": "olx_marketplace+webmotors_fipe",
+            "mode": "automotive_deep_research",
+        }, "openrouter_http_429")
+        self.assertEqual(payload["status_real"], "automotive_research_without_model_synthesis")
+        self.assertIn("li 1 anúncio(s) da OLX", payload["message"])
+        self.assertIn("R$ 120.000", payload["message"])
+        self.assertEqual(payload["ui_cards"][0]["type"], "automotive_market")
+
+    def test_openrouter_uses_official_ordered_free_model_fallbacks(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "nvidia/nemotron-3-super-120b-a12b:free",
+                    "choices": [{"message": {"content": "Resposta forte e curta."}}],
+                }).encode("utf-8")
+
+        with patch.dict(os.environ, {
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_MODEL_POOL": (
+                "nvidia/nemotron-3-ultra-550b-a55b:free,"
+                "nvidia/nemotron-3-super-120b-a12b:free"
+            ),
+            "OPENROUTER_MODEL": "nvidia/nemotron-3-nano-30b-a3b:free",
+        }, clear=False), patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+            payload, status = MODULE.assistant_response({"command": "me explique uma ideia em uma frase"})
+
+        self.assertEqual(status, 200)
+        sent = json.loads(request.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(sent["model"], "nvidia/nemotron-3-ultra-550b-a55b:free")
+        self.assertEqual(sent["models"][0], "nvidia/nemotron-3-super-120b-a12b:free")
+        self.assertIn("openrouter/free", sent["models"])
+        self.assertEqual(payload["model_routing"]["selected"], "nvidia/nemotron-3-super-120b-a12b:free")
+
     def test_github_repository_search_returns_ranked_license_evidence(self):
         response = json.dumps({
             "items": [{
@@ -1512,6 +1641,22 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(sources[0]["url"], source_url)
         self.assertEqual(sources[0]["domain"], "openrouter.ai")
         self.assertIn("Documentação oficial", sources[0]["snippet"])
+
+    def test_reader_search_recovers_real_sources_when_raw_engines_are_blocked(self):
+        target = "https://example.com/report"
+        redirect = "https://duckduckgo.com/l/?" + MODULE.urlencode({"uddg": target, "rut": "proof"})
+        markdown = (
+            f"## [Relatório confirmado]({redirect})\n\n"
+            f"[example.com/report]({redirect})\n\n"
+            f"[Este relatório contém evidências atuais e verificáveis para a pesquisa.]({redirect})\n"
+        )
+
+        sources = MODULE.parse_public_search_markdown(markdown, 5)
+
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0]["url"], target)
+        self.assertEqual(sources[0]["provider"], "duckduckgo_reader")
+        self.assertIn("evidências atuais", sources[0]["snippet"])
 
     def test_unavailable_free_search_never_fakes_an_unresearched_answer(self):
         empty_search = {
