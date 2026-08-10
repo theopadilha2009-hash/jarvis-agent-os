@@ -4927,11 +4927,39 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         headers["HTTP-Referer"] = origin[:200]
 
     try:
-        def send_openrouter(payload):
+        def send_openrouter(payload, timeout=14):
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             req = Request(OPENROUTER_URL, data=request_body, headers=headers, method="POST")
-            with urlopen(req, timeout=14) as response:
+            with urlopen(req, timeout=timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
+
+        def send_compatible_model_fallbacks():
+            attempts = []
+            last_error = None
+            deadline = time.monotonic() + 30
+            retryable_codes = {400, 404, 408, 409, 422, 429, 500, 502, 503, 504}
+            for candidate in model_candidates:
+                remaining = deadline - time.monotonic()
+                if remaining < 2:
+                    break
+                single_model_payload = dict(openrouter_payload)
+                single_model_payload.pop("models", None)
+                single_model_payload["model"] = candidate
+                try:
+                    response = send_openrouter(single_model_payload, timeout=min(8, remaining))
+                    attempts.append({"model": candidate, "outcome": "success"})
+                    return response, attempts
+                except HTTPError as candidate_error:
+                    last_error = candidate_error
+                    attempts.append({"model": candidate, "outcome": f"http_{candidate_error.code}"})
+                    if candidate_error.code not in retryable_codes:
+                        raise
+                except (URLError, TimeoutError) as candidate_error:
+                    last_error = candidate_error
+                    attempts.append({"model": candidate, "outcome": "timeout_or_network"})
+            if last_error is not None:
+                raise last_error
+            raise TimeoutError("OpenRouter compatibility fallback deadline exceeded")
 
         def search_plugin_payload():
             fallback = dict(openrouter_payload)
@@ -4942,6 +4970,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
 
         tool_calling_fallback = False
         model_routing_compatibility_fallback = False
+        model_routing_compatibility_attempts = []
         if free_search_sources:
             web_search_mode = free_search_bundle.get("mode") or "public_search"
         elif provider_web_search:
@@ -4953,15 +4982,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         except HTTPError as first_error:
             error = first_error
             if first_error.code in {400, 404, 422} and openrouter_payload.get("models") and not provider_tools:
-                single_model_payload = dict(openrouter_payload)
-                single_model_payload.pop("models", None)
-                single_model_payload["model"] = model_candidates[0]
-                try:
-                    result = send_openrouter(single_model_payload)
-                    error = None
-                    model_routing_compatibility_fallback = True
-                except HTTPError as single_model_error:
-                    error = single_model_error
+                result, model_routing_compatibility_attempts = send_compatible_model_fallbacks()
+                error = None
+                model_routing_compatibility_fallback = True
             if error is not None:
                 if error.code not in {400, 404, 422} or not provider_tools:
                     raise error
@@ -5063,6 +5086,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 "selected": clean_text(result.get("model") or DEFAULT_MODEL, 200),
                 "candidates": model_candidates,
                 "compatibility_fallback": model_routing_compatibility_fallback,
+                "compatibility_attempts": model_routing_compatibility_attempts,
             },
         }
         if web_search_requested:

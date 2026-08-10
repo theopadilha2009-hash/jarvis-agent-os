@@ -1627,6 +1627,56 @@ R$122.186,50 Preços atualizados em agosto 2026
         self.assertNotIn("models", requests[1])
         self.assertEqual(requests[1]["model"], "nvidia/nemotron-3-ultra-550b-a55b:free")
         self.assertTrue(payload["model_routing"]["compatibility_fallback"])
+        self.assertEqual(payload["model_routing"]["compatibility_attempts"], [{
+            "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "outcome": "success",
+        }])
+
+    def test_openrouter_compatibility_route_really_advances_to_next_model(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openai/gpt-oss-20b:free",
+                    "choices": [{"message": {"content": "Fallback real confirmado."}}],
+                }).encode("utf-8")
+
+        requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            sent = json.loads(request.data.decode("utf-8"))
+            requests.append(sent)
+            if len(requests) == 1:
+                raise HTTPError(MODULE.OPENROUTER_URL, 400, "models unsupported", {}, None)
+            if len(requests) == 2:
+                raise HTTPError(MODULE.OPENROUTER_URL, 429, "first model busy", {}, None)
+            return FakeResponse()
+
+        with patch.dict(os.environ, {
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_MODEL_POOL": (
+                "nvidia/nemotron-3-nano-30b-a3b:free,"
+                "openai/gpt-oss-20b:free"
+            ),
+        }, clear=False), patch.object(MODULE, "urlopen", side_effect=fake_urlopen):
+            payload, status = MODULE.assistant_response({"command": "responda uma frase"})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(requests[1]["model"], "nvidia/nemotron-3-nano-30b-a3b:free")
+        self.assertEqual(requests[2]["model"], "openai/gpt-oss-20b:free")
+        self.assertEqual(payload["model_routing"]["selected"], "openai/gpt-oss-20b:free")
+        self.assertEqual(payload["model_routing"]["compatibility_attempts"], [{
+            "model": "nvidia/nemotron-3-nano-30b-a3b:free",
+            "outcome": "http_429",
+        }, {
+            "model": "openai/gpt-oss-20b:free",
+            "outcome": "success",
+        }])
 
     def test_github_repository_search_returns_ranked_license_evidence(self):
         response = json.dumps({
