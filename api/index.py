@@ -1176,6 +1176,52 @@ def persist_conversation_history(body):
         }, 504
 
 
+def clear_conversation_history():
+    """Start a new private conversation without touching durable memories."""
+    if not supabase_configured():
+        return {
+            "ok": True,
+            "status_real": "conversation_history_cleared_local_only",
+            "persistent": False,
+            "message": "Nova conversa iniciada nesta sessão.",
+        }, 200
+    updated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    try:
+        supabase_request(
+            "POST",
+            query="on_conflict=owner_id,key",
+            body={
+                "owner_id": "theo",
+                "key": "conversation_history",
+                "value": {"schema_version": 1, "messages": []},
+                "updated_at": updated_at,
+            },
+            prefer="resolution=merge-duplicates,return=minimal",
+            table=SUPABASE_SETTINGS_TABLE,
+        )
+        return {
+            "ok": True,
+            "status_real": "conversation_history_cleared",
+            "count": 0,
+            "updated_at": updated_at,
+            "persistent": True,
+            "provider": "supabase",
+            "message": "Nova conversa iniciada; memórias confirmadas foram preservadas.",
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "status_real": "conversation_history_clear_failed",
+            "error": f"O Supabase recusou a nova conversa (HTTP {error.code}).",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "status_real": "conversation_history_clear_unavailable",
+            "error": "O histórico privado não respondeu; a tela pode ser limpa apenas nesta sessão.",
+        }, 504
+
+
 def memory_layer(content, kind="learning"):
     text = clean_text(content, 4_000).casefold()
     if kind == "preference" or re.search(r"\b(?:meu|minha|eu\s+(?:gosto|prefiro)|theo)\b", text):
@@ -6201,6 +6247,14 @@ class handler(BaseHTTPRequestHandler):
             else:
                 payload, status = persist_conversation_history(body)
                 payload["endpoint"] = "POST /conversation-sync"
+            return self.send_json(status, payload)
+        if path == "/conversation-clear":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "POST /conversation-clear"
+            else:
+                payload, status = clear_conversation_history()
+                payload["endpoint"] = "POST /conversation-clear"
             return self.send_json(status, payload)
         if path == "/command":
             client = str((self.client_address or [""])[0]).lower()

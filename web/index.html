@@ -10,10 +10,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260811-experiencev3">
-  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-experiencev3" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-experiencev3">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260811-experiencev3">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260811-polish1">
+  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-polish1" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-polish1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260811-polish1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -128,10 +128,13 @@
       <section class="conversation" aria-label="Conversa com JARVIS">
         <div class="conversation-head">
           <span><i aria-hidden="true"></i><b>JARVIS</b><small id="conversationState">pronto</small></span>
-          <small class="conversation-channel">voz + texto</small>
-          <button class="mobile-chat-toggle" id="mobileChatToggle" type="button" aria-expanded="false" aria-label="Expandir conversa">
-            <span>Expandir</span><i aria-hidden="true"></i>
-          </button>
+          <div class="conversation-head-actions">
+            <small class="conversation-channel">voz + texto</small>
+            <button class="new-conversation-button" id="newConversationButton" type="button" title="Começar sem o contexto da conversa atual">Nova</button>
+            <button class="mobile-chat-toggle" id="mobileChatToggle" type="button" aria-expanded="false" aria-label="Expandir conversa">
+              <span>Expandir</span><i aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
         <div class="request-progress" id="requestProgress" role="status" aria-live="polite" aria-busy="false" hidden>
           <span data-run-step="request"><i></i><b>Pedido</b></span>
@@ -252,9 +255,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260811-experiencev3" defer></script>
+  <script src="/ui/jarvis.js?v=20260811-polish1" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260811-experiencev3");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260811-polish1");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

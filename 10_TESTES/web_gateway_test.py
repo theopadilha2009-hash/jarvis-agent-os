@@ -106,9 +106,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260811-experiencev3', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260811-experiencev3', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260811-experiencev3', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260811-polish1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260811-polish1', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260811-polish1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -122,6 +122,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="requestProgress"', html)
         self.assertIn(b'id="starterActions"', html)
         self.assertIn(b'id="mobileChatToggle"', html)
+        self.assertIn(b'id="newConversationButton"', html)
         self.assertIn(b'id="installButton"', html)
         self.assertIn(b'id="installDialog"', html)
         self.assertIn(b'id="actionHubOverview"', html)
@@ -155,6 +156,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"restoreConversationHistory", app_js)
         self.assertIn(b"syncConversationHistory", app_js)
         self.assertIn(b"renderStarterActions", app_js)
+        self.assertIn(b"startNewConversation", app_js)
+        self.assertIn(b'"/conversation-clear"', app_js)
+        self.assertIn(b'class="copy-response"', app_js)
         self.assertIn(b"beginRequestProgress", app_js)
         self.assertIn(b"finishRequestProgress", app_js)
         self.assertIn(b"if (session.working)", app_js)
@@ -210,6 +214,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
         self.assertIn(b".conversation-head", app_css)
+        self.assertIn(b".message-actions", app_css)
+        self.assertIn(b".new-conversation-button", app_css)
         self.assertIn(b".action-hub", app_css)
         self.assertIn(b".admin-login", app_css)
         self.assertIn(b".tour-grid", app_css)
@@ -284,7 +290,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260811-experiencev3", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260811-polish1", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -824,6 +830,21 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(saved["count"], 2)
         written = request.call_args_list[1].kwargs["body"]["value"]["messages"]
         self.assertNotIn("placeholdervalue123456", json.dumps(written))
+
+    def test_new_conversation_clears_chat_but_preserves_memory_storage(self):
+        with patch.dict(os.environ, {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+        }, clear=False), patch.object(MODULE, "supabase_request", return_value=[]) as request:
+            payload, status = MODULE.clear_conversation_history()
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["count"], 0)
+        written = request.call_args.kwargs
+        self.assertEqual(written["table"], MODULE.SUPABASE_SETTINGS_TABLE)
+        self.assertEqual(written["body"]["key"], "conversation_history")
+        self.assertEqual(written["body"]["value"]["messages"], [])
 
     def test_paired_personal_tools_enter_allowlisted_queue(self):
         class FakeSupabaseResponse:

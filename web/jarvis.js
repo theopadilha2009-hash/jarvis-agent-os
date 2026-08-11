@@ -17,6 +17,7 @@
   const actionHub = byId("actionHub");
   const actionHubButton = byId("actionHubButton");
   const mobileChatToggle = byId("mobileChatToggle");
+  const newConversationButton = byId("newConversationButton");
   const installButton = byId("installButton");
   const installDialog = byId("installDialog");
   const mobileLayout = window.matchMedia("(max-width: 720px)");
@@ -124,6 +125,67 @@
     target.querySelectorAll("[data-starter-command]").forEach((button) => {
       button.addEventListener("click", () => sendCommand(button.dataset.starterCommand || ""));
     });
+  }
+
+  function renderWelcomeState(note = "") {
+    const defaultHint = session.paired
+      ? "Escreva ou fale naturalmente."
+      : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
+    feed.innerHTML = (
+      `<div class="welcome" id="welcomeMessage">`
+      + `<strong>Estou aqui.</strong>`
+      + `<span id="welcomeHint">${escapeHtml(note || defaultHint)}</span>`
+      + `<div class="starter-actions" id="starterActions" aria-label="Sugestões para começar"></div>`
+      + `</div>`
+    );
+    stage.classList.remove("has-conversation");
+    setMobileChatExpanded(false);
+    renderStarterActions();
+  }
+
+  async function startNewConversation() {
+    if (session.working || newConversationButton?.disabled) return;
+    stopSpeechOutput();
+    if (newConversationButton) {
+      newConversationButton.disabled = true;
+      newConversationButton.textContent = "Limpando…";
+    }
+    let note = "Nova conversa iniciada.";
+    if (session.paired) {
+      try {
+        const data = await request("/conversation-clear", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        note = data.ok
+          ? "Nova conversa. Suas memórias confirmadas continuam guardadas."
+          : "Nova conversa nesta tela; o histórico privado não confirmou a limpeza.";
+      } catch {
+        note = "Nova conversa nesta tela; o histórico privado não respondeu.";
+      }
+    }
+    session.history = [];
+    session.historyRestored = true;
+    session.currentCommand = "";
+    session.mission = null;
+    session.responseState = "";
+    actionHubButton.classList.remove("has-context");
+    byId("conversationMemoryValue").textContent = session.paired ? "0 turnos" : "sessão local";
+    byId("contextCount").textContent = "0 turnos";
+    byId("requestTitle").textContent = "Pronto para você";
+    byId("requestText").textContent = "Fale naturalmente. O JARVIS escolhe as ferramentas por trás.";
+    byId("sceneEyebrow").textContent = "SISTEMA ONLINE";
+    byId("sceneMission").textContent = "Aguardando comando";
+    byId("sceneDetail").textContent = "Núcleo pronto para conversar ou agir.";
+    renderLiveCanvas({});
+    renderWelcomeState(note);
+    settleState();
+    if (newConversationButton) {
+      newConversationButton.disabled = false;
+      newConversationButton.textContent = "Nova";
+    }
+    input.focus();
   }
 
   function setActionHub(open) {
@@ -1103,25 +1165,38 @@
         ? "Resposta processada pela rota de qualidade."
         : "Resposta pronta no canal principal.";
     let extra = "";
+    let messageActions = `<button class="copy-response" type="button">Copiar</button>`;
     extra += renderMessageContext(data);
     if (data.memory_suggestion) {
-      extra += `<button class="memory-command" type="button">${session.paired ? "Guardar na memória" : "Memória privada"}</button>`;
+      messageActions += `<button class="memory-command" type="button">${session.paired ? "Guardar na memória" : "Memória privada"}</button>`;
     }
     if (data.local_command) {
-      extra += `<button class="copy-command" type="button">Copiar comando local</button><details><summary>ver comando</summary><code>${escapeHtml(data.local_command)}</code></details>`;
+      messageActions += `<button class="copy-command" type="button">Copiar comando</button>`;
+      extra += `<details><summary>ver comando local</summary><code>${escapeHtml(data.local_command)}</code></details>`;
     }
     if (data.result) {
       extra += `<details><summary>ver resultado completo</summary><code>${escapeHtml(data.result)}</code></details>`;
     }
     if (Array.isArray(data.jobs) && data.jobs.length > 1 && !data.run?.terminal) {
-      extra += `<button class="cancel-run" type="button">Cancelar etapas pendentes</button>`;
+      messageActions += `<button class="cancel-run" type="button">Cancelar etapas</button>`;
     } else if (data.job?.id && data.job.status === "pending") {
-      extra += `<button class="cancel-job" type="button">Cancelar ação</button>`;
+      messageActions += `<button class="cancel-job" type="button">Cancelar ação</button>`;
     }
     if (session.elevenlabs) {
-      extra += `<button class="speak-command" type="button">Ouvir</button>`;
+      messageActions += `<button class="speak-command" type="button">Ouvir</button>`;
     }
+    extra += `<div class="message-actions">${messageActions}</div>`;
     const message = addMessage(answer, "jarvis", extra);
+    const copyResponse = message.querySelector(".copy-response");
+    if (copyResponse) copyResponse.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(answer);
+        copyResponse.textContent = "Copiado";
+        window.setTimeout(() => { copyResponse.textContent = "Copiar"; }, 1600);
+      } catch {
+        copyResponse.textContent = "Não copiou";
+      }
+    });
     const copy = message.querySelector(".copy-command");
     if (copy) copy.addEventListener("click", async () => {
       await navigator.clipboard.writeText(data.local_command);
@@ -1492,6 +1567,7 @@
     await boot();
   });
   actionHubButton.addEventListener("click", () => setActionHub(actionHub.hidden));
+  newConversationButton?.addEventListener("click", startNewConversation);
   byId("sceneCommandButton")?.addEventListener("click", () => setActionHub(true));
   mobileChatToggle?.addEventListener("click", () => {
     setMobileChatExpanded(mobileChatToggle.getAttribute("aria-expanded") !== "true");
