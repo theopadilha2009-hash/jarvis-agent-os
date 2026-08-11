@@ -928,6 +928,33 @@ button {
   gap: 8px;
 }
 
+.conversation-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.new-conversation-button {
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid rgba(103, 232, 249, 0.1);
+  border-radius: 999px;
+  background: rgba(8, 24, 33, 0.38);
+  color: #7695a1;
+  cursor: pointer;
+  font: 7px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+.new-conversation-button:hover,
+.new-conversation-button:focus-visible {
+  outline: none;
+  border-color: rgba(103, 232, 249, 0.28);
+  color: #dffaff;
+}
+
+.new-conversation-button:disabled { cursor: wait; opacity: 0.6; }
+
 .mobile-chat-toggle {
   align-items: center;
   gap: 7px;
@@ -1299,6 +1326,7 @@ button {
 }
 
 .copy-command,
+.copy-response,
 .memory-command,
 .speak-command,
 .cancel-job,
@@ -1344,6 +1372,38 @@ button {
   cursor: wait;
   opacity: 0.64;
 }
+
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+  opacity: 0.72;
+  transition: opacity 160ms ease;
+}
+
+.message:hover .message-actions,
+.message:focus-within .message-actions { opacity: 1; }
+
+.message-actions .copy-command,
+.message-actions .copy-response,
+.message-actions .memory-command,
+.message-actions .speak-command,
+.message-actions .cancel-job,
+.message-actions .cancel-run {
+  min-height: 28px;
+  margin: 0;
+  padding: 5px 9px;
+  border-color: rgba(103, 232, 249, 0.16);
+  border-radius: 999px;
+  background: rgba(8, 24, 33, 0.5);
+  color: #91b5bf;
+}
+
+.message-actions .speak-command { color: #b9d9ff; }
+.message-actions .memory-command { color: #bff7e9; }
+.message-actions .cancel-job,
+.message-actions .cancel-run { color: #fca5a5; }
 
 .composer {
   grid-row: 4;
@@ -2393,6 +2453,7 @@ dialog::backdrop {
   .starter-actions button:active,
   .action-hub-grid button:active,
   .send-button:active { transform: scale(0.97); }
+  .message-actions { opacity: 1; }
 }
 
 @media (max-height: 700px) and (min-width: 721px) {
@@ -2509,7 +2570,7 @@ dialog::backdrop {
   .action-hub-status b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
-@media (min-width: 1180px) {
+@media (min-width: 1024px) {
   .app { grid-template-rows: 64px minmax(0, 1fr); }
   .topbar { padding-inline: 28px; }
 
