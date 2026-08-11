@@ -10,10 +10,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260809-action2">
-  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260809-action2" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260809-action2">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260809-action2">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260811-commanddeck">
+  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-commanddeck" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-commanddeck">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260811-commanddeck">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -57,6 +57,25 @@
         </div>
         <div class="avatar" id="avatar3d" aria-hidden="true"></div>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
+
+        <section class="scene-objective" id="sceneObjective" aria-live="polite">
+          <small id="sceneEyebrow">SISTEMA ONLINE</small>
+          <strong id="sceneMission">Aguardando comando</strong>
+          <span id="sceneDetail">Núcleo pronto para conversar ou agir.</span>
+        </section>
+
+        <nav class="scene-modes" aria-label="Modos do JARVIS">
+          <span data-scene-mode="core"><i>01</i><b>NÚCLEO</b><small>pensar</small></span>
+          <span data-scene-mode="forge"><i>02</i><b>FORJA</b><small>construir</small></span>
+          <span data-scene-mode="memory"><i>03</i><b>MEMÓRIA</b><small>guardar</small></span>
+          <button id="sceneCommandButton" type="button"><i>⌘</i><span><b>ARSENAL</b><small>ações reais</small></span></button>
+        </nav>
+
+        <div class="scene-telemetry" aria-label="Telemetria do sistema">
+          <span><i></i><b id="sceneBrain">IA verificando</b></span>
+          <span><i></i><b id="sceneMac">Mac verificando</b></span>
+          <span><i></i><b id="sceneRender">3D carregando</b></span>
+        </div>
 
         <div class="state-beacon" id="stateBeacon" aria-live="polite">
           <span class="state-symbol" id="stateSymbol" aria-hidden="true">●</span>
@@ -233,9 +252,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260809-action2" defer></script>
+  <script src="/ui/jarvis.js?v=20260811-commanddeck" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260809-action2");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260811-commanddeck");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

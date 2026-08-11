@@ -340,6 +340,16 @@
     byId("statePhase").textContent = phase;
     byId("stateName").textContent = name;
     byId("stateDescription").textContent = description;
+    const activeMode = ["thinking", "planning", "research"].includes(normalized)
+      ? "core"
+      : ["forge", "local"].includes(normalized)
+        ? "forge"
+        : normalized === "memory" ? "memory" : "";
+    document.querySelectorAll("[data-scene-mode]").forEach((item) => {
+      item.classList.toggle("active", item.dataset.sceneMode === activeMode);
+    });
+    byId("sceneEyebrow").textContent = phase;
+    byId("sceneDetail").textContent = description;
     byId("voiceLink").textContent = normalized === "listening"
       ? "recebendo voz"
       : normalized === "speaking"
@@ -456,6 +466,13 @@
       : sentence.trim();
   }
 
+  function compactHudText(value, fallback, limit = 76) {
+    const clean = speechText(value);
+    if (!clean) return fallback;
+    if (clean.length <= limit) return clean;
+    return `${clean.slice(0, limit).replace(/\s+\S*$/, "").trim()}…`;
+  }
+
   function speechChunks(value, maxLength = 260) {
     const clean = speechText(value);
     if (!clean) return [];
@@ -505,6 +522,9 @@
     byId("requestTitle").textContent = "Executando pedido";
     byId("requestText").textContent = command;
     byId("spokenCaption").textContent = compactCaption(command, "Entendi. Deixe comigo.");
+    byId("sceneEyebrow").textContent = "MISSÃO ATIVA";
+    byId("sceneMission").textContent = compactHudText(command, "Executando pedido");
+    byId("sceneDetail").textContent = "Selecionando a melhor rota e acompanhando o resultado real.";
     byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
   }
 
@@ -746,11 +766,13 @@
         ? `Mac conectado · ${worker.hostname || "worker local"}`
         : "Mac offline · abra ou instale o worker local";
       byId("hubWorkerValue").textContent = worker.online ? "conectado" : "offline";
+      byId("sceneMac").textContent = worker.online ? "Mac conectado" : "Mac offline";
       await refreshActionHistory({ revealLatest: true });
     } catch {
       session.deviceOnline = false;
       target.textContent = "Mac offline · verificação indisponível";
       byId("hubWorkerValue").textContent = "offline";
+      byId("sceneMac").textContent = "Mac offline";
     }
   }
 
@@ -996,6 +1018,9 @@
     if (!data || data.ok === false) {
       const error = data?.error || data?.message || "Não consegui completar isso.";
       session.responseState = "error";
+      byId("sceneEyebrow").textContent = "ATENÇÃO";
+      byId("sceneMission").textContent = compactHudText(error, "Execução interrompida");
+      byId("sceneDetail").textContent = "O erro foi preservado sem inventar um resultado.";
       addMessage(error, "error");
       renderLiveCanvas({ message: error });
       settleState();
@@ -1009,6 +1034,13 @@
 
     session.responseState = responseVisualState(data);
     const answer = data.message || data.summary || data.next_action || data.status_real || "Pronto.";
+    byId("sceneEyebrow").textContent = data.job?.id || data.executed_locally ? "AÇÃO CONFIRMADA" : "RESULTADO";
+    byId("sceneMission").textContent = compactHudText(answer, "Resultado disponível");
+    byId("sceneDetail").textContent = data.web_search?.used
+      ? `${Number(data.web_search.source_count) || 0} fontes verificadas ao vivo.`
+      : data.model_routing?.quality_tier === "quality_first"
+        ? "Resposta processada pela rota de qualidade."
+        : "Resposta pronta no canal principal.";
     let extra = "";
     extra += renderMessageContext(data);
     if (data.memory_suggestion) {
@@ -1218,6 +1250,9 @@
       byId("aiValue").textContent = status.ai?.configured
         ? `OpenRouter conectado${status.web_search?.configured ? " · web ao vivo" : ""}${toolCount ? ` · ${toolCount} ferramentas` : ""}`
         : "OpenRouter não configurado";
+      byId("sceneBrain").textContent = status.ai?.configured
+        ? status.ai?.deep_model ? "IA adaptativa online" : "IA online"
+        : "IA offline";
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
       byId("accessMode").textContent = session.paired ? "Theo · modo master" : "modo visitante";
@@ -1274,6 +1309,9 @@
         workerValue.textContent = session.paired
           ? "Ponte remota ainda não configurada"
           : "Navegador não pareado";
+        byId("sceneMac").textContent = status.runtime === "local_web_preview"
+          ? "Mac local"
+          : session.paired ? "Mac não pareado" : "Mac privado";
       }
       setVisualState(status.ok ? "idle" : "offline");
       updateActionHub();
@@ -1387,6 +1425,7 @@
     await boot();
   });
   actionHubButton.addEventListener("click", () => setActionHub(actionHub.hidden));
+  byId("sceneCommandButton")?.addEventListener("click", () => setActionHub(true));
   mobileChatToggle?.addEventListener("click", () => {
     setMobileChatExpanded(mobileChatToggle.getAttribute("aria-expanded") !== "true");
   });

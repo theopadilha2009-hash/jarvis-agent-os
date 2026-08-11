@@ -50,6 +50,7 @@ MAX_PROMPT_CHARS = 8_000
 MAX_ATTACHMENT_BYTES = 2_500_000
 MAX_ATTACHMENTS = 2
 CONCISE_MAX_TOKENS = 220
+BALANCED_MAX_TOKENS = 520
 DETAILED_MAX_TOKENS = 900
 ATTACHMENT_MIME_TYPES = {
     "image/jpeg",
@@ -67,6 +68,12 @@ DETAILED_RESPONSE_PATTERN = re.compile(
     r"documento|resum(?:a|ir)|liste|checklist|pesquis(?:e|ar)|investigue|debug|diagn[oó]stico)\b",
     re.I,
 )
+ADVISORY_RESPONSE_PATTERN = re.compile(
+    r"\b(?:como\s+(?:voc[eê]\s+)?(?:faria|melhoraria|resolveria|deixaria)|o\s+que\s+(?:voc[eê]\s+)?acha|"
+    r"por\s+que|recomend(?:a|e|aria|ar)|sugest(?:[aã]o|[oõ]es)|estrat[eé]gia|ideias?|op[cç][oõ]es|"
+    r"vale\s+a\s+pena|pr[oó]s?\s+e\s+contras?|qual(?:\s+[ée])?\s+(?:a\s+)?melhor|quais\s+(?:s[aã]o\s+)?(?:as\s+)?melhores)\b",
+    re.I,
+)
 WEB_SEARCH_EXPLICIT_PATTERN = re.compile(
     r"\b(?:pesquis(?:a|e|ar|ando)|busc(?:a|ar|ando)|busqu(?:e|em|es)|procur(?:a|e|ar)\s+(?:na\s+)?(?:web|internet|google)|"
     r"google\s+(?:isso|isto|por|sobre)|consulta(?:r)?\s+(?:a\s+)?(?:web|internet)|busca\s+ao\s+vivo|"
@@ -78,6 +85,12 @@ WEB_SEARCH_FRESHNESS_PATTERN = re.compile(
     r"em\s+tempo\s+real|ao\s+vivo|pre[cç]o\s+(?:agora|atual|hoje)|cota[cç][aã]o|"
     r"placar|resultado\s+(?:do|da|de)\s+jogo|clima\s+(?:agora|hoje)|previs[aã]o\s+do\s+tempo|"
     r"quem\s+[eé]\s+(?:o|a)\s+atual|vers[aã]o\s+(?:atual|mais\s+nova)|lan[cç]amento\s+mais\s+recente)\b",
+    re.I,
+)
+WEB_SEARCH_DECISION_PATTERN = re.compile(
+    r"\b(?:quanto\s+custa|pre[cç]o\s+(?:do|da|de|dos|das)|onde\s+(?:comprar|encontrar)|"
+    r"(?:tem|est[aá])\s+dispon[ií]vel|compare\s+(?:pre[cç]os?|ofertas?)|melhores?\s+(?:pre[cç]os?|ofertas?)|"
+    r"mercado\s+(?:atual|hoje)|amazon|mercado\s*livre|olx|webmotors|kabum|magalu|shopee)\b",
     re.I,
 )
 AUTOMOTIVE_RESEARCH_PATTERN = re.compile(
@@ -102,10 +115,17 @@ FREE_SEARCH_USER_AGENT = "Mozilla/5.0 (compatible; TheoJarvisResearch/1.0; +http
 PUBLIC_READER_URL = "https://r.jina.ai/"
 PUBLIC_SEARCH_CACHE_SECONDS = 300.0
 DEFAULT_FREE_MODEL_POOL = (
-    "nvidia/nemotron-3-nano-30b-a3b:free",
-    "google/gemma-4-31b-it:free",
-    "openai/gpt-oss-20b:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+    "openai/gpt-oss-20b:free",
+    "openrouter/free",
+)
+DEFAULT_DEEP_MODEL_POOL = (
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "poolside/laguna-s-2.1:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-31b-it:free",
     "openrouter/free",
 )
 OWNER_SESSION_SECONDS = 30 * 24 * 60 * 60
@@ -2370,7 +2390,8 @@ def status_payload(owner_authenticated=False):
     elevenlabs_ready = bool(os.environ.get("ELEVENLABS_API_KEY"))
     n8n_ready = bool(os.environ.get("N8N_WEBHOOK_URL"))
     active_voice = active_voice_setting()
-    model_candidates = openrouter_model_candidates()
+    model_candidates = openrouter_model_candidates(profile="concise")
+    deep_model_candidates = openrouter_model_candidates(profile="detailed")
     return {
         "ok": True,
         "endpoint": "GET /status",
@@ -2382,7 +2403,8 @@ def status_payload(owner_authenticated=False):
             "provider": "openrouter",
             "model": model_candidates[0],
             "fallback_models": model_candidates[1:],
-            "routing": "ordered_free_model_fallbacks",
+            "deep_model": deep_model_candidates[0],
+            "routing": "complexity_aware_free_fallbacks",
             "configured": ai_ready,
             "privacy": "Prompts sent to free models may be retained by their providers; do not send secrets.",
         },
@@ -3076,17 +3098,23 @@ def is_automotive_research(prompt):
     return bool(price_or_marketplace and vehicle_context)
 
 
-def openrouter_model_candidates(attachments=False):
-    """Return one legal OpenRouter key's ordered free-model fallbacks."""
+def openrouter_model_candidates(attachments=False, profile="concise"):
+    """Return free-model fallbacks ordered for either speed or answer quality."""
     if attachments:
         attachment_model = clean_text(os.environ.get("OPENROUTER_ATTACHMENT_MODEL"), 200) or DEFAULT_MODEL
         return [attachment_model] if re.fullmatch(r"[A-Za-z0-9_.~:-]+/[A-Za-z0-9_.~:-]+", attachment_model) else [DEFAULT_MODEL]
     configured_pool = clean_text(os.environ.get("OPENROUTER_MODEL_POOL"), 2_000)
+    configured_deep_pool = clean_text(os.environ.get("OPENROUTER_DEEP_MODEL_POOL"), 2_000)
     configured_primary = clean_text(
         os.environ.get("OPENROUTER_ATTACHMENT_MODEL" if attachments else "OPENROUTER_MODEL"),
         200,
     )
-    raw = [item.strip() for item in configured_pool.split(",") if item.strip()]
+    quality_first = profile in {"balanced", "detailed"}
+    raw = []
+    if quality_first:
+        raw.extend(item.strip() for item in configured_deep_pool.split(",") if item.strip())
+        raw.extend(DEFAULT_DEEP_MODEL_POOL)
+    raw.extend(item.strip() for item in configured_pool.split(",") if item.strip())
     if configured_primary:
         raw.append(configured_primary)
     raw.extend(DEFAULT_FREE_MODEL_POOL)
@@ -3110,6 +3138,7 @@ def should_search_web(messages):
         is_automotive_research(latest)
         or WEB_SEARCH_EXPLICIT_PATTERN.search(latest)
         or WEB_SEARCH_FRESHNESS_PATTERN.search(latest)
+        or WEB_SEARCH_DECISION_PATTERN.search(latest)
         or (
             GITHUB_RESEARCH_PATTERN.search(latest)
             and re.search(r"\b(?:pesquis\w*|busc\w*|procur\w*|investig\w*|encontr\w*|ach\w*|compar\w*|similares?)\b", latest, re.I)
@@ -4253,15 +4282,36 @@ def openrouter_attachment_parts(prompt, attachments):
 
 
 def assistant_response_profile(prompt, attachments=None):
+    text = clean_text(prompt, 8_000)
     detailed = (
         bool(attachments)
         or is_automotive_research(prompt)
-        or bool(DETAILED_RESPONSE_PATTERN.search(clean_text(prompt, 8_000)))
+        or bool(DETAILED_RESPONSE_PATTERN.search(text))
     )
+    balanced = not detailed and (
+        bool(ADVISORY_RESPONSE_PATTERN.search(text))
+        or len(text) >= 220
+        or text.count("?") >= 2
+    )
+    if detailed:
+        return {
+            "name": "detailed",
+            "max_tokens": DETAILED_MAX_TOKENS,
+            "temperature": 0.32,
+            "routing": "quality_first",
+        }
+    if balanced:
+        return {
+            "name": "balanced",
+            "max_tokens": BALANCED_MAX_TOKENS,
+            "temperature": 0.44,
+            "routing": "quality_first",
+        }
     return {
-        "name": "detailed" if detailed else "concise",
-        "max_tokens": DETAILED_MAX_TOKENS if detailed else CONCISE_MAX_TOKENS,
-        "temperature": 0.58 if detailed else 0.72,
+        "name": "concise",
+        "max_tokens": CONCISE_MAX_TOKENS,
+        "temperature": 0.68,
+        "routing": "speed_first",
     }
 
 
@@ -4936,6 +4986,21 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             )
         ),
     }
+    response_contracts = {
+        "concise": (
+            "\n\nFormato desta resposta: seja direto e natural em uma a três frases curtas. "
+            "Não transforme conversa simples em relatório."
+        ),
+        "balanced": (
+            "\n\nFormato desta resposta: comece pela conclusão e desenvolva somente os dois a cinco pontos "
+            "concretos que realmente mudam a decisão. Seja útil sem virar ensaio; use lista curta apenas se melhorar a leitura."
+        ),
+        "detailed": (
+            "\n\nFormato desta resposta: entregue análise estruturada e substancial. Separe fatos, inferências e "
+            "recomendações; explicite premissas e trade-offs relevantes. Não invente números, fontes, testes ou execução."
+        ),
+    }
+    system["content"] += response_contracts[response_profile["name"]]
     tool_access = bool(owner_authenticated or not owner_pairing_required())
     if tool_access:
         system["content"] += (
@@ -4961,21 +5026,28 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     provider_messages = [dict(row) for row in messages]
     if attachments:
         provider_messages[-1]["content"] = openrouter_attachment_parts(latest, attachments)
-    model_candidates = openrouter_model_candidates(attachments=bool(attachments))
+    model_candidates = openrouter_model_candidates(
+        attachments=bool(attachments),
+        profile=response_profile["name"],
+    )
+    quality_first = response_profile["routing"] == "quality_first"
+    provider_routing = {
+        "sort": {
+            "by": "latency",
+            # Preserve the quality-ordered model list for analysis/research.
+            # Simple chat may compare all free endpoints globally for speed.
+            "partition": "model" if quality_first else "none",
+        },
+        "preferred_max_latency": {"p90": 12 if quality_first else 6},
+        "max_price": {"prompt": 0, "completion": 0},
+        "allow_fallbacks": True,
+    }
     openrouter_payload = {
             "messages": [system, *provider_messages],
             "temperature": response_profile["temperature"],
             "max_tokens": response_profile["max_tokens"],
             "stream": False,
-            # Free endpoints vary throughout the day. Rank all eligible
-            # endpoints by observed latency instead of waiting behind the
-            # first large model in the list, while keeping zero-cost routing.
-            "provider": {
-                "sort": {"by": "latency", "partition": "none"},
-                "preferred_max_latency": {"p90": 6},
-                "max_price": {"prompt": 0, "completion": 0},
-                "allow_fallbacks": True,
-            },
+            "provider": provider_routing,
         }
     if len(model_candidates) > 1:
         # OpenRouter's official model-fallback route tries these in order on
@@ -5115,7 +5187,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             ).strip()
         content, response_trimmed = concise_assistant_content(
             content,
-            detailed=response_profile["name"] == "detailed",
+            detailed=response_profile["name"] != "concise",
         )
         meta_leak_recovered = False
         if not content and response_trimmed:
@@ -5158,7 +5230,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "meta_leak_recovered": meta_leak_recovered,
             "tool_calling_fallback": tool_calling_fallback,
             "model_routing": {
-                "strategy": "openrouter_ordered_fallbacks",
+                "strategy": "complexity_aware_free_fallbacks",
+                "quality_tier": response_profile["routing"],
+                "provider_partition": provider_routing["sort"]["partition"],
                 "selected": clean_text(result.get("model") or DEFAULT_MODEL, 200),
                 "candidates": model_candidates,
                 "compatibility_fallback": model_routing_compatibility_fallback,

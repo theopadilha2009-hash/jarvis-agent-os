@@ -8,8 +8,8 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
 const constrainedHardware = (navigator.deviceMemory && navigator.deviceMemory <= 4)
   || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 18 : 24;
-const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 8 : 10;
+const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 18 : 30;
+const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 8 : 12;
 const BACKGROUND_TARGET_FPS = 1;
 const EFFECT_TARGET_FPS = 10;
 const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
@@ -373,15 +373,15 @@ function installCyanRemap(material) {
 async function start() {
   const renderer = new THREE.WebGLRenderer({
     alpha: true,
-    antialias: false,
-    powerPreference: "low-power",
+    antialias: !compactViewport && !constrainedHardware,
+    powerPreference: constrainedHardware ? "low-power" : "high-performance",
     preserveDrawingBuffer: false,
   });
   renderer.domElement.style.position = "absolute";
   renderer.domElement.style.inset = "0";
   renderer.domElement.style.zIndex = "1";
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(1);
+  renderer.setPixelRatio(compactViewport || constrainedHardware ? 1 : Math.min(window.devicePixelRatio || 1, 1.35));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.92;
@@ -437,7 +437,7 @@ async function start() {
   stage.dataset.modelAsset = "mech-bust";
   stage.dataset.modelAnimations = String(gltf.animations.length);
   stage.dataset.modelAnimationSeconds = gltf.animations[0]?.duration?.toFixed(1) || "0";
-  stage.dataset.renderProfile = "low-memory";
+  stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "command-deck";
 
   const particleCount = compactViewport || constrainedHardware ? 24 : 42;
   const particlePositions = new Float32Array(particleCount * 3);
@@ -590,6 +590,8 @@ async function start() {
     if (timeMs - fpsWindowStart >= 1000) {
       const measuredFps = Math.round(sampledFrames * 1000 / (timeMs - fpsWindowStart));
       stage.dataset.renderFps = String(measuredFps);
+      const renderTelemetry = document.getElementById("sceneRender");
+      if (renderTelemetry) renderTelemetry.textContent = `3D ${measuredFps} FPS`;
       const currentTargetFps = 1000 / frameIntervalMs;
       slowFrameWindows = measuredFps < currentTargetFps * 0.72
         ? slowFrameWindows + 1
@@ -629,6 +631,11 @@ async function start() {
 
     currentX += (pointerX * 0.25 - currentX) * 0.055;
     currentY += (pointerY * 0.12 - currentY) * 0.055;
+    const cameraTargetX = modeBlend.memory * 0.08 + modeBlend.forge * 0.05;
+    const cameraTargetZ = 5.02 + modeBlend.memory * 0.18 + modeBlend.forge * 0.12 + modeBlend.core * 0.08;
+    camera.position.x += (cameraTargetX - camera.position.x) * 0.035;
+    camera.position.z += (cameraTargetZ - camera.position.z) * 0.035;
+    camera.lookAt(0, -0.01, 0);
     const targetPositionX = -modeBlend.memory * 0.72 - modeBlend.forge * 0.62 - modeBlend.core * 0.38;
     root.position.x += (targetPositionX - root.position.x) * 0.045;
     root.position.y = Math.sin(time * 0.9) * 0.035;
