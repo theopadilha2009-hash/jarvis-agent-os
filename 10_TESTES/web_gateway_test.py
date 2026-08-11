@@ -2509,6 +2509,49 @@ São Paulo - SP
         self.assertEqual(verification["claim_policy"], "cite_or_refuse")
         self.assertEqual(verification["query_count"], 2)
 
+    def test_runtime_v2_search_query_removes_question_and_answer_instructions(self):
+        query = MODULE.search_query_from_prompt(
+            "Pesquise na internet qual é a versão estável atual do Next.js e responda citando fontes reais. "
+            "Se não confirmar, diga que não confirmou."
+        )
+        self.assertEqual(query, "versão estável atual do Next.js")
+
+    def test_runtime_v2_relevance_rejects_generic_qual_search_noise(self):
+        sources = [
+            {
+                "title": "iShares MSCI USA Quality Factor ETF | QUAL",
+                "url": "https://www.ishares.com/us/products/qual",
+                "domain": "ishares.com",
+                "snippet": "QUAL fund overview",
+            },
+            {
+                "title": "Releases: vercel/next.js",
+                "url": "https://github.com/vercel/next.js/releases",
+                "domain": "github.com",
+                "snippet": "Next.js releases and version history",
+            },
+        ]
+        relevant = MODULE.relevant_public_sources(sources, "versão estável atual do Next.js")
+        self.assertEqual([row["domain"] for row in relevant], ["github.com"])
+
+    def test_runtime_v2_relevance_requires_the_distinctive_subject(self):
+        sources = [
+            {
+                "title": "Versão - Dicionário Online de Português",
+                "url": "https://dicio.com.br/versao",
+                "domain": "dicio.com.br",
+                "snippet": "Significado de versão",
+            },
+            {
+                "title": "Next.js releases",
+                "url": "https://www.npmjs.com/package/next",
+                "domain": "npmjs.com",
+                "snippet": "Next package version history",
+            },
+        ]
+        relevant = MODULE.relevant_public_sources(sources, "versão estável atual do Next.js")
+        self.assertEqual([row["domain"] for row in relevant], ["npmjs.com"])
+
     def test_runtime_v2_attaches_a_visible_mission_contract(self):
         started = datetime.now(MODULE.timezone.utc)
         payload = MODULE.attach_execution_events(
