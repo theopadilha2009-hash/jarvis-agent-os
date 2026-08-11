@@ -3396,6 +3396,17 @@ def search_query_from_prompt(prompt):
         " ",
         query,
     )
+    query = re.sub(
+        r"(?i)^\s*(?:qual(?:\s+[ée])?|quais(?:\s+s[aã]o)?|o\s+que\s+[ée])\s+(?:a|o|as|os)?\s*",
+        "",
+        query,
+    )
+    query = re.sub(
+        r"(?i)\s+(?:e\s+)?(?:responda|resuma|explique|diga|mostre|traga)\b.*$",
+        "",
+        query,
+    )
+    query = re.sub(r"(?i)(?:[.;]\s*)?se\s+n[aã]o\s+(?:conseguir\s+)?confirmar\b.*$", "", query)
     query = re.sub(r"\s+", " ", query).strip(" .,:;!?-")
     return query or clean_text(prompt, 500)
 
@@ -4113,8 +4124,17 @@ def relevant_public_sources(sources, query, limit=FREE_SEARCH_RESULT_LIMIT):
     """Drop search-engine noise that has no meaningful overlap with the request."""
     query_terms = memory_terms(query) - {
         "pesquisa", "pesquisar", "busca", "buscar", "internet", "online", "fonte", "fontes",
-        "atual", "atuais", "agora", "hoje", "sobre", "documentacao", "oficial",
+        "atual", "atuais", "agora", "hoje", "sobre", "documentacao", "oficial", "qual", "quais",
+        "responda", "resumir", "explique", "diga", "mostre", "traga", "citando", "reais", "confirmar",
+        "confirmado", "confirmou", "conseguir", "nao", "sim", "ser", "sao",
     }
+    generic_terms = {
+        "artigo", "artigos", "comparar", "comparacao", "dados", "detalhes", "estavel", "informacao",
+        "informacoes", "lista", "listas", "melhor", "melhores", "noticia", "noticias", "opcao", "opcoes",
+        "preco", "precos", "produto", "produtos", "recente", "recentes", "resultado", "resultados", "versao",
+        "versoes",
+    }
+    anchor_terms = query_terms - generic_terms
     if not query_terms:
         return _dedupe_public_sources(sources, limit)
     ranked = []
@@ -4125,11 +4145,15 @@ def relevant_public_sources(sources, query, limit=FREE_SEARCH_RESULT_LIMIT):
             clean_text(item.get("domain"), 160),
             clean_text(item.get("url"), 500),
         ])
-        overlap = len(query_terms & memory_terms(haystack))
+        haystack_terms = memory_terms(haystack)
+        anchor_overlap = len(anchor_terms & haystack_terms)
+        if anchor_terms and not anchor_overlap:
+            continue
+        overlap = len(query_terms & haystack_terms)
         if overlap:
-            ranked.append((overlap, -index, item))
-    ranked.sort(key=lambda row: (row[0], row[1]), reverse=True)
-    return _dedupe_public_sources([item for _score, _index, item in ranked], limit)
+            ranked.append((anchor_overlap, overlap, -index, item))
+    ranked.sort(key=lambda row: (row[0], row[1], row[2]), reverse=True)
+    return _dedupe_public_sources([item for _anchor, _score, _index, item in ranked], limit)
 
 
 def public_web_search(query, limit=FREE_SEARCH_RESULT_LIMIT):
