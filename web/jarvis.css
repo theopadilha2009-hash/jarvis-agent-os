@@ -2408,3 +2408,231 @@ dialog::backdrop {
     scroll-behavior: auto !important;
   }
 }
+
+/* Experience V3 — cinematic presence, calm information density. */
+.conversation-feed {
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+.message {
+  content-visibility: auto;
+  contain-intrinsic-size: 44px;
+}
+
+.message-context {
+  margin-top: 10px !important;
+  overflow: hidden;
+  border: 1px solid rgba(103, 232, 249, 0.11);
+  border-radius: 12px;
+  background: rgba(4, 17, 25, 0.5);
+  white-space: normal;
+}
+
+.message-context > summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  color: #bcdde5;
+  cursor: pointer;
+  list-style: none;
+}
+
+.message-context > summary::-webkit-details-marker { display: none; }
+.message-context > summary span { font-size: 9px; font-weight: 650; }
+.message-context > summary small {
+  overflow: hidden;
+  color: #5e8290;
+  font: 7px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.07em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-context > summary::after {
+  content: "+";
+  color: var(--cyan);
+  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.message-context[open] > summary::after { content: "−"; }
+.message-context > div { display: grid; gap: 8px; padding: 0 9px 9px; }
+.message-context .source-links { margin: 0; }
+.message-context .message-card,
+.message-context .message-events { margin: 0; }
+.message-context .message-card > strong,
+.message-context .message-events > strong {
+  display: inline-block;
+  margin-right: 7px;
+  color: #cceaf1;
+  font-size: 9px;
+}
+.message-context .message-card > small { color: var(--faint); text-transform: uppercase; }
+
+#actionHubButton { position: relative; }
+#actionHubButton.has-context::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--cyan-hot);
+  box-shadow: 0 0 10px var(--cyan);
+}
+
+@media (min-width: 941px) {
+  .hud-rail { display: none !important; }
+  .presence::after { opacity: 0.018; }
+  .grid-plane { animation-duration: 52s; }
+  .signal-bars i { animation: none; }
+
+  .action-hub {
+    top: 84px;
+    right: auto;
+    bottom: 22px;
+    left: 24px;
+    width: min(390px, calc(100vw - 48px));
+    border-color: rgba(103, 232, 249, 0.17);
+    border-radius: 18px;
+    background: rgba(3, 12, 19, 0.97);
+    box-shadow: 30px 30px 120px rgba(0, 0, 0, 0.58), inset 0 1px rgba(255, 255, 255, 0.025);
+    backdrop-filter: blur(14px);
+  }
+
+  .action-hub-status { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .action-hub-status span { min-width: 0; padding: 8px 6px; }
+  .action-hub-status b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+@media (min-width: 1180px) {
+  .app { grid-template-rows: 64px minmax(0, 1fr); }
+  .topbar { padding-inline: 28px; }
+
+  .presence {
+    right: clamp(430px, 31vw, 500px);
+    border-right: 1px solid rgba(103, 232, 249, 0.07);
+  }
+
+  .presence::before { inset: 3% 13% 14%; }
+  .depth-horizon { width: min(68vw, 1120px); }
+  .avatar { inset: -6% -2% 8%; }
+  .target-ring { width: min(37vw, 520px); }
+  .stage[data-state="thinking"] .target-ring,
+  .stage[data-state="planning"] .target-ring,
+  .stage[data-state="research"] .target-ring { width: min(40vw, 555px); }
+
+  .scene-objective {
+    top: 34px;
+    left: 36px;
+    width: min(330px, 29vw);
+    gap: 8px;
+  }
+
+  .scene-objective strong {
+    font-size: clamp(16px, 1.25vw, 20px);
+    white-space: normal;
+  }
+
+  .scene-modes {
+    top: 50%;
+    right: auto;
+    left: 34px;
+    width: 112px;
+    transform: translateY(-50%);
+  }
+
+  .scene-modes > span.active,
+  .scene-modes > button:hover,
+  .scene-modes > button:focus-visible { transform: translateX(5px); }
+
+  .scene-telemetry {
+    right: auto;
+    bottom: 27px;
+    left: 36px;
+    justify-items: start;
+  }
+
+  .state-beacon { top: 24px; }
+
+  .spoken-caption {
+    bottom: 30px;
+    width: min(500px, 42vw);
+  }
+
+  .conversation,
+  .stage.has-conversation .conversation {
+    top: 20px;
+    right: 20px;
+    bottom: 20px;
+    left: auto;
+    width: clamp(390px, 28.5vw, 460px);
+    height: auto;
+    transform: none;
+    border-color: rgba(103, 232, 249, 0.12);
+    border-radius: 20px;
+    background:
+      radial-gradient(circle at 100% 0, rgba(8, 145, 178, 0.08), transparent 38%),
+      linear-gradient(180deg, rgba(3, 13, 20, 0.93), rgba(2, 8, 13, 0.97));
+    box-shadow: 0 32px 120px rgba(0, 0, 0, 0.36), inset 0 1px rgba(255, 255, 255, 0.025);
+    backdrop-filter: blur(12px);
+  }
+
+  .conversation::before { left: 56px; right: 56px; opacity: 0.32; }
+  .conversation-head { min-height: 52px; padding: 15px 18px 8px; }
+  .conversation-head b { font-size: 9px; }
+  .conversation-channel { color: #5c7c87; }
+  .request-progress { min-height: 36px; margin: 5px 14px 8px; }
+  .request-progress span::after { display: none; }
+  .conversation-feed { gap: 15px; padding: 13px 18px 20px; }
+  .welcome { gap: 8px; padding: 18px; text-align: left; }
+  .welcome strong { font-size: 18px; }
+  .welcome span { font-size: 13px; line-height: 1.5; }
+  .starter-actions { justify-content: flex-start; gap: 7px; margin-top: 10px; }
+  .starter-actions button { min-height: 34px; border-radius: 11px; }
+
+  .message {
+    max-width: 100%;
+    padding: 2px 1px;
+    color: #d8e9ee;
+    font-size: 14px;
+    line-height: 1.62;
+  }
+
+  .message.user {
+    max-width: 88%;
+    padding: 10px 13px;
+    border-radius: 15px 15px 5px 15px;
+  }
+
+  .message.voice-status {
+    max-width: 94%;
+    padding: 9px 11px;
+  }
+
+  .composer {
+    grid-template-columns: 46px 40px minmax(0, 1fr) auto;
+    gap: 7px;
+    padding: 12px;
+    background: rgba(2, 9, 14, 0.76);
+  }
+
+  .composer input { min-height: 46px; padding-inline: 14px; }
+  .voice-button,
+  .attachment-button,
+  .send-button { min-height: 46px; border-radius: 14px; }
+  .voice-button b { display: none; }
+  .send-button { padding-inline: 16px; }
+  .attachment-tray { padding: 0 12px 10px; }
+}
+
+@media (min-width: 1500px) {
+  .presence { right: 490px; }
+  .conversation,
+  .stage.has-conversation .conversation { width: 450px; }
+  .avatar { inset: -8% 1% 7%; }
+}

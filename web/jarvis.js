@@ -21,6 +21,7 @@
   const installDialog = byId("installDialog");
   const mobileLayout = window.matchMedia("(max-width: 720px)");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
+  const MAX_VISIBLE_MESSAGES = 24;
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
     input: Boolean(Recognition),
@@ -129,6 +130,7 @@
     actionHub.hidden = !open;
     actionHubButton.setAttribute("aria-expanded", String(open));
     if (open) {
+      actionHubButton.classList.remove("has-context");
       refreshPersonalOverview();
       if (mobileLayout.matches) input.blur();
     }
@@ -230,6 +232,16 @@
         : session.paired
           ? "Escolha uma ação real ou continue conversando normalmente."
           : "Conversa e pesquisa são públicas; ações pessoais exigem o modo master.";
+    const hasContext = Boolean(
+      data.job?.id
+      || data.agentic
+      || data.executed_locally
+      || data.memory_suggestion
+      || data.memory_candidate
+      || (Array.isArray(data.sources) && data.sources.length)
+      || (Array.isArray(data.ui_cards) && data.ui_cards.length)
+    );
+    actionHubButton.classList.toggle("has-context", hasContext && actionHub.hidden);
     if (data.job?.id || data.agentic || data.executed_locally) setActionHub(true);
   }
 
@@ -460,10 +472,10 @@
       .replace(/[*_#>|~]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    if (clean.length <= 900) return clean;
-    const excerpt = clean.slice(0, 900);
+    if (clean.length <= 520) return clean;
+    const excerpt = clean.slice(0, 520);
     const naturalEnd = Math.max(excerpt.lastIndexOf(". "), excerpt.lastIndexOf("! "), excerpt.lastIndexOf("? "));
-    return `${excerpt.slice(0, naturalEnd > 520 ? naturalEnd + 1 : 900).trim()}…`;
+    return `${excerpt.slice(0, naturalEnd > 280 ? naturalEnd + 1 : 520).trim()}…`;
   }
 
   function compactCaption(value, fallback = "Estou aqui.") {
@@ -511,7 +523,7 @@
       const cut = Math.max(windowText.lastIndexOf(". "), windowText.lastIndexOf(", "), windowText.lastIndexOf(" "));
       if (cut > 90) chunks.splice(0, 1, first.slice(0, cut + 1).trim(), first.slice(cut + 1).trim());
     }
-    return chunks.filter(Boolean).slice(0, 6);
+    return chunks.filter(Boolean).slice(0, 3);
   }
 
   function messageHtml(value) {
@@ -529,6 +541,10 @@
     message.className = `message ${type}`;
     message.innerHTML = `<span>${messageHtml(text)}</span>${extraHtml}`;
     feed.appendChild(message);
+    const visibleMessages = feed.querySelectorAll(".message");
+    if (visibleMessages.length > MAX_VISIBLE_MESSAGES) {
+      Array.from(visibleMessages).slice(0, visibleMessages.length - MAX_VISIBLE_MESSAGES).forEach((item) => item.remove());
+    }
     feed.scrollTop = feed.scrollHeight;
     return message;
   }
@@ -658,29 +674,41 @@
   }
 
   function renderMessageContext(data) {
-    let html = "";
+    let details = "";
+    const badges = [];
     if (data.mission?.protocol === "jarvis-mission/2") {
       const completed = data.mission.steps?.filter((step) => step.status === "succeeded").length || 0;
       const total = data.mission.steps?.length || 0;
-      html += `<details class="message-card mission-card"><summary>Missão<small>${completed}/${total} etapas</small></summary><p>${escapeHtml(data.mission.objective || "")}</p>${total ? `<ul>${data.mission.steps.map((step) => `<li data-status="${escapeHtml(step.status || "pending")}">${escapeHtml(step.label || step.id)}</li>`).join("")}</ul>` : ""}</details>`;
+      badges.push(`${completed}/${total} etapas`);
+      details += `<section class="message-card mission-card"><strong>Missão</strong><p>${escapeHtml(data.mission.objective || "")}</p>${total ? `<ul>${data.mission.steps.map((step) => `<li data-status="${escapeHtml(step.status || "pending")}">${escapeHtml(step.label || step.id)}</li>`).join("")}</ul>` : ""}</section>`;
     }
-    html += renderSourceLinks(data.sources, true);
+    if (Array.isArray(data.sources) && data.sources.length) badges.push(`${data.sources.length} fontes`);
+    details += renderSourceLinks(data.sources, true);
     if (Array.isArray(data.ui_cards) && data.ui_cards.length) {
-      html += data.ui_cards.slice(0, 2).map((card) => {
+      badges.push(`${data.ui_cards.length} resultado${data.ui_cards.length === 1 ? "" : "s"}`);
+      details += data.ui_cards.slice(0, 2).map((card) => {
         const items = Array.isArray(card.items) ? card.items.slice(0, 6) : [];
-        return `<details class="message-card"><summary>${escapeHtml(card.title || "Resultado")}<small>${escapeHtml(card.status || "")}</small></summary>${card.subtitle ? `<p>${escapeHtml(card.subtitle)}</p>` : ""}${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}</details>`;
+        return `<section class="message-card"><strong>${escapeHtml(card.title || "Resultado")}</strong>${card.status ? `<small>${escapeHtml(card.status)}</small>` : ""}${card.subtitle ? `<p>${escapeHtml(card.subtitle)}</p>` : ""}${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}</section>`;
       }).join("");
     }
     const stream = data.event_stream;
     if (stream?.protocol === "jarvis-events/1" && Array.isArray(stream.events)) {
-      html += `<details class="message-events"><summary>Execução real<small>${Number(stream.elapsed_ms) || 0} ms</small></summary>${stream.events.slice(-5).map((event) => `<div><i data-status="${escapeHtml(event.status || "unknown")}"></i><span>${escapeHtml(event.label || event.type)}</span></div>`).join("")}</details>`;
+      badges.push(`${Number(stream.elapsed_ms) || 0} ms`);
+      details += `<section class="message-events"><strong>Execução real</strong>${stream.events.slice(-5).map((event) => `<div><i data-status="${escapeHtml(event.status || "unknown")}"></i><span>${escapeHtml(event.label || event.type)}</span></div>`).join("")}</section>`;
     }
-    return html;
+    if (!details) return "";
+    const summary = badges.length ? badges.slice(0, 3).join(" · ") : "ver evidências";
+    return `<details class="message-context"><summary><span>Detalhes reais</span><small>${escapeHtml(summary)}</small></summary><div>${details}</div></details>`;
   }
 
   function refreshMessageExecutionContext(message, data) {
-    message.querySelectorAll(".message-card, .message-events").forEach((card) => card.remove());
-    const context = renderMessageContext({ ui_cards: data.ui_cards || [], mission: data.mission });
+    message.querySelectorAll(".message-context").forEach((card) => card.remove());
+    const context = renderMessageContext({
+      ui_cards: data.ui_cards || [],
+      mission: data.mission,
+      sources: data.sources || [],
+      event_stream: data.event_stream,
+    });
     if (context) message.insertAdjacentHTML("beforeend", context);
   }
 

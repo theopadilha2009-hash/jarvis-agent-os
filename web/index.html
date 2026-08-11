@@ -10,10 +10,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260811-runtimev2">
-  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-runtimev2" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-runtimev2">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260811-runtimev2">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260811-experiencev3">
+  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-experiencev3" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-experiencev3">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260811-experiencev3">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -39,7 +39,7 @@
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
         <button class="quiet-button" id="tourButton" type="button">Guia</button>
         <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
-        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir central pessoal · ⌘K">Central <kbd>⌘K</kbd></button>
+        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir ações contextuais · ⌘K">Ações <kbd>⌘K</kbd></button>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Fala ligada</span><span class="mobile-label">Voz</span></button>
         <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
       </div>
@@ -252,9 +252,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260811-runtimev2" defer></script>
+  <script src="/ui/jarvis.js?v=20260811-experiencev3" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260811-runtimev2");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260811-experiencev3");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });
