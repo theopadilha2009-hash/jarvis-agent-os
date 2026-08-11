@@ -11,7 +11,9 @@ import importlib.util
 from datetime import datetime
 import json
 import os
+import re
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -444,7 +446,7 @@ class WebGatewayTest(unittest.TestCase):
                 return json.dumps([{
                     "id": 91,
                     "action": "open_application",
-                    "target": "Calculator",
+                    "target": "Spotify",
                     "status": "pending",
                 }]).encode("utf-8")
 
@@ -456,12 +458,13 @@ class WebGatewayTest(unittest.TestCase):
         with patch.dict(os.environ, env, clear=False):
             with patch.object(MODULE, "urlopen", return_value=FakeSupabaseResponse()) as request:
                 payload, status = MODULE.command_payload(
-                    {"command": "abre a Calculadora"},
+                    {"command": "abre o Spotify"},
                     owner_authenticated=True,
                 )
         self.assertEqual(status, 202)
         self.assertEqual(payload["status_real"], "device_command_queued")
         self.assertEqual(payload["job"]["id"], 91)
+        self.assertEqual(payload["job"]["target"], "Spotify")
         sent_request = request.call_args.args[0]
         self.assertEqual(sent_request.method, "POST")
         self.assertIn("/rest/v1/jarvis_device_commands", sent_request.full_url)
@@ -763,12 +766,23 @@ class WebGatewayTest(unittest.TestCase):
             status_payload = MODULE.status_payload(owner_authenticated=True)
         self.assertEqual(status, 200)
         self.assertEqual(payload["access"], "owner_master")
+        expires_at = int(payload["session_token"].split(".")[1])
+        self.assertGreaterEqual(expires_at - int(time.time()), MODULE.OWNER_SESSION_SECONDS - 2)
         self.assertEqual(refused_status, 401)
         self.assertFalse(refused["ok"])
         serialized = json.dumps(status_payload)
         self.assertNotIn("test-admin-password", serialized)
         self.assertNotIn(encoded, serialized)
         self.assertTrue(status_payload["owner_pairing"]["admin_login_configured"])
+        self.assertEqual(status_payload["owner_pairing"]["session_duration_seconds"], MODULE.OWNER_SESSION_SECONDS)
+
+    def test_pairing_refusal_never_implies_that_a_device_action_ran(self):
+        payload, status = MODULE.pairing_required_payload()
+        self.assertEqual(status, 401)
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["action_executed"])
+        self.assertIn("Não executei a ação", payload["error"])
+        self.assertIn("modo master", payload["next_action"])
 
     def test_private_conversation_history_is_normalized_and_persisted(self):
         rows = [{
@@ -1425,6 +1439,36 @@ class WebGatewayTest(unittest.TestCase):
             "year": "2020",
         })
 
+    def test_civic_g8_resolves_to_verified_generation_range(self):
+        details = MODULE.automotive_vehicle_details("qual o preço do Civic G8?")
+        self.assertEqual(details["subject"], "Honda Civic G8 (2007–2011)")
+        self.assertEqual(details["brand"], "honda")
+        self.assertEqual(details["model"], "civic")
+        self.assertEqual(details["generation"], "g8")
+        self.assertEqual(details["year_from"], "2007")
+        self.assertEqual(details["year_to"], "2011")
+        self.assertEqual(details["sample_years"], ["2007", "2009", "2011"])
+        self.assertEqual(details["generation_source"], "Honda Automóveis do Brasil")
+
+    def test_olx_vehicle_parser_rejects_parts_and_implausible_prices(self):
+        raw = """
+## [Aerofólio Civic G8](https://sp.olx.com.br/autos-e-pecas/pecas-e-acessorios/aerofolio-civic-g8)
+### R$ 999
+São Paulo - SP
+## [Honda Civic LXS 2008](https://sp.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/honda-civic-lxs-2008)
+140.000 km
+### R$ 41.900
+São Paulo - SP
+## [Honda Civic para retirada de peças](https://rj.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/civic-pecas)
+### R$ 3.000
+Rio de Janeiro - RJ
+"""
+        sources = MODULE.parse_olx_vehicle_listings(raw)
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0]["title"], "Honda Civic LXS 2008")
+        self.assertEqual(sources[0]["price_brl"], 41900)
+        self.assertEqual(sources[0]["evidence_kind"], "vehicle_listing")
+
     def test_automotive_research_reads_olx_listings_and_webmotors_references(self):
         olx = """
 ## [Honda Civic EX 2020](https://sp.olx.com.br/autos/honda-civic-ex-2020-1 "Honda Civic EX 2020")
@@ -1472,6 +1516,54 @@ R$122.186,50 Preços atualizados em agosto 2026
         self.assertIn("webmotors.com.br/carros-usados", research["webmotors_search_url"])
         self.assertTrue(cached["cache_hit"])
         self.assertEqual(reader_mock.call_count, first_call_count)
+
+    def test_civic_g8_research_samples_range_and_keeps_only_real_cars(self):
+        def reader(url, **_kwargs):
+            year_match = re.search(r"(?:q=Honda\+Civic\+|/)(2007|2009|2011)(?:$|/)", url)
+            year = year_match.group(1) if year_match else "2007"
+            if "olx.com.br" in url:
+                price = {"2007": "35.900", "2009": "44.900", "2011": "57.900"}[year]
+                return f"""
+## [Aerofólio Civic G8](https://sp.olx.com.br/autos-e-pecas/pecas-e-acessorios/aerofolio-{year})
+### R$ 999
+São Paulo - SP
+## [Honda Civic LXS {year}](https://sp.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/civic-lxs-{year})
+120.000 km
+### R$ {price}
+São Paulo - SP
+"""
+            if url.rstrip("/").endswith(f"/{year}"):
+                return (
+                    f"| [Honda Civic LXS {year}]"
+                    f"(https://www.webmotors.com.br/tabela-fipe/carros/honda/civic/{year}/lxs-{year}) | 0140{year[-2:]}-0 |"
+                )
+            fipe = {"2007": "35.100,00", "2009": "43.200,00", "2011": "56.300,00"}[year]
+            return f"R${fipe} Preços atualizados em agosto 2026"
+
+        with patch.object(MODULE, "_public_reader_request", side_effect=reader):
+            bundle = MODULE.automotive_research_sources("qual o preço do Civic G8?")
+
+        research = bundle["research"]
+        listings = [row for row in bundle["sources"] if row.get("provider") == "olx_marketplace"]
+        self.assertEqual(research["subject"], "Honda Civic G8 (2007–2011)")
+        self.assertEqual(research["generation"], "g8")
+        self.assertEqual(research["listing_count"], 3)
+        self.assertEqual(research["reference_count"], 3)
+        self.assertEqual(research["price_min_brl"], 35900)
+        self.assertEqual(research["price_median_brl"], 44900)
+        self.assertEqual(research["price_max_brl"], 57900)
+        self.assertEqual(len(research["olx_search_urls"]), 3)
+        self.assertIn("/de.2007/ate.2011", research["webmotors_search_url"])
+        self.assertTrue(all(row["price_brl"] >= 5_000 for row in listings))
+        self.assertFalse(any("aerofólio" in row["title"].casefold() for row in listings))
+
+    def test_automotive_research_records_reader_timeout_instead_of_crashing(self):
+        with patch.object(MODULE, "_public_reader_request", side_effect=OSError("reader timeout")):
+            bundle = MODULE.automotive_research_sources("qual o preço do Civic G8?")
+        self.assertEqual(bundle["mode"], "automotive_search_unavailable")
+        self.assertFalse(bundle["sources"])
+        self.assertEqual(len(bundle["attempts"]), 6)
+        self.assertTrue(all(not row["ok"] for row in bundle["attempts"]))
 
     def test_automotive_research_remains_useful_when_model_quota_fails(self):
         sources = [{
