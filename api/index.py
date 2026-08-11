@@ -108,6 +108,7 @@ DEFAULT_FREE_MODEL_POOL = (
     "nvidia/nemotron-3-super-120b-a12b:free",
     "openrouter/free",
 )
+OWNER_SESSION_SECONDS = 30 * 24 * 60 * 60
 AUTOMOTIVE_BRANDS = {
     "audi": "audi", "bmw": "bmw", "byd": "byd", "caoa chery": "caoa-chery",
     "chery": "chery", "chevrolet": "chevrolet", "citroen": "citroen", "fiat": "fiat",
@@ -128,6 +129,21 @@ AUTOMOTIVE_MODEL_BRANDS = {
     "argo": "fiat", "mobi": "fiat", "pulse": "fiat", "fastback": "fiat", "toro": "fiat",
     "kwid": "renault", "duster": "renault", "captur": "renault", "sandero": "renault",
 }
+AUTOMOTIVE_GENERATIONS = {
+    ("honda", "civic", "g8"): {
+        "label": "G8",
+        "year_from": "2007",
+        "year_to": "2011",
+        "sample_years": ["2007", "2009", "2011"],
+        "source": "Honda Automóveis do Brasil",
+    },
+}
+AUTOMOTIVE_ACCESSORY_PATTERN = re.compile(
+    r"\b(?:acess[oó]ri[oa]s?|aerof[oó]li[oa]|alternador|arranque|bancos?|cap[oô]|escapamento|"
+    r"far[oó]is?|lanternas?|m[oó]dulo|moldura|motor|multim[ií]dia|para-?choque|pe[cç]as?|pneus?|"
+    r"radiador|r[aá]dio|retrovisor|rodas?|sucata|tampas?|volante)\b",
+    re.I,
+)
 PERMISSIVE_LICENSES = {"apache-2.0", "bsd-2-clause", "bsd-3-clause", "isc", "mit", "mpl-2.0"}
 GITHUB_QUERY_STOPWORDS = {
     "a", "as", "ao", "com", "como", "coisa", "coisas", "da", "das", "de", "do", "dos", "e", "esse", "essa",
@@ -543,11 +559,11 @@ def admin_login_configured():
     return bool(owner_pairing_required() and clean_text(os.environ.get("JARVIS_ADMIN_PASSWORD_HASH"), 2_000))
 
 
-def owner_session_token(expires_in=43_200):
+def owner_session_token(expires_in=OWNER_SESSION_SECONDS):
     secret = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
     if not secret:
         raise ValueError("owner token not configured")
-    expires_at = int(time.time()) + max(900, min(int(expires_in), 86_400))
+    expires_at = int(time.time()) + max(900, min(int(expires_in), OWNER_SESSION_SECONDS))
     body = f"v1.{expires_at}.{secrets.token_urlsafe(12)}"
     signature = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"{body}.{signature}", expires_at
@@ -628,7 +644,9 @@ def pairing_required_payload():
         "endpoint": "POST /command",
         "status_real": "owner_pairing_required",
         "visual_state": "error",
-        "error": "Conecte este navegador ao JARVIS pelo painel Sistema para usar memória, agenda ou o Mac.",
+        "error": "Não executei a ação: este navegador está em modo visitante. Abra Sistema e entre no modo master para liberar memória, agenda e o Mac.",
+        "next_action": "Entrar no modo master pelo painel Sistema e repetir o pedido.",
+        "action_executed": False,
         "pairing_required": True,
     }, 401
 
@@ -2403,7 +2421,7 @@ def status_payload(owner_authenticated=False):
             "required": owner_pairing_required(),
             "authenticated": bool(owner_authenticated),
             "admin_login_configured": admin_login_configured(),
-            "session_duration_seconds": 43_200,
+            "session_duration_seconds": OWNER_SESSION_SECONDS,
         },
         "access": {
             "mode": "owner" if owner_authenticated or not owner_pairing_required() else "guest",
@@ -3280,7 +3298,7 @@ def automotive_subject_from_prompt(prompt):
         subject,
     )
     subject = re.sub(
-        r"(?i)\b(?:quais?\s+(?:s[aã]o\s+)?(?:os\s+)?|me\s+(?:diga|mostre|traga)|"
+        r"(?i)\b(?:(?:qual(?:\s+[ée])?|quais)(?:\s+s[aã]o)?\s+(?:o|a|os|as|um|uma)?\s*|me\s+(?:diga|mostre|traga)|"
         r"pre[cç](?:o|os)(?:\s+(?:atuais?|m[eé]dios?))?|quanto\s+custa|valor\s+(?:do|da|de)|"
         r"an[uú]ncios?|ofertas?|carros?\s+usados?|seminov[oa]s?|na\s+web|na\s+internet|"
         r"no\s+webmotors|na\s+webmotors|no\s+olx|na\s+olx|webmotors|olx|tabela\s+fipe)\b",
@@ -3293,7 +3311,8 @@ def automotive_subject_from_prompt(prompt):
 
 
 def automotive_vehicle_details(prompt):
-    folded = normalize_alias(automotive_subject_from_prompt(prompt)).replace("-", " ")
+    raw_subject = automotive_subject_from_prompt(prompt)
+    folded = normalize_alias(raw_subject).replace("-", " ")
     year_match = re.search(r"\b(?:19|20)\d{2}\b", folded)
     year = year_match.group(0) if year_match else ""
     model_name = next(
@@ -3315,12 +3334,31 @@ def automotive_vehicle_details(prompt):
             if token not in {year, "novo", "nova", "usado", "usada", "seminovo", "seminova"}
         ]
         model_name = " ".join(candidates[:2])
-    return {
-        "subject": automotive_subject_from_prompt(prompt),
+    details = {
+        "subject": raw_subject,
         "brand": AUTOMOTIVE_BRANDS.get(brand_name, normalize_alias(brand_name)),
         "model": normalize_alias(model_name),
         "year": year,
     }
+    generation_match = re.search(r"\b(?:g|geracao)\s*(\d{1,2})\b", folded)
+    generation = f"g{generation_match.group(1)}" if generation_match else ""
+    generation_data = AUTOMOTIVE_GENERATIONS.get((details["brand"], details["model"], generation))
+    if generation_data:
+        details.update({
+            "generation": generation,
+            "year_from": generation_data["year_from"],
+            "year_to": generation_data["year_to"],
+            "sample_years": list(generation_data["sample_years"]),
+            "generation_source": generation_data["source"],
+        })
+        if not year:
+            brand_label = details["brand"].replace("-", " ").title()
+            model_label = details["model"].replace("-", " ").title()
+            details["subject"] = (
+                f"{brand_label} {model_label} {generation_data['label']} "
+                f"({generation_data['year_from']}–{generation_data['year_to']})"
+            )
+    return details
 
 
 def _brl_number(value):
@@ -3349,15 +3387,19 @@ def parse_olx_vehicle_listings(raw, limit=6):
         url = _normalize_public_result_url(match.group(2))
         if not url or url in seen or not urlparse(url).netloc.casefold().endswith("olx.com.br"):
             continue
+        title = clean_text(match.group(1), 240)
+        path = normalize_alias(urlparse(url).path).replace("-", " ")
+        price = _brl_number(price_match.group(1))
+        if "pecas e acessorios" in path or AUTOMOTIVE_ACCESSORY_PATTERN.match(title) or price < 5_000:
+            continue
         seen.add(url)
         mileage_match = re.search(r"\b([0-9]{1,3}(?:\.[0-9]{3})*)\s*km\b", block, re.I)
         location_match = re.search(r"(?m)^([^\n\[\]]{2,100}\s+-\s+[A-Z]{2})\s*$", block)
-        price = _brl_number(price_match.group(1))
         mileage = int(mileage_match.group(1).replace(".", "")) if mileage_match else 0
         location = clean_text(location_match.group(1), 120) if location_match else ""
         details = [_brl_label(price), f"{mileage:,} km".replace(",", ".") if mileage else "", location]
         sources.append({
-            "title": clean_text(match.group(1), 240),
+            "title": title,
             "url": url,
             "domain": urlparse(url).netloc.removeprefix("www.")[:160],
             "snippet": " · ".join(item for item in details if item),
@@ -3438,7 +3480,7 @@ def automotive_research_summary(sources, details):
     if prices:
         middle = len(prices) // 2
         median = prices[middle] if len(prices) % 2 else round((prices[middle - 1] + prices[middle]) / 2)
-    return {
+    summary = {
         "kind": "automotive_market",
         "depth": "marketplace_listings_and_price_references",
         "subject": details.get("subject"),
@@ -3455,45 +3497,78 @@ def automotive_research_summary(sources, details):
             for item in sources if item.get("provider") in {"olx_marketplace", "webmotors_fipe"}
         )),
     }
+    for key in ("generation", "year_from", "year_to", "sample_years", "generation_source"):
+        if details.get(key):
+            summary[key] = details[key]
+    return summary
 
 
 def automotive_research_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
     details = automotive_vehicle_details(prompt)
     subject = clean_text(details.get("subject"), 300)
-    olx_url = "https://www.olx.com.br/brasil?" + urlencode({"q": subject})
-    webmotors_index_url = ""
+    search_years = [details["year"]] if details.get("year") else list(details.get("sample_years") or [])
+    brand = clean_text(details.get("brand"), 80)
+    model = clean_text(details.get("model"), 80)
+    query_base = " ".join(item.replace("-", " ").title() for item in (brand, model) if item)
+    olx_queries = [f"{query_base} {year}".strip() for year in search_years] or [subject]
+    olx_urls = ["https://www.olx.com.br/brasil?" + urlencode({"q": query}) for query in olx_queries]
+    webmotors_index_urls = []
     webmotors_listing_url = ""
-    if details.get("brand") and details.get("model") and details.get("year"):
-        base = f"{details['brand']}/{details['model']}/{details['year']}"
-        webmotors_index_url = f"https://www.webmotors.com.br/tabela-fipe/carros/{base}"
+    if brand and model and search_years:
+        webmotors_index_urls = [
+            f"https://www.webmotors.com.br/tabela-fipe/carros/{brand}/{model}/{year}"
+            for year in search_years
+        ]
+        year_from = details.get("year_from") or search_years[0]
+        year_to = details.get("year_to") or search_years[-1]
         webmotors_listing_url = (
-            f"https://www.webmotors.com.br/carros-usados/estoque/{details['brand']}/{details['model']}"
-            f"/de.{details['year']}/ate.{details['year']}"
+            f"https://www.webmotors.com.br/carros-usados/estoque/{brand}/{model}"
+            f"/de.{year_from}/ate.{year_to}"
         )
 
     attempts = []
     sources = []
-    reads = {"olx": olx_url}
-    if webmotors_index_url:
-        reads["webmotors_fipe_index"] = webmotors_index_url
+    reads = {}
+    for index, url in enumerate(olx_urls):
+        year = search_years[index] if index < len(search_years) else ""
+        reads[f"olx:{year or index}"] = ("olx", year, url)
+    for index, url in enumerate(webmotors_index_urls):
+        year = search_years[index] if index < len(search_years) else ""
+        reads[f"webmotors_fipe_index:{year or index}"] = ("webmotors_fipe_index", year, url)
     raw_results = {}
-    with ThreadPoolExecutor(max_workers=len(reads)) as executor:
-        futures = {executor.submit(_public_reader_request, url): name for name, url in reads.items()}
+    with ThreadPoolExecutor(max_workers=max(1, min(6, len(reads)))) as executor:
+        futures = {
+            executor.submit(_public_reader_request, row[2]): (name, row[0], row[1])
+            for name, row in reads.items()
+        }
         for future in as_completed(futures):
-            name = futures[future]
+            name, provider, year = futures[future]
             try:
                 raw_results[name] = future.result()
-                attempts.append({"provider": name, "ok": True, "count": 1})
-            except (HTTPError, URLError, TimeoutError, ValueError, UnicodeError) as error:
-                attempts.append({"provider": name, "ok": False, "count": 0, "error": type(error).__name__})
+                attempts.append({"provider": provider, "year": year, "ok": True, "count": 1})
+            except (HTTPError, URLError, TimeoutError, OSError, ValueError, UnicodeError) as error:
+                attempts.append({"provider": provider, "year": year, "ok": False, "count": 0, "error": type(error).__name__})
 
-    olx_sources = parse_olx_vehicle_listings(raw_results.get("olx", ""), limit=min(6, limit))
+    per_year_limit = 2 if len(olx_urls) > 1 else min(6, limit)
+    olx_sources = []
+    for name in reads:
+        if name.startswith("olx:"):
+            olx_sources.extend(parse_olx_vehicle_listings(raw_results.get(name, ""), limit=per_year_limit))
+    olx_sources = _dedupe_public_sources(olx_sources, min(6, limit))
     sources.extend(olx_sources)
     for attempt in attempts:
         if attempt.get("provider") == "olx" and attempt.get("ok"):
-            attempt["count"] = len(olx_sources)
+            attempt["count"] = len([
+                item for item in olx_sources
+                if not attempt.get("year") or attempt["year"] in normalize_alias(item.get("title"))
+            ])
 
-    versions = parse_webmotors_fipe_versions(raw_results.get("webmotors_fipe_index", ""), prompt=prompt, limit=4)
+    versions = []
+    version_limit = 1 if len(webmotors_index_urls) > 1 else 4
+    for name in reads:
+        if name.startswith("webmotors_fipe_index:"):
+            versions.extend(parse_webmotors_fipe_versions(raw_results.get(name, ""), prompt=prompt, limit=version_limit))
+    versions = list({item["url"]: item for item in versions}.values())[:4]
     references = []
     if versions:
         with ThreadPoolExecutor(max_workers=len(versions)) as executor:
@@ -3504,7 +3579,7 @@ def automotive_research_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
                     parsed = parse_webmotors_fipe_page(future.result(), version)
                     if parsed:
                         references.append(parsed)
-                except (HTTPError, URLError, TimeoutError, ValueError, UnicodeError):
+                except (HTTPError, URLError, TimeoutError, OSError, ValueError, UnicodeError):
                     continue
         attempts.append({"provider": "webmotors_fipe_versions", "ok": bool(references), "count": len(references)})
         references.sort(key=lambda item: int(item.get("fipe_price_brl") or 0))
@@ -3513,7 +3588,8 @@ def automotive_research_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
     sources = _dedupe_public_sources(sources, limit)
     research = automotive_research_summary(sources, details)
     research.update({
-        "olx_search_url": olx_url,
+        "olx_search_url": olx_urls[0],
+        "olx_search_urls": olx_urls,
         "webmotors_search_url": webmotors_listing_url,
         "reader": "public_page_to_text",
     })
