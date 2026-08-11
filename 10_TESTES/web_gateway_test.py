@@ -106,9 +106,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260809-action2', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260809-action2', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260809-action2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260811-commanddeck', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260811-commanddeck', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260811-commanddeck', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -125,6 +125,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="installButton"', html)
         self.assertIn(b'id="installDialog"', html)
         self.assertIn(b'id="actionHubOverview"', html)
+        self.assertIn(b'id="sceneObjective"', html)
+        self.assertIn(b'id="sceneCommandButton"', html)
+        self.assertIn(b'id="sceneRender"', html)
         self.assertIn(b'id="hubMemoryValue"', html)
         self.assertIn(b'id="hubAgendaValue"', html)
         self.assertIn("Peça. Eu executo.".encode(), html)
@@ -198,6 +201,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"workingStateFor", app_js)
         self.assertIn(b"responseVisualState", app_js)
         self.assertIn(b'forge: ["FORJA"', app_js)
+        self.assertIn(b"data-scene-mode", html)
+        self.assertIn(b"compactHudText", app_js)
 
         status, headers, app_css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
@@ -219,6 +224,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b".message-link", app_css)
         self.assertIn(b".source-links a em", app_css)
         self.assertIn(b".compact-surface {\n  display: none", app_css)
+        self.assertIn(b"Command Deck V2", app_css)
+        self.assertIn(b".scene-modes", app_css)
         self.assertIn(b'error?.name === "AbortError"', app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
 
@@ -244,7 +251,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"BACKGROUND_TARGET_FPS", visual_js)
         self.assertIn(b"EFFECT_TARGET_FPS", visual_js)
         self.assertIn(b"slowFrameWindows", visual_js)
-        self.assertIn(b'renderer.setPixelRatio(1)', visual_js)
+        self.assertIn(b'renderer.setPixelRatio(compactViewport', visual_js)
+        self.assertIn(b'sceneRender', visual_js)
         self.assertIn(b'GPU 3D desativada', visual_js)
         self.assertIn(b"frameIntervalMs", visual_js)
         self.assertIn(b"document.hidden", visual_js)
@@ -273,7 +281,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260809-action2", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260811-commanddeck", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -1198,8 +1206,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["message"], "Resposta conectada.")
         sent_request = request.call_args.args[0]
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
-        self.assertEqual(sent_payload["temperature"], 0.72)
+        self.assertEqual(sent_payload["temperature"], 0.68)
         self.assertEqual(sent_payload["max_tokens"], 220)
+        self.assertEqual(sent_payload["provider"]["sort"]["partition"], "none")
         system_prompt = sent_payload["messages"][0]["content"]
         self.assertIn("humor seco", system_prompt)
         self.assertIn("uma ou duas frases", system_prompt)
@@ -1663,6 +1672,10 @@ São Paulo - SP
 
         with patch.dict(os.environ, {
             "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_DEEP_MODEL_POOL": (
+                "nvidia/nemotron-3-ultra-550b-a55b:free,"
+                "nvidia/nemotron-3-super-120b-a12b:free"
+            ),
             "OPENROUTER_MODEL_POOL": (
                 "nvidia/nemotron-3-ultra-550b-a55b:free,"
                 "nvidia/nemotron-3-super-120b-a12b:free"
@@ -1678,10 +1691,11 @@ São Paulo - SP
         self.assertEqual(sent["models"][1], "nvidia/nemotron-3-super-120b-a12b:free")
         self.assertIn("openrouter/free", sent["models"])
         self.assertFalse(sent["stream"])
-        self.assertEqual(sent["provider"]["sort"], {"by": "latency", "partition": "none"})
+        self.assertEqual(sent["provider"]["sort"], {"by": "latency", "partition": "model"})
         self.assertEqual(sent["provider"]["max_price"], {"prompt": 0, "completion": 0})
         self.assertTrue(sent["provider"]["allow_fallbacks"])
         self.assertEqual(payload["model_routing"]["selected"], "nvidia/nemotron-3-super-120b-a12b:free")
+        self.assertEqual(payload["model_routing"]["quality_tier"], "quality_first")
 
     def test_openrouter_retries_one_model_when_models_contract_is_rejected(self):
         class FakeResponse:
@@ -2157,6 +2171,25 @@ São Paulo - SP
         normalized, trimmed = MODULE.concise_assistant_content(content, detailed=True)
         self.assertEqual(normalized, content)
         self.assertFalse(trimmed)
+
+    def test_advisory_requests_use_balanced_quality_profile(self):
+        profile = MODULE.assistant_response_profile("como você melhoraria o Jarvis agora?")
+        self.assertEqual(profile, {
+            "name": "balanced",
+            "max_tokens": 520,
+            "temperature": 0.44,
+            "routing": "quality_first",
+        })
+        candidates = MODULE.openrouter_model_candidates(profile="balanced")
+        self.assertEqual(candidates[0], "nvidia/nemotron-3-ultra-550b-a55b:free")
+
+    def test_purchase_decision_requires_live_search(self):
+        self.assertTrue(MODULE.should_search_web([
+            {"role": "user", "content": "qual o preço do iPhone 15 e onde comprar?"},
+        ]))
+        self.assertTrue(MODULE.should_search_web([
+            {"role": "user", "content": "compare ofertas da Kabum para este monitor"},
+        ]))
 
     def test_openrouter_can_suggest_real_memory_without_saving_it(self):
         class FakeResponse:
