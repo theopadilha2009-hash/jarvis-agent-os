@@ -2824,6 +2824,10 @@ def assistant_doctor_command(args=None):
     """./jarvis assistant-doctor — verifica utilidades pessoais locais."""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["doctor", *(args or [])])
 
+def agent_eval_command(args=None):
+    """./jarvis agent-eval [--json] — 50 cenários do roteador sem chamar APIs."""
+    _run_py_propagate("11_SCRIPTS/agent_runtime_eval.py", args or [])
+
 def web_command(args=None):
     """./jarvis web [--host IP] [--port N] [--no-open|--check]"""
     try:
@@ -3381,6 +3385,7 @@ def _help_full():
   ./jarvis agenda-add "tarefa"    anexa item à agenda local (05_EXECUCAO/31_AGENDA)
   ./jarvis agenda                 exibe agenda local
   ./jarvis assistant-doctor       verifica comandos nativos para utilidades pessoais
+  ./jarvis agent-eval [--json]    avalia 50 pedidos contra o roteador de produção
   ./jarvis screen-capture [--interactive] [--output P] [--dry-run]  captura local sob comando
   ./jarvis screen-record [--dry-run]  abre o gravador nativo do macOS
   ./jarvis github-overview [--limit N] [--dry-run]  GitHub read-only
@@ -3599,6 +3604,8 @@ def main():
         decision_show_command(sys.argv[2:])
     elif cmd == "assistant-doctor":
         assistant_doctor_command(sys.argv[2:])
+    elif cmd == "agent-eval":
+        agent_eval_command(sys.argv[2:])
     elif cmd == "web":
         web_command(sys.argv[2:])
     elif cmd == "screen-capture":

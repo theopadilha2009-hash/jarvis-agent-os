@@ -1,12 +1,12 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260811-commanddeck";
+const CACHE_VERSION = "jarvis-mobile-shell-20260811-runtimev2";
 const SHELL = [
   "/",
-  "/ui/manifest.webmanifest?v=20260811-commanddeck",
-  "/ui/jarvis-icon.svg?v=20260811-commanddeck",
-  "/ui/jarvis.css?v=20260811-commanddeck",
-  "/ui/jarvis.js?v=20260811-commanddeck",
+  "/ui/manifest.webmanifest?v=20260811-runtimev2",
+  "/ui/jarvis-icon.svg?v=20260811-runtimev2",
+  "/ui/jarvis.css?v=20260811-runtimev2",
+  "/ui/jarvis.js?v=20260811-runtimev2",
 ];
 
 self.addEventListener("install", (event) => {

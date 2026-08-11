@@ -194,7 +194,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
-        self.assertEqual(kwargs["body"]["version"], "8")
+        self.assertEqual(kwargs["body"]["version"], "9")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):
@@ -272,6 +272,45 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertIn(str(Path.home() / ".local" / "bin"), path)
         self.assertIn("/usr/local/bin", path)
         self.assertIn("/opt/homebrew/bin", path)
+
+    def test_runtime_v2_resolves_alias_and_small_app_typo(self):
+        catalog = {
+            MODULE.normalized_application_name("Spotify"): "Spotify",
+            MODULE.normalized_application_name("Visual Studio Code"): "Visual Studio Code",
+        }
+        self.assertEqual(MODULE.resolve_application_target("spotify", catalog), "Spotify")
+        self.assertEqual(MODULE.resolve_application_target("Spotfy", catalog), "Spotify")
+        self.assertEqual(MODULE.resolve_application_target("vs code", catalog), "Visual Studio Code")
+
+    def test_runtime_v2_accepts_device_run_v2_and_evidence_contract(self):
+        envelope = json.dumps({
+            "schema": "jarvis-device-run/2",
+            "run_id": "run-v2",
+            "step": 1,
+            "total": 2,
+            "depends_on": None,
+            "request": "abra o Spotify",
+            "retry_policy": {"max_attempts": 2, "idempotent": True},
+            "success_evidence": "application_state",
+        })
+        parsed = MODULE.request_envelope({"request_text": envelope})
+        self.assertEqual(parsed["schema"], "jarvis-device-run/2")
+        self.assertTrue(parsed["retry_policy"]["idempotent"])
+
+    def test_runtime_v2_requires_independent_app_confirmation(self):
+        job = {"action": "open_application", "target": "Spotify"}
+        completed = MODULE.subprocess.CompletedProcess(
+            args=[str(ROOT / "jarvis"), "computer", "open", "Spotify"],
+            returncode=0,
+            stdout="Status real: aplicativo aberto.",
+            stderr="",
+        )
+        with patch.object(MODULE, "resolve_application_target", return_value="Spotify"), patch.object(
+            MODULE.subprocess, "run", return_value=completed
+        ), patch.object(MODULE, "confirm_application_state", return_value=True):
+            succeeded, output = MODULE.execute_job(job)
+        self.assertTrue(succeeded)
+        self.assertIn("Confirmação independente: Spotify está aberto", output)
 
 
 if __name__ == "__main__":

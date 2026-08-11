@@ -50,6 +50,7 @@
     attachments: [],
     historyRestored: false,
     currentCommand: "",
+    mission: null,
     overview: null,
     workingStartedAt: 0,
     lastResponseOk: true,
@@ -359,6 +360,14 @@
         : voiceSupport.input || session.elevenlabs
           ? "link disponível"
           : "indisponível neste navegador";
+    const voiceLabel = voiceButton?.querySelector("b");
+    const interrupting = session.speaking || session.voicePending;
+    voiceButton?.classList.toggle("speaking", interrupting);
+    if (voiceLabel) voiceLabel.textContent = session.listening ? "Parar" : interrupting ? "Interromper" : "Falar";
+    if (voiceButton) {
+      voiceButton.setAttribute("aria-label", session.listening ? "Parar escuta" : interrupting ? "Interromper JARVIS e falar" : "Falar com JARVIS");
+      voiceButton.title = interrupting ? "Interromper a resposta e falar agora" : "Clique, fale normalmente e o comando será enviado quando você terminar.";
+    }
     window.dispatchEvent(new CustomEvent("jarvis-state", { detail: { state: normalized } }));
   }
 
@@ -473,7 +482,7 @@
     return `${clean.slice(0, limit).replace(/\s+\S*$/, "").trim()}…`;
   }
 
-  function speechChunks(value, maxLength = 260) {
+  function speechChunks(value, maxLength = 230) {
     const clean = speechText(value);
     if (!clean) return [];
     const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
@@ -496,7 +505,13 @@
       if (previous && `${previous} ${piece}`.length <= maxLength) chunks[chunks.length - 1] = `${previous} ${piece}`;
       else chunks.push(piece);
     });
-    return chunks.slice(0, 6);
+    if (chunks.length > 1 && chunks[0].length > 165) {
+      const first = chunks[0];
+      const windowText = first.slice(0, 166);
+      const cut = Math.max(windowText.lastIndexOf(". "), windowText.lastIndexOf(", "), windowText.lastIndexOf(" "));
+      if (cut > 90) chunks.splice(0, 1, first.slice(0, cut + 1).trim(), first.slice(cut + 1).trim());
+    }
+    return chunks.filter(Boolean).slice(0, 6);
   }
 
   function messageHtml(value) {
@@ -644,6 +659,11 @@
 
   function renderMessageContext(data) {
     let html = "";
+    if (data.mission?.protocol === "jarvis-mission/2") {
+      const completed = data.mission.steps?.filter((step) => step.status === "succeeded").length || 0;
+      const total = data.mission.steps?.length || 0;
+      html += `<details class="message-card mission-card"><summary>Missão<small>${completed}/${total} etapas</small></summary><p>${escapeHtml(data.mission.objective || "")}</p>${total ? `<ul>${data.mission.steps.map((step) => `<li data-status="${escapeHtml(step.status || "pending")}">${escapeHtml(step.label || step.id)}</li>`).join("")}</ul>` : ""}</details>`;
+    }
     html += renderSourceLinks(data.sources, true);
     if (Array.isArray(data.ui_cards) && data.ui_cards.length) {
       html += data.ui_cards.slice(0, 2).map((card) => {
@@ -660,16 +680,22 @@
 
   function refreshMessageExecutionContext(message, data) {
     message.querySelectorAll(".message-card, .message-events").forEach((card) => card.remove());
-    const context = renderMessageContext({ ui_cards: data.ui_cards || [] });
+    const context = renderMessageContext({ ui_cards: data.ui_cards || [], mission: data.mission });
     if (context) message.insertAdjacentHTML("beforeend", context);
   }
 
   function renderLiveCanvas(data) {
     const empty = byId("canvasEmpty");
     const content = byId("canvasContent");
-    let html = renderSourceLinks(data.sources) + renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
-    if (data.memory_suggestion) {
-      html += `<div class="canvas-row"><i>◇</i><span>Memória sugerida</span></div><div class="canvas-result">${escapeHtml(data.memory_suggestion)}</div>`;
+    let html = "";
+    if (data.mission?.protocol === "jarvis-mission/2") {
+      const evidence = data.mission.evidence || {};
+      html += `<div class="canvas-mission"><div class="canvas-run-head"><b>MISSÃO · ${escapeHtml(data.mission.route || "núcleo")}</b><span>${escapeHtml(evidence.confidence || "pending")}</span></div><strong>${escapeHtml(data.mission.objective || "")}</strong>${(data.mission.steps || []).map((step, index) => `<div class="canvas-row" data-status="${escapeHtml(step.status || "pending")}"><i>${index + 1}</i><span>${escapeHtml(step.label || step.id)}<small>${escapeHtml(step.executor || "brain")}</small></span></div>`).join("")}</div>`;
+    }
+    html += renderSourceLinks(data.sources) + renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
+    if (data.memory_candidate || data.memory_suggestion) {
+      const candidate = data.memory_candidate || { content: data.memory_suggestion };
+      html += `<div class="canvas-row"><i>◇</i><span>Memória sugerida<small>${escapeHtml(candidate.kind || "learning")} · ainda não salva</small></span></div><div class="canvas-result">${escapeHtml(candidate.content || data.memory_suggestion)}${candidate.reason ? `<small>${escapeHtml(candidate.reason)}</small>` : ""}</div>`;
     }
     else if (Array.isArray(data.jobs) && data.jobs.length > 1) {
       const completed = Number(data.run?.completed) || 0;
@@ -956,6 +982,9 @@
       }
       if (data?.pairing_required) return;
       if (!data?.job) continue;
+      if (!data.mission && session.mission) {
+        data.mission = { ...session.mission, steps: session.mission.steps.map((step, index) => ({ ...step, status: index < 2 ? data.job.status : data.job.status === "succeeded" ? "succeeded" : "pending" })) };
+      }
       renderLiveCanvas(data);
       refreshMessageExecutionContext(message, data);
       byId("activityValue").textContent = `${data.message} · ação ${jobId}`;
@@ -991,6 +1020,9 @@
       }
       if (data?.pairing_required) return;
       if (!data?.run || !Array.isArray(data.jobs)) continue;
+      if (!data.mission && session.mission) {
+        data.mission = { ...session.mission, steps: session.mission.steps.map((step, index) => ({ ...step, status: data.jobs[index]?.status || step.status })) };
+      }
       renderLiveCanvas(data);
       refreshMessageExecutionContext(message, data);
       byId("activityValue").textContent = data.message;
@@ -1033,6 +1065,7 @@
     }
 
     session.responseState = responseVisualState(data);
+    session.mission = data.mission || null;
     const answer = data.message || data.summary || data.next_action || data.status_real || "Pronto.";
     byId("sceneEyebrow").textContent = data.job?.id || data.executed_locally ? "AÇÃO CONFIRMADA" : "RESULTADO";
     byId("sceneMission").textContent = compactHudText(answer, "Resultado disponível");
@@ -1075,10 +1108,16 @@
       }
       memory.disabled = true;
       memory.textContent = "Preparando memória…";
-      sendCommand(`guarde na memória como preferência: ${data.memory_suggestion}`);
+      const kind = data.memory_candidate?.kind === "decision" ? "decisão" : data.memory_candidate?.kind === "preference" ? "preferência" : "aprendizado";
+      sendCommand(`guarde na memória como ${kind}: ${data.memory_suggestion}`);
     });
     const replay = message.querySelector(".speak-command");
     if (replay) replay.addEventListener("click", async () => {
+      if (session.speaking || session.voicePending) {
+        stopSpeechOutput();
+        replay.textContent = "Ouvir";
+        return;
+      }
       replay.disabled = true;
       replay.textContent = "Gerando áudio…";
       const played = await speak(answer);

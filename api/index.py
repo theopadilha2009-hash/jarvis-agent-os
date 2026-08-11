@@ -222,6 +222,12 @@ ACTION_SEQUENCE_SPLIT_PATTERN = re.compile(
     re.I,
 )
 
+COMPOUND_ACTION_START_PATTERN = re.compile(
+    r"^\s*(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|captur\w*|faz\w*|"
+    r"grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*)\b",
+    re.I,
+)
+
 PRIVATE_INTENTS = {
     "daily_brief",
     "memory_save",
@@ -439,12 +445,26 @@ APPLICATION_INTENT_PATTERNS = {
 APPLICATION_ALIASES = {
     "chrome": "Google Chrome",
     "google chrome": "Google Chrome",
+    "calendário": "Calendar",
+    "calendario": "Calendar",
+    "calendar": "Calendar",
+    "discord": "Discord",
+    "finder": "Finder",
+    "mensagens": "Messages",
+    "messages": "Messages",
+    "música": "Music",
+    "musica": "Music",
+    "music": "Music",
+    "notas": "Notes",
+    "notes": "Notes",
+    "roblox": "Roblox",
+    "safari": "Safari",
     "vscode": "Visual Studio Code",
     "vs code": "Visual Studio Code",
     "código": "Visual Studio Code",
-    "mensagens": "Messages",
     "spotify": "Spotify",
     "steam": "Steam",
+    "terminal": "Terminal",
 }
 
 JARVIS_CLEANUP_PATTERN = re.compile(
@@ -467,15 +487,15 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,60}\bcontatos?\b", re.I), "contact_view"),
     (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
-    (re.compile(r"\b(coloc(?:a|ar)|adicion(?:a|ar)|marc(?:a|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
+    (re.compile(r"\b(coloc(?:a|e|ar)|adicion(?:a|e|ar)|marc(?:a|e|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
     (re.compile(r"\b(conclu(?:a|i|ir)|finaliz(?:a|e|ar)|marc(?:a|e|ar))\b.{0,60}\b(?:item|tarefa|lembrete|agenda)\s*#?\s*\d+\b", re.I), "agenda_complete"),
-    (re.compile(r"\b(ver|mostr(?:a|ar)|list(?:a|ar)|consult(?:a|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
+    (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
     (re.compile(r"\b(anot(?:a|ar)|captur(?:a|ar)|registr(?:a|ar))\b.{0,100}\b(ideia|inbox|nota)\b", re.I), "capture_note"),
-    (re.compile(r"\b(adicion(?:a|ar)|cri(?:a|ar))\b.{0,60}\b(tarefa|task)\b", re.I), "task_add"),
+    (re.compile(r"\b(adicion(?:a|e|ar)|cri(?:a|e|ar))\b.{0,60}\b(tarefa|task)\b", re.I), "task_add"),
     (re.compile(r"\b(abr(?:e|ir))\b.{0,40}\b(projeto|oficina|jarvis|gc|ls)\b", re.I), "open_project"),
     (APPLICATION_INTENT_PATTERNS["open_application"], "open_application"),
     (APPLICATION_INTENT_PATTERNS["close_application"], "close_application"),
-    (re.compile(r"(?:\b(computador|mac|mem[oó]ria|ram)\b.{0,80}\b(trav(?:a|ando)|lent[oa]|pesad[oa]|limp(?:a|ar))\b|\b(limp(?:a|ar)|fech(?:a|ar)|trav(?:a|ando))\b.{0,80}\b(computador|mac|mem[oó]ria|ram|processos?\s+(?:tempor[aá]rios?\s+)?(?:do\s+)?jarvis)\b)", re.I), "system_memory"),
+    (re.compile(r"(?:\b(computador|mac|mem[oó]ria|ram)\b.{0,80}\b(trav(?:a|ando)|lent[oa]|pesad[oa]|limp(?:a|ar)|analis(?:a|e|ar))\b|\b(limp(?:a|ar)|fech(?:a|ar)|trav(?:a|ando)|analis(?:a|e|ar))\b.{0,80}\b(computador|mac|mem[oó]ria|ram|processos?\s+(?:tempor[aá]rios?\s+)?(?:do\s+)?jarvis)\b)", re.I), "system_memory"),
     (re.compile(r"\b(ver|list(?:a|e|ar)|encontr(?:a|e|ar)|procur(?:a|e|ar)|mostr(?:a|e|ar)|analis(?:a|e|ar))\b.{0,60}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
     (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
 )
@@ -497,6 +517,8 @@ def compound_device_plan(command):
         return []
     clauses = [part.strip(" .") for part in ACTION_SEQUENCE_SPLIT_PATTERN.split(text) if part.strip(" .")]
     if not 2 <= len(clauses) <= 6:
+        return []
+    if not all(COMPOUND_ACTION_START_PATTERN.search(clause) for clause in clauses):
         return []
     steps = []
     for index, clause in enumerate(clauses, start=1):
@@ -524,6 +546,18 @@ MEMORY_SIGNAL_PATTERNS = (
     re.compile(r"\b(eu\s+sempre|eu\s+nunca|a\s+partir\s+de\s+agora)\b", re.I),
     re.compile(r"\b(decidi|decidimos)\s+que\b", re.I),
     re.compile(r"\b(meu\s+objetivo(?:\s+principal)?\s+[eé]|quero\s+que\s+(?:voc[eê]|o\s+jarvis)\s+sempre)\b", re.I),
+)
+
+MEMORY_EPHEMERAL_PATTERN = re.compile(
+    r"\b(?:agora|hoje|amanh[aã]|nesta\s+conversa|nesta\s+sess[aã]o|por\s+enquanto|"
+    r"temporariamente|s[oó]\s+dessa\s+vez|daqui\s+a\s+pouco)\b",
+    re.I,
+)
+
+MEMORY_KIND_PATTERNS = (
+    ("decision", re.compile(r"\b(?:decidi|decidimos|decis[aã]o)\b", re.I)),
+    ("preference", re.compile(r"\b(?:prefir[oa]|prefer[eê]ncia|eu\s+sempre|eu\s+nunca|quero\s+que\s+(?:voc[eê]|o\s+jarvis)\s+sempre)\b", re.I)),
+    ("goal", re.compile(r"\b(?:meu\s+objetivo|minha\s+meta|quero\s+construir|quero\s+transformar)\b", re.I)),
 )
 
 SECRET_PATTERNS = (
@@ -671,11 +705,136 @@ def pairing_required_payload():
     }, 401
 
 
-def memory_suggestion(value):
+def memory_candidate(value):
+    """Return only durable, non-sensitive memory worth asking Theo to keep."""
     text = clean_text(value, 600)
-    if len(text) < 12:
-        return ""
-    return text if any(pattern.search(text) for pattern in MEMORY_SIGNAL_PATTERNS) else ""
+    ephemeral = bool(MEMORY_EPHEMERAL_PATTERN.search(text) and not re.search(r"\ba\s+partir\s+de\s+agora\b", text, re.I))
+    if (
+        len(text) < 18
+        or has_secret_like_text(text)
+        or ephemeral
+        or not any(pattern.search(text) for pattern in MEMORY_SIGNAL_PATTERNS)
+    ):
+        return None
+    kind = "learning"
+    for candidate_kind, pattern in MEMORY_KIND_PATTERNS:
+        if pattern.search(text):
+            kind = candidate_kind
+            break
+    reasons = {
+        "decision": "decisão durável que pode orientar trabalhos futuros",
+        "preference": "preferência recorrente de Theo",
+        "goal": "objetivo pessoal de longo prazo",
+        "learning": "contexto reutilizável em conversas futuras",
+    }
+    return {
+        "content": text,
+        "kind": kind,
+        "layer": "identity" if kind == "preference" else "project",
+        "reason": reasons[kind],
+        "confidence": "high" if kind in {"decision", "preference"} else "medium",
+        "auto_save": False,
+    }
+
+
+def memory_suggestion(value):
+    candidate = memory_candidate(value)
+    return candidate["content"] if candidate else ""
+
+
+def agent_request_contract(prompt, attachments=None):
+    """Pure routing contract used by production and the offline evaluation suite."""
+    text = clean_text(prompt, 8_000)
+    if not text:
+        return {"route": "invalid", "profile": "concise", "search": False, "memory": False, "steps": 0}
+    if has_secret_like_text(text):
+        return {"route": "blocked_secret", "profile": "concise", "search": False, "memory": False, "steps": 0}
+    plan = compound_device_plan(text)
+    route = "assistant"
+    if plan:
+        route = "device_run"
+    else:
+        for pattern, intent in LOCAL_INTENTS:
+            if pattern.search(text):
+                route = intent
+                break
+    search = should_search_web([{"role": "user", "content": text}]) if route == "assistant" else False
+    if search:
+        route = "research"
+    return {
+        "route": route,
+        "profile": assistant_response_profile(text, attachments)["name"],
+        "search": search,
+        "memory": memory_candidate(text) is not None,
+        "steps": len(plan),
+    }
+
+
+def agent_mission_contract(prompt, payload=None):
+    """Expose the actual route and success criteria without revealing hidden reasoning."""
+    result = payload if isinstance(payload, dict) else {}
+    contract = agent_request_contract(prompt)
+    route = contract["route"]
+    run = result.get("run") if isinstance(result.get("run"), dict) else {}
+    pending = bool(run and not run.get("terminal") or (result.get("job") or {}).get("status") in {"pending", "running"})
+    succeeded = bool(result.get("ok")) and not pending
+    failed = bool(result) and not result.get("ok", True)
+    if route == "research":
+        labels = [
+            ("scope", "Definir a pergunta verificável", "brain"),
+            ("sources", "Consultar fontes públicas reais", "web"),
+            ("verify", "Cruzar domínios e qualidade das evidências", "web"),
+            ("answer", "Responder com links e limites", "brain"),
+        ]
+        criteria = ["fontes clicáveis", "corroboração indicada", "lacunas declaradas"]
+    elif route == "device_run":
+        plan = compound_device_plan(prompt)
+        labels = [
+            (f"step-{step['index']}", step["command"], "mac")
+            for step in plan
+        ]
+        criteria = ["ordem preservada", "cada etapa confirmada", "parar após falha"]
+    elif route in REMOTE_DEVICE_INTENTS or route in {"open_application", "close_application"}:
+        labels = [
+            ("validate", "Validar ação e alvo", "brain"),
+            ("execute", "Executar pelo worker do Mac", "mac"),
+            ("confirm", "Confirmar estado ou artefato", "mac"),
+        ]
+        criteria = ["worker identificado", "resultado observado", "sem sucesso presumido"]
+    elif route == "memory_save":
+        labels = [
+            ("classify", "Classificar a memória", "memory"),
+            ("persist", "Persistir no backend privado", "memory"),
+            ("confirm", "Confirmar a gravação", "memory"),
+        ]
+        criteria = ["sem credenciais", "camada definida", "gravação confirmada"]
+    else:
+        labels = [
+            ("understand", "Entender o pedido", "brain"),
+            ("respond", "Produzir uma resposta útil", "brain"),
+        ]
+        criteria = ["resposta direta", "sem execução inventada"]
+    jobs = result.get("jobs") if isinstance(result.get("jobs"), list) else []
+    steps = []
+    for index, (step_id, label, executor) in enumerate(labels):
+        if route == "device_run" and index < len(jobs) and isinstance(jobs[index], dict):
+            status = clean_text(jobs[index].get("status") or "pending", 30)
+        else:
+            status = "failed" if failed and index == max(0, len(labels) - 1) else "running" if pending and index == 1 else "succeeded" if succeeded else "pending"
+        steps.append({"id": step_id, "label": clean_text(label, 180), "executor": executor, "status": status})
+    verification = result.get("verification") if isinstance(result.get("verification"), dict) else {}
+    return {
+        "protocol": "jarvis-mission/2",
+        "objective": clean_text(prompt, 240),
+        "route": route,
+        "profile": contract["profile"],
+        "steps": steps,
+        "success_criteria": criteria,
+        "evidence": {
+            "required": route in {"research", "device_run", *REMOTE_DEVICE_INTENTS},
+            "confidence": verification.get("confidence") or ("confirmed" if succeeded else "pending"),
+        },
+    }
 
 
 def web_capabilities():
@@ -1683,14 +1842,20 @@ def supabase_device_enqueue_plan(command, steps):
             intent = clean_text(step.get("intent"), 60)
             step_command = clean_text(step.get("command"), 2_000)
             target = chain_step_target(step)
+            retryable = intent in {
+                "open_application", "close_application", "screen_capture",
+                "github_overview", "storage_scan", "system_memory",
+            }
             envelope = json.dumps({
-                "schema": "jarvis-device-run/1",
+                "schema": "jarvis-device-run/2",
                 "run_id": run_id,
                 "step": int(step.get("index") or len(jobs) + 1),
                 "total": len(steps),
                 "depends_on": dependency_id,
                 "request": step_command,
                 "original_request": clean_text(command, 4_000),
+                "retry_policy": {"max_attempts": 2 if retryable else 1, "idempotent": retryable},
+                "success_evidence": "application_state" if intent in {"open_application", "close_application"} else "command_output",
             }, ensure_ascii=False, separators=(",", ":"))
             rows = supabase_request(
                 "POST",
@@ -2415,6 +2580,8 @@ def status_payload(owner_authenticated=False):
             "synthesis": "openrouter" if ai_ready else "deterministic_results",
             "automotive_sources": ["OLX", "Webmotors", "Tabela Fipe"],
             "paid_fallback_enabled": os.environ.get("JARVIS_ALLOW_PAID_WEB_SEARCH", "").strip() == "1",
+            "verification": "jarvis-research/2",
+            "claim_policy": "cite_or_refuse",
         },
         "voice": {
             "provider": "elevenlabs" if elevenlabs_ready else "browser",
@@ -2438,6 +2605,7 @@ def status_payload(owner_authenticated=False):
             "persistent": supabase_configured(),
             "conversation_history": bool(supabase_configured() and owner_authenticated),
             "semantic_memory": "explicit_or_confirmed",
+            "suggestion_policy": "durable_selective_confirmation",
         },
         "owner_pairing": {
             "required": owner_pairing_required(),
@@ -2457,6 +2625,9 @@ def status_payload(owner_authenticated=False):
             "available_tools": len(agent_tool_definitions()) if ai_ready else 0,
             "live_web_search": True,
             "execution": "verified_adapters",
+            "mission_protocol": "jarvis-mission/2",
+            "device_run_protocol": "jarvis-device-run/2",
+            "offline_eval_scenarios": 50,
             "arbitrary_shell": False,
         },
         "device_bridge": {
@@ -4019,6 +4190,72 @@ def _public_search_cache_set(key, value):
         }
 
 
+def research_queries(prompt):
+    """Generate a small, bounded set of complementary public-search queries."""
+    subject = search_query_from_prompt(prompt)
+    queries = [subject]
+    if GITHUB_RESEARCH_PATTERN.search(prompt):
+        queries.append(f"{subject} official documentation README")
+    elif is_automotive_research(prompt):
+        queries.append(f"{subject} anúncios FIPE versão ano")
+    else:
+        queries.append(f"{subject} fonte oficial documentação")
+    return list(dict.fromkeys(clean_text(query, 1_200) for query in queries if clean_text(query, 1_200)))[:2]
+
+
+def research_verification(sources, research=None, queries=None):
+    """Score corroboration from observable source properties, never model confidence."""
+    rows = [item for item in (sources or []) if isinstance(item, dict)]
+    domains = sorted({clean_text(item.get("domain") or urlparse(clean_text(item.get("url"), 2_000)).netloc, 160).casefold().removeprefix("www.") for item in rows} - {""})
+    primary_evidence = sum(
+        bool(item.get("research_depth") == "readme")
+        or any(token in clean_text(item.get("domain"), 160).casefold() for token in ("github.com", ".gov", ".edu", "docs.", "developer."))
+        for item in rows
+    )
+    snippets = sum(bool(clean_text(item.get("snippet"), 700)) for item in rows)
+    research = research if isinstance(research, dict) else {}
+    if research.get("kind") == "automotive_market":
+        primary_evidence += int(research.get("reference_count") or 0)
+    corroborated = len(domains) >= 2 or primary_evidence >= 2
+    if corroborated and len(rows) >= 4 and snippets >= 3:
+        confidence = "high"
+    elif len(rows) >= 2 and (corroborated or primary_evidence):
+        confidence = "medium"
+    else:
+        confidence = "low"
+    warnings = []
+    if not rows:
+        warnings.append("nenhuma fonte pública respondeu")
+    elif not corroborated:
+        warnings.append("resultado ainda não corroborado por duas fontes independentes")
+    if snippets < min(2, len(rows)):
+        warnings.append("parte das fontes confirmou apenas título e URL")
+    return {
+        "protocol": "jarvis-research/2",
+        "query_count": len(queries or []),
+        "source_count": len(rows),
+        "domain_count": len(domains),
+        "domains": domains[:10],
+        "primary_evidence_count": primary_evidence,
+        "corroborated": corroborated,
+        "confidence": confidence,
+        "claim_policy": "cite_or_refuse",
+        "warnings": warnings,
+    }
+
+
+def finalize_research_bundle(bundle, queries=None):
+    result = dict(bundle or {})
+    sources = _dedupe_public_sources(result.get("sources") or [], FREE_SEARCH_RESULT_LIMIT)
+    research = result.get("research") if isinstance(result.get("research"), dict) else {}
+    verification = research_verification(sources, research, queries or [result.get("query")])
+    result["sources"] = sources
+    result["queries"] = [clean_text(item, 1_200) for item in (queries or [result.get("query")]) if clean_text(item, 1_200)]
+    result["verification"] = verification
+    result["research"] = {**research, "verification": verification}
+    return result
+
+
 def public_search_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
     """Collect real public sources first; OpenRouter only synthesizes the evidence."""
     query = search_query_from_prompt(prompt)
@@ -4030,6 +4267,7 @@ def public_search_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
     attempts = []
     sources = []
     mode = "public_web"
+    executed_queries = [query]
     if is_automotive_research(prompt):
         bundle = automotive_research_sources(prompt, limit)
         if not bundle.get("sources"):
@@ -4040,6 +4278,7 @@ def public_search_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
                 item.get("provider", "") for item in fallback if item.get("provider")
             )) or "none"
             bundle["mode"] = "automotive_public_web_fallback" if fallback else "automotive_search_unavailable"
+        bundle = finalize_research_bundle(bundle, [bundle.get("query") or query])
         bundle["cache_hit"] = False
         _public_search_cache_set(cache_key, bundle)
         return bundle
@@ -4051,7 +4290,9 @@ def public_search_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError) as error:
             attempts.append({"provider": "github_api", "ok": False, "count": 0, "error": type(error).__name__})
         if len(sources) < min(3, limit):
-            fallback, web_attempts = public_web_search(f"site:github.com {query}", limit)
+            fallback_query = f"site:github.com {query}"
+            executed_queries.append(fallback_query)
+            fallback, web_attempts = public_web_search(fallback_query, limit)
             sources = _dedupe_public_sources([*sources, *fallback], limit)
             attempts.extend(web_attempts)
             mode = "github_api_with_web_fallback" if sources else "github_search_unavailable"
@@ -4060,7 +4301,18 @@ def public_search_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
             if any(row.get("research_depth") == "readme" for row in sources):
                 mode = "github_deep_research"
     else:
-        sources, attempts = public_web_search(query, limit)
+        queries = research_queries(prompt)
+        executed_queries = queries
+        with ThreadPoolExecutor(max_workers=len(queries)) as executor:
+            futures = {executor.submit(public_web_search, item, limit): item for item in queries}
+            for future in as_completed(futures):
+                search_query = futures[future]
+                try:
+                    found, query_attempts = future.result()
+                    sources = _dedupe_public_sources([*sources, *found], limit)
+                    attempts.extend({**attempt, "query": search_query} for attempt in query_attempts)
+                except Exception as error:
+                    attempts.append({"provider": "public_web", "query": search_query, "ok": False, "count": 0, "error": type(error).__name__})
     research = research_summary(sources) if GITHUB_RESEARCH_PATTERN.search(prompt) else {
         "depth": "search_metadata",
         "repositories_found": 0,
@@ -4076,6 +4328,7 @@ def public_search_sources(prompt, limit=FREE_SEARCH_RESULT_LIMIT):
         "attempts": attempts,
         "research": research,
     }
+    bundle = finalize_research_bundle(bundle, executed_queries)
     bundle["cache_hit"] = False
     _public_search_cache_set(cache_key, bundle)
     return bundle
@@ -4088,6 +4341,15 @@ def free_search_context(bundle):
         "Use apenas as evidências abaixo. Não invente URLs, datas, recursos ou conclusões ausentes.",
     ]
     research = bundle.get("research") if isinstance(bundle, dict) and isinstance(bundle.get("research"), dict) else {}
+    verification = bundle.get("verification") if isinstance(bundle, dict) and isinstance(bundle.get("verification"), dict) else {}
+    lines.extend([
+        (
+            f"VERIFICAÇÃO: confiança {verification.get('confidence', 'low')}; "
+            f"{int(verification.get('domain_count') or 0)} domínio(s); "
+            f"corroboração {'confirmada' if verification.get('corroborated') else 'não confirmada'}."
+        ),
+        "Toda afirmação factual atual deve apontar para uma fonte fornecida; se a evidência faltar, declare a lacuna.",
+    ])
     if research.get("kind") == "automotive_market":
         lines.extend([
             "PESQUISA AUTOMOTIVA: compare a amostra sem misturar versões, quilometragens ou localidades como se fossem iguais.",
@@ -4149,6 +4411,7 @@ def search_results_without_synthesis(bundle, reason=""):
             "content": "\n".join(lines),
             "provider": "public_marketplace_research",
             "sources": sources,
+            "verification": bundle.get("verification") or research_verification(sources, research, bundle.get("queries")),
             "web_search": {
                 "requested": True,
                 "used": bool(sources),
@@ -4157,6 +4420,7 @@ def search_results_without_synthesis(bundle, reason=""):
                 "mode": bundle.get("mode") or "automotive_deep_research",
                 "source_count": len(sources),
                 "research": research,
+                "verification": bundle.get("verification") or {},
                 "cache_hit": bool(bundle.get("cache_hit")),
                 "searched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "degraded_reason": clean_text(reason, 160),
@@ -4199,6 +4463,7 @@ def search_results_without_synthesis(bundle, reason=""):
         "content": "\n".join(lines),
         "provider": "public_search",
         "sources": sources,
+        "verification": bundle.get("verification") or research_verification(sources, research, bundle.get("queries")),
         "web_search": {
             "requested": True,
             "used": bool(sources),
@@ -4207,6 +4472,7 @@ def search_results_without_synthesis(bundle, reason=""):
             "mode": bundle.get("mode") or "public_search",
             "source_count": len(sources),
             "research": research,
+            "verification": bundle.get("verification") or {},
             "searched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "degraded_reason": clean_text(reason, 160),
         },
@@ -4286,6 +4552,10 @@ def assistant_response_profile(prompt, attachments=None):
     detailed = (
         bool(attachments)
         or is_automotive_research(prompt)
+        or should_search_web([{"role": "user", "content": text}])
+        or bool(WEB_SEARCH_EXPLICIT_PATTERN.search(text))
+        or bool(WEB_SEARCH_FRESHNESS_PATTERN.search(text))
+        or bool(WEB_SEARCH_DECISION_PATTERN.search(text))
         or bool(DETAILED_RESPONSE_PATTERN.search(text))
     )
     balanced = not detailed and (
@@ -4888,7 +5158,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     if capability_answer:
         return capability_answer
 
-    suggested_memory = memory_suggestion(latest)
+    suggested_memory_candidate = memory_candidate(latest)
+    suggested_memory = suggested_memory_candidate["content"] if suggested_memory_candidate else ""
     memory_context = []
     memory_context_cache_hit = False
     if supabase_configured() and (owner_authenticated or not owner_pairing_required()):
@@ -5243,6 +5514,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             payload.update({
                 "status_real": "assistant_response_grounded_by_live_web",
                 "sources": sources,
+                "verification": free_search_bundle.get("verification") or research_verification(sources),
                 "web_search": {
                     "requested": True,
                     "used": True,
@@ -5252,6 +5524,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                     "source_count": len(sources),
                     "attempts": free_search_bundle.get("attempts", []) if free_search_sources else [],
                     "research": free_search_bundle.get("research", {}) if free_search_sources else {},
+                    "verification": free_search_bundle.get("verification", {}) if free_search_sources else research_verification(sources),
                     "cache_hit": bool(free_search_bundle.get("cache_hit")) if free_search_sources else False,
                     "searched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 },
@@ -5266,6 +5539,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             ]
         if suggested_memory:
             payload["memory_suggestion"] = suggested_memory
+            payload["memory_candidate"] = suggested_memory_candidate
         return payload, 200
     except HTTPError as error:
         if free_search_sources:
@@ -5511,18 +5785,23 @@ def response_cards(payload):
     sources = payload.get("sources") if isinstance(payload.get("sources"), list) else []
     web_search = payload.get("web_search") if isinstance(payload.get("web_search"), dict) else {}
     search_research = web_search.get("research") if isinstance(web_search.get("research"), dict) else {}
+    verification = payload.get("verification") if isinstance(payload.get("verification"), dict) else {}
     if search_research.get("kind") == "automotive_market":
         automotive_card = automotive_ui_card({"research": search_research})
         if automotive_card:
             automotive_card["id"] = "automotive-market"
             cards.append(automotive_card)
     if sources:
+        verification_label = (
+            f" · confiança {clean_text(verification.get('confidence') or 'low', 20)}"
+            f" · {int(verification.get('domain_count') or 0)} domínio(s)"
+        ) if verification else ""
         cards.append({
             "id": "live-web-sources",
             "type": "sources",
-            "status": "verified",
+            "status": clean_text(verification.get("confidence") or "verified", 20),
             "title": "Pesquisa ao vivo",
-            "subtitle": f"{len(sources)} fonte(s) consultada(s)",
+            "subtitle": f"{len(sources)} fonte(s) consultada(s){verification_label}",
             "items": [
                 f"{clean_text(item.get('title') or item.get('domain'), 180)} · {clean_text(item.get('domain'), 120)}"
                 for item in sources[:8]
@@ -5633,8 +5912,10 @@ def response_cards(payload):
     return cards
 
 
-def attach_execution_events(payload, started_at, status_code):
+def attach_execution_events(payload, started_at, status_code, command=""):
     result = dict(payload)
+    if command:
+        result["mission"] = agent_mission_contract(command, result)
     result["event_stream"] = execution_events(result, started_at, status_code)
     cards = response_cards(result)
     if cards:
@@ -5907,7 +6188,12 @@ class handler(BaseHTTPRequestHandler):
                 local_execute=local_execute,
                 owner_authenticated=owner_authenticated,
             )
-            payload = attach_execution_events(payload, started_at, status)
+            payload = attach_execution_events(
+                payload,
+                started_at,
+                status,
+                clean_text(body.get("command") or body.get("prompt"), 8_000),
+            )
             return self.send_json(status, payload)
         if path in {"/assistant", "/chat"}:
             payload, status = assistant_response(
@@ -5916,7 +6202,11 @@ class handler(BaseHTTPRequestHandler):
                 owner_authenticated=owner_authenticated,
             )
             payload.setdefault("endpoint", f"POST {path}")
-            payload = attach_execution_events(payload, started_at, status)
+            messages = body.get("messages") if isinstance(body.get("messages"), list) else []
+            latest = clean_text(body.get("command") or body.get("prompt"), 8_000)
+            if not latest and messages and isinstance(messages[-1], dict):
+                latest = clean_text(messages[-1].get("content"), 8_000)
+            payload = attach_execution_events(payload, started_at, status, latest)
             return self.send_json(status, payload)
         if path == "/device-cancel":
             if owner_pairing_required() and not owner_authenticated:

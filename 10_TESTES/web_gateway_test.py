@@ -106,9 +106,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260811-commanddeck', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260811-commanddeck', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260811-commanddeck', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260811-runtimev2', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260811-runtimev2', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260811-runtimev2', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -281,7 +281,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260811-commanddeck", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260811-runtimev2", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -2482,6 +2482,44 @@ São Paulo - SP
         )
         self.assertEqual(status, 400)
         self.assertFalse(payload["ok"])
+
+    def test_runtime_v2_routes_and_memory_are_selective(self):
+        research = MODULE.agent_request_contract("pesquise notícias recentes de IA")
+        run = MODULE.agent_request_contract("abra o Spotify e depois tire um print da tela")
+        durable = MODULE.memory_candidate("eu prefiro respostas curtas e diretas")
+        ephemeral = MODULE.memory_candidate("hoje eu prefiro respostas longas")
+        self.assertEqual(research["route"], "research")
+        self.assertEqual(research["profile"], "detailed")
+        self.assertEqual(run["route"], "device_run")
+        self.assertEqual(run["steps"], 2)
+        self.assertEqual(durable["kind"], "preference")
+        self.assertFalse(durable["auto_save"])
+        self.assertIsNone(ephemeral)
+
+    def test_runtime_v2_research_verification_uses_observable_domains(self):
+        sources = [
+            {"title": "Docs", "url": "https://docs.example.com/guide", "domain": "docs.example.com", "snippet": "Official guide"},
+            {"title": "Review", "url": "https://independent.test/review", "domain": "independent.test", "snippet": "Independent confirmation"},
+            {"title": "Reference", "url": "https://third.test/reference", "domain": "third.test", "snippet": "Additional evidence"},
+            {"title": "Details", "url": "https://fourth.test/details", "domain": "fourth.test", "snippet": "Detailed evidence"},
+        ]
+        verification = MODULE.research_verification(sources, queries=["one", "two"])
+        self.assertTrue(verification["corroborated"])
+        self.assertEqual(verification["confidence"], "high")
+        self.assertEqual(verification["claim_policy"], "cite_or_refuse")
+        self.assertEqual(verification["query_count"], 2)
+
+    def test_runtime_v2_attaches_a_visible_mission_contract(self):
+        started = datetime.now(MODULE.timezone.utc)
+        payload = MODULE.attach_execution_events(
+            {"ok": True, "provider": "openrouter", "message": "Resposta"},
+            started,
+            200,
+            "analise a arquitetura deste projeto",
+        )
+        self.assertEqual(payload["mission"]["protocol"], "jarvis-mission/2")
+        self.assertEqual(payload["mission"]["steps"][-1]["status"], "succeeded")
+        self.assertTrue(payload["mission"]["success_criteria"])
 
     def test_vercel_rewrite_path_and_asset_traversal(self):
         vercel_config = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
