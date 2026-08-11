@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timedelta, timezone
+from difflib import get_close_matches
 import json
 import os
 from pathlib import Path
@@ -24,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "8"
+WORKER_VERSION = "9"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -64,6 +65,27 @@ ALLOWED_ACTIONS = {
     "self_edit",
 }
 TARGET_PATTERN = re.compile(r"^[\wÀ-ÿ ._-]{0,120}$")
+APPLICATION_ALIASES = {
+    "calendario": "Calendar",
+    "calendar": "Calendar",
+    "chrome": "Google Chrome",
+    "codigo": "Visual Studio Code",
+    "discord": "Discord",
+    "finder": "Finder",
+    "mensagens": "Messages",
+    "messages": "Messages",
+    "musica": "Music",
+    "music": "Music",
+    "notas": "Notes",
+    "notes": "Notes",
+    "roblox": "Roblox",
+    "safari": "Safari",
+    "spotify": "Spotify",
+    "steam": "Steam",
+    "terminal": "Terminal",
+    "vs code": "Visual Studio Code",
+    "vscode": "Visual Studio Code",
+}
 JARVIS_CLEANUP_PATTERN = re.compile(
     r"\b(?:limp(?:a|e|ar)|fech(?:a|e|ar)|encerr(?:a|e|ar))\b.{0,120}"
     r"\b(?:processos?\s+(?:tempor[aá]rios?\s+)?(?:do\s+)?jarvis|"
@@ -246,9 +268,74 @@ def request_envelope(job: dict) -> dict:
         value = json.loads(raw)
     except json.JSONDecodeError:
         return {}
-    if not isinstance(value, dict) or value.get("schema") != "jarvis-device-run/1":
+    if not isinstance(value, dict) or value.get("schema") not in {"jarvis-device-run/1", "jarvis-device-run/2"}:
         return {}
     return value
+
+
+def normalized_application_name(value: str) -> str:
+    safe = str(value or "").casefold().strip()
+    safe = safe.translate(str.maketrans("áàâãéêíóôõúç", "aaaaeeiooouc"))
+    return re.sub(r"[^a-z0-9]+", " ", safe).strip()
+
+
+def installed_applications(app_roots: list[Path] | None = None) -> dict[str, str]:
+    """Build a shallow, deterministic app catalog without launching anything."""
+    roots = app_roots or [Path("/Applications"), Path("/System/Applications"), Path.home() / "Applications"]
+    catalog = {normalized_application_name(name): name for name in APPLICATION_ALIASES.values()}
+    for root in roots:
+        if not root.is_dir():
+            continue
+        candidates = [*root.glob("*.app"), *root.glob("*/*.app")]
+        for path in sorted(candidates, key=lambda item: str(item).casefold()):
+            name = path.stem.strip()
+            if name:
+                catalog[normalized_application_name(name)] = name
+    return catalog
+
+
+def resolve_application_target(target: str, catalog: dict[str, str] | None = None) -> str:
+    """Resolve aliases and small speech-to-text typos to a real app display name."""
+    if not TARGET_PATTERN.fullmatch(str(target or "")) or not str(target or "").strip():
+        raise WorkerError("Aplicativo recebido com nome inválido.")
+    normalized = normalized_application_name(target)
+    alias = APPLICATION_ALIASES.get(normalized)
+    rows = catalog if catalog is not None else installed_applications()
+    if alias:
+        return rows.get(normalized_application_name(alias), alias)
+    if normalized in rows:
+        return rows[normalized]
+    close = get_close_matches(normalized, list(rows), n=1, cutoff=0.86)
+    return rows[close[0]] if close else str(target).strip()
+
+
+def application_running(application: str) -> bool | None:
+    """Ask macOS for independent process state; None means evidence unavailable."""
+    if platform.system() != "Darwin" or not TARGET_PATTERN.fullmatch(application):
+        return None
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", f'application "{application}" is running'],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=8,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    value = result.stdout.strip().casefold()
+    return value == "true" if result.returncode == 0 and value in {"true", "false"} else None
+
+
+def confirm_application_state(application: str, expected_open: bool) -> bool | None:
+    for _attempt in range(8):
+        observed = application_running(application)
+        if observed is expected_open:
+            return True
+        if observed is None:
+            return None
+        time.sleep(0.25)
+    return False
 
 
 def job_request_text(job: dict) -> str:
@@ -426,21 +513,50 @@ def message_details(request_text: str, expected_phone: str) -> dict | None:
 
 
 def execute_job(job: dict) -> tuple[bool, str]:
-    argv = command_argv(job)
+    action = str(job.get("action") or "")
+    effective_job = dict(job)
+    if action in {"open_application", "close_application"}:
+        effective_job["target"] = resolve_application_target(str(job.get("target") or ""))
+    argv = command_argv(effective_job)
+    envelope = request_envelope(job)
+    retry_policy = envelope.get("retry_policy") if isinstance(envelope.get("retry_policy"), dict) else {}
     try:
-        result = subprocess.run(
-            argv,
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=2_400 if str(job.get("action") or "") == "self_edit" else 90,
-            env=os.environ.copy(),
-        )
-    except subprocess.TimeoutExpired:
-        return False, "A ação local excedeu o tempo máximo e foi interrompida."
+        requested_attempts = int(retry_policy.get("max_attempts") or 1)
+    except (TypeError, ValueError):
+        requested_attempts = 1
+    max_attempts = 2 if retry_policy.get("idempotent") is True and requested_attempts >= 2 else 1
+    result = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = subprocess.run(
+                argv,
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=2_400 if action == "self_edit" else 90,
+                env=os.environ.copy(),
+            )
+        except subprocess.TimeoutExpired:
+            if attempt == max_attempts:
+                return False, "A ação local excedeu o tempo máximo e foi interrompida."
+            continue
+        if result.returncode == 0 or attempt == max_attempts:
+            break
+    assert result is not None
     output = (result.stdout or result.stderr or "").strip()
-    return result.returncode == 0, output or f"Processo finalizado com exit code {result.returncode}."
+    succeeded = result.returncode == 0
+    if succeeded and action in {"open_application", "close_application"}:
+        application = str(effective_job.get("target") or "")
+        confirmed = confirm_application_state(application, expected_open=action == "open_application")
+        if confirmed is True:
+            evidence = f"Confirmação independente: {application} está {'aberto' if action == 'open_application' else 'fechado'}."
+            output = f"{output}\n{evidence}".strip()
+        elif confirmed is False:
+            return False, f"O comando terminou, mas o estado de {application} não corresponde ao pedido."
+        else:
+            return False, f"O comando terminou, mas o macOS não forneceu confirmação independente de {application}."
+    return succeeded, output or f"Processo finalizado com exit code {result.returncode}."
 
 
 def recover_stale_commands() -> tuple[int, int]:

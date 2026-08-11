@@ -13,6 +13,11 @@ CHECKS = [
         "expect": ["interface principal", "./jarvis do", "./jarvis help --all"],
     },
     {
+        "name": "agent-eval",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "agent-eval"],
+        "expect": ["Agent Runtime Eval", "50/50", "Produção: nada alterado"],
+    },
+    {
         "name": "safety-gate",
         "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "safety-gate"],
         "expect": ["Safety Gate", "SAFETY GATE PASSOU", "Produção não alterada", "Relatório: desativado por JARVIS_NO_REPORT=1"],

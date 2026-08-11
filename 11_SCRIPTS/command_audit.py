@@ -85,6 +85,7 @@ CRITICAL_COMMANDS = [
     "decision-list",
     "decision-show",
     "assistant-doctor",
+    "agent-eval",
     "web",
     "screen-capture",
     "screen-record",

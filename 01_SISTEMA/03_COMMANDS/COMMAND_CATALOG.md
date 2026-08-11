@@ -5,6 +5,7 @@ Catálogo local de comandos. Não é produção.
 
 ## Saúde / validação
 - `./jarvis command-audit`
+- `./jarvis agent-eval [--json]`
 - `./jarvis safety-gate`
 - `./jarvis secret-scan`
 - `./jarvis storage-health`
@@ -43,6 +44,7 @@ Storage: `05_EXECUCAO/63_DECISIONS/decisions.jsonl` (gitignored, JSONL append-on
 
 ## Utilidades pessoais locais
 
+- `./jarvis agent-eval [--json]` — executa 50 pedidos representativos contra o mesmo contrato de roteamento usado pelo gateway (conversa, pesquisa, Mac, sequências e memória). Não chama OpenRouter, ElevenLabs, Supabase ou o worker; `JARVIS_NO_REPORT=1` mantém preview e a execução normal grava somente `07_RELATORIOS/02_TECNICOS/ULTIMO_AGENT_RUNTIME_EVAL.md` (gitignored).
 - `./jarvis web [--no-open|--check]` — inicia o cockpit visual, abre o navegador e conecta conversa/voz ao worker local; usa OpenRouter quando `OPENROUTER_API_KEY` estiver disponível no processo.
 - `./jarvis assistant-doctor` — verifica se o macOS oferece captura, conversão, voz, abertura e clipboard.
 - `./jarvis screen-capture [--interactive] [--output PATH] [--dry-run]` — captura somente quando chamado; o padrão salva em `05_EXECUCAO/64_PERSONAL_TOOLS/screenshots/`.
