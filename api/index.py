@@ -5465,6 +5465,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 single_model_payload = dict(openrouter_payload)
                 single_model_payload.pop("models", None)
                 single_model_payload["model"] = candidate
+                # A 400 on the multi-model route can be caused by a provider
+                # preference rather than by the model itself. Retry the
+                # official minimal chat contract so one incompatible routing
+                # hint cannot break every fallback candidate.
+                single_model_payload.pop("provider", None)
                 try:
                     response = send_openrouter(single_model_payload, timeout=min(8, remaining))
                     attempts.append({"model": candidate, "outcome": "success"})
