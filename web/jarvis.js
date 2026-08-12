@@ -53,6 +53,7 @@
     historyRestored: false,
     currentCommand: "",
     mission: null,
+    memoryViewing: false,
     overview: null,
     workingStartedAt: 0,
     lastResponseOk: true,
@@ -405,12 +406,18 @@
 
   function setVisualState(state) {
     const normalized = state || "idle";
-    const [mode, label] = stateLabels[normalized] || stateLabels.idle;
+    const labels = normalized === "memory" && session.memoryViewing
+      ? ["MEMÓRIA", "consultando conhecimento salvo"]
+      : stateLabels[normalized] || stateLabels.idle;
+    const [mode, label] = labels;
     stage.dataset.state = normalized;
     byId("modeLabel").textContent = mode;
     byId("stateLabel").textContent = label;
     byId("conversationState").textContent = label;
-    const [symbol, phase, name, description] = statePresentation[normalized] || statePresentation.idle;
+    const presentation = normalized === "memory" && session.memoryViewing
+      ? ["◇", "MEMÓRIA", "NÚCLEO", "lendo contexto persistente"]
+      : statePresentation[normalized] || statePresentation.idle;
+    const [symbol, phase, name, description] = presentation;
     byId("stateSymbol").textContent = symbol;
     byId("statePhase").textContent = phase;
     byId("stateName").textContent = name;
@@ -1175,6 +1182,7 @@
       return;
     }
 
+    session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
     session.mission = data.mission || null;
     const answer = data.message || data.summary || data.next_action || data.status_real || "Pronto.";
@@ -1307,6 +1315,7 @@
     const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
     session.responseState = "";
+    session.memoryViewing = false;
     session.currentCommand = command;
     const fileLabel = attachments.length ? `<small class="message-attachments">${attachments.map((item) => escapeHtml(item.name)).join(" · ")}</small>` : "";
     addMessage(command, options.source === "voice" ? "user voice" : "user", fileLabel);
@@ -1324,7 +1333,9 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command, messages: session.history, input_mode: options.source || "text", attachments }),
       });
-      const minimumReflectionMs = ["research", "planning"].includes(workingState) ? 2800 : 1400;
+      const minimumReflectionMs = data.mode === "memory" || data.intent === "memory_view_close"
+        ? 180
+        : ["research", "planning"].includes(workingState) ? 2800 : 1400;
       const remainingReflectionMs = minimumReflectionMs - (performance.now() - reflectionStartedAt);
       if (remainingReflectionMs > 0) {
         byId("conversationState").textContent = "revisando resposta";

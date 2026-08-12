@@ -106,7 +106,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260812-shimmer1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260812-memoryread1', html)
         self.assertIn(b'/ui/jarvis.css?v=20260812-shimmer1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260812-reflect1', html)
         self.assertIn(b'viewport-fit=cover', html)
@@ -297,7 +297,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260812-shimmer1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260812-memoryread1", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -1111,7 +1111,7 @@ class WebGatewayTest(unittest.TestCase):
                 payload = MODULE.memory_tree_payload()
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["provider"], "supabase")
-        self.assertTrue(payload["persistent_write"])
+        self.assertFalse(payload["persistent_write"])
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["nodes"][0]["label"], "o busto fica na frente")
         self.assertEqual(payload["nodes"][0]["layer"], "discussion")
@@ -2510,7 +2510,28 @@ São Paulo - SP
         )
         self.assertEqual(status, 200)
         self.assertEqual(payload["mode"], "memory")
+        self.assertEqual(payload["intent"], "memory_view")
+        self.assertFalse(payload["persistent_write"])
         self.assertEqual(payload["visual_state"], "memory")
+
+    def test_contextual_close_exits_memory_view_without_model_or_write(self):
+        status, _, payload = self.json_request(
+            "/command",
+            "POST",
+            {
+                "command": "pode fechar",
+                "messages": [
+                    {"role": "user", "content": "mostra o núcleo de memória"},
+                    {"role": "assistant", "content": "Abri sua constelação com 2 memórias persistentes."},
+                    {"role": "user", "content": "pode fechar"},
+                ],
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "memory_view_closed")
+        self.assertEqual(payload["provider"], "jarvis_runtime")
+        self.assertFalse(payload["external_processing"])
+        self.assertFalse(payload["persistent_write"])
 
     def test_secret_like_prompt_is_refused(self):
         fake = "sk-" + "or-" + "v1-" + ("x" * 20)
