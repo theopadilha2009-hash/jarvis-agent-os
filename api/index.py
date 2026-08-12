@@ -2390,7 +2390,7 @@ def memory_tree_payload():
             "edges": [],
             "categories": [],
             "count": 0,
-            "persistent_write": True,
+            "persistent_write": False,
             "provider": "supabase",
         }
     except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
@@ -2404,7 +2404,7 @@ def memory_tree_payload():
             "edges": [],
             "categories": [],
             "count": 0,
-            "persistent_write": True,
+            "persistent_write": False,
             "provider": "supabase",
         }
 
@@ -2441,7 +2441,7 @@ def memory_tree_payload():
         "edges": edges,
         "categories": categories,
         "count": len(nodes),
-        "persistent_write": True,
+        "persistent_write": False,
         "provider": "supabase",
     }
 
@@ -4976,6 +4976,8 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
                 else payload.get("error", "A memória não está disponível.")
             ),
             "mode": "memory",
+            "intent": "memory_view",
+            "persistent_write": False,
             "sources": payload.get("nodes", [])[:12],
         })
         return payload, 200 if payload.get("ok") else 503
@@ -5677,6 +5679,25 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         payload = personal_overview_payload(owner_authenticated=owner_authenticated)
         payload.update({"endpoint": "POST /command", "intent": "personal_overview", "provider": "jarvis_control_plane"})
         return payload, 200
+
+    recent_messages = normalize_messages(body)[-6:]
+    memory_was_opened = any(
+        row.get("role") == "assistant"
+        and re.search(r"constela[cç][aã]o|mem[oó]rias?\s+(?:persistentes|locais)", row.get("content", ""), re.I)
+        for row in recent_messages[:-1]
+    )
+    if memory_was_opened and re.fullmatch(r"\s*(?:pode\s+)?fech(?:a|ar|e)(?:\s+(?:isso|ela|a[ií]))?[.!?]*\s*", command, re.I):
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "memory_view_closed",
+            "visual_state": "response",
+            "intent": "memory_view_close",
+            "message": "Fechei o Núcleo de Memória.",
+            "provider": "jarvis_runtime",
+            "external_processing": False,
+            "persistent_write": False,
+        }, 200
 
     device_plan = compound_device_plan(command)
     if device_plan:
