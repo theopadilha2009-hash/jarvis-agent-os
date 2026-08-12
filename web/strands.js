@@ -174,9 +174,9 @@ function buildPalette(colors) {
 const DEFAULT_PROPS = {
   colors: ["#A855F7", "#A855F7", "#6366F1"],
   count: 3,
-  speed: 0.4,
-  amplitude: 0.9,
-  waviness: 0.9,
+  speed: 0.22,
+  amplitude: 0.68,
+  waviness: 0.72,
   thickness: 0.7,
   glow: 2,
   taper: 4.2,
@@ -287,20 +287,20 @@ export function createStrands(mount, initialProps = {}) {
     const listening = visualState === "listening";
     const energy = reducedMotion ? 0 : voiceEnergy;
     const motionBoost = speaking
-      ? 0.55 + energy * 1.35
+      ? 0.32 + energy * 0.55
       : listening
-        ? 0.28 + energy * 0.4
-        : 0.08 + energy * 0.12;
+        ? 0.16 + energy * 0.2
+        : 0.04 + energy * 0.06;
     const ampBoost = speaking
-      ? 0.45 + energy * 1.1
+      ? 0.32 + energy * 0.52
       : listening
-        ? 0.22
-        : 0.12;
+        ? 0.16
+        : 0.08;
     const intensityBoost = speaking
-      ? 0.55 + energy * 0.9
+      ? 0.42 + energy * 0.48
       : listening
-        ? 0.35
-        : 0.22;
+        ? 0.25
+        : 0.14;
 
     return {
       ...props,
@@ -317,7 +317,7 @@ export function createStrands(mount, initialProps = {}) {
     if (disposed) return;
     animateId = requestAnimationFrame(update);
     if (!active) return;
-    voiceEnergy += (targetVoiceEnergy - voiceEnergy) * 0.18;
+    voiceEnergy += (targetVoiceEnergy - voiceEnergy) * 0.08;
     if (!speakingLike() && targetVoiceEnergy < 0.02) {
       // Decay residual energy when silent so the form settles.
       targetVoiceEnergy *= 0.92;
