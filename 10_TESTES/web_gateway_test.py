@@ -106,9 +106,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260811-polish1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260811-polish1', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260811-polish1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260812-reflect1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260812-reflect1', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260812-reflect1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -205,6 +205,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"PESQUISA PROFUNDA", app_js)
         self.assertIn(b'class="message-card"', app_js)
         self.assertIn(b"workingStateFor", app_js)
+        self.assertIn(b"minimumReflectionMs", app_js)
+        self.assertIn("revisando resposta".encode("utf-8"), app_js)
         self.assertIn(b"responseVisualState", app_js)
         self.assertIn(b'forge: ["FORJA"', app_js)
         self.assertIn(b"data-scene-mode", html)
@@ -290,7 +292,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260811-polish1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260812-reflect1", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -315,6 +317,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(headers["Cache-Control"], "public, max-age=31536000, immutable")
         self.assertGreater(len(model), 4_000_000)
         self.assertLess(len(model), 4_500_000)
+
+    def test_assistant_prompt_requires_review_and_contextual_follow_up(self):
+        source = Path(MODULE.__file__).read_text(encoding="utf-8")
+        self.assertIn("revise silenciosamente", source)
+        self.assertIn("exatamente uma pergunta curta e contextual", source)
+        self.assertIn("Quer ver preços?", source)
 
     def test_local_device_request_becomes_handoff(self):
         status, _, payload = self.json_request(
