@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const mount = document.getElementById("avatar3d");
 const stage = document.getElementById("stage");
@@ -70,17 +71,17 @@ async function loadObjHead(url) {
   geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
   geometry.computeBoundingSphere();
   const material = new THREE.MeshStandardMaterial({
-    color: 0x230b12,
+    color: 0x071a21,
     metalness: 0.58,
     roughness: 0.42,
-    emissive: 0x4a0714,
+    emissive: 0x063746,
     emissiveIntensity: 0.58,
     transparent: true,
     opacity: 0.62,
     flatShading: true,
     side: THREE.DoubleSide,
   });
-  material.name = "ultron-head-glow";
+  material.name = "visitor-head-glow";
   return new THREE.Mesh(geometry, material);
 }
 
@@ -447,7 +448,8 @@ async function start() {
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   camera.position.set(0, 0.02, 5.1);
 
-  scene.add(new THREE.AmbientLight(0x36070d, 1.18));
+  const ambient = new THREE.AmbientLight(0x163448, 1.18);
+  scene.add(ambient);
   const key = new THREE.DirectionalLight(0xff5a68, 3.35);
   key.position.set(2.6, 3.4, 4.2);
   scene.add(key);
@@ -464,34 +466,47 @@ async function start() {
 
   const root = new THREE.Group();
   scene.add(root);
-  const model = await loadObjHead("/asset/models/male_head.obj?v=20260812-voicehead1");
-  const box = new THREE.Box3().setFromObject(model);
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
-  const scale = 2.42 / (Math.max(size.x, size.y, size.z) || 1);
-  model.scale.setScalar(scale);
-  model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
-  root.add(model);
+  const visitorModel = await loadObjHead("/asset/models/male_head.obj?v=20260812-modelsplit1");
+  const alienGltf = await new Promise((resolve, reject) => {
+    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-voicecyan1", resolve, undefined, reject);
+  });
+  const ownerModel = alienGltf.scene || alienGltf.scenes[0];
+
+  function normalizeModel(model, rotationZ = 0) {
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const scale = 2.42 / (Math.max(size.x, size.y, size.z) || 1);
+    model.scale.setScalar(scale);
+    model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
+    model.rotation.z = rotationZ;
+    root.add(model);
+  }
+  normalizeModel(visitorModel, Math.PI);
+  normalizeModel(ownerModel);
 
   const glowMaterials = new Set();
-  model.traverse((object) => {
-    if (!object.isMesh) return;
-    object.frustumCulled = true;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.filter(Boolean).forEach((material) => {
-      installCyanRemap(material);
-      if ("envMapIntensity" in material) material.envMapIntensity = 1.42;
-      if (material.emissive && /glow|emissive/i.test(material.name || "")) {
-        material.userData.jarvisBaseEmissive = material.emissive.clone();
-        material.userData.jarvisBaseIntensity = material.emissiveIntensity || 1;
-        glowMaterials.add(material);
-      }
+  [visitorModel, ownerModel].forEach((model) => {
+    model.traverse((object) => {
+      if (!object.isMesh) return;
+      object.frustumCulled = true;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.filter(Boolean).forEach((material) => {
+        installCyanRemap(material);
+        if ("envMapIntensity" in material) material.envMapIntensity = 1.42;
+        if (material.emissive && /glow|emissive/i.test(material.name || "")) {
+          material.userData.jarvisBaseEmissive = material.emissive.clone();
+          material.userData.jarvisBaseIntensity = material.emissiveIntensity || 1;
+          glowMaterials.add(material);
+        }
+      });
     });
   });
-  const mixer = null;
-  stage.dataset.modelAsset = "male-head-obj";
-  stage.dataset.modelAnimations = "0";
-  stage.dataset.modelAnimationSeconds = "0";
+  const mixer = alienGltf.animations.length ? new THREE.AnimationMixer(ownerModel) : null;
+  if (mixer && !reducedMotion) mixer.clipAction(alienGltf.animations[0]).play();
+  stage.dataset.modelAsset = "visitor-head+ultron-alien";
+  stage.dataset.modelAnimations = String(alienGltf.animations.length);
+  stage.dataset.modelAnimationSeconds = alienGltf.animations[0]?.duration?.toFixed(1) || "0";
   stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "command-deck";
 
   const particleCount = compactViewport || constrainedHardware ? 24 : 42;
@@ -683,7 +698,15 @@ async function start() {
       const target = visualMode === mode ? 1 : 0;
       modeBlend[mode] += (target - modeBlend[mode]) * blendEase;
     });
-    const activeColor = stage.dataset.access === "owner" ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
+    const isOwner = stage.dataset.access === "owner";
+    visitorModel.visible = !isOwner;
+    ownerModel.visible = isOwner;
+    ambient.color.setHex(isOwner ? 0x36070d : 0x163448);
+    key.color.setHex(isOwner ? 0xff5a68 : 0x9af4ff);
+    rim.color.setHex(isOwner ? 0xff102f : 0x60a5fa);
+    faceFill.color.setHex(isOwner ? 0xffa0a8 : 0xbff9ff);
+    lowerFill.color.setHex(isOwner ? 0xff1838 : 0x22d3ee);
+    const activeColor = isOwner ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
     const isWorking = modeBlend.forge > 0.08;
     targetColor.setHex(activeColor);
     currentColor.lerp(targetColor, 0.065);
