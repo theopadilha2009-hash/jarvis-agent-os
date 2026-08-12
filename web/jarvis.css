@@ -1011,6 +1011,7 @@ button {
 }
 
 .request-progress {
+  position: relative;
   grid-row: 2;
   min-height: 28px;
   display: grid;
@@ -1027,6 +1028,55 @@ button {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+.shimmer-loader {
+  --shimmer-progress: 0%;
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 5px 7px;
+  border-bottom: 1px solid rgba(103, 232, 249, 0.09);
+  color: rgba(224, 204, 255, 0.9);
+  text-transform: none;
+}
+
+.shimmer-icon {
+  color: var(--cyan-hot);
+  filter: drop-shadow(0 0 7px rgba(103, 232, 249, 0.72));
+  animation: shimmer-icon 850ms ease-in-out infinite alternate;
+}
+
+.shimmer-label {
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(216, 180, 254, 0.42), #f5e9ff, rgba(103, 232, 249, 0.58)) 0 0 / 220% 100%;
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  animation: shimmer-text 1.35s linear infinite;
+}
+
+.shimmer-loader::after {
+  content: "";
+  position: absolute;
+  inset: auto 19px 36px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--cyan-hot) var(--shimmer-progress), rgba(103, 232, 249, 0.08) var(--shimmer-progress));
+  box-shadow: 0 0 8px rgba(103, 232, 249, 0.35);
+  transition: background 180ms ease;
+}
+
+.shimmer-percent,
+.shimmer-tokens { color: rgba(207, 250, 254, 0.76); font-variant-numeric: tabular-nums; }
+.shimmer-tokens { color: rgba(148, 163, 184, 0.72); }
+
+@keyframes shimmer-text { to { background-position: -220% 0; } }
+@keyframes shimmer-icon { to { transform: rotate(18deg) scale(0.84); opacity: 0.68; } }
 
 .request-progress[hidden] { display: none; }
 
