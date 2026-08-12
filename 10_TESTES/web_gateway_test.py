@@ -107,7 +107,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
         self.assertIn(b'/ui/jarvis.js?v=20260812-memoryread1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260812-visual1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260812-tracking1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260812-reflect1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -271,6 +271,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"lowerFill", visual_js)
         self.assertIn(b"EFFECT_TARGET_FPS", visual_js)
         self.assertIn(b"slowFrameWindows", visual_js)
+        self.assertIn(b"pointerX * 0.32", visual_js)
+        self.assertIn(b"currentX) * 0.15", visual_js)
         self.assertIn(b'renderer.setPixelRatio(compactViewport', visual_js)
         self.assertIn(b'sceneRender', visual_js)
         self.assertIn(b'GPU 3D desativada', visual_js)
@@ -301,7 +303,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260812-visual1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260812-tracking1", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
