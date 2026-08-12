@@ -104,12 +104,13 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="muteButton"', html)
         self.assertIn(b'id="avatar3d"', html)
         self.assertIn(b'id="strandsVisual"', html)
+        self.assertIn(b'id="voiceWave"', html)
         self.assertIn(b'"ogl":"/ui/vendor/ogl/index.js"', html)
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260812-accessmodes1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260812-accessmodes1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260812-voicehead1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260812-voicehead1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260812-reflect1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -310,7 +311,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260812-accessmodes1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260812-voicehead1", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -346,6 +347,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(headers["Cache-Control"], "public, max-age=31536000, immutable")
         self.assertGreater(len(model), 4_000_000)
         self.assertLess(len(model), 4_500_000)
+
+        status, headers, head_model = self.request("/asset/models/male_head.obj")
+        self.assertEqual(status, 200)
+        self.assertIn(headers.get_content_type(), {"text/plain", "model/obj", "application/octet-stream"})
+        self.assertGreater(len(head_model), 3_000_000)
+        self.assertIn(b"# This file uses centimeters", head_model[:200])
 
     def test_assistant_prompt_requires_review_and_contextual_follow_up(self):
         source = Path(MODULE.__file__).read_text(encoding="utf-8")
@@ -2369,9 +2376,9 @@ São Paulo - SP
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
         self.assertEqual(sent_payload["language_code"], "pt")
         self.assertEqual(sent_payload["model_id"], "eleven_flash_v2_5")
-        self.assertEqual(sent_payload["voice_settings"]["stability"], 0.38)
+        self.assertEqual(sent_payload["voice_settings"]["stability"], 0.52)
         self.assertFalse(sent_payload["voice_settings"]["use_speaker_boost"])
-        self.assertEqual(sent_payload["voice_settings"]["speed"], 1.04)
+        self.assertEqual(sent_payload["voice_settings"]["speed"], 0.92)
 
     def test_missing_elevenlabs_key_stays_text_only(self):
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):
