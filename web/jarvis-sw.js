@@ -1,11 +1,11 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260812-memoryread1";
+const CACHE_VERSION = "jarvis-mobile-shell-20260812-visual1";
 const SHELL = [
   "/",
   "/ui/manifest.webmanifest?v=20260812-reflect1",
   "/ui/jarvis-icon.svg?v=20260811-polish1",
-  "/ui/jarvis.css?v=20260812-shimmer1",
+  "/ui/jarvis.css?v=20260812-visual1",
   "/ui/jarvis.js?v=20260812-memoryread1",
 ];
 

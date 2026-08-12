@@ -9,10 +9,10 @@
   --amber: #fbbf24;
   --red: #fb7185;
   --text: #edfaff;
-  --muted: #86a5b3;
-  --faint: #476574;
-  --line: rgba(103, 232, 249, 0.16);
-  --line-hot: rgba(103, 232, 249, 0.42);
+  --muted: #a8c8d3;
+  --faint: #7295a3;
+  --line: rgba(103, 232, 249, 0.25);
+  --line-hot: rgba(103, 232, 249, 0.58);
   --state: var(--cyan);
 }
 
@@ -68,9 +68,10 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 0 22px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(2, 8, 13, 0.76);
-  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(103, 232, 249, 0.3);
+  background: linear-gradient(180deg, rgba(7, 22, 31, 0.97), rgba(2, 10, 16, 0.9));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.38), 0 1px 18px rgba(34, 211, 238, 0.08);
+  backdrop-filter: blur(22px) saturate(130%);
 }
 
 .identity,
@@ -2028,14 +2029,25 @@ dialog::backdrop {
   .identity-mark svg { width: 37px; height: 37px; }
   .identity-name { gap: 3px; }
   .identity-name b { font-size: 12px; letter-spacing: 0.34em; }
-  .identity-name small { font-size: 7px; color: #658593; }
+  .identity-name small { font-size: 8px; color: #9bbbc7; }
   .connection { gap: 11px; }
 
   .quiet-button {
-    min-height: 32px;
-    border-color: rgba(103, 232, 249, 0.09);
+    min-height: 34px;
+    padding-inline: 13px;
+    border-color: rgba(103, 232, 249, 0.25);
     border-radius: 999px;
-    background: rgba(7, 22, 31, 0.34);
+    background: linear-gradient(180deg, rgba(16, 43, 56, 0.82), rgba(5, 20, 29, 0.72));
+    color: #d5f4fa;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.06), 0 6px 18px rgba(0, 0, 0, 0.18);
+  }
+
+  .quiet-button:hover,
+  .quiet-button:focus-visible {
+    border-color: rgba(103, 232, 249, 0.62);
+    background: rgba(13, 55, 70, 0.92);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.16);
   }
 
   .presence {
@@ -2123,7 +2135,7 @@ dialog::backdrop {
     z-index: 11;
     top: 50px;
     right: 28px;
-    width: 102px;
+    width: 124px;
     display: grid;
     gap: 7px;
   }
@@ -2131,17 +2143,18 @@ dialog::backdrop {
   .scene-modes > span,
   .scene-modes > button {
     position: relative;
-    min-height: 49px;
+    min-height: 54px;
     display: grid;
     grid-template-columns: 20px minmax(0, 1fr);
     grid-template-rows: auto auto;
     gap: 1px 8px;
     align-content: center;
-    padding: 8px 9px;
-    border: 1px solid rgba(103, 232, 249, 0.08);
+    padding: 9px 11px;
+    border: 1px solid rgba(103, 232, 249, 0.23);
     border-radius: 12px;
-    background: linear-gradient(110deg, rgba(5, 20, 29, 0.38), rgba(2, 8, 13, 0.12));
-    color: #557681;
+    background: linear-gradient(110deg, rgba(10, 34, 45, 0.9), rgba(3, 15, 23, 0.72));
+    color: #9fc6d0;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.035), 0 10px 28px rgba(0, 0, 0, 0.2);
     transition: color 260ms ease, border-color 260ms ease, background 260ms ease, transform 260ms ease;
   }
 
@@ -2159,16 +2172,16 @@ dialog::backdrop {
     grid-row: 1 / 3;
     align-self: center;
     color: currentColor;
-    font: normal 7px ui-monospace, SFMono-Regular, Menlo, monospace;
+    font: normal 8px ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
   .scene-modes b {
     color: inherit;
-    font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+    font: 750 9px ui-monospace, SFMono-Regular, Menlo, monospace;
     letter-spacing: 0.13em;
   }
 
-  .scene-modes small { color: #45616b; font-size: 8px; }
+  .scene-modes small { color: #8aabb6; font-size: 9px; }
 
   .scene-modes > span.active {
     transform: translateX(-5px);
@@ -2233,16 +2246,15 @@ dialog::backdrop {
 
   .hud-rail { top: 158px; width: clamp(220px, 18vw, 270px); gap: 8px; }
   .hud-left { left: 34px; }
-  .hud-right { right: 146px; }
+  .hud-right { right: 166px; }
 
   .hud-surface {
-    padding: 12px 0 12px 15px;
-    border: 0;
-    border-left: 1px solid color-mix(in srgb, var(--state) 30%, transparent);
-    border-radius: 0;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--state) 4%, rgba(3, 12, 19, 0.36)), transparent);
-    box-shadow: none;
-    backdrop-filter: blur(8px);
+    padding: 14px 16px;
+    border: 1px solid color-mix(in srgb, var(--state) 25%, transparent);
+    border-radius: 13px;
+    background: linear-gradient(110deg, color-mix(in srgb, var(--state) 8%, rgba(5, 22, 31, 0.92)), rgba(2, 12, 19, 0.8));
+    box-shadow: 0 16px 38px rgba(0, 0, 0, 0.3), inset 0 1px rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(14px) saturate(125%);
   }
 
   .hud-right .hud-surface {

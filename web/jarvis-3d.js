@@ -8,8 +8,8 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
 const constrainedHardware = (navigator.deviceMemory && navigator.deviceMemory <= 4)
   || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 18 : 30;
-const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 8 : 12;
+const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 24 : 45;
+const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 10 : 18;
 const BACKGROUND_TARGET_FPS = 1;
 const EFFECT_TARGET_FPS = 10;
 const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
@@ -384,7 +384,7 @@ async function start() {
   renderer.setPixelRatio(compactViewport || constrainedHardware ? 1 : Math.min(window.devicePixelRatio || 1, 1.35));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.92;
+  renderer.toneMappingExposure = 1.16;
   mount.appendChild(renderer.domElement);
 
   const effectCanvas = makeEffectCanvas();
@@ -393,13 +393,19 @@ async function start() {
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   camera.position.set(0, 0.02, 5.1);
 
-  scene.add(new THREE.AmbientLight(0x071723, 0.75));
-  const key = new THREE.DirectionalLight(0x67e8f9, 2.3);
+  scene.add(new THREE.AmbientLight(0x163448, 1.08));
+  const key = new THREE.DirectionalLight(0x9af4ff, 3.15);
   key.position.set(2.6, 3.4, 4.2);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x60a5fa, 1.85);
+  const rim = new THREE.DirectionalLight(0x60a5fa, 2.35);
   rim.position.set(-3, 1.3, -2);
   scene.add(rim);
+  const faceFill = new THREE.PointLight(0xbff9ff, 9.5, 7, 1.7);
+  faceFill.position.set(0.15, 0.45, 3.1);
+  scene.add(faceFill);
+  const lowerFill = new THREE.PointLight(0x22d3ee, 5.2, 6, 2);
+  lowerFill.position.set(-1.2, -1.8, 2.4);
+  scene.add(lowerFill);
   const coreEntity = makeCoreEntity(scene);
 
   const root = new THREE.Group();
@@ -424,7 +430,7 @@ async function start() {
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     materials.filter(Boolean).forEach((material) => {
       installCyanRemap(material);
-      if ("envMapIntensity" in material) material.envMapIntensity = 1.15;
+      if ("envMapIntensity" in material) material.envMapIntensity = 1.42;
       if (material.emissive && /glow|emissive/i.test(material.name || "")) {
         material.userData.jarvisBaseEmissive = material.emissive.clone();
         material.userData.jarvisBaseIntensity = material.emissiveIntensity || 1;
