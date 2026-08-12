@@ -13,7 +13,7 @@
   <link rel="manifest" href="/ui/manifest.webmanifest?v=20260812-reflect1">
   <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-polish1" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-polish1">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-lite1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-purplebust6">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/index.js"}}
   </script>
@@ -56,64 +56,11 @@
           <i class="depth-light depth-light-left"></i>
           <i class="depth-light depth-light-right"></i>
         </div>
-        <svg class="lite-wave-field" viewBox="0 0 900 420" aria-hidden="true">
-          <path d="M30 222 C155 146 250 306 390 218 S650 145 870 222"></path>
-          <path d="M30 222 C170 270 280 165 430 224 S690 292 870 214"></path>
-          <path d="M70 222 C225 206 300 248 450 220 S675 204 830 224"></path>
+        <svg class="voice-wave" viewBox="0 0 1000 360" aria-hidden="true">
+          <path d="M20 184 C135 117 242 250 365 178 S620 109 980 184"></path>
+          <path d="M20 184 C170 226 276 139 430 185 S705 235 980 178"></path>
+          <path d="M85 184 C240 170 340 209 500 182 S760 170 915 186"></path>
         </svg>
-        <div class="visitor-presence-lite" id="visitorPresenceLite" aria-hidden="true">
-          <svg class="visitor-portrait" viewBox="0 0 420 560" role="presentation">
-            <defs>
-              <linearGradient id="visitorFaceFill" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#d7fbff" stop-opacity=".19"></stop>
-                <stop offset=".52" stop-color="#62e6f4" stop-opacity=".1"></stop>
-                <stop offset="1" stop-color="#0e7490" stop-opacity=".04"></stop>
-              </linearGradient>
-              <linearGradient id="visitorBustFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#9af4ff" stop-opacity=".14"></stop>
-                <stop offset="1" stop-color="#0891b2" stop-opacity=".025"></stop>
-              </linearGradient>
-              <clipPath id="visitorFaceClip">
-                <path d="M210 47 C132 47 103 108 105 193 C107 286 138 367 210 387 C282 367 313 286 315 193 C317 108 288 47 210 47Z"></path>
-              </clipPath>
-            </defs>
-            <path class="portrait-aura" d="M92 506 C104 449 146 436 165 419 L172 374 H248 L255 419 C274 436 316 449 328 506Z"></path>
-            <path class="portrait-shoulders" d="M31 542 C44 478 105 459 161 437 L173 381 H247 L259 437 C315 459 376 478 389 542Z"></path>
-            <path class="portrait-neck" d="M162 330 L165 430 C176 456 244 456 255 430 L258 330Z"></path>
-            <ellipse class="portrait-ear" cx="101" cy="220" rx="23" ry="47"></ellipse>
-            <ellipse class="portrait-ear" cx="319" cy="220" rx="23" ry="47"></ellipse>
-            <path class="portrait-face" d="M210 47 C132 47 103 108 105 193 C107 286 138 367 210 387 C282 367 313 286 315 193 C317 108 288 47 210 47Z"></path>
-            <g class="portrait-topology" clip-path="url(#visitorFaceClip)">
-              <path d="M107 157 C154 126 266 126 313 157"></path>
-              <path d="M112 242 C161 276 259 276 308 242"></path>
-              <path d="M126 310 C167 337 253 337 294 310"></path>
-              <path d="M210 50 L210 382"></path>
-              <path d="M126 88 L294 329"></path>
-              <path d="M294 88 L126 329"></path>
-            </g>
-            <path class="portrait-brow" d="M134 163 C153 151 178 151 194 164"></path>
-            <path class="portrait-brow" d="M226 164 C242 151 267 151 286 163"></path>
-            <path class="portrait-eye" d="M132 184 C150 166 180 166 197 184 C178 202 150 202 132 184Z"></path>
-            <path class="portrait-eye" d="M223 184 C240 166 270 166 288 184 C270 202 242 202 223 184Z"></path>
-            <circle class="portrait-iris" cx="166" cy="184" r="9"></circle>
-            <circle class="portrait-iris" cx="254" cy="184" r="9"></circle>
-            <circle class="portrait-pupil" cx="166" cy="184" r="3"></circle>
-            <circle class="portrait-pupil" cx="254" cy="184" r="3"></circle>
-            <path class="portrait-nose" d="M210 187 C207 218 197 248 199 266 C205 274 215 274 222 268"></path>
-            <path class="portrait-nose-detail" d="M187 271 C198 279 222 279 233 271"></path>
-            <path class="portrait-mouth" d="M166 313 C191 300 229 300 254 313 C231 333 190 333 166 313Z"></path>
-            <path class="portrait-jaw" d="M143 294 C154 343 181 368 210 374 C239 368 266 343 277 294"></path>
-            <g class="portrait-circuit">
-              <path d="M119 224 H145 L157 238"></path>
-              <path d="M301 224 H275 L263 238"></path>
-              <path d="M141 117 H173 L183 135"></path>
-              <path d="M279 117 H247 L237 135"></path>
-            </g>
-          </svg>
-          <span class="visitor-scan"></span>
-          <span class="visitor-status">PRESENÇA LEVE</span>
-        </div>
-        <div class="strands-visual" id="strandsVisual" aria-hidden="true"></div>
         <div class="avatar" id="avatar3d" aria-hidden="true"></div>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
 
@@ -133,7 +80,7 @@
         <div class="scene-telemetry" aria-label="Telemetria do sistema">
           <span><i></i><b id="sceneBrain">IA verificando</b></span>
           <span><i></i><b id="sceneMac">Mac verificando</b></span>
-          <span><i></i><b id="sceneRender">Avatar leve · 0 GPU</b></span>
+          <span><i></i><b id="sceneRender">3D carregando</b></span>
         </div>
 
         <div class="state-beacon" id="stateBeacon" aria-live="polite">
@@ -336,52 +283,27 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260812-lite1" defer></script>
+  <script src="/ui/jarvis.js?v=20260812-purplebust6" defer></script>
   <script type="module">
     const stage = document.getElementById("stage");
     const sceneRender = document.getElementById("sceneRender");
-    let ownerStrands = null;
-    let ownerPresencePromise = null;
+    let presenceScheduled = false;
 
-    const loadOwnerPresence = () => {
-      if (ownerPresencePromise) return ownerPresencePromise;
-      ownerPresencePromise = Promise.all([
-        import("/ui/strands.js?v=20260812-lite1"),
-        import("/ui/jarvis-3d.js?v=20260812-lite1"),
-      ]).then(([module]) => {
-        ownerStrands = module.createStrands(document.getElementById("strandsVisual"));
-        return ownerStrands;
-      }).catch((error) => {
-        ownerPresencePromise = null;
-        console.warn("JARVIS owner visual unavailable", error);
-      });
-      return ownerPresencePromise;
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260812-purplebust6");
+    const schedulePresence = () => {
+      if (presenceScheduled) return;
+      presenceScheduled = true;
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(loadPresence, { timeout: 700 });
+      } else {
+        window.setTimeout(loadPresence, 200);
+      }
     };
     const syncPresenceVisual = () => {
       const isOwner = stage.dataset.access === "owner";
       const voiceActive = ["voice", "speaking"].includes(stage.dataset.state);
-      if (!isOwner) {
-        ownerStrands?.setActive(false);
-        if (sceneRender) sceneRender.textContent = voiceActive ? "Voz leve ativa" : "Avatar leve · 0 GPU";
-        return;
-      }
-      if (sceneRender) sceneRender.textContent = "3D master carregando";
-      loadOwnerPresence().then(() => {
-        if (!ownerStrands || stage.dataset.access !== "owner") return;
-        ownerStrands.setProps({
-          colors: ["#ff1838", "#ff6579", "#8f001d"],
-          count: 3,
-          speed: 0.18,
-          amplitude: 0.62,
-          waviness: 0.72,
-          thickness: 0.44,
-          glow: 1.55,
-          taper: 4.2,
-          scale: 2.4,
-        });
-        ownerStrands.setActive(voiceActive);
-        if (sceneRender) sceneRender.textContent = voiceActive ? "Voz master ativa" : "Busto master 3D";
-      });
+      if (sceneRender) sceneRender.textContent = voiceActive ? "Voz ativa" : isOwner ? "Busto master" : "Busto 3D";
+      schedulePresence();
     };
 
     new MutationObserver(syncPresenceVisual).observe(stage, {
