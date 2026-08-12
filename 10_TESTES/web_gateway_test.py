@@ -108,8 +108,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260812-voicefix2', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260812-voicefix2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260812-modelsplit1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260812-modelsplit1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260812-reflect1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -310,7 +310,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260812-voicefix2", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260812-modelsplit1", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -2377,7 +2377,7 @@ São Paulo - SP
         self.assertEqual(sent_payload["model_id"], "eleven_flash_v2_5")
         self.assertEqual(sent_payload["voice_settings"]["stability"], 0.62)
         self.assertFalse(sent_payload["voice_settings"]["use_speaker_boost"])
-        self.assertEqual(sent_payload["voice_settings"]["speed"], 0.86)
+        self.assertEqual(sent_payload["voice_settings"]["speed"], 0.80)
 
     def test_missing_elevenlabs_key_stays_text_only(self):
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):
