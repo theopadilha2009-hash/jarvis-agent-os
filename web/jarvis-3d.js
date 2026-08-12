@@ -53,8 +53,6 @@ async function loadObjHead(url) {
   const normals = [];
   const positions = [];
   const outputNormals = [];
-  const detailPositions = [];
-  let triangleIndex = 0;
   source.split(/\r?\n/).forEach((line) => {
     const parts = line.trim().split(/\s+/);
     if (parts[0] === "v") vertices.push(parts.slice(1, 4).map(Number));
@@ -62,21 +60,10 @@ async function loadObjHead(url) {
     else if (parts[0] === "f") {
       const corners = parts.slice(1).map((value) => value.split("/").map(Number));
       for (let index = 1; index < corners.length - 1; index += 1) {
-        const triangle = [corners[0], corners[index], corners[index + 1]];
-        const triangleVertices = triangle.map(([vertexIndex]) => vertices[vertexIndex - 1] || [0, 0, 0]);
-        triangle.forEach(([vertexIndex, , normalIndex]) => {
+        [corners[0], corners[index], corners[index + 1]].forEach(([vertexIndex, , normalIndex]) => {
           positions.push(...(vertices[vertexIndex - 1] || [0, 0, 0]));
           outputNormals.push(...(normals[normalIndex - 1] || [0, 0, 1]));
         });
-        const centerX = triangleVertices.reduce((sum, vertex) => sum + vertex[0], 0) / 3;
-        const centerZ = triangleVertices.reduce((sum, vertex) => sum + vertex[2], 0) / 3;
-        const eyeDetail = centerZ > 19 && centerZ < 25 && Math.abs(centerX) > 1.4 && Math.abs(centerX) < 6.2;
-        const cheekDetail = centerZ > 12 && centerZ < 20 && Math.abs(centerX) > 4.6;
-        const templeDetail = centerZ > 18 && centerZ < 27 && Math.abs(centerX) > 6;
-        if ((eyeDetail || cheekDetail || templeDetail) && triangleIndex % 2 === 0) {
-          triangleVertices.forEach((vertex) => detailPositions.push(...vertex));
-        }
-        triangleIndex += 1;
       }
     }
   });
@@ -85,13 +72,13 @@ async function loadObjHead(url) {
   geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
   geometry.computeBoundingSphere();
   const material = new THREE.MeshPhysicalMaterial({
-    color: 0x9b67e8,
-    metalness: 0.06,
-    roughness: 0.56,
-    emissive: 0x5521a3,
-    emissiveIntensity: 0.94,
+    color: 0x7e43c8,
+    metalness: 0.08,
+    roughness: 0.62,
+    emissive: 0x3a176e,
+    emissiveIntensity: 0.72,
     transparent: true,
-    opacity: 0.64,
+    opacity: 0.52,
     depthWrite: false,
     side: THREE.FrontSide,
     clearcoat: 0.16,
@@ -99,20 +86,73 @@ async function loadObjHead(url) {
   });
   material.name = "visitor-purple-volume";
   const head = new THREE.Mesh(geometry, material);
-  const detailGeometry = new THREE.BufferGeometry();
-  detailGeometry.setAttribute("position", new THREE.Float32BufferAttribute(detailPositions, 3));
-  const wireframe = new THREE.Mesh(detailGeometry, new THREE.MeshBasicMaterial({
-    color: 0xd7c2ff,
+  return head;
+}
+
+function makeVisitorLife() {
+  const group = new THREE.Group();
+  group.name = "visitor-life-details";
+  const triangleGeometry = new THREE.CircleGeometry(0.06, 3);
+  const triangleMaterial = new THREE.MeshBasicMaterial({
+    color: 0xb992ff,
     wireframe: true,
     transparent: true,
-    opacity: 0.36,
+    opacity: 0.28,
     depthWrite: false,
     depthTest: false,
-  }));
-  wireframe.name = "visitor-triangulation-detail";
-  wireframe.scale.setScalar(1.008);
-  head.add(wireframe);
-  return head;
+    blending: THREE.AdditiveBlending,
+  });
+  const anchors = [
+    [-0.22, 0.46, 0.89, -0.22], [0.22, 0.45, 0.89, 0.2],
+    [-0.3, 0.1, 0.87, 0.28], [0.3, 0.08, 0.87, -0.3],
+    [-0.22, -0.25, 0.85, -0.08], [0.22, -0.27, 0.85, 0.08],
+    [-0.3, -0.65, 0.67, 0.22], [0.3, -0.65, 0.67, -0.22],
+  ];
+  const triangles = anchors.map(([x, y, z, rotation], index) => {
+    const triangle = new THREE.Mesh(triangleGeometry, triangleMaterial.clone());
+    triangle.position.set(x, y, z);
+    triangle.rotation.z = rotation;
+    triangle.scale.setScalar(index > 5 ? 1.3 : 1);
+    triangle.userData.base = new THREE.Vector3(x, y, z);
+    triangle.userData.phase = index * 0.83;
+    group.add(triangle);
+    return triangle;
+  });
+
+  const eyeMaterial = new THREE.MeshBasicMaterial({
+    color: 0xc9a8ff,
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const eyes = [-0.145, 0.145].map((x, index) => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 8), eyeMaterial.clone());
+    eye.position.set(x, 0.18, 0.91);
+    eye.scale.set(1, 0.34, 0.3);
+    eye.renderOrder = 3;
+    eye.userData.phase = index * Math.PI;
+    group.add(eye);
+    return eye;
+  });
+
+  function update(time, speakingEnergy = 0) {
+    triangles.forEach((triangle, index) => {
+      const phase = time * 0.34 + triangle.userData.phase;
+      triangle.position.x = triangle.userData.base.x + Math.sin(phase) * 0.04;
+      triangle.position.y = triangle.userData.base.y + Math.cos(phase * 0.74) * 0.065;
+      triangle.rotation.z += Math.sin(phase * 0.52) * 0.0016;
+      triangle.material.opacity = 0.18 + (Math.sin(phase) + 1) * 0.055 + speakingEnergy * 0.11;
+    });
+    const blink = Math.pow(Math.max(0, Math.sin(time * 0.54 - 0.42)), 32);
+    eyes.forEach((eye) => {
+      eye.scale.y = 0.34 * (1 - blink * 0.9);
+      eye.material.opacity = 0.46 + Math.sin(time * 0.9 + eye.userData.phase) * 0.06 + speakingEnergy * 0.14;
+    });
+  }
+
+  return { group, triangles, eyes, update };
 }
 
 let visualState = stage.dataset.state || "idle";
@@ -516,6 +556,8 @@ async function start() {
   // The OBJ is Z-up with its face toward negative Y. Converting that axis to
   // Three.js Y-up makes the eyes and face point directly at the camera.
   normalizeModel(visitorModel, -Math.PI / 2, 0, 0, 1.5);
+  const visitorLife = makeVisitorLife();
+  root.add(visitorLife.group);
 
   const glowMaterials = new Set();
   function prepareOwnerModel(model) {
@@ -724,6 +766,7 @@ async function start() {
   function syncAccessModel() {
     const ownerAccess = stage.dataset.access === "owner";
     visitorModel.visible = !ownerAccess;
+    visitorLife.group.visible = !ownerAccess;
     if (ownerAccess) {
       presenceValue.textContent = "Busto master carregando";
       if (ownerLoadPromise) {
@@ -839,6 +882,7 @@ async function start() {
     const targetScale = 1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035;
     currentScale += (targetScale - currentScale) * (1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8));
     root.scale.setScalar(currentScale);
+    visitorLife.update(time, speakingPulse / 0.08);
     particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
     particles.rotation.y += deltaSeconds * (isWorking ? 0.022 : 0.008);
     coreEntity.update(time, modeBlend.core, deltaSeconds);
