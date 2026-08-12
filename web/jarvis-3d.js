@@ -42,6 +42,7 @@ const COLORS = {
   error: 0xfb7185,
   offline: 0x475569,
 };
+const OWNER_RED = 0xff263d;
 
 let visualState = stage.dataset.state || "idle";
 function visualModeForState(state) {
@@ -373,13 +374,13 @@ function installCyanRemap(material) {
           * smoothstep(0.1, 0.38, max(outgoingLight.r, outgoingLight.b));
         float jarvisAccentMask = max(jarvisRedMask, jarvisMagentaMask);
         float jarvisEnergy = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
-        vec3 jarvisCyan = vec3(jarvisEnergy * 0.05, jarvisEnergy * 0.92, jarvisEnergy * 1.28);
-        outgoingLight = mix(outgoingLight, jarvisCyan, jarvisAccentMask * 0.96);
+        vec3 jarvisUltronRed = vec3(jarvisEnergy * 1.35, jarvisEnergy * 0.035, jarvisEnergy * 0.08);
+        outgoingLight = mix(outgoingLight, jarvisUltronRed, jarvisAccentMask * 0.96);
         #include <opaque_fragment>
       `,
     );
   };
-  material.customProgramCacheKey = () => "jarvis-cyan-remap-v2";
+  material.customProgramCacheKey = () => "jarvis-ultron-red-v1";
   material.needsUpdate = true;
 }
 
@@ -406,17 +407,17 @@ async function start() {
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   camera.position.set(0, 0.02, 5.1);
 
-  scene.add(new THREE.AmbientLight(0x163448, 1.08));
-  const key = new THREE.DirectionalLight(0x9af4ff, 3.15);
+  scene.add(new THREE.AmbientLight(0x36070d, 1.18));
+  const key = new THREE.DirectionalLight(0xff5a68, 3.35);
   key.position.set(2.6, 3.4, 4.2);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x60a5fa, 2.35);
+  const rim = new THREE.DirectionalLight(0xff102f, 2.7);
   rim.position.set(-3, 1.3, -2);
   scene.add(rim);
-  const faceFill = new THREE.PointLight(0xbff9ff, 9.5, 7, 1.7);
+  const faceFill = new THREE.PointLight(0xffa0a8, 10.5, 7, 1.7);
   faceFill.position.set(0.15, 0.45, 3.1);
   scene.add(faceFill);
-  const lowerFill = new THREE.PointLight(0x22d3ee, 5.2, 6, 2);
+  const lowerFill = new THREE.PointLight(0xff1838, 6.2, 6, 2);
   lowerFill.position.set(-1.2, -1.8, 2.4);
   scene.add(lowerFill);
   const coreEntity = makeCoreEntity(scene);
@@ -647,7 +648,7 @@ async function start() {
       const target = visualMode === mode ? 1 : 0;
       modeBlend[mode] += (target - modeBlend[mode]) * blendEase;
     });
-    const activeColor = COLORS[visualState] || COLORS.idle;
+    const activeColor = stage.dataset.access === "owner" ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
     const isWorking = modeBlend.forge > 0.08;
     targetColor.setHex(activeColor);
     currentColor.lerp(targetColor, 0.065);
