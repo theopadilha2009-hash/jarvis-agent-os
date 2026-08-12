@@ -103,11 +103,13 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'<svg aria-hidden="true" viewBox="0 0 24 24">', html)
         self.assertIn(b'id="muteButton"', html)
         self.assertIn(b'id="avatar3d"', html)
+        self.assertIn(b'id="strandsVisual"', html)
+        self.assertIn(b'"ogl":"/ui/vendor/ogl/index.js"', html)
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260812-quality1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260812-quality1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260812-accessmodes1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260812-accessmodes1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260812-reflect1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -308,7 +310,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260812-quality1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260812-accessmodes1", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -322,6 +324,17 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(headers.get_content_type(), "text/css")
         self.assertIn(b".hud-rail", css)
         self.assertIn(b".message.user.voice", css)
+
+        status, headers, strands_js = self.request("/ui/strands.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"export function createStrands", strands_js)
+        self.assertIn(b"setActive(value)", strands_js)
+
+        status, headers, ogl_js = self.request("/ui/vendor/ogl/index.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"Renderer", ogl_js)
 
         status, _, favicon = self.request("/favicon.ico")
         self.assertEqual(status, 200)
