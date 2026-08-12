@@ -45,6 +45,58 @@ const COLORS = {
 };
 const OWNER_RED = 0xff263d;
 
+async function loadObjHead(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`OBJ unavailable (${response.status})`);
+  const source = await response.text();
+  const vertices = [];
+  const normals = [];
+  const positions = [];
+  const outputNormals = [];
+  source.split(/\r?\n/).forEach((line) => {
+    const parts = line.trim().split(/\s+/);
+    if (parts[0] === "v") vertices.push(parts.slice(1, 4).map(Number));
+    else if (parts[0] === "vn") normals.push(parts.slice(1, 4).map(Number));
+    else if (parts[0] === "f") {
+      const corners = parts.slice(1).map((value) => value.split("/").map(Number));
+      for (let index = 1; index < corners.length - 1; index += 1) {
+        [corners[0], corners[index], corners[index + 1]].forEach(([vertexIndex, , normalIndex]) => {
+          positions.push(...(vertices[vertexIndex - 1] || [0, 0, 0]));
+          outputNormals.push(...(normals[normalIndex - 1] || [0, 0, 1]));
+        });
+      }
+    }
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
+  geometry.computeBoundingSphere();
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x2ba9bd,
+    metalness: 0.58,
+    roughness: 0.42,
+    emissive: 0x08798f,
+    emissiveIntensity: 0.86,
+    transparent: true,
+    opacity: 0.36,
+    depthWrite: false,
+    flatShading: true,
+    side: THREE.DoubleSide,
+  });
+  material.name = "visitor-head-glow";
+  const head = new THREE.Mesh(geometry, material);
+  const wireframe = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+    color: 0x7cecff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.24,
+    depthWrite: false,
+  }));
+  wireframe.name = "visitor-head-wireframe";
+  head.add(wireframe);
+  return head;
+}
+
 let visualState = stage.dataset.state || "idle";
 function visualModeForState(state) {
   if (["thinking", "planning", "research"].includes(state)) return "core";
@@ -427,8 +479,9 @@ async function start() {
 
   const root = new THREE.Group();
   scene.add(root);
+  const visitorModel = await loadObjHead("/asset/models/male_head.obj?v=20260812-modelsplit1");
   const alienGltf = await new Promise((resolve, reject) => {
-    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260812-lite1", resolve, undefined, reject);
+    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-voicecyan1", resolve, undefined, reject);
   });
   const ownerModel = alienGltf.scene || alienGltf.scenes[0];
 
@@ -443,27 +496,32 @@ async function start() {
     model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
     root.add(model);
   }
+  // The OBJ is Z-up with its face toward negative Y. Converting that axis to
+  // Three.js Y-up makes the eyes and face point directly at the camera.
+  normalizeModel(visitorModel, -Math.PI / 2);
   normalizeModel(ownerModel);
 
   const glowMaterials = new Set();
-  ownerModel.traverse((object) => {
-    if (!object.isMesh) return;
-    object.frustumCulled = true;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    const identity = `${object.name} ${object.parent?.name || ""} ${materials.map((material) => material?.name || "").join(" ")}`;
-    if (/sketchfab.*particles|particle.*plane/i.test(identity)) {
-      object.visible = false;
-      object.userData.jarvisSuppressedEffect = true;
-      return;
-    }
-    materials.filter(Boolean).forEach((material) => {
-      installCyanRemap(material);
-      if ("envMapIntensity" in material) material.envMapIntensity = 1.42;
-      if (material.emissive && /glow|emissive/i.test(material.name || "")) {
-        material.userData.jarvisBaseEmissive = material.emissive.clone();
-        material.userData.jarvisBaseIntensity = material.emissiveIntensity || 1;
-        glowMaterials.add(material);
+  [visitorModel, ownerModel].forEach((model) => {
+    model.traverse((object) => {
+      if (!object.isMesh) return;
+      object.frustumCulled = true;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      const identity = `${object.name} ${object.parent?.name || ""} ${materials.map((material) => material?.name || "").join(" ")}`;
+      if (/sketchfab.*particles|particle.*plane/i.test(identity)) {
+        object.visible = false;
+        object.userData.jarvisSuppressedEffect = true;
+        return;
       }
+      materials.filter(Boolean).forEach((material) => {
+        installCyanRemap(material);
+        if ("envMapIntensity" in material) material.envMapIntensity = 1.42;
+        if (material.emissive && /glow|emissive/i.test(material.name || "")) {
+          material.userData.jarvisBaseEmissive = material.emissive.clone();
+          material.userData.jarvisBaseIntensity = material.emissiveIntensity || 1;
+          glowMaterials.add(material);
+        }
+      });
     });
   });
   const mixer = alienGltf.animations.length ? new THREE.AnimationMixer(ownerModel) : null;
@@ -473,7 +531,7 @@ async function start() {
     action.paused = true;
     mixer.setTime(0.04);
   }
-  stage.dataset.modelAsset = "light-visitor+ultron-owner";
+  stage.dataset.modelAsset = "visitor-head+ultron-alien";
   stage.dataset.modelAnimations = String(alienGltf.animations.length);
   stage.dataset.modelAnimationSeconds = alienGltf.animations[0]?.duration?.toFixed(1) || "0";
   stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "command-deck";
@@ -544,7 +602,7 @@ async function start() {
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
   stage.classList.remove("gpu-error");
-  presenceValue.textContent = "Avatar visitante leve · Ultron master sob demanda";
+  presenceValue.textContent = "Rosto visitante frontal · Ultron master · ondas suaves";
 
   let previousFrameMs = 0;
   let effectVisible = false;
@@ -566,7 +624,6 @@ async function start() {
 
   const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "speaking", "preview", "memory", "local"]);
   function requestedTargetFps() {
-    if (stage.dataset.access !== "owner") return BACKGROUND_TARGET_FPS;
     if (!windowFocused) return BACKGROUND_TARGET_FPS;
     const profile = QUALITY_PROFILES[graphicsQuality];
     return activeStates.has(visualState) ? profile.activeFps : profile.idleFps;
@@ -614,7 +671,7 @@ async function start() {
   });
 
   function scheduleRender(delay = frameIntervalMs) {
-    if (disposed || reducedMotion || stage.dataset.access !== "owner") return;
+    if (disposed || reducedMotion) return;
     window.clearTimeout(animationTimerId);
     animationTimerId = window.setTimeout(() => {
       animationFrameId = requestAnimationFrame(render);
@@ -626,25 +683,11 @@ async function start() {
     scheduleRender(0);
   }
 
-  const accessObserver = new MutationObserver(() => {
-    if (stage.dataset.access === "owner") {
-      wakeRender();
-      return;
-    }
-    window.clearTimeout(animationTimerId);
-    cancelAnimationFrame(animationFrameId);
-    animationTimerId = 0;
-    animationFrameId = 0;
-    const renderTelemetry = document.getElementById("sceneRender");
-    if (renderTelemetry) renderTelemetry.textContent = "Avatar leve · 0 GPU";
-  });
-  accessObserver.observe(stage, { attributes: true, attributeFilter: ["data-access"] });
-
   window.addEventListener("jarvis-state", wakeRender);
   document.addEventListener("visibilitychange", wakeRender);
 
   function render(timeMs) {
-    if (disposed || stage.dataset.access !== "owner") return;
+    if (disposed) return;
     updateRenderBudget();
     if (document.hidden) {
       previousFrameMs = timeMs;
@@ -658,11 +701,7 @@ async function start() {
       const measuredFps = Math.round(sampledFrames * 1000 / (timeMs - fpsWindowStart));
       stage.dataset.renderFps = String(measuredFps);
       const renderTelemetry = document.getElementById("sceneRender");
-      if (renderTelemetry) {
-        renderTelemetry.textContent = stage.dataset.access === "owner"
-          ? `3D ${measuredFps} FPS`
-          : "Avatar leve · 0 GPU";
-      }
+      if (renderTelemetry) renderTelemetry.textContent = `3D ${measuredFps} FPS`;
       const currentTargetFps = 1000 / frameIntervalMs;
       slowFrameWindows = measuredFps < currentTargetFps * 0.72
         ? slowFrameWindows + 1
@@ -687,6 +726,7 @@ async function start() {
       modeBlend[mode] += (target - modeBlend[mode]) * blendEase;
     });
     const isOwner = stage.dataset.access === "owner";
+    visitorModel.visible = !isOwner;
     ownerModel.visible = isOwner;
     ambient.color.setHex(isOwner ? 0x36070d : 0x163448);
     key.color.setHex(isOwner ? 0xff5a68 : 0x9af4ff);
@@ -756,22 +796,23 @@ async function start() {
     cancelAnimationFrame(animationFrameId);
     window.removeEventListener("jarvis-state", wakeRender);
     document.removeEventListener("visibilitychange", wakeRender);
-    accessObserver.disconnect();
     resizeObserver.disconnect();
     mixer?.stopAllAction();
     const disposedTextures = new Set();
-    ownerModel.traverse((object) => {
-      if (!object.isMesh) return;
-      object.geometry?.dispose();
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      materials.filter(Boolean).forEach((material) => {
-        Object.values(material).forEach((value) => {
-          if (value?.isTexture && !disposedTextures.has(value)) {
-            disposedTextures.add(value);
-            value.dispose();
-          }
+    [visitorModel, ownerModel].forEach((model) => {
+      model.traverse((object) => {
+        if (!object.isMesh) return;
+        object.geometry?.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.filter(Boolean).forEach((material) => {
+          Object.values(material).forEach((value) => {
+            if (value?.isTexture && !disposedTextures.has(value)) {
+              disposedTextures.add(value);
+              value.dispose();
+            }
+          });
+          material.dispose();
         });
-        material.dispose();
       });
     });
     particleGeometry.dispose();

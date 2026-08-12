@@ -314,8 +314,9 @@ export function createStrands(mount, initialProps = {}) {
   }
 
   function update(t) {
-    animateId = 0;
-    if (disposed || !active) return;
+    if (disposed) return;
+    animateId = requestAnimationFrame(update);
+    if (!active) return;
     voiceEnergy += (targetVoiceEnergy - voiceEnergy) * 0.08;
     if (!speakingLike() && targetVoiceEnergy < 0.02) {
       // Decay residual energy when silent so the form settles.
@@ -349,7 +350,6 @@ export function createStrands(mount, initialProps = {}) {
     } else {
       renderer.render({ scene: mesh });
     }
-    animateId = requestAnimationFrame(update);
   }
 
   function speakingLike() {
@@ -386,13 +386,7 @@ export function createStrands(mount, initialProps = {}) {
     setActive(value) {
       active = Boolean(value);
       container.hidden = !active;
-      if (active) {
-        resize();
-        if (!animateId) animateId = requestAnimationFrame(update);
-      } else if (animateId) {
-        cancelAnimationFrame(animateId);
-        animateId = 0;
-      }
+      if (active) resize();
     },
     resize,
     dispose() {
