@@ -3045,8 +3045,8 @@ dialog::backdrop {
 .avatar { transition-duration: 980ms, 1200ms; }
 .stage[data-state="speaking"] .avatar,
 .stage[data-state="voice"] .avatar {
-  transform: translateX(-8vw) scale(0.9);
-  opacity: 0.86;
+  transform: scale(0.96);
+  opacity: 0.94;
 }
 
 @media (min-width: 1024px) {
@@ -3116,7 +3116,7 @@ dialog::backdrop {
 
 @media (max-width: 720px) {
   .stage[data-state="speaking"] .avatar,
-  .stage[data-state="voice"] .avatar { transform: translateX(-14vw) scale(0.82); opacity: 0.68; }
+  .stage[data-state="voice"] .avatar { transform: scale(0.9); opacity: 0.82; }
   .file-preview {
     right: 12px;
     bottom: calc(43% + 18px);
@@ -3138,46 +3138,19 @@ dialog::backdrop {
     linear-gradient(180deg, #02050b, #050813 66%, #090a1b);
 }
 
-.voice-wave {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
+.strands-visual {
   top: 44%;
-  width: min(66vw, 920px);
-  height: min(35vh, 360px);
-  overflow: visible;
-  transform: translate(-50%, -50%);
-  opacity: 0.2;
-  pointer-events: none;
-  filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.2));
-  transition: opacity 1.4s ease, filter 1.4s ease;
+  width: min(66vw, 940px);
+  height: min(38vh, 390px);
+  opacity: 0.5;
+  filter: drop-shadow(0 0 32px rgba(168, 85, 247, 0.28));
+  transition: opacity 1.2s ease, filter 1.2s ease;
 }
 
-.voice-wave path {
-  fill: none;
-  stroke: rgba(167, 139, 250, 0.5);
-  stroke-width: 1.25;
-  stroke-linecap: round;
-  stroke-dasharray: 9 18;
-  vector-effect: non-scaling-stroke;
-  animation: voice-wave-drift 18s linear infinite;
-}
-
-.voice-wave path:nth-child(2) { opacity: 0.62; animation-duration: 23s; animation-direction: reverse; }
-.voice-wave path:nth-child(3) { opacity: 0.38; animation-duration: 29s; }
-
-.stage[data-state="speaking"] .voice-wave,
-.stage[data-state="voice"] .voice-wave {
-  opacity: 0.46;
-  filter: drop-shadow(0 0 28px rgba(168, 85, 247, 0.34));
-}
-
-@keyframes voice-wave-drift {
-  to { stroke-dashoffset: -108; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .voice-wave path { animation: none; }
+.stage[data-state="speaking"] .strands-visual,
+.stage[data-state="voice"] .strands-visual {
+  opacity: 0.92;
+  filter: drop-shadow(0 0 42px rgba(168, 85, 247, 0.45));
 }
 
 @media (min-width: 1024px) {
@@ -3194,7 +3167,7 @@ dialog::backdrop {
 
   .presence::before { inset: 9% 4% 9%; }
   .avatar { inset: 5% 4% 12%; }
-  .voice-wave { top: 43%; width: min(62vw, 960px); }
+  .strands-visual { top: 43%; width: min(64vw, 980px); height: min(40vh, 410px); }
   .depth-horizon { top: 46%; width: min(73vw, 1280px); opacity: 0.56; }
   .depth-arc-one { width: min(64vw, 1080px); opacity: 0.48; }
   .depth-arc-two { width: min(46vw, 780px); opacity: 0.42; }
@@ -3245,6 +3218,6 @@ dialog::backdrop {
 }
 
 @media (max-width: 940px) {
-  .voice-wave { top: 36%; width: 112vw; height: 32vh; opacity: 0.14; }
+  .strands-visual { top: 36%; width: 112vw; height: 34vh; opacity: 0.38; }
   .avatar { inset: 2% -4% 17%; }
 }

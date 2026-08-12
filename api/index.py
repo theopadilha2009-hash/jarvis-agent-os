@@ -3236,10 +3236,10 @@ def elevenlabs_speech(body):
             "similarity_boost": 0.76,
             "style": 0.0,
             "use_speaker_boost": False,
-            "speed": 0.80,
+            "speed": 0.86,
         },
     }, ensure_ascii=False).encode("utf-8")
-    url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_22050_32"
+    url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
     headers = {
         "xi-api-key": api_key,
         "Content-Type": "application/json",
