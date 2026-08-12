@@ -8,15 +8,15 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
 const constrainedHardware = (navigator.deviceMemory && navigator.deviceMemory <= 4)
   || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 18 : 30;
-const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 8 : 12;
+const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 14 : 24;
+const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 5 : 8;
 const BACKGROUND_TARGET_FPS = 1;
 const EFFECT_TARGET_FPS = 10;
 const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
 const QUALITY_PROFILES = {
-  excellent: { activeFps: ACTIVE_TARGET_FPS, idleFps: IDLE_TARGET_FPS, pixelRatio: compactViewport || constrainedHardware ? 1 : 1.35 },
-  medium: { activeFps: compactViewport || constrainedHardware ? 20 : 30, idleFps: 12, pixelRatio: 1 },
-  low: { activeFps: 16, idleFps: 8, pixelRatio: 0.72 },
+  excellent: { activeFps: ACTIVE_TARGET_FPS, idleFps: IDLE_TARGET_FPS, pixelRatio: compactViewport || constrainedHardware ? 0.9 : 1.08 },
+  medium: { activeFps: compactViewport || constrainedHardware ? 12 : 20, idleFps: 7, pixelRatio: 0.88 },
+  low: { activeFps: 12, idleFps: 5, pixelRatio: 0.68 },
 };
 let graphicsQuality = (() => {
   try {
@@ -53,6 +53,8 @@ async function loadObjHead(url) {
   const normals = [];
   const positions = [];
   const outputNormals = [];
+  const detailPositions = [];
+  let triangleIndex = 0;
   source.split(/\r?\n/).forEach((line) => {
     const parts = line.trim().split(/\s+/);
     if (parts[0] === "v") vertices.push(parts.slice(1, 4).map(Number));
@@ -60,10 +62,21 @@ async function loadObjHead(url) {
     else if (parts[0] === "f") {
       const corners = parts.slice(1).map((value) => value.split("/").map(Number));
       for (let index = 1; index < corners.length - 1; index += 1) {
-        [corners[0], corners[index], corners[index + 1]].forEach(([vertexIndex, , normalIndex]) => {
+        const triangle = [corners[0], corners[index], corners[index + 1]];
+        const triangleVertices = triangle.map(([vertexIndex]) => vertices[vertexIndex - 1] || [0, 0, 0]);
+        triangle.forEach(([vertexIndex, , normalIndex]) => {
           positions.push(...(vertices[vertexIndex - 1] || [0, 0, 0]));
           outputNormals.push(...(normals[normalIndex - 1] || [0, 0, 1]));
         });
+        const centerX = triangleVertices.reduce((sum, vertex) => sum + vertex[0], 0) / 3;
+        const centerZ = triangleVertices.reduce((sum, vertex) => sum + vertex[2], 0) / 3;
+        const eyeDetail = centerZ > 19 && centerZ < 25 && Math.abs(centerX) > 1.4 && Math.abs(centerX) < 6.2;
+        const cheekDetail = centerZ > 12 && centerZ < 20 && Math.abs(centerX) > 4.6;
+        const templeDetail = centerZ > 18 && centerZ < 27 && Math.abs(centerX) > 6;
+        if ((eyeDetail || cheekDetail || templeDetail) && triangleIndex % 2 === 0) {
+          triangleVertices.forEach((vertex) => detailPositions.push(...vertex));
+        }
+        triangleIndex += 1;
       }
     }
   });
@@ -71,28 +84,33 @@ async function loadObjHead(url) {
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
   geometry.computeBoundingSphere();
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x2ba9bd,
-    metalness: 0.58,
-    roughness: 0.42,
-    emissive: 0x08798f,
-    emissiveIntensity: 0.86,
+  const material = new THREE.MeshPhysicalMaterial({
+    color: 0x9b67e8,
+    metalness: 0.06,
+    roughness: 0.56,
+    emissive: 0x5521a3,
+    emissiveIntensity: 0.94,
+    transparent: true,
+    opacity: 0.64,
+    depthWrite: false,
+    side: THREE.FrontSide,
+    clearcoat: 0.16,
+    clearcoatRoughness: 0.72,
+  });
+  material.name = "visitor-purple-volume";
+  const head = new THREE.Mesh(geometry, material);
+  const detailGeometry = new THREE.BufferGeometry();
+  detailGeometry.setAttribute("position", new THREE.Float32BufferAttribute(detailPositions, 3));
+  const wireframe = new THREE.Mesh(detailGeometry, new THREE.MeshBasicMaterial({
+    color: 0xd7c2ff,
+    wireframe: true,
     transparent: true,
     opacity: 0.36,
     depthWrite: false,
-    flatShading: true,
-    side: THREE.DoubleSide,
-  });
-  material.name = "visitor-head-glow";
-  const head = new THREE.Mesh(geometry, material);
-  const wireframe = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-    color: 0x7cecff,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.24,
-    depthWrite: false,
+    depthTest: false,
   }));
-  wireframe.name = "visitor-head-wireframe";
+  wireframe.name = "visitor-triangulation-detail";
+  wireframe.scale.setScalar(1.008);
   head.add(wireframe);
   return head;
 }
@@ -461,18 +479,18 @@ async function start() {
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   camera.position.set(0, 0.02, 5.1);
 
-  const ambient = new THREE.AmbientLight(0x163448, 1.18);
+  const ambient = new THREE.AmbientLight(0x2b174d, 1.04);
   scene.add(ambient);
-  const key = new THREE.DirectionalLight(0xff5a68, 3.35);
+  const key = new THREE.DirectionalLight(0xb899ff, 3.1);
   key.position.set(2.6, 3.4, 4.2);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xff102f, 2.7);
+  const rim = new THREE.DirectionalLight(0x6d5cff, 2.45);
   rim.position.set(-3, 1.3, -2);
   scene.add(rim);
-  const faceFill = new THREE.PointLight(0xffa0a8, 10.5, 7, 1.7);
+  const faceFill = new THREE.PointLight(0xdacfff, 8.2, 7, 1.7);
   faceFill.position.set(0.15, 0.45, 3.1);
   scene.add(faceFill);
-  const lowerFill = new THREE.PointLight(0xff1838, 6.2, 6, 2);
+  const lowerFill = new THREE.PointLight(0x8b5cf6, 4.8, 6, 2);
   lowerFill.position.set(-1.2, -1.8, 2.4);
   scene.add(lowerFill);
   const coreEntity = makeCoreEntity(scene);
@@ -480,29 +498,27 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const visitorModel = await loadObjHead("/asset/models/male_head.obj?v=20260812-modelsplit1");
-  const alienGltf = await new Promise((resolve, reject) => {
-    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-voicecyan1", resolve, undefined, reject);
-  });
-  const ownerModel = alienGltf.scene || alienGltf.scenes[0];
+  let ownerModel = new THREE.Group();
+  let ownerMixer = null;
+  let ownerLoadPromise = null;
 
-  function normalizeModel(model, rotationX = 0, rotationY = 0, rotationZ = 0) {
+  function normalizeModel(model, rotationX = 0, rotationY = 0, rotationZ = 0, targetSize = 1.72) {
     model.rotation.set(rotationX, rotationY, rotationZ);
     model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const scale = 1.9 / (Math.max(size.x, size.y, size.z) || 1);
+    const scale = targetSize / (Math.max(size.x, size.y, size.z) || 1);
     model.scale.setScalar(scale);
     model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
     root.add(model);
   }
   // The OBJ is Z-up with its face toward negative Y. Converting that axis to
   // Three.js Y-up makes the eyes and face point directly at the camera.
-  normalizeModel(visitorModel, -Math.PI / 2);
-  normalizeModel(ownerModel);
+  normalizeModel(visitorModel, -Math.PI / 2, 0, 0, 1.5);
 
   const glowMaterials = new Set();
-  [visitorModel, ownerModel].forEach((model) => {
+  function prepareOwnerModel(model) {
     model.traverse((object) => {
       if (!object.isMesh) return;
       object.frustumCulled = true;
@@ -523,20 +539,42 @@ async function start() {
         }
       });
     });
-  });
-  const mixer = alienGltf.animations.length ? new THREE.AnimationMixer(ownerModel) : null;
-  if (mixer && !reducedMotion) {
-    const action = mixer.clipAction(alienGltf.animations[0]);
-    action.play();
-    action.paused = true;
-    mixer.setTime(0.04);
   }
-  stage.dataset.modelAsset = "visitor-head+ultron-alien";
-  stage.dataset.modelAnimations = String(alienGltf.animations.length);
-  stage.dataset.modelAnimationSeconds = alienGltf.animations[0]?.duration?.toFixed(1) || "0";
+
+  async function loadOwnerModel() {
+    if (ownerLoadPromise) return ownerLoadPromise;
+    stage.dataset.ownerModel = "loading";
+    ownerLoadPromise = new Promise((resolve, reject) => {
+      new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-voicecyan1", resolve, undefined, reject);
+    }).then((alienGltf) => {
+      ownerModel = alienGltf.scene || alienGltf.scenes[0];
+      normalizeModel(ownerModel);
+      prepareOwnerModel(ownerModel);
+      ownerMixer = alienGltf.animations.length ? new THREE.AnimationMixer(ownerModel) : null;
+      if (ownerMixer && !reducedMotion) {
+        const action = ownerMixer.clipAction(alienGltf.animations[0]);
+        action.play();
+        action.paused = true;
+        ownerMixer.setTime(0.04);
+      }
+      ownerModel.visible = stage.dataset.access === "owner";
+      stage.dataset.ownerModel = "ready";
+      stage.dataset.modelAnimations = String(alienGltf.animations.length);
+      stage.dataset.modelAnimationSeconds = alienGltf.animations[0]?.duration?.toFixed(1) || "0";
+      return ownerModel;
+    }).catch((error) => {
+      stage.dataset.ownerModel = "error";
+      ownerLoadPromise = null;
+      throw error;
+    });
+    return ownerLoadPromise;
+  }
+
+  stage.dataset.modelAsset = "visitor-purple-bust";
+  stage.dataset.modelAnimations = "lazy-owner";
   stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "command-deck";
 
-  const particleCount = compactViewport || constrainedHardware ? 24 : 42;
+  const particleCount = compactViewport || constrainedHardware ? 12 : 20;
   const particlePositions = new Float32Array(particleCount * 3);
   for (let index = 0; index < particleCount; index += 1) {
     const angle = Math.random() * Math.PI * 2;
@@ -602,9 +640,9 @@ async function start() {
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
   stage.classList.remove("gpu-error");
-  presenceValue.textContent = "Rosto visitante frontal · Ultron master · ondas suaves";
+  presenceValue.textContent = "Busto visitante roxo · volume facial · malha sutil";
 
-  let previousFrameMs = 0;
+  let previousFrameMs = performance.now();
   let effectVisible = false;
   let currentScale = 1;
   let sampledFrames = 0;
@@ -683,6 +721,42 @@ async function start() {
     scheduleRender(0);
   }
 
+  function syncAccessModel() {
+    const ownerAccess = stage.dataset.access === "owner";
+    visitorModel.visible = !ownerAccess;
+    if (ownerAccess) {
+      presenceValue.textContent = "Busto master carregando";
+      if (ownerLoadPromise) {
+        loadOwnerModel()
+          .then(() => {
+            presenceValue.textContent = "Busto master · acesso privado";
+            wakeRender();
+          })
+          .catch(() => {
+            presenceValue.textContent = "Busto master indisponível";
+          });
+      } else {
+        window.setTimeout(() => {
+          loadOwnerModel()
+            .then(() => {
+              presenceValue.textContent = "Busto master · acesso privado";
+              wakeRender();
+            })
+            .catch(() => {
+              presenceValue.textContent = "Busto master indisponível";
+            });
+        }, 0);
+      }
+    } else {
+      ownerModel.visible = false;
+      presenceValue.textContent = "Busto visitante roxo · volume facial · malha sutil";
+      wakeRender();
+    }
+  }
+  const accessObserver = new MutationObserver(syncAccessModel);
+  accessObserver.observe(stage, { attributes: true, attributeFilter: ["data-access"] });
+  syncAccessModel();
+
   window.addEventListener("jarvis-state", wakeRender);
   document.addEventListener("visibilitychange", wakeRender);
 
@@ -728,11 +802,11 @@ async function start() {
     const isOwner = stage.dataset.access === "owner";
     visitorModel.visible = !isOwner;
     ownerModel.visible = isOwner;
-    ambient.color.setHex(isOwner ? 0x36070d : 0x163448);
-    key.color.setHex(isOwner ? 0xff5a68 : 0x9af4ff);
-    rim.color.setHex(isOwner ? 0xff102f : 0x60a5fa);
-    faceFill.color.setHex(isOwner ? 0xffa0a8 : 0xbff9ff);
-    lowerFill.color.setHex(isOwner ? 0xff1838 : 0x22d3ee);
+    ambient.color.setHex(isOwner ? 0x36070d : 0x2b174d);
+    key.color.setHex(isOwner ? 0xff5a68 : 0xb899ff);
+    rim.color.setHex(isOwner ? 0xff102f : 0x6d5cff);
+    faceFill.color.setHex(isOwner ? 0xffa0a8 : 0xdacfff);
+    lowerFill.color.setHex(isOwner ? 0xff1838 : 0x8b5cf6);
     const activeColor = isOwner ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
     const isWorking = modeBlend.forge > 0.08;
     targetColor.setHex(activeColor);
@@ -743,11 +817,11 @@ async function start() {
       material.emissive.copy(material.userData.jarvisBaseEmissive).lerp(currentColor, 0.28);
       material.emissiveIntensity = material.userData.jarvisBaseIntensity * (isWorking ? 1.28 : visualState === "speaking" ? 1.18 : 1);
     });
-    if (mixer) mixer.update(deltaSeconds);
+    if (ownerMixer) ownerMixer.update(deltaSeconds);
 
     const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.45);
-    currentX += (pointerX * 0.1 - currentX) * orientationEase;
-    currentY += (pointerY * 0.04 - currentY) * orientationEase;
+    currentX += (pointerX * 0.045 - currentX) * orientationEase;
+    currentY += (pointerY * 0.018 - currentY) * orientationEase;
     const cameraTargetX = 0;
     const cameraTargetZ = 5.02 + modeBlend.memory * 0.18 + modeBlend.forge * 0.12 + modeBlend.core * 0.08;
     const cameraEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.2);
@@ -757,16 +831,16 @@ async function start() {
     const targetPositionX = -modeBlend.memory * 0.34 - modeBlend.forge * 0.3 - modeBlend.core * 0.18;
     const positionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.35);
     root.position.x += (targetPositionX - root.position.x) * positionEase;
-    root.position.y = -0.08 + Math.sin(time * 0.48) * 0.012;
+    root.position.y = -0.07 + Math.sin(time * 0.28) * 0.006;
     const facingYaw = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
-    root.rotation.y = currentX + facingYaw + Math.sin(time * 0.22) * 0.012;
-    root.rotation.x = currentY + Math.sin(time * 0.28) * 0.003;
-    const speakingPulse = visualState === "speaking" ? (Math.sin(time * 2.4) + 1) * 0.08 : 0;
+    root.rotation.y = currentX + facingYaw + Math.sin(time * 0.14) * 0.005;
+    root.rotation.x = currentY + Math.sin(time * 0.17) * 0.0015;
+    const speakingPulse = visualState === "speaking" ? (Math.sin(time * 1.8) + 1) * 0.04 : 0;
     const targetScale = 1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035;
     currentScale += (targetScale - currentScale) * (1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8));
     root.scale.setScalar(currentScale);
     particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
-    particles.rotation.y += deltaSeconds * (isWorking ? 0.038 : 0.018);
+    particles.rotation.y += deltaSeconds * (isWorking ? 0.022 : 0.008);
     coreEntity.update(time, modeBlend.core, deltaSeconds);
 
     const effectFrameDue = timeMs - effectLastFrameMs >= 1000 / EFFECT_TARGET_FPS;
@@ -783,11 +857,13 @@ async function start() {
     }
 
     renderer.render(scene, camera);
+    if (stage.dataset.renderTriangles !== String(renderer.info.render.triangles)) {
+      stage.dataset.renderTriangles = String(renderer.info.render.triangles);
+    }
     scheduleRender(frameIntervalMs);
   }
 
-  if (reducedMotion) renderer.render(scene, camera);
-  else scheduleRender(0);
+  render(performance.now());
 
   window.addEventListener("pagehide", (event) => {
     if (event.persisted) return;
@@ -797,7 +873,8 @@ async function start() {
     window.removeEventListener("jarvis-state", wakeRender);
     document.removeEventListener("visibilitychange", wakeRender);
     resizeObserver.disconnect();
-    mixer?.stopAllAction();
+    accessObserver.disconnect();
+    ownerMixer?.stopAllAction();
     const disposedTextures = new Set();
     [visitorModel, ownerModel].forEach((model) => {
       model.traverse((object) => {

@@ -3127,3 +3127,124 @@ dialog::backdrop {
   }
   .file-preview-visual { height: 72px; }
 }
+
+/* Purple bust pass — readable facial volume, selective mesh and more negative space. */
+.stage[data-access="guest"] { --state: #8b5cf6; }
+
+.stage[data-access="guest"] .presence {
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(139, 92, 246, 0.15), transparent 27%),
+    radial-gradient(ellipse at 50% 112%, rgba(91, 33, 182, 0.16), transparent 52%),
+    linear-gradient(180deg, #02050b, #050813 66%, #090a1b);
+}
+
+.voice-wave {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 44%;
+  width: min(66vw, 920px);
+  height: min(35vh, 360px);
+  overflow: visible;
+  transform: translate(-50%, -50%);
+  opacity: 0.2;
+  pointer-events: none;
+  filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.2));
+  transition: opacity 1.4s ease, filter 1.4s ease;
+}
+
+.voice-wave path {
+  fill: none;
+  stroke: rgba(167, 139, 250, 0.5);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-dasharray: 9 18;
+  vector-effect: non-scaling-stroke;
+  animation: voice-wave-drift 18s linear infinite;
+}
+
+.voice-wave path:nth-child(2) { opacity: 0.62; animation-duration: 23s; animation-direction: reverse; }
+.voice-wave path:nth-child(3) { opacity: 0.38; animation-duration: 29s; }
+
+.stage[data-state="speaking"] .voice-wave,
+.stage[data-state="voice"] .voice-wave {
+  opacity: 0.46;
+  filter: drop-shadow(0 0 28px rgba(168, 85, 247, 0.34));
+}
+
+@keyframes voice-wave-drift {
+  to { stroke-dashoffset: -108; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-wave path { animation: none; }
+}
+
+@media (min-width: 1024px) {
+  .app { grid-template-rows: 58px minmax(0, 1fr); }
+  .topbar { padding-inline: 24px; }
+  .quiet-button { min-height: 30px; padding-inline: 11px; }
+  #tourButton,
+  .quality-button { opacity: 0.58; }
+
+  .presence {
+    right: clamp(396px, 27vw, 438px);
+    border-right-color: rgba(139, 92, 246, 0.06);
+  }
+
+  .presence::before { inset: 9% 4% 9%; }
+  .avatar { inset: 5% 4% 12%; }
+  .voice-wave { top: 43%; width: min(62vw, 960px); }
+  .depth-horizon { top: 46%; width: min(73vw, 1280px); opacity: 0.56; }
+  .depth-arc-one { width: min(64vw, 1080px); opacity: 0.48; }
+  .depth-arc-two { width: min(46vw, 780px); opacity: 0.42; }
+  .target-ring { top: 44%; opacity: 0.1; }
+
+  .scene-objective {
+    top: 38px;
+    left: 42px;
+    width: min(275px, 21vw);
+    opacity: 0.76;
+  }
+
+  .scene-modes {
+    top: 38px;
+    right: 30px;
+    width: 108px;
+    gap: 9px;
+    opacity: 0.44;
+  }
+
+  .scene-modes > span,
+  .scene-modes > button {
+    min-height: 43px;
+    padding: 8px 9px;
+  }
+
+  .scene-telemetry { left: 42px; bottom: 30px; opacity: 0.48; }
+
+  .conversation,
+  .stage.has-conversation .conversation {
+    top: 28px;
+    right: 26px;
+    bottom: 28px;
+    width: clamp(360px, 24vw, 400px);
+    border-color: rgba(139, 92, 246, 0.1);
+    background:
+      radial-gradient(circle at 100% 0, rgba(109, 40, 217, 0.08), transparent 40%),
+      linear-gradient(180deg, rgba(3, 8, 18, 0.84), rgba(2, 6, 13, 0.91));
+    box-shadow: 0 30px 110px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.025);
+  }
+}
+
+@media (min-width: 1500px) {
+  .presence { right: 438px; }
+  .conversation,
+  .stage.has-conversation .conversation { width: 400px; }
+  .avatar { inset: 4% 5% 12%; }
+}
+
+@media (max-width: 940px) {
+  .voice-wave { top: 36%; width: 112vw; height: 32vh; opacity: 0.14; }
+  .avatar { inset: 2% -4% 17%; }
+}
