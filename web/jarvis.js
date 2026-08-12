@@ -1294,6 +1294,7 @@
     session.history = session.history.slice(-24);
     setRequest(command);
     const workingState = workingStateFor(command);
+    const reflectionStartedAt = performance.now();
     beginRequestProgress(workingState);
     setWorking(true, workingState);
     try {
@@ -1302,6 +1303,13 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command, messages: session.history, input_mode: options.source || "text", attachments }),
       });
+      const minimumReflectionMs = ["research", "planning"].includes(workingState) ? 2800 : 1400;
+      const remainingReflectionMs = minimumReflectionMs - (performance.now() - reflectionStartedAt);
+      if (remainingReflectionMs > 0) {
+        byId("conversationState").textContent = "revisando resposta";
+        byId("stateDescription").textContent = "conferindo antes de entregar";
+        await new Promise((resolve) => window.setTimeout(resolve, remainingReflectionMs));
+      }
       if (attachments.length) {
         session.attachments = [];
         renderAttachmentTray();
