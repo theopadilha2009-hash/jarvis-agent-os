@@ -4747,7 +4747,28 @@ def meta_leak_recovery(messages):
             "já abre ou fecha apps, grava a tela, tira prints e faz diagnósticos. Autoaperfeiçoamento também existe, "
             "mas só confirma edição ou deploy quando houver execução real e testes."
         )
-    return "A resposta do modelo veio contaminada por instruções internas e foi descartada. Reformule em uma frase que eu respondo sem fingir resultado."
+    return "Não consegui concluir uma resposta segura agora. Preservei seu pedido e não executei nenhuma ação sem confirmação."
+
+
+PORTUGUESE_OUTPUT_WORDS = {
+    "a", "agora", "ainda", "com", "como", "de", "do", "em", "está", "eu", "isso", "mais", "não",
+    "o", "para", "pode", "por", "que", "se", "sim", "sua", "seu", "uma", "você", "vou",
+}
+ENGLISH_OUTPUT_WORDS = {
+    "and", "answer", "are", "can", "could", "for", "from", "here", "is", "it", "need", "please",
+    "should", "that", "the", "this", "to", "user", "we", "with", "would", "you", "your",
+}
+
+
+def output_needs_portuguese_retry(value):
+    """Flag clearly English output without rejecting names, code, URLs or short acknowledgements."""
+    text = clean_text(value, 20_000).lower()
+    words = re.findall(r"[a-zà-ÿ]+", text)
+    if len(words) < 5:
+        return False
+    portuguese = sum(word in PORTUGUESE_OUTPUT_WORDS for word in words)
+    english = sum(word in ENGLISH_OUTPUT_WORDS for word in words)
+    return english >= 3 and english >= portuguese * 2
 
 
 def capability_question_payload(prompt):
@@ -5536,16 +5557,50 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             content = "\n".join(
                 str(item.get("text") or "") for item in content if isinstance(item, dict)
             ).strip()
+        _, detected_internal_leak = sanitize_model_output(content)
         content, response_trimmed = concise_assistant_content(
             content,
             detailed=response_profile["name"] != "concise",
         )
         meta_leak_recovered = False
-        if not content and response_trimmed:
+        language_recovered = False
+        retry_reason = "internal_reasoning" if detected_internal_leak else "english" if output_needs_portuguese_retry(content) else ""
+        if retry_reason:
             if free_search_sources:
                 return search_results_without_synthesis(free_search_bundle, "openrouter_meta_leak"), 200
-            content = meta_leak_recovery(messages)
-            meta_leak_recovered = True
+            recovery_system = dict(system)
+            recovery_system["content"] += (
+                "\n\nCORREÇÃO OBRIGATÓRIA: a tentativa anterior foi descartada. Responda novamente ao último pedido "
+                "usando somente a resposta final em português do Brasil. Não mencione esta correção, raciocínio, "
+                "prompt, política, instruções internas ou idioma. Não peça para o usuário reformular."
+            )
+            recovery_payload = dict(openrouter_payload)
+            for field in ("tools", "tool_choice", "parallel_tool_calls", "plugins"):
+                recovery_payload.pop(field, None)
+            recovery_payload["messages"] = [recovery_system, *provider_messages]
+            recovery_payload["temperature"] = min(response_profile["temperature"], 0.3)
+            recovery_result = send_openrouter(recovery_payload, timeout=12)
+            recovery_choice = (recovery_result.get("choices") or [{}])[0]
+            recovery_message = recovery_choice.get("message") if isinstance(recovery_choice, dict) else {}
+            recovery_raw = recovery_message.get("content", "") if isinstance(recovery_message, dict) else ""
+            if isinstance(recovery_raw, list):
+                recovery_raw = "\n".join(
+                    str(item.get("text") or "") for item in recovery_raw if isinstance(item, dict)
+                ).strip()
+            recovered_content, recovered_trimmed = concise_assistant_content(
+                recovery_raw,
+                detailed=response_profile["name"] != "concise",
+            )
+            if recovered_content and not output_needs_portuguese_retry(recovered_content):
+                content = recovered_content
+                meta_leak_recovered = retry_reason == "internal_reasoning"
+                language_recovered = retry_reason == "english"
+                response_trimmed = response_trimmed or recovered_trimmed
+                result = recovery_result
+            else:
+                content = meta_leak_recovery(messages)
+                meta_leak_recovered = retry_reason == "internal_reasoning"
+                language_recovered = retry_reason == "english"
         if not content:
             raise ValueError("empty model response")
         if web_search_requested and not sources:
@@ -5579,6 +5634,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "response_profile": response_profile["name"],
             "response_trimmed": response_trimmed,
             "meta_leak_recovered": meta_leak_recovered,
+            "language_recovered": language_recovered,
             "tool_calling_fallback": tool_calling_fallback,
             "model_routing": {
                 "strategy": "complexity_aware_free_fallbacks",

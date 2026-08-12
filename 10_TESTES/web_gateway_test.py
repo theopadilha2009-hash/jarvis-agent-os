@@ -2560,6 +2560,21 @@ São Paulo - SP
         self.assertFalse(durable["auto_save"])
         self.assertIsNone(ephemeral)
 
+    def test_output_language_guard_retries_clear_english_but_accepts_portuguese(self):
+        self.assertTrue(MODULE.output_needs_portuguese_retry(
+            "This is the answer and you should use it with your current project."
+        ))
+        self.assertFalse(MODULE.output_needs_portuguese_retry(
+            "Esta é a resposta e você pode usar isso no seu projeto agora."
+        ))
+        self.assertFalse(MODULE.output_needs_portuguese_retry("Deploy concluído."))
+
+    def test_meta_leak_fallback_never_blames_user_or_requests_rephrasing(self):
+        message = MODULE.meta_leak_recovery([{"role": "user", "content": "faça isso"}])
+        self.assertNotIn("Reformule", message)
+        self.assertNotIn("instruções internas", message)
+        self.assertIn("Preservei seu pedido", message)
+
     def test_runtime_v2_research_verification_uses_observable_domains(self):
         sources = [
             {"title": "Docs", "url": "https://docs.example.com/guide", "domain": "docs.example.com", "snippet": "Official guide"},
