@@ -13,7 +13,7 @@
   <link rel="manifest" href="/ui/manifest.webmanifest?v=20260812-reflect1">
   <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-polish1" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-polish1">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-accessmodes1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-voicehead1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/index.js"}}
   </script>
@@ -58,6 +58,7 @@
         </div>
         <div class="strands-visual" id="strandsVisual" aria-hidden="true"></div>
         <div class="avatar" id="avatar3d" aria-hidden="true"></div>
+        <canvas class="voice-wave" id="voiceWave" aria-hidden="true"></canvas>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
 
         <section class="scene-objective" id="sceneObjective" aria-live="polite">
@@ -264,7 +265,7 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260812-accessmodes1" defer></script>
+  <script src="/ui/jarvis.js?v=20260812-voicehead1" defer></script>
   <script type="module">
     import { createStrands } from "/ui/strands.js?v=20260812-accessmodes1";
 
@@ -273,7 +274,7 @@
     const strands = createStrands(document.getElementById("strandsVisual"));
     let presenceScheduled = false;
 
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260812-accessmodes1");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260812-voicehead1");
     const schedulePresence = () => {
       if (presenceScheduled) return;
       presenceScheduled = true;

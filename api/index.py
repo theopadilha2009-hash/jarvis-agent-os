@@ -3246,11 +3246,11 @@ def elevenlabs_speech(body):
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
         "language_code": "pt",
         "voice_settings": {
-            "stability": 0.38,
+            "stability": 0.52,
             "similarity_boost": 0.76,
             "style": 0.0,
             "use_speaker_boost": False,
-            "speed": 1.04,
+            "speed": 0.92,
         },
     }, ensure_ascii=False).encode("utf-8")
     url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"

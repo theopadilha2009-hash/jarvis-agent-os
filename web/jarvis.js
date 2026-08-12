@@ -91,6 +91,49 @@
   let deferredInstallPrompt = null;
   let viewportCeiling = Math.round(window.visualViewport?.height || window.innerHeight);
   let viewportWidth = window.innerWidth;
+  const voiceWave = byId("voiceWave");
+  const voiceWaveContext = voiceWave?.getContext("2d");
+  let voiceLevel = 0;
+  let voiceAudioContext = null;
+
+  function renderVoiceWave(time = 0) {
+    window.requestAnimationFrame(renderVoiceWave);
+    if (!voiceWave || !voiceWaveContext) return;
+    const rect = voiceWave.getBoundingClientRect();
+    const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+    const width = Math.max(1, Math.round(rect.width * ratio));
+    const height = Math.max(1, Math.round(rect.height * ratio));
+    if (voiceWave.width !== width || voiceWave.height !== height) {
+      voiceWave.width = width;
+      voiceWave.height = height;
+    }
+    voiceWaveContext.clearRect(0, 0, width, height);
+    if (!session.speaking) return;
+    const energy = Math.max(0.08, voiceLevel);
+    const center = height / 2;
+    const phase = time * 0.0017;
+    const palette = ["#ff2448", "#ff6a7d", "#b90f31", "#ff9baa", "#730019"];
+    voiceWaveContext.globalCompositeOperation = "lighter";
+    palette.forEach((color, line) => {
+      voiceWaveContext.beginPath();
+      voiceWaveContext.strokeStyle = color;
+      voiceWaveContext.globalAlpha = 0.34 + line * 0.09;
+      voiceWaveContext.lineWidth = Math.max(0.7, ratio * (line === 1 ? 1.1 : 0.7));
+      for (let x = 0; x <= width; x += 3 * ratio) {
+        const normalized = x / width;
+        const envelope = Math.sin(normalized * Math.PI) ** 1.7;
+        const wave = Math.sin(normalized * 15 + phase * (1.1 + line * 0.07) + line * 0.9)
+          + Math.sin(normalized * 29 - phase * 0.72 + line * 0.45) * 0.32;
+        const y = center + wave * height * (0.035 + energy * 0.26) * envelope + (line - 2) * ratio * 1.5;
+        if (x === 0) voiceWaveContext.moveTo(x, y);
+        else voiceWaveContext.lineTo(x, y);
+      }
+      voiceWaveContext.stroke();
+    });
+    voiceWaveContext.globalAlpha = 1;
+    voiceWaveContext.globalCompositeOperation = "source-over";
+  }
+  window.requestAnimationFrame(renderVoiceWave);
 
   function ownerToken() {
     try {
@@ -606,7 +649,7 @@
     return `${clean.slice(0, limit).replace(/\s+\S*$/, "").trim()}…`;
   }
 
-  function speechChunks(value, maxLength = 230) {
+  function speechChunks(value, maxLength = 900) {
     const clean = speechText(value);
     if (!clean) return [];
     const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
@@ -971,6 +1014,8 @@
 
   function finishSpeaking() {
     session.speaking = false;
+    voiceLevel = 0;
+    window.dispatchEvent(new CustomEvent("jarvis-voice-level", { detail: { level: 0 } }));
     byId("spokenCaption").textContent = "";
     settleState();
   }
@@ -1010,10 +1055,35 @@
       if (generation !== speechGeneration) return resolve(false);
       const audioUrl = URL.createObjectURL(blob);
       const audio = new Audio(audioUrl);
+      let stopMeter = () => {};
+      try {
+        voiceAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = voiceAudioContext.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.82;
+        const source = voiceAudioContext.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(voiceAudioContext.destination);
+        const samples = new Uint8Array(analyser.fftSize);
+        let meterFrame = 0;
+        const meter = () => {
+          analyser.getByteTimeDomainData(samples);
+          let sum = 0;
+          samples.forEach((sample) => { const value = (sample - 128) / 128; sum += value * value; });
+          voiceLevel += (Math.min(1, Math.sqrt(sum / samples.length) * 5.2) - voiceLevel) * 0.28;
+          window.dispatchEvent(new CustomEvent("jarvis-voice-level", { detail: { level: voiceLevel } }));
+          meterFrame = window.requestAnimationFrame(meter);
+        };
+        meterFrame = window.requestAnimationFrame(meter);
+        stopMeter = () => window.cancelAnimationFrame(meterFrame);
+      } catch {
+        // O áudio continua mesmo quando Web Audio não está disponível.
+      }
       let settled = false;
       const finish = (played) => {
         if (settled) return;
         settled = true;
+        stopMeter();
         URL.revokeObjectURL(audioUrl);
         if (currentAudio === audio) {
           currentAudio = null;
@@ -1025,6 +1095,7 @@
       currentAudioUrl = audioUrl;
       currentAudio = audio;
       audio.onplay = () => {
+        voiceAudioContext?.resume?.().catch(() => {});
         if (generation === speechGeneration) beginSpeaking(text);
       };
       audio.onended = () => finish(true);

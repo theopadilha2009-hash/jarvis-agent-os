@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const mount = document.getElementById("avatar3d");
 const stage = document.getElementById("stage");
@@ -43,6 +42,43 @@ const COLORS = {
   offline: 0x475569,
 };
 const OWNER_RED = 0xff263d;
+
+async function loadObjHead(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`OBJ unavailable (${response.status})`);
+  const source = await response.text();
+  const vertices = [];
+  const normals = [];
+  const positions = [];
+  const outputNormals = [];
+  source.split(/\r?\n/).forEach((line) => {
+    const parts = line.trim().split(/\s+/);
+    if (parts[0] === "v") vertices.push(parts.slice(1, 4).map(Number));
+    else if (parts[0] === "vn") normals.push(parts.slice(1, 4).map(Number));
+    else if (parts[0] === "f") {
+      const corners = parts.slice(1).map((value) => value.split("/").map(Number));
+      for (let index = 1; index < corners.length - 1; index += 1) {
+        [corners[0], corners[index], corners[index + 1]].forEach(([vertexIndex, , normalIndex]) => {
+          positions.push(...(vertices[vertexIndex - 1] || [0, 0, 0]));
+          outputNormals.push(...(normals[normalIndex - 1] || [0, 0, 1]));
+        });
+      }
+    }
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
+  geometry.computeBoundingSphere();
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x17070b,
+    metalness: 0.72,
+    roughness: 0.34,
+    emissive: 0x360009,
+    emissiveIntensity: 0.7,
+  });
+  material.name = "ultron-head-glow";
+  return new THREE.Mesh(geometry, material);
+}
 
 let visualState = stage.dataset.state || "idle";
 function visualModeForState(state) {
@@ -424,11 +460,7 @@ async function start() {
 
   const root = new THREE.Group();
   scene.add(root);
-  const gltf = await new Promise((resolve, reject) => {
-    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-voicecyan1", resolve, undefined, reject);
-  });
-
-  const model = gltf.scene || gltf.scenes[0];
+  const model = await loadObjHead("/asset/models/male_head.obj?v=20260812-voicehead1");
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
@@ -452,11 +484,10 @@ async function start() {
       }
     });
   });
-  const mixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null;
-  if (mixer && !reducedMotion) mixer.clipAction(gltf.animations[0]).play();
-  stage.dataset.modelAsset = "mech-bust";
-  stage.dataset.modelAnimations = String(gltf.animations.length);
-  stage.dataset.modelAnimationSeconds = gltf.animations[0]?.duration?.toFixed(1) || "0";
+  const mixer = null;
+  stage.dataset.modelAsset = "male-head-obj";
+  stage.dataset.modelAnimations = "0";
+  stage.dataset.modelAnimationSeconds = "0";
   stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "command-deck";
 
   const particleCount = compactViewport || constrainedHardware ? 24 : 42;
