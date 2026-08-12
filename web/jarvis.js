@@ -91,49 +91,8 @@
   let deferredInstallPrompt = null;
   let viewportCeiling = Math.round(window.visualViewport?.height || window.innerHeight);
   let viewportWidth = window.innerWidth;
-  const voiceWave = byId("voiceWave");
-  const voiceWaveContext = voiceWave?.getContext("2d");
   let voiceLevel = 0;
   let voiceAudioContext = null;
-
-  function renderVoiceWave(time = 0) {
-    window.requestAnimationFrame(renderVoiceWave);
-    if (!voiceWave || !voiceWaveContext) return;
-    const rect = voiceWave.getBoundingClientRect();
-    const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
-    const width = Math.max(1, Math.round(rect.width * ratio));
-    const height = Math.max(1, Math.round(rect.height * ratio));
-    if (voiceWave.width !== width || voiceWave.height !== height) {
-      voiceWave.width = width;
-      voiceWave.height = height;
-    }
-    voiceWaveContext.clearRect(0, 0, width, height);
-    if (!session.speaking) return;
-    const energy = Math.max(0.08, voiceLevel);
-    const center = height / 2;
-    const phase = time * 0.0017;
-    const palette = ["#ff2448", "#ff6a7d", "#b90f31", "#ff9baa", "#730019"];
-    voiceWaveContext.globalCompositeOperation = "lighter";
-    palette.forEach((color, line) => {
-      voiceWaveContext.beginPath();
-      voiceWaveContext.strokeStyle = color;
-      voiceWaveContext.globalAlpha = 0.34 + line * 0.09;
-      voiceWaveContext.lineWidth = Math.max(0.7, ratio * (line === 1 ? 1.1 : 0.7));
-      for (let x = 0; x <= width; x += 3 * ratio) {
-        const normalized = x / width;
-        const envelope = Math.sin(normalized * Math.PI) ** 1.7;
-        const wave = Math.sin(normalized * 15 + phase * (1.1 + line * 0.07) + line * 0.9)
-          + Math.sin(normalized * 29 - phase * 0.72 + line * 0.45) * 0.32;
-        const y = center + wave * height * (0.035 + energy * 0.26) * envelope + (line - 2) * ratio * 1.5;
-        if (x === 0) voiceWaveContext.moveTo(x, y);
-        else voiceWaveContext.lineTo(x, y);
-      }
-      voiceWaveContext.stroke();
-    });
-    voiceWaveContext.globalAlpha = 1;
-    voiceWaveContext.globalCompositeOperation = "source-over";
-  }
-  window.requestAnimationFrame(renderVoiceWave);
 
   function ownerToken() {
     try {

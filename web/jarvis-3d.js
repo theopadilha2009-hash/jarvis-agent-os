@@ -70,11 +70,15 @@ async function loadObjHead(url) {
   geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
   geometry.computeBoundingSphere();
   const material = new THREE.MeshStandardMaterial({
-    color: 0x17070b,
-    metalness: 0.72,
-    roughness: 0.34,
-    emissive: 0x360009,
-    emissiveIntensity: 0.7,
+    color: 0x230b12,
+    metalness: 0.58,
+    roughness: 0.42,
+    emissive: 0x4a0714,
+    emissiveIntensity: 0.58,
+    transparent: true,
+    opacity: 0.62,
+    flatShading: true,
+    side: THREE.DoubleSide,
   });
   material.name = "ultron-head-glow";
   return new THREE.Mesh(geometry, material);
