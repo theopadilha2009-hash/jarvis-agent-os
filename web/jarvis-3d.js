@@ -473,13 +473,14 @@ async function start() {
   const ownerModel = alienGltf.scene || alienGltf.scenes[0];
 
   function normalizeModel(model, rotationZ = 0) {
+    model.rotation.z = rotationZ;
+    model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     const scale = 2.42 / (Math.max(size.x, size.y, size.z) || 1);
     model.scale.setScalar(scale);
     model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
-    model.rotation.z = rotationZ;
     root.add(model);
   }
   normalizeModel(visitorModel, Math.PI);
