@@ -437,6 +437,19 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["intent"], "personal_overview")
         overview.assert_called_once_with(owner_authenticated=True)
 
+    def test_best_capabilities_phrase_stays_on_control_plane(self):
+        expected = {"ok": True, "message": "Central operacional.", "private": False}
+        with patch.object(MODULE, "personal_overview_payload", return_value=expected) as overview, patch.object(
+            MODULE, "urlopen"
+        ) as openrouter:
+            payload, status = MODULE.assistant_response({
+                "command": "me diga em poucas frases as melhores coisas que você consegue fazer"
+            })
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "jarvis_control_plane")
+        overview.assert_called_once_with(owner_authenticated=False)
+        openrouter.assert_not_called()
+
     def test_daily_brief_uses_private_control_plane(self):
         overview = {
             "ok": True,
