@@ -13,7 +13,7 @@
   <link rel="manifest" href="/ui/manifest.webmanifest?v=20260812-reflect1">
   <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-polish1" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-polish1">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-reflect1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-shimmer1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -137,6 +137,12 @@
           </div>
         </div>
         <div class="request-progress" id="requestProgress" role="status" aria-live="polite" aria-busy="false" hidden>
+          <div class="shimmer-loader" id="shimmerLoader" aria-label="Progresso do processamento">
+            <b class="shimmer-icon" id="shimmerIcon" aria-hidden="true">✦</b>
+            <span class="shimmer-label" id="shimmerLabel">Analisando…</span>
+            <strong class="shimmer-percent" id="shimmerPercent">0%</strong>
+            <small class="shimmer-tokens" id="shimmerTokens">0.0k</small>
+          </div>
           <span data-run-step="request"><i></i><b>Pedido</b></span>
           <span data-run-step="core"><i></i><b id="requestCoreLabel">Núcleo</b></span>
           <span data-run-step="result"><i></i><b>Resultado</b></span>
@@ -255,7 +261,7 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260812-reflect1" defer></script>
+  <script src="/ui/jarvis.js?v=20260812-shimmer1" defer></script>
   <script type="module">
     const loadPresence = () => import("/ui/jarvis-3d.js?v=20260811-polish1");
     const schedulePresence = () => {

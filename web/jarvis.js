@@ -474,6 +474,25 @@
     if (!target) return;
     target.textContent = `${(elapsed / 1000).toFixed(1).replace(".", ",")} s`;
     target.dateTime = `PT${(elapsed / 1000).toFixed(1)}S`;
+    updateShimmerLoader(elapsed);
+  }
+
+  const SHIMMER_STATES = {
+    thinking: { labels: ["Analisando…", "Pensando…", "Revisando…"], icons: ["✦", "◆", "✶", "❋", "✸"], duration: 3000, tokenTarget: 0.16 },
+    research: { labels: ["Pesquisando…", "Verificando…", "Sintetizando…"], icons: ["◈", "◉", "⬡", "⬢", "◍"], duration: 5200, tokenTarget: 0.8 },
+    forge: { labels: ["Preparando…", "Construindo…", "Validando…"], icons: ["✦", "◆", "✶", "❋", "✸"], duration: 4400, tokenTarget: 0.92 },
+    memory: { labels: ["Lendo…", "Organizando…", "Gravando…"], icons: ["◈", "◉", "⬡", "⬢", "◍"], duration: 3600, tokenTarget: 0.4 },
+  };
+
+  function updateShimmerLoader(elapsed, complete = false) {
+    const config = SHIMMER_STATES[session.workingState] || SHIMMER_STATES.thinking;
+    const progress = complete ? 1 : Math.min(0.96, elapsed / config.duration);
+    const frame = Math.floor(elapsed / 850);
+    byId("shimmerIcon").textContent = config.icons[frame % config.icons.length];
+    byId("shimmerLabel").textContent = complete ? "Concluído" : config.labels[frame % config.labels.length];
+    byId("shimmerPercent").textContent = `${Math.round(progress * 100)}%`;
+    byId("shimmerTokens").textContent = `${(config.tokenTarget * progress).toFixed(1)}k`;
+    byId("shimmerLoader")?.style.setProperty("--shimmer-progress", `${Math.round(progress * 100)}%`);
   }
 
   function beginRequestProgress(state) {
@@ -487,7 +506,9 @@
     setProgressStep("request", "completed");
     setProgressStep("core", "running");
     setProgressStep("result", "pending");
+    updateShimmerLoader(0);
     updateProgressClock();
+    updateShimmerLoader(performance.now() - session.workingStartedAt, true);
     progressInterval = window.setInterval(updateProgressClock, 200);
   }
 
