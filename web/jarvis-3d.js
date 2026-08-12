@@ -71,18 +71,29 @@ async function loadObjHead(url) {
   geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
   geometry.computeBoundingSphere();
   const material = new THREE.MeshStandardMaterial({
-    color: 0x071a21,
+    color: 0x2ba9bd,
     metalness: 0.58,
     roughness: 0.42,
-    emissive: 0x063746,
-    emissiveIntensity: 0.58,
+    emissive: 0x08798f,
+    emissiveIntensity: 0.86,
     transparent: true,
-    opacity: 0.62,
+    opacity: 0.36,
+    depthWrite: false,
     flatShading: true,
     side: THREE.DoubleSide,
   });
   material.name = "visitor-head-glow";
-  return new THREE.Mesh(geometry, material);
+  const head = new THREE.Mesh(geometry, material);
+  const wireframe = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+    color: 0x7cecff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.24,
+    depthWrite: false,
+  }));
+  wireframe.name = "visitor-head-wireframe";
+  head.add(wireframe);
+  return head;
 }
 
 let visualState = stage.dataset.state || "idle";
@@ -771,18 +782,20 @@ async function start() {
     resizeObserver.disconnect();
     mixer?.stopAllAction();
     const disposedTextures = new Set();
-    model.traverse((object) => {
-      if (!object.isMesh) return;
-      object.geometry?.dispose();
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      materials.filter(Boolean).forEach((material) => {
-        Object.values(material).forEach((value) => {
-          if (value?.isTexture && !disposedTextures.has(value)) {
-            disposedTextures.add(value);
-            value.dispose();
-          }
+    [visitorModel, ownerModel].forEach((model) => {
+      model.traverse((object) => {
+        if (!object.isMesh) return;
+        object.geometry?.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.filter(Boolean).forEach((material) => {
+          Object.values(material).forEach((value) => {
+            if (value?.isTexture && !disposedTextures.has(value)) {
+              disposedTextures.add(value);
+              value.dispose();
+            }
+          });
+          material.dispose();
         });
-        material.dispose();
       });
     });
     particleGeometry.dispose();
