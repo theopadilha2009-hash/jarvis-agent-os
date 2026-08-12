@@ -1792,6 +1792,7 @@ São Paulo - SP
         self.assertEqual(status, 200)
         self.assertIn("models", requests[0])
         self.assertNotIn("models", requests[1])
+        self.assertNotIn("provider", requests[1])
         self.assertEqual(requests[1]["model"], "nvidia/nemotron-3-ultra-550b-a55b:free")
         self.assertTrue(payload["model_routing"]["compatibility_fallback"])
         self.assertEqual(payload["model_routing"]["compatibility_attempts"], [{
@@ -1835,6 +1836,7 @@ São Paulo - SP
 
         self.assertEqual(status, 200)
         self.assertEqual(requests[1]["model"], "nvidia/nemotron-3-nano-30b-a3b:free")
+        self.assertNotIn("provider", requests[1])
         self.assertEqual(requests[2]["model"], "openai/gpt-oss-20b:free")
         self.assertEqual(payload["model_routing"]["selected"], "openai/gpt-oss-20b:free")
         self.assertEqual(payload["model_routing"]["compatibility_attempts"], [{
