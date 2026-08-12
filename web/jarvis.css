@@ -1012,18 +1012,23 @@ button {
 }
 
 .request-progress {
-  position: relative;
-  grid-row: 2;
-  min-height: 28px;
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  bottom: 48px;
+  width: clamp(430px, 42vw, 680px);
+  min-height: 48px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-columns: 1fr;
   align-items: center;
-  gap: 8px;
-  margin: 3px 14px 4px;
-  padding: 6px 9px;
-  border: 1px solid rgba(103, 232, 249, 0.1);
-  border-radius: 11px;
-  background: rgba(5, 18, 27, 0.54);
+  gap: 0;
+  margin: 0;
+  padding: 8px 12px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(139, 92, 246, 0.36);
+  border-radius: 8px;
+  background: rgba(3, 2, 10, 0.9);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.52), 0 0 28px rgba(109, 40, 217, 0.14);
   color: var(--faint);
   font: 7px ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: 0.08em;
@@ -1038,26 +1043,28 @@ button {
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
-  padding: 3px 5px 7px;
-  border-bottom: 1px solid rgba(103, 232, 249, 0.09);
-  color: rgba(224, 204, 255, 0.9);
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  color: rgba(233, 213, 255, 0.96);
   text-transform: none;
 }
 
 .shimmer-icon {
-  color: var(--cyan-hot);
-  filter: drop-shadow(0 0 7px rgba(103, 232, 249, 0.72));
+  color: #a78bfa;
+  font-size: 16px;
+  filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.85));
   animation: shimmer-icon 850ms ease-in-out infinite alternate;
 }
 
 .shimmer-label {
   overflow: hidden;
-  background: linear-gradient(90deg, rgba(216, 180, 254, 0.42), #f5e9ff, rgba(103, 232, 249, 0.58)) 0 0 / 220% 100%;
-  color: transparent;
-  background-clip: text;
-  -webkit-background-clip: text;
-  font-size: 9px;
-  letter-spacing: 0.16em;
+  padding: 6px 10px;
+  background: linear-gradient(90deg, rgba(76, 29, 149, 0.88), rgba(124, 58, 237, 0.96), rgba(76, 29, 149, 0.88)) 0 0 / 220% 100%;
+  color: #f3e8ff;
+  border-left: 2px solid #8b5cf6;
+  font-size: 14px;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   animation: shimmer-text 1.35s linear infinite;
 }
@@ -1065,19 +1072,31 @@ button {
 .shimmer-loader::after {
   content: "";
   position: absolute;
-  inset: auto 19px 36px;
-  height: 1px;
-  background: linear-gradient(90deg, var(--cyan-hot) var(--shimmer-progress), rgba(103, 232, 249, 0.08) var(--shimmer-progress));
-  box-shadow: 0 0 8px rgba(103, 232, 249, 0.35);
+  inset: auto 12px 4px;
+  height: 2px;
+  background: linear-gradient(90deg, #8b5cf6 var(--shimmer-progress), rgba(139, 92, 246, 0.12) var(--shimmer-progress));
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.48);
   transition: background 180ms ease;
 }
 
 .shimmer-percent,
-.shimmer-tokens { color: rgba(207, 250, 254, 0.76); font-variant-numeric: tabular-nums; }
-.shimmer-tokens { color: rgba(148, 163, 184, 0.72); }
+.shimmer-tokens { color: #c4b5fd; font-size: 13px; font-variant-numeric: tabular-nums; }
+.shimmer-tokens { min-width: 42px; color: #8b5cf6; text-align: right; }
+
+.request-progress > span,
+.request-progress > time { display: none; }
 
 @keyframes shimmer-text { to { background-position: -220% 0; } }
 @keyframes shimmer-icon { to { transform: rotate(18deg) scale(0.84); opacity: 0.68; } }
+
+@media (max-width: 940px) {
+  .request-progress {
+    bottom: 72px;
+    width: min(560px, calc(100% - 28px));
+    grid-template-columns: 1fr;
+    margin: 0;
+  }
+}
 
 .request-progress[hidden] { display: none; }
 
@@ -2662,22 +2681,38 @@ dialog::backdrop {
   }
 
   .scene-modes {
-    top: 50%;
-    right: auto;
-    left: 34px;
-    width: 112px;
-    transform: translateY(-50%);
+    top: 34px;
+    right: 28px;
+    left: auto;
+    width: 124px;
+    transform: none;
   }
 
   .scene-modes > span.active,
   .scene-modes > button:hover,
-  .scene-modes > button:focus-visible { transform: translateX(5px); }
+  .scene-modes > button:focus-visible { transform: translateX(-5px); }
 
   .scene-telemetry {
     right: auto;
-    bottom: 27px;
+    bottom: 26px;
     left: 36px;
     justify-items: start;
+  }
+
+  .scene-telemetry span {
+    gap: 9px;
+    color: #9fc3ce;
+    font-size: 9px;
+    letter-spacing: 0.13em;
+    text-shadow: 0 0 12px rgba(103, 232, 249, 0.18);
+  }
+
+  .scene-telemetry i { width: 6px; height: 6px; }
+
+  .request-progress {
+    left: 50%;
+    bottom: 42px;
+    width: clamp(460px, 46vw, 720px);
   }
 
   .state-beacon { top: 24px; }
@@ -2758,4 +2793,16 @@ dialog::backdrop {
   .conversation,
   .stage.has-conversation .conversation { width: 450px; }
   .avatar { inset: -8% 1% 7%; }
+}
+
+/* Final placement: the processing strip belongs to the visual core, not the chat card. */
+@media (max-width: 940px) {
+  .presence .request-progress {
+    left: 50%;
+    bottom: 72px;
+    width: min(560px, calc(100% - 28px));
+    grid-template-columns: 1fr;
+    margin: 0;
+    transform: translateX(-50%);
+  }
 }

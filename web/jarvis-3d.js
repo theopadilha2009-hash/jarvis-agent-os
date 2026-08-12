@@ -635,21 +635,21 @@ async function start() {
       mixer.update(deltaSeconds);
     }
 
-    currentX += (pointerX * 0.25 - currentX) * 0.055;
-    currentY += (pointerY * 0.12 - currentY) * 0.055;
+    currentX += (pointerX * 0.32 - currentX) * 0.15;
+    currentY += (pointerY * 0.16 - currentY) * 0.15;
     const cameraTargetX = modeBlend.memory * 0.08 + modeBlend.forge * 0.05;
     const cameraTargetZ = 5.02 + modeBlend.memory * 0.18 + modeBlend.forge * 0.12 + modeBlend.core * 0.08;
-    camera.position.x += (cameraTargetX - camera.position.x) * 0.035;
-    camera.position.z += (cameraTargetZ - camera.position.z) * 0.035;
+    camera.position.x += (cameraTargetX - camera.position.x) * 0.08;
+    camera.position.z += (cameraTargetZ - camera.position.z) * 0.08;
     camera.lookAt(0, -0.01, 0);
     const targetPositionX = -modeBlend.memory * 0.72 - modeBlend.forge * 0.62 - modeBlend.core * 0.38;
-    root.position.x += (targetPositionX - root.position.x) * 0.045;
+    root.position.x += (targetPositionX - root.position.x) * 0.1;
     root.position.y = Math.sin(time * 0.9) * 0.035;
     root.rotation.y = currentX + Math.sin(time * 0.38) * 0.035 - Math.max(modeBlend.memory, modeBlend.forge, modeBlend.core) * 0.08;
     root.rotation.x = currentY + Math.sin(time * 0.47) * 0.012;
     const speakingPulse = visualState === "speaking" ? (Math.sin(time * 10) + 1) * 0.12 : 0;
     const targetScale = 1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035;
-    currentScale += (targetScale - currentScale) * 0.055;
+    currentScale += (targetScale - currentScale) * 0.12;
     root.scale.setScalar(currentScale);
     particleMaterial.opacity = isWorking ? 0.32 : 0.2 + speakingPulse * 0.35;
     particles.rotation.y += deltaSeconds * (isWorking ? 0.072 : 0.036);
