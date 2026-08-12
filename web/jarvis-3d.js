@@ -13,6 +13,19 @@ const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 10 : 18;
 const BACKGROUND_TARGET_FPS = 1;
 const EFFECT_TARGET_FPS = 10;
 const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
+const QUALITY_PROFILES = {
+  excellent: { activeFps: ACTIVE_TARGET_FPS, idleFps: IDLE_TARGET_FPS, pixelRatio: compactViewport || constrainedHardware ? 1 : 1.35 },
+  medium: { activeFps: compactViewport || constrainedHardware ? 20 : 30, idleFps: 12, pixelRatio: 1 },
+  low: { activeFps: 16, idleFps: 8, pixelRatio: 0.72 },
+};
+let graphicsQuality = (() => {
+  try {
+    const saved = localStorage.getItem("jarvis-graphics-quality");
+    return QUALITY_PROFILES[saved] ? saved : "excellent";
+  } catch {
+    return "excellent";
+  }
+})();
 
 const COLORS = {
   idle: 0x46e6ff,
@@ -381,7 +394,7 @@ async function start() {
   renderer.domElement.style.inset = "0";
   renderer.domElement.style.zIndex = "1";
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(compactViewport || constrainedHardware ? 1 : Math.min(window.devicePixelRatio || 1, 1.35));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, QUALITY_PROFILES[graphicsQuality].pixelRatio));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.16;
@@ -495,6 +508,7 @@ async function start() {
     canvasHeight = Math.max(rect.height, 1);
     camera.aspect = canvasWidth / canvasHeight;
     camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, QUALITY_PROFILES[graphicsQuality].pixelRatio));
     renderer.setSize(canvasWidth, canvasHeight, false);
     const density = Math.min(window.devicePixelRatio || 1, 1.5);
     effectCanvas.width = Math.round(canvasWidth * density);
@@ -518,7 +532,7 @@ async function start() {
   let sampledFrames = 0;
   let fpsWindowStart = performance.now();
   let frameIntervalMs = BASE_FRAME_INTERVAL_MS;
-  let adaptiveMaxFps = ACTIVE_TARGET_FPS;
+  let adaptiveMaxFps = QUALITY_PROFILES[graphicsQuality].activeFps;
   let slowFrameWindows = 0;
   let lastVisualMode = "";
   let effectLastFrameMs = 0;
@@ -533,7 +547,8 @@ async function start() {
   const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "speaking", "memory", "local"]);
   function requestedTargetFps() {
     if (!windowFocused) return BACKGROUND_TARGET_FPS;
-    return activeStates.has(visualState) ? ACTIVE_TARGET_FPS : IDLE_TARGET_FPS;
+    const profile = QUALITY_PROFILES[graphicsQuality];
+    return activeStates.has(visualState) ? profile.activeFps : profile.idleFps;
   }
 
   function updateRenderBudget() {
@@ -565,6 +580,17 @@ async function start() {
     updateRenderBudget();
   });
   updateRenderBudget();
+
+  window.addEventListener("jarvis-graphics-quality", (event) => {
+    const requested = event.detail?.quality;
+    if (!QUALITY_PROFILES[requested]) return;
+    graphicsQuality = requested;
+    adaptiveMaxFps = QUALITY_PROFILES[graphicsQuality].activeFps;
+    slowFrameWindows = 0;
+    resize();
+    updateRenderBudget();
+    scheduleRender(0);
+  });
 
   function scheduleRender(delay = frameIntervalMs) {
     if (disposed || reducedMotion) return;

@@ -211,10 +211,25 @@ button {
 
 .system-button {
   width: 32px;
+  height: 32px;
   padding: 0;
-  font-size: 14px;
-  letter-spacing: 0.08em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 50%;
 }
+
+.system-button i {
+  width: 3px;
+  height: 3px;
+  flex: 0 0 3px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 5px currentColor;
+}
+
+.quality-button { min-width: 78px; color: #d8f7fc; }
 
 .quiet-button:hover {
   color: var(--cyan-hot);
@@ -2406,7 +2421,9 @@ dialog::backdrop {
     border-radius: 13px;
     font-size: 9px;
   }
-  .system-button { width: 44px; font-size: 14px; }
+  .system-button { width: 42px; height: 42px; }
+  .quality-button { min-width: 38px; padding-inline: 8px; font-size: 0; }
+  .quality-button::first-letter { font-size: 9px; }
   .quiet-button kbd { display: none; }
   .desktop-label { display: none; }
   .mobile-label { display: inline; }

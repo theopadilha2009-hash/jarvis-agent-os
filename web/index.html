@@ -13,7 +13,7 @@
   <link rel="manifest" href="/ui/manifest.webmanifest?v=20260812-reflect1">
   <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-polish1" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-polish1">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-tracking1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-quality1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -41,7 +41,8 @@
         <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
         <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir ações contextuais · ⌘K">Ações <kbd>⌘K</kbd></button>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Fala ligada</span><span class="mobile-label">Voz</span></button>
-        <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
+        <button class="quiet-button quality-button" id="qualityButton" type="button" title="Mudar qualidade gráfica">Excelente</button>
+        <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema"><i></i><i></i><i></i></button>
       </div>
     </header>
 
@@ -262,9 +263,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260812-memoryread1" defer></script>
+  <script src="/ui/jarvis.js?v=20260812-quality1" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260812-tracking1");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260812-quality1");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

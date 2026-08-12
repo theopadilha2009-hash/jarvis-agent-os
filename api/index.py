@@ -5562,9 +5562,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             content,
             detailed=response_profile["name"] != "concise",
         )
-        meta_leak_recovered = False
+        meta_leak_recovered = bool(detected_internal_leak and content)
         language_recovered = False
-        retry_reason = "internal_reasoning" if detected_internal_leak else "english" if output_needs_portuguese_retry(content) else ""
+        retry_reason = "internal_reasoning" if detected_internal_leak and not content else "english" if output_needs_portuguese_retry(content) else ""
         if retry_reason:
             if free_search_sources:
                 return search_results_without_synthesis(free_search_bundle, "openrouter_meta_leak"), 200

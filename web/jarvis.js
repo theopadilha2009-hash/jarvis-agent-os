@@ -18,6 +18,7 @@
   const actionHubButton = byId("actionHubButton");
   const mobileChatToggle = byId("mobileChatToggle");
   const newConversationButton = byId("newConversationButton");
+  const qualityButton = byId("qualityButton");
   const installButton = byId("installButton");
   const installDialog = byId("installDialog");
   const mobileLayout = window.matchMedia("(max-width: 720px)");
@@ -58,6 +59,27 @@
     workingStartedAt: 0,
     lastResponseOk: true,
   };
+
+  const GRAPHICS_QUALITY = ["excellent", "medium", "low"];
+  const GRAPHICS_LABELS = { excellent: "Excelente", medium: "Média", low: "Baixa" };
+  let graphicsQuality = (() => {
+    try {
+      const saved = localStorage.getItem("jarvis-graphics-quality");
+      return GRAPHICS_QUALITY.includes(saved) ? saved : "excellent";
+    } catch {
+      return "excellent";
+    }
+  })();
+
+  function applyGraphicsQuality() {
+    if (qualityButton) {
+      qualityButton.textContent = GRAPHICS_LABELS[graphicsQuality];
+      qualityButton.dataset.quality = graphicsQuality;
+      qualityButton.setAttribute("aria-label", `Qualidade gráfica: ${GRAPHICS_LABELS[graphicsQuality]}. Clique para mudar.`);
+    }
+    stage.dataset.graphicsQuality = graphicsQuality;
+    window.dispatchEvent(new CustomEvent("jarvis-graphics-quality", { detail: { quality: graphicsQuality } }));
+  }
   let currentAudio = null;
   let currentAudioUrl = "";
   let currentSpeechController = null;
@@ -1544,6 +1566,13 @@
     dialog.showModal();
     refreshActionHistory();
   });
+  qualityButton?.addEventListener("click", () => {
+    const current = GRAPHICS_QUALITY.indexOf(graphicsQuality);
+    graphicsQuality = GRAPHICS_QUALITY[(current + 1) % GRAPHICS_QUALITY.length];
+    try { localStorage.setItem("jarvis-graphics-quality", graphicsQuality); } catch { /* session only */ }
+    applyGraphicsQuality();
+  });
+  applyGraphicsQuality();
   byId("adminLoginButton").addEventListener("click", async () => {
     const username = byId("adminUsername").value.trim();
     const password = byId("adminPassword").value;
