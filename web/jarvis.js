@@ -1594,6 +1594,7 @@
         : "IA offline";
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
+      if (qualityButton) qualityButton.hidden = accessMode !== "owner";
       byId("accessMode").textContent = session.paired ? "Theo · modo master" : "modo visitante";
       const canLeaveOwnerMode = Boolean(session.paired && status.owner_pairing?.required);
       byId("accessMode").dataset.action = canLeaveOwnerMode ? "logout" : "details";
