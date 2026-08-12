@@ -8,8 +8,8 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
 const constrainedHardware = (navigator.deviceMemory && navigator.deviceMemory <= 4)
   || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 24 : 45;
-const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 10 : 18;
+const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 18 : 30;
+const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 8 : 12;
 const BACKGROUND_TARGET_FPS = 1;
 const EFFECT_TARGET_FPS = 10;
 const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
@@ -37,6 +37,7 @@ const COLORS = {
   speaking: 0x67e8f9,
   response: 0x67e8f9,
   memory: 0x5eead4,
+  preview: 0x67e8f9,
   local: 0xf5b957,
   success: 0x6ee7b7,
   error: 0xfb7185,
@@ -381,8 +382,9 @@ function makeCoreEntity(scene) {
   });
 
   let alpha = 0;
-  function update(time, visibility) {
-    alpha += (Math.max(0, Math.min(1, visibility)) - alpha) * 0.11;
+  function update(time, visibility, deltaSeconds = 0) {
+    const transitionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
+    alpha += (Math.max(0, Math.min(1, visibility)) - alpha) * transitionEase;
     group.visible = alpha > 0.01;
     if (!group.visible) return;
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
@@ -391,16 +393,16 @@ function makeCoreEntity(scene) {
     soulMaterial.opacity = alpha * (0.44 + pulse * 0.28);
     wireMaterial.opacity = alpha * (0.08 + pulse * 0.045);
     shardMaterial.opacity = alpha * (0.2 + pulse * 0.16);
-    core.rotation.y += 0.004;
-    core.rotation.x += 0.0015;
-    soul.rotation.y -= 0.007;
-    containment.rotation.y -= 0.0025;
-    containment.rotation.z += 0.001;
+    core.rotation.y += deltaSeconds * 0.1;
+    core.rotation.x += deltaSeconds * 0.035;
+    soul.rotation.y -= deltaSeconds * 0.15;
+    containment.rotation.y -= deltaSeconds * 0.065;
+    containment.rotation.z += deltaSeconds * 0.025;
     shards.forEach((shard, index) => {
       const distance = 1.36 + pulse * 0.12 + index % 4 * 0.045;
       shard.position.copy(shard.userData.direction).multiplyScalar(distance);
-      shard.rotation.x += 0.005 + index % 3 * 0.001;
-      shard.rotation.y -= 0.004;
+      shard.rotation.x += deltaSeconds * (0.1 + index % 3 * 0.018);
+      shard.rotation.y -= deltaSeconds * 0.085;
     });
     group.rotation.y = Math.sin(time * 0.34) * 0.12;
     group.position.y = 0.02 + Math.sin(time * 0.8) * 0.035;
@@ -483,18 +485,20 @@ async function start() {
   });
   const ownerModel = alienGltf.scene || alienGltf.scenes[0];
 
-  function normalizeModel(model, rotationZ = 0) {
-    model.rotation.z = rotationZ;
+  function normalizeModel(model, rotationX = 0, rotationY = 0, rotationZ = 0) {
+    model.rotation.set(rotationX, rotationY, rotationZ);
     model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const scale = 2.42 / (Math.max(size.x, size.y, size.z) || 1);
+    const scale = 1.9 / (Math.max(size.x, size.y, size.z) || 1);
     model.scale.setScalar(scale);
     model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
     root.add(model);
   }
-  normalizeModel(visitorModel, Math.PI);
+  // The OBJ is Z-up with its face toward negative Y. Converting that axis to
+  // Three.js Y-up makes the eyes and face point directly at the camera.
+  normalizeModel(visitorModel, -Math.PI / 2);
   normalizeModel(ownerModel);
 
   const glowMaterials = new Set();
@@ -503,6 +507,12 @@ async function start() {
       if (!object.isMesh) return;
       object.frustumCulled = true;
       const materials = Array.isArray(object.material) ? object.material : [object.material];
+      const identity = `${object.name} ${object.parent?.name || ""} ${materials.map((material) => material?.name || "").join(" ")}`;
+      if (/sketchfab.*particles|particle.*plane/i.test(identity)) {
+        object.visible = false;
+        object.userData.jarvisSuppressedEffect = true;
+        return;
+      }
       materials.filter(Boolean).forEach((material) => {
         installCyanRemap(material);
         if ("envMapIntensity" in material) material.envMapIntensity = 1.42;
@@ -515,7 +525,12 @@ async function start() {
     });
   });
   const mixer = alienGltf.animations.length ? new THREE.AnimationMixer(ownerModel) : null;
-  if (mixer && !reducedMotion) mixer.clipAction(alienGltf.animations[0]).play();
+  if (mixer && !reducedMotion) {
+    const action = mixer.clipAction(alienGltf.animations[0]);
+    action.play();
+    action.paused = true;
+    mixer.setTime(0.04);
+  }
   stage.dataset.modelAsset = "visitor-head+ultron-alien";
   stage.dataset.modelAnimations = String(alienGltf.animations.length);
   stage.dataset.modelAnimationSeconds = alienGltf.animations[0]?.duration?.toFixed(1) || "0";
@@ -587,7 +602,7 @@ async function start() {
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
   stage.classList.remove("gpu-error");
-  presenceValue.textContent = "Mech Bust GLB · animação real · Forja · Memória";
+  presenceValue.textContent = "Rosto visitante frontal · Ultron master · ondas suaves";
 
   let previousFrameMs = 0;
   let effectVisible = false;
@@ -607,7 +622,7 @@ async function start() {
   let lastRenderProfile = "";
   const modeBlend = { core: 0, forge: 0, memory: 0 };
 
-  const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "speaking", "memory", "local"]);
+  const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "speaking", "preview", "memory", "local"]);
   function requestedTargetFps() {
     if (!windowFocused) return BACKGROUND_TARGET_FPS;
     const profile = QUALITY_PROFILES[graphicsQuality];
@@ -705,7 +720,7 @@ async function start() {
       stage.dataset.visualMode = visualMode;
       lastVisualMode = visualMode;
     }
-    const blendEase = Math.min(1, Math.max(0.08, deltaSeconds * 4.2));
+    const blendEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.65);
     Object.keys(modeBlend).forEach((mode) => {
       const target = visualMode === mode ? 1 : 0;
       modeBlend[mode] += (target - modeBlend[mode]) * blendEase;
@@ -721,36 +736,38 @@ async function start() {
     const activeColor = isOwner ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
     const isWorking = modeBlend.forge > 0.08;
     targetColor.setHex(activeColor);
-    currentColor.lerp(targetColor, 0.065);
+    const colorEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
+    currentColor.lerp(targetColor, colorEase);
     particleMaterial.color.copy(currentColor);
     glowMaterials.forEach((material) => {
       material.emissive.copy(material.userData.jarvisBaseEmissive).lerp(currentColor, 0.28);
       material.emissiveIntensity = material.userData.jarvisBaseIntensity * (isWorking ? 1.28 : visualState === "speaking" ? 1.18 : 1);
     });
-    if (mixer) {
-      mixer.timeScale = isWorking ? 1.18 : visualState === "speaking" ? 1.05 : 0.72;
-      mixer.update(deltaSeconds);
-    }
+    if (mixer) mixer.update(deltaSeconds);
 
-    currentX += (pointerX * 0.32 - currentX) * 0.15;
-    currentY += (pointerY * 0.16 - currentY) * 0.15;
-    const cameraTargetX = modeBlend.memory * 0.08 + modeBlend.forge * 0.05;
+    const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.45);
+    currentX += (pointerX * 0.1 - currentX) * orientationEase;
+    currentY += (pointerY * 0.04 - currentY) * orientationEase;
+    const cameraTargetX = 0;
     const cameraTargetZ = 5.02 + modeBlend.memory * 0.18 + modeBlend.forge * 0.12 + modeBlend.core * 0.08;
-    camera.position.x += (cameraTargetX - camera.position.x) * 0.08;
-    camera.position.z += (cameraTargetZ - camera.position.z) * 0.08;
+    const cameraEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.2);
+    camera.position.x += (cameraTargetX - camera.position.x) * cameraEase;
+    camera.position.z += (cameraTargetZ - camera.position.z) * cameraEase;
     camera.lookAt(0, -0.01, 0);
-    const targetPositionX = -modeBlend.memory * 0.72 - modeBlend.forge * 0.62 - modeBlend.core * 0.38;
-    root.position.x += (targetPositionX - root.position.x) * 0.1;
-    root.position.y = Math.sin(time * 0.9) * 0.035;
-    root.rotation.y = currentX + Math.sin(time * 0.38) * 0.035 - Math.max(modeBlend.memory, modeBlend.forge, modeBlend.core) * 0.08;
-    root.rotation.x = currentY + Math.sin(time * 0.47) * 0.012;
-    const speakingPulse = visualState === "speaking" ? (Math.sin(time * 10) + 1) * 0.12 : 0;
+    const targetPositionX = -modeBlend.memory * 0.34 - modeBlend.forge * 0.3 - modeBlend.core * 0.18;
+    const positionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.35);
+    root.position.x += (targetPositionX - root.position.x) * positionEase;
+    root.position.y = -0.08 + Math.sin(time * 0.48) * 0.012;
+    const facingYaw = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
+    root.rotation.y = currentX + facingYaw + Math.sin(time * 0.22) * 0.012;
+    root.rotation.x = currentY + Math.sin(time * 0.28) * 0.003;
+    const speakingPulse = visualState === "speaking" ? (Math.sin(time * 2.4) + 1) * 0.08 : 0;
     const targetScale = 1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035;
-    currentScale += (targetScale - currentScale) * 0.12;
+    currentScale += (targetScale - currentScale) * (1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8));
     root.scale.setScalar(currentScale);
-    particleMaterial.opacity = isWorking ? 0.32 : 0.2 + speakingPulse * 0.35;
-    particles.rotation.y += deltaSeconds * (isWorking ? 0.072 : 0.036);
-    coreEntity.update(time, modeBlend.core);
+    particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
+    particles.rotation.y += deltaSeconds * (isWorking ? 0.038 : 0.018);
+    coreEntity.update(time, modeBlend.core, deltaSeconds);
 
     const effectFrameDue = timeMs - effectLastFrameMs >= 1000 / EFFECT_TARGET_FPS;
     const effectBlend = Math.max(modeBlend.memory, modeBlend.forge);
