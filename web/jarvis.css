@@ -422,26 +422,8 @@ button {
   height: 100%;
 }
 
-.voice-wave {
-  position: absolute;
-  z-index: 6;
-  left: 50%;
-  top: 39%;
-  width: min(54vw, 720px);
-  height: 150px;
-  transform: translate(-50%, -50%) scaleX(0.86);
-  opacity: 0;
-  pointer-events: none;
-  filter: drop-shadow(0 0 12px rgba(255, 30, 65, 0.42));
-  transition: opacity 420ms ease, transform 680ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.stage[data-state="speaking"] .voice-wave {
-  opacity: 1;
-  transform: translate(-50%, -50%) scaleX(1);
-}
-
-.stage[data-access="owner"][data-state="speaking"] .avatar {
+.stage[data-state="speaking"] .avatar,
+.stage[data-state="voice"] .avatar {
   transform: translateX(-24vw) scale(0.78);
   opacity: 0.72;
 }
@@ -465,17 +447,12 @@ button {
   height: 100%;
 }
 
-.stage[data-access="guest"] .avatar,
 .stage[data-access="guest"] .target-ring {
   display: none;
 }
 
 .stage[data-access="owner"] {
   --state: #ff263d;
-}
-
-.stage[data-access="owner"] .strands-visual {
-  display: none;
 }
 
 .stage[data-access="owner"] .presence {
@@ -501,13 +478,8 @@ button {
     height: 48vh;
   }
 
-  .voice-wave {
-    top: 34%;
-    width: 88vw;
-    height: 120px;
-  }
-
-  .stage[data-access="owner"][data-state="speaking"] .avatar {
+  .stage[data-state="speaking"] .avatar,
+  .stage[data-state="voice"] .avatar {
     transform: translateX(-34vw) scale(0.68);
     opacity: 0.5;
   }

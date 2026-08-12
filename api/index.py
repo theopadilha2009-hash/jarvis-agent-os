@@ -1164,21 +1164,6 @@ def persist_conversation_history(body):
             "provider": "supabase",
         }, 200
     except HTTPError as error:
-        provider_error_code = ""
-        provider_error_message = ""
-        try:
-            provider_error = json.loads(error.read(2_000).decode("utf-8", "replace"))
-            provider_error_data = provider_error.get("error") if isinstance(provider_error, dict) else {}
-            if isinstance(provider_error_data, dict):
-                provider_error_code = clean_text(provider_error_data.get("code"), 80)
-                provider_error_message = clean_text(provider_error_data.get("message"), 300)
-        except (OSError, ValueError, json.JSONDecodeError):
-            pass
-        if provider_error_code or provider_error_message:
-            print(
-                "OpenRouter HTTP error:",
-                json.dumps({"status": error.code, "code": provider_error_code, "message": provider_error_message}, ensure_ascii=False),
-            )
         return {
             "ok": False,
             "status_real": "conversation_history_write_failed",
@@ -3246,11 +3231,11 @@ def elevenlabs_speech(body):
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
         "language_code": "pt",
         "voice_settings": {
-            "stability": 0.52,
+            "stability": 0.62,
             "similarity_boost": 0.76,
             "style": 0.0,
             "use_speaker_boost": False,
-            "speed": 0.92,
+            "speed": 0.86,
         },
     }, ensure_ascii=False).encode("utf-8")
     url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
@@ -5712,7 +5697,6 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "status_real": "live_web_search_billing_required" if web_search_requested and error.code == 402 else "openrouter_request_failed",
             "error": search_error,
             "retryable": error.code in {408, 409, 429, 500, 502, 503, 504},
-            "provider_error_code": provider_error_code,
         }, 502
     except (URLError, TimeoutError):
         if free_search_sources:
