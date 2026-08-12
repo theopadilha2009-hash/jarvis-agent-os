@@ -6309,7 +6309,7 @@ class handler(BaseHTTPRequestHandler):
         if path == "/self-test":
             checks = [
                 {"name": "cockpit", "ok": UI_FILE.is_file()},
-                {"name": "model_asset", "ok": (UI_ASSET_DIR / "models" / "jarvis-humanoid.glb").is_file()},
+                {"name": "model_asset", "ok": (UI_ASSET_DIR / "models" / "variants" / "01_avatar_boneco_humanoid.glb").is_file()},
                 {"name": "stateless_gateway", "ok": True},
                 {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},
                 {"name": "live_web_search_configured", "ok": True, "required": False},
@@ -6368,7 +6368,7 @@ def main():
         WEB_DIR / "jarvis-sw.js",
         WEB_DIR / "jarvis-icon-192.png",
         WEB_DIR / "jarvis-icon-512.png",
-        UI_ASSET_DIR / "models" / "jarvis-humanoid.glb",
+        UI_ASSET_DIR / "models" / "variants" / "01_avatar_boneco_humanoid.glb",
     ]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.is_file()]
     if args.check:

@@ -12,6 +12,7 @@
   const attachmentButton = byId("attachmentButton");
   const attachmentInput = byId("attachmentInput");
   const attachmentTray = byId("attachmentTray");
+  const filePreview = byId("filePreview");
   const dialog = byId("systemDialog");
   const tourDialog = byId("tourDialog");
   const actionHub = byId("actionHub");
@@ -56,6 +57,7 @@
     overview: null,
     workingStartedAt: 0,
     lastResponseOk: true,
+    filePreviewing: false,
   };
   let currentAudio = null;
   let currentAudioUrl = "";
@@ -65,6 +67,7 @@
   let currentPulse = null;
   let progressInterval = 0;
   let progressHideTimer = 0;
+  let filePreviewTimer = 0;
   let deferredInstallPrompt = null;
   let viewportCeiling = Math.round(window.visualViewport?.height || window.innerHeight);
   let viewportWidth = window.innerWidth;
@@ -75,6 +78,37 @@
     } catch {
       return "";
     }
+  }
+
+  async function exitOwnerMode(trigger = null) {
+    const control = trigger || byId("leaveOwnerMode");
+    if (control) control.disabled = true;
+    stopSpeechOutput();
+    try {
+      localStorage.removeItem(OWNER_TOKEN_KEY);
+    } catch {
+      byId("pairingHint").textContent = "Este navegador não permitiu encerrar a sessão local.";
+      if (control) control.disabled = false;
+      return;
+    }
+    byId("ownerTokenInput").value = "";
+    session.paired = false;
+    session.history = [];
+    session.historyRestored = false;
+    session.currentCommand = "";
+    session.mission = null;
+    session.responseState = "";
+    session.attachments = [];
+    byId("conversationMemoryValue").textContent = "sessão local";
+    byId("contextCount").textContent = "0 turnos";
+    setActionHub(false);
+    renderAttachmentTray();
+    clearAttachmentPreview();
+    renderLiveCanvas({});
+    renderWelcomeState("Modo visitante ativo. A memória privada e o Mac continuam protegidos.");
+    await boot();
+    if (!session.paired && dialog.open) dialog.close();
+    if (control) control.disabled = false;
   }
 
   const ACTION_CATALOG = [
@@ -170,6 +204,9 @@
     session.currentCommand = "";
     session.mission = null;
     session.responseState = "";
+    session.attachments = [];
+    renderAttachmentTray();
+    clearAttachmentPreview();
     actionHubButton.classList.remove("has-context");
     byId("conversationMemoryValue").textContent = session.paired ? "0 turnos" : "sessão local";
     byId("contextCount").textContent = "0 turnos";
@@ -378,6 +415,7 @@
     planning: ["NÚCLEO", "organizando possibilidades"],
     forge: ["FORJA", "construindo e verificando"],
     speaking: ["RESPOSTA", "falando com você"],
+    preview: ["ARQUIVO", "abrindo uma prévia com calma"],
     response: ["RESPOSTA", "resultado disponível"],
     memory: ["MEMÓRIA", "gravando conhecimento confirmado"],
     local: ["FORJA", "executando pelo worker local"],
@@ -396,6 +434,7 @@
     local: ["◆", "FORJA", "EXECUÇÃO", "worker local em atividade"],
     memory: ["◇", "MEMÓRIA", "ARQUIVO", "gravando contexto confirmado"],
     speaking: ["≈", "VOZ", "TRANSMISSÃO", "falando com você"],
+    preview: ["▤", "ARQUIVO", "PRÉVIA", "preparando o material para análise"],
     voice: ["≈", "VOZ", "SÍNTESE", "preparando áudio"],
     response: ["✓", "RESULTADO", "CONCLUÍDO", "resposta disponível"],
     success: ["✓", "RESULTADO", "CONCLUÍDO", "ação confirmada"],
@@ -450,6 +489,7 @@
     if (session.speaking) return setVisualState("speaking");
     if (session.voicePending) return setVisualState("voice");
     if (session.working) return setVisualState(session.workingState || "thinking");
+    if (session.filePreviewing) return setVisualState("preview");
     setVisualState(session.responseState || "idle");
   }
 
@@ -630,8 +670,68 @@
       button.addEventListener("click", () => {
         session.attachments.splice(Number(button.dataset.removeAttachment), 1);
         renderAttachmentTray();
+        if (session.attachments.length) renderFilePreview(session.attachments);
+        else clearAttachmentPreview();
       });
     });
+  }
+
+  function attachmentKind(item) {
+    const type = String(item?.type || "").toLowerCase();
+    if (type.startsWith("image/")) return "image";
+    if (type === "application/pdf") return "pdf";
+    if (type.includes("json")) return "json";
+    if (type.includes("csv")) return "csv";
+    return "text";
+  }
+
+  function renderFilePreview(items) {
+    const rows = Array.from(items || []).filter(Boolean);
+    const item = rows.at(-1);
+    if (!filePreview || !item) return clearAttachmentPreview();
+    const kind = attachmentKind(item);
+    const labels = { image: "IMAGEM", pdf: "PDF", json: "JSON", csv: "CSV", text: "TEXTO" };
+    filePreview.hidden = false;
+    filePreview.dataset.kind = kind;
+    byId("filePreviewKind").textContent = labels[kind] || "ARQUIVO";
+    byId("filePreviewName").textContent = item.name || "arquivo";
+    byId("filePreviewMeta").textContent = rows.length > 1
+      ? `${rows.length} arquivos preparados · ${Math.ceil(rows.reduce((sum, row) => sum + row.size, 0) / 1024)} KB`
+      : `${labels[kind] || "ARQUIVO"} · ${Math.ceil(item.size / 1024)} KB · leitura local`;
+    const image = byId("filePreviewImage");
+    image.src = kind === "image" ? item.data_url : "";
+    stage.dataset.filePreview = "open";
+  }
+
+  function clearAttachmentPreview() {
+    window.clearTimeout(filePreviewTimer);
+    session.filePreviewing = false;
+    delete stage.dataset.filePreview;
+    if (filePreview) {
+      window.setTimeout(() => {
+        if (!stage.dataset.filePreview) filePreview.hidden = true;
+      }, 640);
+    }
+    settleState();
+  }
+
+  function showAttachmentPreview(items) {
+    const rows = Array.from(items || []).filter(Boolean);
+    if (!rows.length) return;
+    window.clearTimeout(filePreviewTimer);
+    renderFilePreview(rows);
+    byId("filePreviewEyebrow").textContent = rows.length > 1 ? "PRÉVIAS ABERTAS" : "PRÉVIA ABERTA";
+    const phrase = rows.length > 1
+      ? "Estas são prévias dos arquivos que estou analisando."
+      : "Esta é uma prévia do arquivo que estou analisando.";
+    session.filePreviewing = true;
+    byId("spokenCaption").textContent = phrase;
+    settleState();
+    filePreviewTimer = window.setTimeout(() => {
+      session.filePreviewing = false;
+      settleState();
+    }, 6200);
+    speak(phrase);
   }
 
   function fileDataUrl(file) {
@@ -645,6 +745,7 @@
 
   async function addAttachments(files) {
     const selected = Array.from(files || []);
+    const added = [];
     for (const file of selected) {
       if (session.attachments.length >= 2) {
         addMessage("Posso analisar até dois anexos por mensagem.", "error");
@@ -656,18 +757,21 @@
         continue;
       }
       try {
-        session.attachments.push({
+        const attachment = {
           name: file.name,
           type: file.type || "text/plain",
           size: file.size,
           data_url: await fileDataUrl(file),
-        });
+        };
+        session.attachments.push(attachment);
+        added.push(attachment);
       } catch {
         addMessage(`Não consegui ler ${file.name}.`, "error");
       }
     }
     attachmentInput.value = "";
     renderAttachmentTray();
+    if (added.length) showAttachmentPreview(session.attachments);
   }
 
   function canvasRows(items) {
@@ -1305,6 +1409,7 @@
       if (attachments.length) {
         session.attachments = [];
         renderAttachmentTray();
+        clearAttachmentPreview();
       }
       session.lastResponseOk = data?.ok !== false;
       showResponse(data);
@@ -1398,14 +1503,23 @@
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
       byId("accessMode").textContent = session.paired ? "Theo · modo master" : "modo visitante";
+      const canLeaveOwnerMode = Boolean(session.paired && status.owner_pairing?.required);
+      byId("accessMode").dataset.action = canLeaveOwnerMode ? "logout" : "details";
+      byId("accessMode").title = canLeaveOwnerMode
+        ? "Voltar ao modo visitante"
+        : session.paired ? "Ver detalhes do acesso master" : "Entrar no modo master";
+      byId("leaveOwnerMode").hidden = !canLeaveOwnerMode;
       byId("accessValue").textContent = session.paired
         ? "Theo master · memória, GitHub e Mac privados disponíveis"
         : status.access?.public_chat
           ? "Visitante · conversa liberada, memória e Mac privados"
           : "Visitante · conversa aguarda OpenRouter";
-      byId("welcomeHint").textContent = session.paired
-        ? "Escreva ou fale naturalmente."
-        : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
+      const welcomeHint = byId("welcomeHint");
+      if (welcomeHint) {
+        welcomeHint.textContent = session.paired
+          ? "Escreva ou fale naturalmente."
+          : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
+      }
       renderStarterActions();
       session.deviceBridge = Boolean(status.device_bridge?.configured);
       session.elevenlabs = Boolean(status.voice?.configured);
@@ -1504,6 +1618,14 @@
     dialog.showModal();
     refreshActionHistory();
   });
+  byId("accessMode").addEventListener("click", () => {
+    if (byId("accessMode").dataset.action === "logout") {
+      exitOwnerMode(byId("accessMode"));
+      return;
+    }
+    dialog.showModal();
+    refreshActionHistory();
+  });
   byId("adminLoginButton").addEventListener("click", async () => {
     const username = byId("adminUsername").value.trim();
     const password = byId("adminPassword").value;
@@ -1553,19 +1675,8 @@
     await boot();
     if (session.paired) dialog.close();
   });
-  byId("clearOwnerToken").addEventListener("click", async () => {
-    try {
-      localStorage.removeItem(OWNER_TOKEN_KEY);
-    } catch {
-      // A sessão ainda será atualizada mesmo se o navegador bloquear storage.
-    }
-    byId("ownerTokenInput").value = "";
-    session.paired = false;
-    session.history = [];
-    session.historyRestored = false;
-    byId("conversationMemoryValue").textContent = "sessão local";
-    await boot();
-  });
+  byId("clearOwnerToken").addEventListener("click", () => exitOwnerMode(byId("clearOwnerToken")));
+  byId("leaveOwnerMode").addEventListener("click", () => exitOwnerMode(byId("leaveOwnerMode")));
   actionHubButton.addEventListener("click", () => setActionHub(actionHub.hidden));
   newConversationButton?.addEventListener("click", startNewConversation);
   byId("sceneCommandButton")?.addEventListener("click", () => setActionHub(true));

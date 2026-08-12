@@ -10,10 +10,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260811-polish1">
-  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260811-polish1" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260811-polish1">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260811-polish1">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260812-space2">
+  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260812-space2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260812-space2">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-space2">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -35,7 +35,7 @@
       <div class="connection">
         <span class="connection-dot" id="connectionDot"></span>
         <span id="connectionText">acordando</span>
-        <span class="access-mode" id="accessMode">verificando acesso</span>
+        <button class="access-mode" id="accessMode" type="button" title="Ver acesso atual">verificando acesso</button>
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
         <button class="quiet-button" id="tourButton" type="button">Guia</button>
         <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
@@ -123,6 +123,20 @@
         </aside>
 
         <div class="spoken-caption" id="spokenCaption" aria-live="polite">Estou aqui.</div>
+
+        <aside class="file-preview" id="filePreview" aria-live="polite" hidden>
+          <div class="file-preview-visual" aria-hidden="true">
+            <img id="filePreviewImage" alt="">
+            <span class="file-preview-sheet"><i></i><i></i><i></i></span>
+            <b id="filePreviewKind">ARQUIVO</b>
+          </div>
+          <div class="file-preview-copy">
+            <small id="filePreviewEyebrow">ABRINDO PRÉVIA</small>
+            <strong id="filePreviewName">arquivo</strong>
+            <span id="filePreviewMeta">preparando leitura</span>
+          </div>
+          <span class="file-preview-scan" aria-hidden="true"></span>
+        </aside>
       </section>
 
       <section class="conversation" aria-label="Conversa com JARVIS">
@@ -188,6 +202,7 @@
           <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha master">
           <button id="adminLoginButton" type="button">Entrar master</button>
         </div>
+        <button class="leave-owner-mode" id="leaveOwnerMode" type="button" hidden>Voltar ao modo visitante</button>
         <small id="pairingHint">A senha é validada no servidor; este navegador recebe apenas uma sessão temporária.</small>
         <details class="advanced-pairing">
           <summary>Pareamento avançado</summary>
@@ -255,9 +270,9 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260811-polish1" defer></script>
+  <script src="/ui/jarvis.js?v=20260812-space2" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260811-polish1");
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260812-space2");
     const schedulePresence = () => {
       if ("requestIdleCallback" in window) {
         window.requestIdleCallback(loadPresence, { timeout: 700 });

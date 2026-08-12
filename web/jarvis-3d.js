@@ -13,6 +13,8 @@ const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 8 : 12;
 const BACKGROUND_TARGET_FPS = 1;
 const EFFECT_TARGET_FPS = 10;
 const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
+const FRONTAL_PITCH_RADIANS = THREE.MathUtils.degToRad(20);
+const MODEL_DISPLAY_SIZE = 1.9;
 
 const COLORS = {
   idle: 0x46e6ff,
@@ -24,6 +26,7 @@ const COLORS = {
   speaking: 0x67e8f9,
   response: 0x67e8f9,
   memory: 0x5eead4,
+  preview: 0x67e8f9,
   local: 0xf5b957,
   success: 0x6ee7b7,
   error: 0xfb7185,
@@ -35,6 +38,7 @@ function visualModeForState(state) {
   if (["thinking", "planning", "research"].includes(state)) return "core";
   if (["forge", "local"].includes(state)) return "forge";
   if (state === "memory") return "memory";
+  if (["voice", "speaking"].includes(state)) return "voice";
   return "avatar";
 }
 
@@ -251,6 +255,31 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   ctx.restore();
 }
 
+function drawVoiceWaves(ctx, width, height, time, opacity = 1) {
+  const centerX = width * 0.5;
+  const centerY = height * 0.43;
+  const span = Math.min(width, height);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  for (let ring = 0; ring < 4; ring += 1) {
+    const progress = (time * 0.18 + ring * 0.24) % 1;
+    const fade = Math.sin(progress * Math.PI) * Math.max(0, Math.min(1, opacity));
+    const radiusX = span * (0.2 + progress * 0.13);
+    const radiusY = span * (0.14 + progress * 0.085);
+    ctx.strokeStyle = `rgba(103,232,249,${fade * 0.1})`;
+    ctx.lineWidth = 0.8 + fade * 0.45;
+    ctx.shadowColor = "rgba(34,211,238,.28)";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, Math.PI * 0.14, Math.PI * 0.86);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, Math.PI * 1.14, Math.PI * 1.86);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function makeCoreEntity(scene) {
   const group = new THREE.Group();
   group.position.set(0.94, 0.02, -1.05);
@@ -315,8 +344,9 @@ function makeCoreEntity(scene) {
   });
 
   let alpha = 0;
-  function update(time, visibility) {
-    alpha += (Math.max(0, Math.min(1, visibility)) - alpha) * 0.11;
+  function update(time, visibility, deltaSeconds = 0) {
+    const transitionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
+    alpha += (Math.max(0, Math.min(1, visibility)) - alpha) * transitionEase;
     group.visible = alpha > 0.01;
     if (!group.visible) return;
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
@@ -325,16 +355,16 @@ function makeCoreEntity(scene) {
     soulMaterial.opacity = alpha * (0.44 + pulse * 0.28);
     wireMaterial.opacity = alpha * (0.08 + pulse * 0.045);
     shardMaterial.opacity = alpha * (0.2 + pulse * 0.16);
-    core.rotation.y += 0.004;
-    core.rotation.x += 0.0015;
-    soul.rotation.y -= 0.007;
-    containment.rotation.y -= 0.0025;
-    containment.rotation.z += 0.001;
+    core.rotation.y += deltaSeconds * 0.1;
+    core.rotation.x += deltaSeconds * 0.035;
+    soul.rotation.y -= deltaSeconds * 0.15;
+    containment.rotation.y -= deltaSeconds * 0.065;
+    containment.rotation.z += deltaSeconds * 0.025;
     shards.forEach((shard, index) => {
       const distance = 1.36 + pulse * 0.12 + index % 4 * 0.045;
       shard.position.copy(shard.userData.direction).multiplyScalar(distance);
-      shard.rotation.x += 0.005 + index % 3 * 0.001;
-      shard.rotation.y -= 0.004;
+      shard.rotation.x += deltaSeconds * (0.1 + index % 3 * 0.018);
+      shard.rotation.y -= deltaSeconds * 0.085;
     });
     group.rotation.y = Math.sin(time * 0.34) * 0.12;
     group.position.y = 0.02 + Math.sin(time * 0.8) * 0.035;
@@ -405,36 +435,88 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const gltf = await new Promise((resolve, reject) => {
-    new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-voicecyan1", resolve, undefined, reject);
+    new GLTFLoader().load("/asset/models/variants/01_avatar_boneco_humanoid.glb?v=20260812-facing1", resolve, undefined, reject);
   });
 
   const model = gltf.scene || gltf.scenes[0];
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
-  const scale = 2.42 / (Math.max(size.x, size.y, size.z) || 1);
+  const scale = MODEL_DISPLAY_SIZE / (Math.max(size.x, size.y, size.z) || 1);
   model.scale.setScalar(scale);
   model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
   root.add(model);
 
-  const glowMaterials = new Set();
+  const shellMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x091922,
+    metalness: 0.42,
+    roughness: 0.3,
+    clearcoat: 0.72,
+    clearcoatRoughness: 0.22,
+    transmission: 0.08,
+    thickness: 0.62,
+    ior: 1.34,
+    emissive: 0x063746,
+    emissiveIntensity: 0.28,
+    transparent: true,
+    opacity: 0.92,
+    side: THREE.DoubleSide,
+  });
+  const eyeSocketMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x06141c,
+    metalness: 0.18,
+    roughness: 0.18,
+    emissive: 0x052a35,
+    emissiveIntensity: 0.34,
+    transparent: true,
+    opacity: 0.94,
+    side: THREE.DoubleSide,
+  });
+  const irisMaterial = new THREE.MeshBasicMaterial({
+    color: 0xb6f7ff,
+    transparent: true,
+    opacity: 0.96,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const modelWireMaterial = new THREE.MeshBasicMaterial({
+    color: COLORS.idle,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.085,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  installCyanRemap(shellMaterial);
+  const wireOverlays = [];
   model.traverse((object) => {
     if (!object.isMesh) return;
     object.frustumCulled = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.filter(Boolean).forEach((material) => {
-      installCyanRemap(material);
-      if ("envMapIntensity" in material) material.envMapIntensity = 1.15;
-      if (material.emissive && /glow|emissive/i.test(material.name || "")) {
-        material.userData.jarvisBaseEmissive = material.emissive.clone();
-        material.userData.jarvisBaseIntensity = material.emissiveIntensity || 1;
-        glowMaterials.add(material);
-      }
-    });
+    const identity = `${object.name} ${object.parent?.name || ""} ${materials.map((material) => material?.name || "").join(" ")}`;
+    if (/sketchfab.*particles|particle.*plane/i.test(identity)) {
+      object.visible = false;
+      object.userData.jarvisSuppressedEffect = true;
+      return;
+    }
+    object.material = /iris/i.test(identity)
+      ? irisMaterial
+      : /eye/i.test(identity) ? eyeSocketMaterial : shellMaterial;
+    const wire = new THREE.Mesh(object.geometry, modelWireMaterial);
+    wire.position.copy(object.position);
+    wire.scale.copy(object.scale).multiplyScalar(1.004);
+    wire.quaternion.copy(object.quaternion);
+    wireOverlays.push([object.parent, wire]);
   });
+  wireOverlays.forEach(([parent, wire]) => parent?.add(wire));
   const mixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null;
-  if (mixer && !reducedMotion) mixer.clipAction(gltf.animations[0]).play();
-  stage.dataset.modelAsset = "mech-bust";
+  if (mixer && !reducedMotion) {
+    const action = mixer.clipAction(gltf.animations[0]);
+    action.play();
+    action.paused = true;
+    mixer.setTime(0.04);
+  }
+  stage.dataset.modelAsset = "humanoid-face";
   stage.dataset.modelAnimations = String(gltf.animations.length);
   stage.dataset.modelAnimationSeconds = gltf.animations[0]?.duration?.toFixed(1) || "0";
   stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "command-deck";
@@ -470,6 +552,7 @@ async function start() {
   let currentY = 0;
   const currentColor = new THREE.Color(COLORS.idle);
   const targetColor = new THREE.Color(COLORS.idle);
+  const whiteColor = new THREE.Color(0xffffff);
 
   stage.addEventListener("pointermove", (event) => {
     const rect = stage.getBoundingClientRect();
@@ -504,7 +587,7 @@ async function start() {
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
   stage.classList.remove("gpu-error");
-  presenceValue.textContent = "Mech Bust GLB · animação real · Forja · Memória";
+  presenceValue.textContent = "Busto humanoide frontal · ondas suaves · Forja · Memória";
 
   let previousFrameMs = 0;
   let effectVisible = false;
@@ -522,9 +605,9 @@ async function start() {
   let disposed = false;
   let lastRenderTargetFps = 0;
   let lastRenderProfile = "";
-  const modeBlend = { core: 0, forge: 0, memory: 0 };
+  const modeBlend = { core: 0, forge: 0, memory: 0, voice: 0 };
 
-  const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "speaking", "memory", "local"]);
+  const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "voice", "speaking", "preview", "memory", "local"]);
   function requestedTargetFps() {
     if (!windowFocused) return BACKGROUND_TARGET_FPS;
     return activeStates.has(visualState) ? ACTIVE_TARGET_FPS : IDLE_TARGET_FPS;
@@ -610,7 +693,7 @@ async function start() {
       stage.dataset.visualMode = visualMode;
       lastVisualMode = visualMode;
     }
-    const blendEase = Math.min(1, Math.max(0.08, deltaSeconds * 4.2));
+    const blendEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.65);
     Object.keys(modeBlend).forEach((mode) => {
       const target = visualMode === mode ? 1 : 0;
       modeBlend[mode] += (target - modeBlend[mode]) * blendEase;
@@ -618,43 +701,50 @@ async function start() {
     const activeColor = COLORS[visualState] || COLORS.idle;
     const isWorking = modeBlend.forge > 0.08;
     targetColor.setHex(activeColor);
-    currentColor.lerp(targetColor, 0.065);
+    const colorEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
+    currentColor.lerp(targetColor, colorEase);
     particleMaterial.color.copy(currentColor);
-    glowMaterials.forEach((material) => {
-      material.emissive.copy(material.userData.jarvisBaseEmissive).lerp(currentColor, 0.28);
-      material.emissiveIntensity = material.userData.jarvisBaseIntensity * (isWorking ? 1.28 : visualState === "speaking" ? 1.18 : 1);
-    });
+    modelWireMaterial.color.copy(currentColor);
+    irisMaterial.color.copy(currentColor).lerp(whiteColor, 0.32);
+    eyeSocketMaterial.emissive.copy(currentColor).multiplyScalar(0.08);
+    shellMaterial.emissive.copy(currentColor).multiplyScalar(0.22);
+    shellMaterial.emissiveIntensity = isWorking ? 0.34 : visualState === "speaking" ? 0.31 : 0.26;
+    modelWireMaterial.opacity = isWorking ? 0.105 : visualState === "speaking" ? 0.1 : 0.075;
     if (mixer) {
-      mixer.timeScale = isWorking ? 1.18 : visualState === "speaking" ? 1.05 : 0.72;
       mixer.update(deltaSeconds);
     }
 
-    currentX += (pointerX * 0.25 - currentX) * 0.055;
-    currentY += (pointerY * 0.12 - currentY) * 0.055;
-    const cameraTargetX = modeBlend.memory * 0.08 + modeBlend.forge * 0.05;
+    const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.45);
+    currentX += (pointerX * 0.12 - currentX) * orientationEase;
+    currentY += (pointerY * 0.035 - currentY) * orientationEase;
+    const cameraTargetX = 0;
     const cameraTargetZ = 5.02 + modeBlend.memory * 0.18 + modeBlend.forge * 0.12 + modeBlend.core * 0.08;
-    camera.position.x += (cameraTargetX - camera.position.x) * 0.035;
-    camera.position.z += (cameraTargetZ - camera.position.z) * 0.035;
+    const cameraEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.2);
+    camera.position.x += (cameraTargetX - camera.position.x) * cameraEase;
+    camera.position.z += (cameraTargetZ - camera.position.z) * cameraEase;
     camera.lookAt(0, -0.01, 0);
-    const targetPositionX = -modeBlend.memory * 0.72 - modeBlend.forge * 0.62 - modeBlend.core * 0.38;
-    root.position.x += (targetPositionX - root.position.x) * 0.045;
-    root.position.y = Math.sin(time * 0.9) * 0.035;
-    root.rotation.y = currentX + Math.sin(time * 0.38) * 0.035 - Math.max(modeBlend.memory, modeBlend.forge, modeBlend.core) * 0.08;
-    root.rotation.x = currentY + Math.sin(time * 0.47) * 0.012;
-    const speakingPulse = visualState === "speaking" ? (Math.sin(time * 10) + 1) * 0.12 : 0;
+    const targetPositionX = -modeBlend.memory * 0.34 - modeBlend.forge * 0.3 - modeBlend.core * 0.18;
+    const positionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.35);
+    root.position.x += (targetPositionX - root.position.x) * positionEase;
+    root.position.y = -0.08 + Math.sin(time * 0.48) * 0.012;
+    const facingYaw = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
+    root.rotation.y = currentX + facingYaw + Math.sin(time * 0.22) * 0.012;
+    root.rotation.x = FRONTAL_PITCH_RADIANS + currentY + Math.sin(time * 0.28) * 0.003;
+    const speakingPulse = visualState === "speaking" ? (Math.sin(time * 2.4) + 1) * 0.08 : 0;
     const targetScale = 1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035;
-    currentScale += (targetScale - currentScale) * 0.055;
+    currentScale += (targetScale - currentScale) * (1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8));
     root.scale.setScalar(currentScale);
-    particleMaterial.opacity = isWorking ? 0.32 : 0.2 + speakingPulse * 0.35;
-    particles.rotation.y += deltaSeconds * (isWorking ? 0.072 : 0.036);
-    coreEntity.update(time, modeBlend.core);
+    particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
+    particles.rotation.y += deltaSeconds * (isWorking ? 0.038 : 0.018);
+    coreEntity.update(time, modeBlend.core, deltaSeconds);
 
     const effectFrameDue = timeMs - effectLastFrameMs >= 1000 / EFFECT_TARGET_FPS;
-    const effectBlend = Math.max(modeBlend.memory, modeBlend.forge);
+    const effectBlend = Math.max(modeBlend.memory, modeBlend.forge, modeBlend.voice);
     if (effectBlend > 0.01 && effectFrameDue) {
       effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
       if (modeBlend.memory > 0.01) drawMemory(effectContext, canvasWidth, canvasHeight, time, memoryLabels, modeBlend.memory);
       if (modeBlend.forge > 0.01) drawForge(effectContext, canvasWidth, canvasHeight, time, modeBlend.forge);
+      if (modeBlend.voice > 0.01) drawVoiceWaves(effectContext, canvasWidth, canvasHeight, time, modeBlend.voice);
       effectVisible = true;
       effectLastFrameMs = timeMs;
     } else if (effectVisible && effectBlend <= 0.01) {
