@@ -92,7 +92,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["service"], "jarvis-web")
         self.assertIn("voice", payload)
-        self.assertEqual(payload["voice"]["fallback"], "browser_native_ptbr")
+        self.assertEqual(payload["voice"]["fallback"], "text_only")
         self.assertIn("n8n", payload["automations"])
         self.assertIn("access", payload)
         self.assertIn("public_chat", payload["access"])
@@ -142,10 +142,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human7', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-human7', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-human7', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-human7', html)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human6', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-human6', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-human6', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-human6', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -293,12 +293,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b".identity-logo", app_css)
         self.assertIn(b"Official identity", app_css)
         self.assertIn(b'error?.name === "AbortError"', app_js)
-        self.assertIn(b"window.speechSynthesis", app_js)
-        self.assertIn(b"nativeBrowserVoice", app_js)
-        self.assertIn(b'utterance.lang = "pt-BR"', app_js)
-        self.assertIn(b"utterance.rate = 0.92", app_js)
-        self.assertIn(b"utterance.pitch = 0.88", app_js)
-        self.assertIn(b"playNativeBrowserSpeech", app_js)
+        self.assertNotIn(b"speechSynthesis", app_js)
 
         status, headers, visual_js = self.request("/ui/jarvis-3d.js")
         self.assertEqual(status, 200)
@@ -375,8 +370,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-human7", service_worker)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human7', service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-human6", service_worker)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human6', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -2740,7 +2735,7 @@ São Paulo - SP
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):
             payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
         self.assertEqual(status, 503)
-        self.assertEqual(payload["fallback"], "browser_native_ptbr")
+        self.assertEqual(payload["fallback"], "text_only")
 
     def test_elevenlabs_speech_retries_native_voices_and_persists_only_working_one(self):
         class FakeAudioResponse:
@@ -2769,7 +2764,7 @@ São Paulo - SP
                 "profile": MODULE.JARVIS_VOICE_PROFILE,
             },
         ]
-        unavailable = HTTPError("https://api.elevenlabs.io", 403, "unavailable", {}, None)
+        unavailable = HTTPError("https://api.elevenlabs.io", 402, "unavailable", {}, None)
         english = {
             "voice_id": MODULE.DEFAULT_ELEVENLABS_VOICE_ID,
             "name": "Brian",
@@ -2798,7 +2793,7 @@ São Paulo - SP
         self.assertEqual(status, 502)
         self.assertEqual(payload["error_code"], "elevenlabs_quota")
         self.assertIn("sem créditos", payload["error"])
-        self.assertEqual(payload["fallback"], "browser_native_ptbr")
+        self.assertEqual(payload["fallback"], "text_only")
 
     def test_agenda_routes_to_configured_n8n_webhook(self):
         class FakeN8nResponse:
