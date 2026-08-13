@@ -12,7 +12,7 @@ INDEX = WEB / "index.html"
 CSS = WEB / "jarvis.css"
 UI_REPAIR_CSS = WEB / "ui-repair.css"
 API_PANEL_CSS = WEB / "api-panel.css"
-LOGO_FILTER = WEB / "logo-filter.svg"
+LOGO = WEB / "jarvis-logo.png"
 APP_JS = WEB / "jarvis.js"
 API_VAULT_JS = WEB / "api-vault.js"
 MISSION_CONTROL_JS = WEB / "mission-control.js"
@@ -57,7 +57,6 @@ class UIQualityTest(unittest.TestCase):
         cls.css = CSS.read_text(encoding="utf-8")
         cls.ui_repair_css = UI_REPAIR_CSS.read_text(encoding="utf-8")
         cls.api_panel_css = API_PANEL_CSS.read_text(encoding="utf-8")
-        cls.logo_filter = LOGO_FILTER.read_text(encoding="utf-8")
         cls.app_js = APP_JS.read_text(encoding="utf-8")
         cls.api_vault_js = API_VAULT_JS.read_text(encoding="utf-8")
         cls.mission_control_js = MISSION_CONTROL_JS.read_text(encoding="utf-8")
@@ -234,7 +233,7 @@ class UIQualityTest(unittest.TestCase):
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
-        self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 4)
+        self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
         self.assertGreaterEqual(self.html.count("20260813-apiux1"), 4)
 
     def test_purple_brand_and_bust_contract(self):
@@ -309,10 +308,11 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("modo master", self.app_js.casefold())
 
     def test_identity_logo_blends_without_dark_square(self):
-        self.assertIn('url("/ui/logo-filter.svg?v=20260813-uipolish1#logoNoBlack")', self.ui_repair_css)
-        self.assertIn('id="logoNoBlack"', self.logo_filter)
-        self.assertIn("0.82 0.82 0.82 0 -0.11", self.logo_filter)
-        self.assertIn("mix-blend-mode: screen", self.ui_repair_css)
+        logo = LOGO.read_bytes()
+        self.assertEqual(logo[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertIn(logo[25], {4, 6}, "Logo precisa ter canal alpha nativo")
+        self.assertIn("mix-blend-mode: normal", self.ui_repair_css)
+        self.assertNotIn("logo-filter.svg", self.html + self.ui_repair_css)
         self.assertIn("border-color: transparent", self.ui_repair_css)
         self.assertIn("background: transparent", self.ui_repair_css)
 

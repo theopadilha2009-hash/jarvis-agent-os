@@ -8,8 +8,8 @@
 
 .identity-logo {
   object-fit: contain;
-  mix-blend-mode: screen;
-  filter: url("/ui/logo-filter.svg?v=20260813-uipolish1#logoNoBlack") saturate(1.18) contrast(1.1) brightness(1.08) drop-shadow(0 0 8px rgba(168, 85, 247, 0.35));
+  mix-blend-mode: normal;
+  filter: saturate(1.18) contrast(1.1) brightness(1.08) drop-shadow(0 0 8px rgba(168, 85, 247, 0.35));
 }
 
 .scene-modes > button > span {
@@ -109,7 +109,7 @@ html[data-persona="ultron"] .identity-mark {
 }
 html[data-persona="ultron"] .identity-mark::before { background: rgba(127, 29, 29, 0.1); }
 html[data-persona="ultron"] .identity-logo {
-  filter: url("/ui/logo-filter.svg?v=20260813-uipolish1#logoNoBlack") saturate(1.12) contrast(1.12) brightness(1.08) drop-shadow(0 0 8px rgba(239, 68, 68, 0.42));
+  filter: saturate(1.12) contrast(1.12) brightness(1.08) drop-shadow(0 0 8px rgba(239, 68, 68, 0.42));
 }
 html[data-persona="ultron"] .scene-objective strong,
 html[data-persona="ultron"] .scene-objective span { color: #fecaca; text-shadow: 0 0 28px rgba(239, 68, 68, 0.2); }
