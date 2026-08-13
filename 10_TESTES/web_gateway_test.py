@@ -3145,6 +3145,25 @@ São Paulo - SP
         self.assertEqual(provider.call_args.args[0], "https://theo.app.n8n.cloud/api/v1/workflows")
         self.assertNotIn("n8n-secret", json.dumps(payload))
 
+    def test_jarvis_can_create_one_n8n_workflow_with_its_own_vault_key(self):
+        with patch.object(
+            MODULE,
+            "integration_json_request",
+            return_value=({"id": "wf-jarvis", "name": "JARVIS · fluxo", "active": False}, 200),
+        ) as provider:
+            payload, status = MODULE.n8n_workflow_action_payload({
+                "action": "create",
+                "goals": ["primeiro fluxo", "segundo deve ser limitado"],
+                "template": "manual",
+                "config": {"base_url": "https://theo.app.n8n.cloud", "api_key": "n8n-secret"},
+            }, owner_authenticated=False)
+
+        self.assertEqual(status, 201)
+        self.assertEqual(provider.call_count, 1)
+        self.assertEqual(payload["power_profile"]["mode"], "jarvis_1x")
+        self.assertEqual(len(payload["workflows"]), 1)
+        self.assertEqual(payload["workflow"]["id"], "wf-jarvis")
+
     def test_integration_test_does_not_echo_the_key(self):
         with patch.object(MODULE, "integration_json_request", return_value=({"data": []}, 200)) as provider:
             payload, status = MODULE.integration_test_payload({

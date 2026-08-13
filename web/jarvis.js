@@ -387,10 +387,6 @@
       byId("n8nWorkflowGoal").focus();
       return;
     }
-    if (action !== "preview" && !session.paired) {
-      setIntegrationFeedback("A criação real é protegida. Entre no modo Ultron; o preview continua disponível no JARVIS.", "error");
-      return;
-    }
     const config = await apiVault().get("n8n") || {};
     const button = byId(action === "preview" ? "n8nPreviewButton" : action === "list" ? "n8nListButton" : "n8nCreateButton");
     button.disabled = true;

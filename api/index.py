@@ -439,8 +439,6 @@ def integration_test_payload(body, owner_authenticated=False):
     provider = clean_text(body.get("provider"), 40).casefold()
     if provider not in CLIENT_INTEGRATION_PROVIDERS:
         return {"ok": False, "error": "Integração não reconhecida."}, 400
-    if provider in {"n8n", "github", "supabase", "webhook"} and owner_pairing_required() and not owner_authenticated:
-        return pairing_required_payload()
     config = client_integration({"client_integrations": {provider: body.get("config") or {}}}, provider)
     api_key = config.get("api_key", "")
     base_url = config.get("base_url", "")
@@ -645,8 +643,6 @@ def n8n_workflow_action_payload(body, owner_authenticated=False):
                 for item, item_template in workflow_specs
             ]
         return payload, 200
-    if owner_pairing_required() and not owner_authenticated:
-        return pairing_required_payload()
     config = client_integration({"client_integrations": {"n8n": body.get("config") or {}}}, "n8n")
     api_key = config.get("api_key", "")
     try:
