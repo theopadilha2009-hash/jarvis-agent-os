@@ -577,8 +577,8 @@
       laugh.style.setProperty("--laugh-x", `${8 + Math.random() * 84}%`);
       laugh.style.setProperty("--laugh-y", `${8 + Math.random() * 74}%`);
       laugh.style.setProperty("--laugh-tilt", `${-12 + Math.random() * 24}deg`);
-      laugh.style.setProperty("--laugh-size", `${18 + Math.random() * 16}px`);
-      laugh.style.setProperty("--laugh-duration", `${6.5 + Math.random() * 3}s`);
+      laugh.style.setProperty("--laugh-size", `${24 + Math.random() * 18}px`);
+      laugh.style.setProperty("--laugh-duration", `${3.8 + Math.random() * 1.9}s`);
       field.appendChild(laugh);
       laugh.addEventListener("animationend", () => laugh.remove(), { once: true });
     }
@@ -594,7 +594,7 @@
     laughterTimer = window.setTimeout(() => {
       spawnUltronLaugh();
       scheduleUltronLaughter(false);
-    }, initial ? 1800 : 6000 + Math.random() * 5000);
+    }, initial?900:3600 + Math.random() * 3200);
   }
 
   function applyIdentityMode() {
