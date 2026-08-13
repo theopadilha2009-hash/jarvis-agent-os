@@ -57,6 +57,7 @@ import task_queue as task_queue_store  # noqa: E402
 AGENT_RUNS = RunStore()
 LOCAL_MEMORY_INDEX = MemoryIndex()
 MISSION_CONTROL_PROTOCOL = "jarvis-mission-control/1"
+MEMORY_SELECTION_PROTOCOL = "jarvis-memory-selection/1"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openrouter/free"
 ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
@@ -2347,6 +2348,145 @@ def rank_memory_rows(rows, query, limit=12):
         ranked.append((score, -index, enriched))
     ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
     return [item[2] for item in ranked[:max(1, min(int(limit), 20))]]
+
+
+def memory_selection_context(rows, query, limit=5):
+    """Select only prompt-relevant private memories and return a content-free receipt."""
+    safe_limit = max(1, min(int(limit or 5), 5))
+    query_terms = memory_terms(query)
+    identity_query = bool(re.search(
+        r"\b(?:quem\s+sou\s+eu|meu\s+nome|minhas?\s+prefer[eê]ncias?|como\s+eu\s+gosto|"
+        r"o\s+que\s+(?:voc[eê]\s+)?sabe\s+sobre\s+mim)\b",
+        clean_text(query, 2_000),
+        re.I,
+    ))
+    daily_query = bool(re.search(
+        r"\b(?:hoje|amanh[aã]|esta\s+semana|agenda|reuni[aã]o|lembrete|prazo|meu\s+dia)\b",
+        clean_text(query, 2_000),
+        re.I,
+    ))
+    considered = 0
+    excluded = {
+        "empty": 0,
+        "sensitive": 0,
+        "expired": 0,
+        "daily_scope": 0,
+        "unrelated": 0,
+        "duplicate": 0,
+        "superseded": 0,
+        "limit": 0,
+    }
+    candidates = []
+    now = datetime.now(timezone.utc)
+    for index, row in enumerate(rows if isinstance(rows, list) else []):
+        if not isinstance(row, dict):
+            continue
+        considered += 1
+        content = clean_text(row.get("content"), 4_000)
+        if not content:
+            excluded["empty"] += 1
+            continue
+        if has_secret_like_text(content):
+            excluded["sensitive"] += 1
+            continue
+        metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+        expires_at = clean_text(metadata.get("expires_at"), 80)
+        if expires_at:
+            try:
+                expires = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                if expires.astimezone(timezone.utc) <= now:
+                    excluded["expired"] += 1
+                    continue
+            except ValueError:
+                excluded["expired"] += 1
+                continue
+        layer = memory_row_layer(row)
+        if layer == "daily" and not daily_query:
+            excluded["daily_scope"] += 1
+            continue
+        terms = memory_terms(content)
+        overlap = query_terms & terms
+        explicit_global = metadata.get("always_relevant") is True or clean_text(metadata.get("scope"), 30) == "global"
+        owner_identity = layer == "owner" and identity_query
+        if not overlap and not explicit_global and not owner_identity:
+            excluded["unrelated"] += 1
+            continue
+        score = len(overlap) * 20
+        reasons = []
+        if overlap:
+            reasons.append("term_overlap")
+        if explicit_global:
+            score += 16
+            reasons.append("explicit_global")
+        if owner_identity:
+            score += 14
+            reasons.append("owner_identity")
+        if layer == "project" and overlap:
+            score += 5
+        if clean_text(row.get("kind"), 40) in {"decision", "preference"}:
+            score += 2
+        score += max(0, 2 - min(index, 2))
+        enriched = dict(row)
+        enriched.update({
+            "layer": layer,
+            "_selection_score": score,
+            "_selection_reasons": reasons,
+            "_selection_terms": terms,
+            "_selection_subject": clean_text(metadata.get("subject") or metadata.get("key"), 120).casefold(),
+        })
+        candidates.append(enriched)
+
+    candidates.sort(key=lambda item: item["_selection_score"], reverse=True)
+    selected = []
+    subjects = set()
+    for candidate in candidates:
+        subject = candidate["_selection_subject"]
+        if subject and subject in subjects:
+            excluded["superseded"] += 1
+            continue
+        duplicate = any(
+            candidate["layer"] == existing["layer"]
+            and clean_text(candidate.get("kind"), 40) == clean_text(existing.get("kind"), 40)
+            and candidate["_selection_terms"]
+            and len(candidate["_selection_terms"] & existing["_selection_terms"])
+            / max(1, len(candidate["_selection_terms"] | existing["_selection_terms"])) >= 0.82
+            for existing in selected
+        )
+        if duplicate:
+            excluded["duplicate"] += 1
+            continue
+        if len(selected) >= safe_limit:
+            excluded["limit"] += 1
+            continue
+        selected.append(candidate)
+        if subject:
+            subjects.add(subject)
+
+    layers = {}
+    signals = {}
+    public_rows = []
+    for candidate in selected:
+        layers[candidate["layer"]] = layers.get(candidate["layer"], 0) + 1
+        for reason in candidate["_selection_reasons"]:
+            signals[reason] = signals.get(reason, 0) + 1
+        public_rows.append({
+            key: value for key, value in candidate.items()
+            if not key.startswith("_selection_")
+        })
+    receipt = {
+        "protocol": MEMORY_SELECTION_PROTOCOL,
+        "considered": considered,
+        "selected": len(public_rows),
+        "sent_to_model": 0,
+        "excluded": sum(excluded.values()),
+        "layers": layers,
+        "signals": signals,
+        "exclusion_reasons": {key: value for key, value in excluded.items() if value},
+        "max_selected": safe_limit,
+        "auto_saved": False,
+        "private_values_returned": False,
+    }
+    return public_rows, receipt
 
 
 def normalize_alias(value):
@@ -6605,10 +6745,23 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     suggested_memory = suggested_memory_candidate["content"] if suggested_memory_candidate else ""
     memory_context = []
     memory_context_cache_hit = False
+    memory_selection = {
+        "protocol": MEMORY_SELECTION_PROTOCOL,
+        "considered": 0,
+        "selected": 0,
+        "sent_to_model": 0,
+        "excluded": 0,
+        "layers": {},
+        "signals": {},
+        "exclusion_reasons": {},
+        "max_selected": 5,
+        "auto_saved": False,
+        "private_values_returned": False,
+    }
     if supabase_configured() and (owner_authenticated or not owner_pairing_required()):
         try:
             memory_rows, memory_context_cache_hit = assistant_memory_rows()
-            memory_context = rank_memory_rows(memory_rows, latest, 12)
+            memory_context, memory_selection = memory_selection_context(memory_rows, latest, 5)
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
             memory_context = []
 
@@ -6666,6 +6819,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "ai_configured": False,
         })
         return payload, status
+
+    memory_selection["sent_to_model"] = len(memory_context)
 
     assistant_identity = "ULTRON" if owner_authenticated else "JARVIS"
     system = {
@@ -6976,6 +7131,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             })
             routed["agent_route"] = route
             routed["agentic"] = True
+            routed["memory_selection"] = memory_selection
             return routed, status
 
         content = response_message.get("content", "")
@@ -7063,6 +7219,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "external_processing": True,
             "memory_context_count": len(memory_context),
             "memory_context_cache_hit": memory_context_cache_hit,
+            "memory_selection": memory_selection,
             "response_profile": response_profile["name"],
             "response_strength": response_strength,
             "power_profile": power_profile,
