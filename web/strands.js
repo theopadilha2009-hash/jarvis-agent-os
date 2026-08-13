@@ -211,6 +211,8 @@ export function createStrands(mount, initialProps = {}) {
   let animateId = 0;
   let lastFrame = -Infinity;
   let visualState = "idle";
+  let voiceEnergy = 0;
+  let targetVoiceEnergy = 0;
   let graphicsQuality = "excellent";
   try {
     graphicsQuality = localStorage.getItem("jarvis-graphics-quality") || "excellent";
@@ -306,19 +308,22 @@ export function createStrands(mount, initialProps = {}) {
     if (t - lastFrame < 1000 / targetFps) return;
     lastFrame = t;
     const current = props;
+    voiceEnergy += (targetVoiceEnergy - voiceEnergy) * 0.24;
+    if (visualState !== "speaking" && visualState !== "listening") targetVoiceEnergy *= 0.72;
+    const voiceBoost = reducedMotion || visualState !== "speaking" ? 0 : voiceEnergy;
     program.uniforms.uTime.value = reducedMotion ? 0 : t * 0.001;
     program.uniforms.uColors.value = buildPalette(current.colors);
     program.uniforms.uColorCount.value = Math.min(current.colors.length, MAX_COLORS);
     program.uniforms.uStrandCount.value = Math.min(Math.max(Math.round(current.count), 1), MAX_STRANDS);
-    program.uniforms.uSpeed.value = current.speed;
-    program.uniforms.uAmplitude.value = current.amplitude;
+    program.uniforms.uSpeed.value = current.speed * (1 + voiceBoost * 0.72);
+    program.uniforms.uAmplitude.value = current.amplitude * (1 + voiceBoost * 0.38);
     program.uniforms.uWaviness.value = current.waviness;
-    program.uniforms.uThickness.value = current.thickness;
-    program.uniforms.uGlow.value = current.glow;
+    program.uniforms.uThickness.value = current.thickness * (1 + voiceBoost * 0.3);
+    program.uniforms.uGlow.value = current.glow * (1 + voiceBoost * 0.48);
     program.uniforms.uTaper.value = current.taper;
     program.uniforms.uSpread.value = current.spread;
     program.uniforms.uHueShift.value = current.hueShift;
-    program.uniforms.uIntensity.value = current.intensity;
+    program.uniforms.uIntensity.value = Math.min(1.2, current.intensity * (1 + voiceBoost * 0.42));
     program.uniforms.uOpacity.value = current.opacity;
     program.uniforms.uScale.value = current.scale;
     program.uniforms.uSaturation.value = current.saturation;
@@ -349,8 +354,15 @@ export function createStrands(mount, initialProps = {}) {
     resize();
   }
 
+  function onVoiceLevel(event) {
+    const level = Number(event.detail?.level);
+    if (!Number.isFinite(level)) return;
+    targetVoiceEnergy = Math.max(0, Math.min(1, level));
+  }
+
   window.addEventListener("jarvis-state", onState);
   window.addEventListener("jarvis-graphics-quality", onQuality);
+  window.addEventListener("jarvis-voice-level", onVoiceLevel);
   visualState = document.getElementById("stage")?.dataset?.state || "idle";
 
   return {
@@ -359,6 +371,9 @@ export function createStrands(mount, initialProps = {}) {
     },
     setState(state) {
       visualState = state || "idle";
+    },
+    setVoiceEnergy(level) {
+      targetVoiceEnergy = Math.max(0, Math.min(1, Number(level) || 0));
     },
     setActive(value) {
       active = Boolean(value);
@@ -373,6 +388,7 @@ export function createStrands(mount, initialProps = {}) {
       resizeObserver.disconnect();
       window.removeEventListener("jarvis-state", onState);
       window.removeEventListener("jarvis-graphics-quality", onQuality);
+      window.removeEventListener("jarvis-voice-level", onVoiceLevel);
       if (container.contains(gl.canvas)) container.removeChild(gl.canvas);
       container.remove();
       gl.getExtension("WEBGL_lose_context")?.loseContext();

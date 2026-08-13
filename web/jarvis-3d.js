@@ -39,6 +39,24 @@ const COLORS = {
 };
 const OWNER_RED = 0xa855f7;
 
+const VISITOR_HEAD_POSE_GLSL = `
+  vec3 jarvisPoseHead(vec3 source, vec3 look) {
+    float weight = smoothstep(10.5, 15.5, source.z);
+    vec3 pivot = vec3(0.0, -2.8, 10.8);
+    vec3 posed = source - pivot;
+    float cy = cos(look.x);
+    float sy = sin(look.x);
+    posed.xy = mat2(cy, sy, -sy, cy) * posed.xy;
+    float cp = cos(look.y);
+    float sp = sin(look.y);
+    posed.yz = mat2(cp, sp, -sp, cp) * posed.yz;
+    float cr = cos(look.z);
+    float sr = sin(look.z);
+    posed.xz = mat2(cr, -sr, sr, cr) * posed.xz;
+    return mix(source, posed + pivot, weight);
+  }
+`;
+
 async function loadObjGeometry(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`OBJ unavailable (${response.status})`);
@@ -89,9 +107,27 @@ async function loadObjHead(url) {
   return head;
 }
 
+function installVisitorHeadPose(material) {
+  const look = { value: new THREE.Vector3() };
+  const previousCompile = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (previousCompile) previousCompile(shader, renderer);
+    shader.uniforms.uJarvisHeadLook = look;
+    shader.vertexShader = shader.vertexShader.replace(
+      "void main() {",
+      `uniform vec3 uJarvisHeadLook;\n${VISITOR_HEAD_POSE_GLSL}\nvoid main() {`,
+    );
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <begin_vertex>",
+      "vec3 transformed = jarvisPoseHead(vec3(position), uJarvisHeadLook);",
+    );
+  };
+  material.customProgramCacheKey = () => "jarvis-human-head-pose-v1";
+  material.needsUpdate = true;
+  return look;
+}
+
 function makeVisitorLife(topologyGeometry) {
-  const group = new THREE.Group();
-  group.name = "visitor-life-details";
   const surface = new THREE.Group();
   surface.name = "visitor-topology-surface";
 
@@ -99,15 +135,19 @@ function makeVisitorLife(topologyGeometry) {
     uniforms: {
       uTime: { value: 0 },
       uEnergy: { value: 0 },
+      uHeadLook: { value: new THREE.Vector3() },
     },
     vertexShader: `
       varying float vSweep;
       uniform float uTime;
+      uniform vec3 uHeadLook;
+      ${VISITOR_HEAD_POSE_GLSL}
       void main() {
         float diagonal = position.x * 0.034 + position.z * 0.028;
         float wave = 0.5 + 0.5 * sin((diagonal - uTime * 0.17) * 6.2831853);
         vSweep = pow(wave, 10.0);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vec3 posed = jarvisPoseHead(position, uHeadLook);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(posed, 1.0);
       }
     `,
     fragmentShader: `
@@ -147,6 +187,7 @@ function makeVisitorLife(topologyGeometry) {
       uTime: { value: 0 },
       uEnergy: { value: 0 },
       uPixelRatio: { value: 1 },
+      uHeadLook: { value: new THREE.Vector3() },
     },
     vertexShader: `
       attribute float aSeed;
@@ -154,11 +195,14 @@ function makeVisitorLife(topologyGeometry) {
       uniform float uTime;
       uniform float uEnergy;
       uniform float uPixelRatio;
+      uniform vec3 uHeadLook;
+      ${VISITOR_HEAD_POSE_GLSL}
       void main() {
         float flow = 0.5 + 0.5 * sin(uTime * 0.52 + aSeed * 12.0);
         vec3 p = position;
         p.x -= flow * (0.45 + aSeed * 0.75);
         p.z += sin(uTime * 0.38 + aSeed * 18.0) * 0.12;
+        p = jarvisPoseHead(p, uHeadLook);
         vAlpha = (1.0 - flow * 0.62) * (0.28 + uEnergy * 0.18);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
         gl_PointSize = (1.1 + aSeed * 1.8 + uEnergy) * uPixelRatio;
@@ -183,75 +227,18 @@ function makeVisitorLife(topologyGeometry) {
   dissolve.renderOrder = 3;
   surface.add(topology, dissolve);
 
-  const eyes = [-0.145, 0.145].map((x, index) => {
-    const eye = new THREE.Group();
-    eye.name = `visitor-real-eye-${index + 1}`;
-    eye.position.set(x, 0.18, 0.505);
-
-    const sclera = new THREE.Mesh(
-      new THREE.SphereGeometry(0.052, 24, 16),
-      new THREE.MeshPhysicalMaterial({
-        color: 0xcbbbd8,
-        emissive: 0x160b25,
-        emissiveIntensity: 0.08,
-        roughness: 0.38,
-        clearcoat: 0.42,
-        clearcoatRoughness: 0.28,
-        transparent: true,
-        opacity: 0.88,
-        depthWrite: false,
-      }),
-    );
-    sclera.scale.set(1, 0.5, 0.34);
-    sclera.renderOrder = 3;
-    eye.add(sclera);
-
-    const iris = new THREE.Mesh(
-      new THREE.CircleGeometry(0.016, 28),
-      new THREE.MeshPhysicalMaterial({ color: 0x6d28d9, emissive: 0x24084d, emissiveIntensity: 0.22, roughness: 0.3, transparent: true, opacity: 0.92, depthTest: false }),
-    );
-    iris.position.z = 0.019;
-    iris.scale.y = 0.78;
-    iris.renderOrder = 4;
-    eye.add(iris);
-
-    const pupil = new THREE.Mesh(
-      new THREE.CircleGeometry(0.0065, 24),
-      new THREE.MeshBasicMaterial({ color: 0x050208, transparent: true, opacity: 0.98, depthTest: false }),
-    );
-    pupil.position.z = 0.0205;
-    pupil.scale.y = 0.78;
-    pupil.renderOrder = 5;
-    eye.add(pupil);
-
-    const catchlight = new THREE.Mesh(
-      new THREE.CircleGeometry(0.0023, 12),
-      new THREE.MeshBasicMaterial({ color: 0xf3e8ff, transparent: true, opacity: 0.72, depthTest: false }),
-    );
-    catchlight.position.set(-0.005, 0.005, 0.0215);
-    catchlight.renderOrder = 6;
-    eye.add(catchlight);
-
-    eye.userData.phase = index * Math.PI;
-    eye.userData.iris = iris;
-    group.add(eye);
-    return eye;
-  });
-
-  function update(time, speakingEnergy = 0) {
+  function update(time, speakingEnergy = 0, headYaw = 0, headPitch = 0, headRoll = 0) {
+    const voiceNod = Math.sin(time * 5.4) * speakingEnergy * 0.012;
+    topologyMaterial.uniforms.uHeadLook.value.set(headYaw, headPitch + voiceNod, headRoll);
+    dissolveMaterial.uniforms.uHeadLook.value.set(headYaw, headPitch + voiceNod, headRoll);
     topologyMaterial.uniforms.uTime.value = time;
     topologyMaterial.uniforms.uEnergy.value = speakingEnergy;
     dissolveMaterial.uniforms.uTime.value = time;
     dissolveMaterial.uniforms.uEnergy.value = speakingEnergy;
     dissolveMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio || 1, 1.5);
-    const blink = Math.pow(Math.max(0, Math.sin(time * 0.54 - 0.42)), 32);
-    eyes.forEach((eye) => {
-      eye.scale.y = 1 - blink * 0.92;
-      eye.userData.iris.material.opacity = 0.84 + Math.sin(time * 0.9 + eye.userData.phase) * 0.06 + speakingEnergy * 0.08;
-    });
   }
 
-  return { group, surface, topology, dissolve, eyes, update };
+  return { surface, topology, dissolve, update };
 }
 
 let visualState = stage.dataset.state || "idle";
@@ -637,9 +624,10 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const [visitorModel, topologyGeometry] = await Promise.all([
-    loadObjHead("/asset/models/male_head.obj?v=20260813-space2"),
-    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-space2"),
+    loadObjHead("/asset/models/male_head.obj?v=20260813-human4"),
+    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-human4"),
   ]);
+  const visitorHeadLook = installVisitorHeadPose(visitorModel.material);
   let ownerModel = new THREE.Group();
   let ownerMixer = null;
   let ownerLoadPromise = null;
@@ -660,7 +648,6 @@ async function start() {
   normalizeModel(visitorModel, -Math.PI / 2, 0, 0, 1.5);
   const visitorLife = makeVisitorLife(topologyGeometry);
   normalizeModel(visitorLife.surface, -Math.PI / 2, 0, 0, 1.5);
-  root.add(visitorLife.group);
 
   const glowMaterials = new Set();
   function prepareOwnerModel(model) {
@@ -748,6 +735,9 @@ async function start() {
   let pointerY = 0;
   let currentX = 0;
   let currentY = 0;
+  let currentZ = 0;
+  let voiceEnergy = 0;
+  let targetVoiceEnergy = 0;
   const currentColor = new THREE.Color(COLORS.idle);
   const targetColor = new THREE.Color(COLORS.idle);
 
@@ -760,6 +750,13 @@ async function start() {
     pointerX = 0;
     pointerY = 0;
   });
+
+  const onVoiceLevel = (event) => {
+    const level = Number(event.detail?.level);
+    if (!Number.isFinite(level)) return;
+    targetVoiceEnergy = Math.max(0, Math.min(1, level));
+  };
+  window.addEventListener("jarvis-voice-level", onVoiceLevel);
 
   let canvasWidth = 1;
   let canvasHeight = 1;
@@ -864,7 +861,6 @@ async function start() {
   function syncAccessModel() {
     const ownerAccess = stage.dataset.access === "owner";
     visitorModel.visible = !ownerAccess;
-    visitorLife.group.visible = !ownerAccess;
     visitorLife.surface.visible = !ownerAccess;
     if (ownerAccess) {
       presenceValue.textContent = "Busto master carregando";
@@ -942,7 +938,6 @@ async function start() {
     });
     const isOwner = stage.dataset.access === "owner";
     visitorModel.visible = !isOwner;
-    visitorLife.group.visible = !isOwner;
     visitorLife.surface.visible = !isOwner;
     ownerModel.visible = isOwner;
     ambient.color.setHex(isOwner ? 0x291044 : 0x2b174d);
@@ -962,9 +957,11 @@ async function start() {
     });
     if (ownerMixer) ownerMixer.update(deltaSeconds);
 
-    const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.45);
-    currentX += (pointerX * 0.045 - currentX) * orientationEase;
-    currentY += (pointerY * 0.018 - currentY) * orientationEase;
+    const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 5.4);
+    currentX += (pointerX * 0.15 - currentX) * orientationEase;
+    currentY += (pointerY * 0.08 - currentY) * orientationEase;
+    currentZ += (-pointerX * 0.025 - currentZ) * orientationEase;
+    voiceEnergy += (targetVoiceEnergy - voiceEnergy) * (1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 8));
     const cameraTargetX = 0;
     const cameraTargetZ = 5.02 + modeBlend.memory * 0.18 + modeBlend.forge * 0.12 + modeBlend.core * 0.08;
     const cameraEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.2);
@@ -976,13 +973,17 @@ async function start() {
     root.position.x += (targetPositionX - root.position.x) * positionEase;
     root.position.y = -0.07 + Math.sin(time * 0.28) * 0.006;
     const facingYaw = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
-    root.rotation.y = currentX + facingYaw + Math.sin(time * 0.14) * 0.005;
-    root.rotation.x = currentY + Math.sin(time * 0.17) * 0.0015;
-    const speakingPulse = visualState === "speaking" ? (Math.sin(time * 1.8) + 1) * 0.04 : 0;
+    root.rotation.y = facingYaw + Math.sin(time * 0.14) * 0.005;
+    root.rotation.x = Math.sin(time * 0.17) * 0.0015;
+    root.rotation.z = 0;
+    const liveSpeakingEnergy = visualState === "speaking" ? voiceEnergy : 0;
+    const voiceNod = Math.sin(time * 5.4) * liveSpeakingEnergy * 0.012;
+    visitorHeadLook.value.set(currentX, currentY + voiceNod, currentZ);
+    const speakingPulse = liveSpeakingEnergy * 0.055;
     const targetScale = 1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035;
     currentScale += (targetScale - currentScale) * (1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8));
     root.scale.setScalar(currentScale);
-    visitorLife.update(time, speakingPulse / 0.08);
+    visitorLife.update(time, liveSpeakingEnergy, currentX, currentY, currentZ);
     particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
     particles.rotation.y += deltaSeconds * (isWorking ? 0.022 : 0.008);
     coreEntity.update(time, modeBlend.core, deltaSeconds);
@@ -1015,12 +1016,13 @@ async function start() {
     window.clearTimeout(animationTimerId);
     cancelAnimationFrame(animationFrameId);
     window.removeEventListener("jarvis-state", wakeRender);
+    window.removeEventListener("jarvis-voice-level", onVoiceLevel);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     resizeObserver.disconnect();
     accessObserver.disconnect();
     ownerMixer?.stopAllAction();
     const disposedTextures = new Set();
-    [visitorModel, visitorLife.group, visitorLife.surface, ownerModel].forEach((model) => {
+    [visitorModel, visitorLife.surface, ownerModel].forEach((model) => {
       model.traverse((object) => {
         if (!(object.isMesh || object.isLineSegments || object.isPoints)) return;
         object.geometry?.dispose();

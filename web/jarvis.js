@@ -1140,7 +1140,19 @@
         meterFrame = window.requestAnimationFrame(meter);
         stopMeter = () => window.cancelAnimationFrame(meterFrame);
       } catch {
-        // O áudio continua mesmo quando Web Audio não está disponível.
+        // Mantém a presença sincronizada com a reprodução mesmo sem Web Audio.
+        let meterFrame = 0;
+        const fallbackMeter = (time) => {
+          if (generation !== speechGeneration || audio.paused || audio.ended) return;
+          const pulse = 0.24 + (0.5 + 0.5 * Math.sin(time * 0.013)) * 0.3;
+          voiceLevel += (pulse - voiceLevel) * 0.22;
+          window.dispatchEvent(new CustomEvent("jarvis-voice-level", { detail: { level: voiceLevel } }));
+          meterFrame = window.requestAnimationFrame(fallbackMeter);
+        };
+        audio.addEventListener("play", () => {
+          meterFrame = window.requestAnimationFrame(fallbackMeter);
+        }, { once: true });
+        stopMeter = () => window.cancelAnimationFrame(meterFrame);
       }
       let settled = false;
       const finish = (played) => {

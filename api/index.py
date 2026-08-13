@@ -61,7 +61,7 @@ ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 ELEVENLABS_VOICE_DESIGN_URL = "https://api.elevenlabs.io/v1/text-to-voice/design"
 ELEVENLABS_VOICE_CREATE_URL = "https://api.elevenlabs.io/v1/text-to-voice"
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
-DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
+DEFAULT_ELEVENLABS_MODEL = "eleven_flash_v2_5"
 MAX_BODY_BYTES = 4_000_000
 MAX_PROMPT_CHARS = 8_000
 MAX_ATTACHMENT_BYTES = 2_500_000
@@ -3367,11 +3367,11 @@ def elevenlabs_speech(body):
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
         "language_code": "pt",
         "voice_settings": {
-            "stability": 0.42,
-            "similarity_boost": 0.78,
+            "stability": 0.62,
+            "similarity_boost": 0.76,
             "style": 0.0,
-            "use_speaker_boost": True,
-            "speed": 1.02,
+            "use_speaker_boost": False,
+            "speed": 0.86,
         },
     }, ensure_ascii=False).encode("utf-8")
     url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
@@ -4823,8 +4823,8 @@ def concise_assistant_content(value, detailed=False):
 
 
 MODEL_META_LINE = re.compile(
-    r"(?i)(?:^|\b)(?:we need to respond|we should respond|the user (?:said|says|asks)|"
-    r"they ask(?:ed)?|respond as jarvis|answer in portuguese|under \d+ words|"
+    r"(?i)(?:^|\b)(?:we need to respond|we should respond|(?:the\s+)?user (?:said|says|asks)|"
+    r"they ask(?:ed)?|so (?:respond|answer)|respond (?:as|with)|something like|answer in portuguese|under \d+ words|"
     r"no intro|no filler|internal (?:reasoning|instructions)|system prompt)\b"
 )
 
@@ -4841,6 +4841,11 @@ def sanitize_model_output(value):
     for line in content.splitlines():
         if MODEL_META_LINE.search(line):
             leaked = True
+            quoted = re.findall(r'["“]([^"”\n]{2,600})["”]', line)
+            if len(quoted) >= 2 or (quoted and re.search(r"\b(?:respond|answer)\b", line, re.I)):
+                candidate = clean_text(quoted[-1], 600)
+                if candidate and not MODEL_META_LINE.search(candidate):
+                    kept.append(candidate)
             continue
         kept.append(line)
     content = "\n".join(kept).strip()

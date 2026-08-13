@@ -1,17 +1,17 @@
 :root {
   color-scheme: dark;
-  --ink: #07030d;
-  --glass: rgba(16, 8, 29, 0.7);
-  --glass-strong: rgba(13, 6, 24, 0.92);
+  --ink: #130824;
+  --glass: rgba(29, 12, 52, 0.76);
+  --glass-strong: rgba(23, 9, 43, 0.94);
   --cyan: #a855f7;
   --cyan-hot: #eadcff;
   --green: #c084fc;
   --amber: #c084fc;
   --red: #fb7185;
   --text: #f7f1ff;
-  --muted: #c3afd7;
-  --faint: #8e79a5;
-  --line: rgba(168, 85, 247, 0.25);
+  --muted: #d9c7eb;
+  --faint: #aa91c2;
+  --line: rgba(168, 85, 247, 0.32);
   --line-hot: rgba(192, 132, 252, 0.6);
   --state: var(--cyan);
 }
@@ -55,8 +55,8 @@ body {
   overflow: hidden;
   color: var(--text);
   background:
-    radial-gradient(circle at 50% 30%, rgba(126, 52, 205, 0.12), transparent 34%),
-    radial-gradient(circle at 50% 105%, rgba(91, 33, 182, 0.08), transparent 42%),
+    radial-gradient(circle at 50% 30%, rgba(139, 74, 221, 0.22), transparent 38%),
+    radial-gradient(circle at 50% 105%, rgba(109, 40, 217, 0.16), transparent 46%),
     var(--ink);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -86,7 +86,7 @@ button {
   justify-content: space-between;
   padding: 0 22px;
   border-bottom: 1px solid rgba(168, 85, 247, 0.3);
-  background: linear-gradient(180deg, rgba(13, 6, 24, 0.97), rgba(2, 4, 16, 0.9));
+  background: linear-gradient(180deg, rgba(24, 9, 45, 0.96), rgba(10, 4, 22, 0.9));
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.38), 0 1px 18px rgba(192, 132, 252, 0.08);
   backdrop-filter: blur(22px) saturate(130%);
 }
@@ -310,9 +310,9 @@ button {
   inset: 0;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at center 37%, color-mix(in srgb, var(--state) 10%, transparent), transparent 32%),
-    radial-gradient(ellipse at 50% 112%, rgba(91, 33, 182, 0.12), transparent 52%),
-    linear-gradient(180deg, rgba(2, 4, 16, 0.08), rgba(1, 5, 9, 0.88));
+    radial-gradient(ellipse at center 37%, color-mix(in srgb, var(--state) 18%, transparent), transparent 36%),
+    radial-gradient(ellipse at 50% 112%, rgba(109, 40, 217, 0.2), transparent 56%),
+    linear-gradient(180deg, rgba(24, 9, 45, 0.14), rgba(12, 5, 23, 0.72));
   transition: background 720ms ease;
 }
 
@@ -325,8 +325,8 @@ button {
 .aurora-visual {
   z-index: 0;
   inset: 0;
-  opacity: 0.7;
-  filter: saturate(112%);
+  opacity: 0.86;
+  filter: saturate(118%) brightness(1.08);
 }
 
 .strands-visual {
@@ -366,7 +366,7 @@ button {
   border-radius: 50%;
   box-shadow:
     0 0 150px color-mix(in srgb, var(--state) 6%, transparent),
-    inset 0 0 110px rgba(0, 0, 0, 0.58);
+    inset 0 0 110px rgba(0, 0, 0, 0.32);
 }
 
 .presence::after {
@@ -384,8 +384,8 @@ button {
   transform: perspective(640px) rotateX(64deg);
   transform-origin: top center;
   background-image:
-    linear-gradient(color-mix(in srgb, var(--state) 8%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--state) 8%, transparent) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--state) 13%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--state) 13%, transparent) 1px, transparent 1px);
   background-size: 88px 88px;
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent 68%);
   animation: grid-drift 28s linear infinite;
@@ -416,16 +416,16 @@ button {
   width: min(92vw, 1380px);
   height: min(46vw, 680px);
   transform: translate(-50%, -50%);
-  border: 1px solid color-mix(in srgb, var(--state) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state) 14%, transparent);
   border-radius: 50%;
-  box-shadow: inset 0 -45px 100px rgba(0, 0, 0, 0.34), 0 0 120px color-mix(in srgb, var(--state) 3%, transparent);
+  box-shadow: inset 0 -45px 100px rgba(0, 0, 0, 0.18), 0 0 120px color-mix(in srgb, var(--state) 7%, transparent);
   transition: border-color 720ms ease, box-shadow 720ms ease;
 }
 
 .depth-arc {
   left: 50%;
   top: 40%;
-  border: 1px solid color-mix(in srgb, var(--state) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state) 13%, transparent);
   border-radius: 50%;
   transform: translate(-50%, -50%) rotate(-9deg);
   transition: border-color 720ms ease;
@@ -438,8 +438,8 @@ button {
   top: 4%;
   width: 1px;
   height: 68%;
-  opacity: 0.2;
-  background: linear-gradient(transparent, color-mix(in srgb, var(--state) 34%, transparent), transparent);
+  opacity: 0.34;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--state) 46%, transparent), transparent);
   filter: blur(0.3px);
   transition: background 720ms ease;
 }
@@ -1138,7 +1138,7 @@ button {
   transform: translateX(-50%);
   border: 1px solid rgba(168, 85, 247, 0.12);
   border-radius: 24px;
-  background: rgba(3, 4, 16, 0.68);
+  background: rgba(18, 8, 34, 0.78);
   box-shadow: 0 32px 110px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(20px);
   transition: width 320ms ease, height 320ms ease, background 320ms ease;
@@ -1147,7 +1147,7 @@ button {
 .stage.has-conversation .conversation {
   width: clamp(620px, 57vw, 780px);
   height: min(224px, calc(100% - 170px));
-  background: rgba(3, 4, 16, 0.84);
+  background: rgba(18, 8, 34, 0.88);
 }
 
 .conversation-head {
