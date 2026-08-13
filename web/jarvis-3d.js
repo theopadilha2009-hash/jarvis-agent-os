@@ -37,7 +37,7 @@ const COLORS = {
   error: 0xfb7185,
   offline: 0x51445f,
 };
-const OWNER_RED = 0xa855f7;
+const OWNER_RED = 0xef3340;
 
 const VISITOR_HEAD_POSE_GLSL = `
   vec3 jarvisPoseHead(vec3 source, vec3 look) {
@@ -572,13 +572,13 @@ function installCyanRemap(material) {
           * smoothstep(0.1, 0.38, max(outgoingLight.r, outgoingLight.b));
         float jarvisAccentMask = max(jarvisRedMask, jarvisMagentaMask);
         float jarvisEnergy = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
-        vec3 jarvisUltronPurple = vec3(jarvisEnergy * 0.68, jarvisEnergy * 0.16, jarvisEnergy * 1.25);
-        outgoingLight = mix(outgoingLight, jarvisUltronPurple, jarvisAccentMask * 0.96);
+        vec3 jarvisUltronRed = vec3(jarvisEnergy * 1.3, jarvisEnergy * 0.08, jarvisEnergy * 0.055);
+        outgoingLight = mix(outgoingLight, jarvisUltronRed, jarvisAccentMask * 0.96);
         #include <opaque_fragment>
       `,
     );
   };
-  material.customProgramCacheKey = () => "jarvis-purple-identity-v1";
+  material.customProgramCacheKey = () => "ultron-red-identity-v1";
   material.needsUpdate = true;
 }
 
@@ -624,8 +624,8 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const [visitorModel, topologyGeometry] = await Promise.all([
-    loadObjHead("/asset/models/male_head.obj?v=20260813-clarity1"),
-    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-clarity1"),
+    loadObjHead("/asset/models/male_head.obj?v=20260813-ultron1"),
+    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-ultron1"),
   ]);
   const visitorHeadLook = installVisitorHeadPose(visitorModel.material);
   let ownerModel = new THREE.Group();
@@ -863,25 +863,25 @@ async function start() {
     visitorModel.visible = !ownerAccess;
     visitorLife.surface.visible = !ownerAccess;
     if (ownerAccess) {
-      presenceValue.textContent = "Busto master carregando";
+      presenceValue.textContent = "Busto Ultron carregando";
       if (ownerLoadPromise) {
         loadOwnerModel()
           .then(() => {
-            presenceValue.textContent = "Busto master · acesso privado";
+            presenceValue.textContent = "Busto Ultron · acesso privado";
             wakeRender();
           })
           .catch(() => {
-            presenceValue.textContent = "Busto master indisponível";
+            presenceValue.textContent = "Busto Ultron indisponível";
           });
       } else {
         window.setTimeout(() => {
           loadOwnerModel()
             .then(() => {
-              presenceValue.textContent = "Busto master · acesso privado";
+              presenceValue.textContent = "Busto Ultron · acesso privado";
               wakeRender();
             })
             .catch(() => {
-              presenceValue.textContent = "Busto master indisponível";
+              presenceValue.textContent = "Busto Ultron indisponível";
             });
         }, 0);
       }
@@ -940,11 +940,11 @@ async function start() {
     visitorModel.visible = !isOwner;
     visitorLife.surface.visible = !isOwner;
     ownerModel.visible = isOwner;
-    ambient.color.setHex(isOwner ? 0x291044 : 0x2b174d);
-    key.color.setHex(isOwner ? 0xd8b4fe : 0xb899ff);
-    rim.color.setHex(isOwner ? 0x7c3aed : 0x6d5cff);
-    faceFill.color.setHex(isOwner ? 0xf0dcff : 0xdacfff);
-    lowerFill.color.setHex(isOwner ? 0x9333ea : 0x8b5cf6);
+    ambient.color.setHex(isOwner ? 0x33070b : 0x2b174d);
+    key.color.setHex(isOwner ? 0xffb4b4 : 0xb899ff);
+    rim.color.setHex(isOwner ? 0xdc2626 : 0x6d5cff);
+    faceFill.color.setHex(isOwner ? 0xffe0e0 : 0xdacfff);
+    lowerFill.color.setHex(isOwner ? 0xb91c1c : 0x8b5cf6);
     const activeColor = isOwner ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
     const isWorking = modeBlend.forge > 0.08;
     targetColor.setHex(activeColor);

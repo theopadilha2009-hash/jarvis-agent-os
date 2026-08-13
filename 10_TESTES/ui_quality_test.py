@@ -118,7 +118,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-clarity1")', self.html)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-ultron1")', self.html)
         self.assertIn("requestIdleCallback", self.html)
         self.assertIn("activeFps: 45", self.presence_js)
         self.assertIn("idleFps: 24", self.presence_js)
@@ -132,7 +132,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
-        self.assertGreaterEqual(self.html.count("20260813-clarity1"), 9)
+        self.assertGreaterEqual(self.html.count("20260813-ultron1"), 9)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
@@ -176,6 +176,25 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn(".shimmer-label", self.css)
         self.assertIn("background: transparent", self.css)
         self.assertIn("grid-template-rows: 34px 16px", self.css)
+
+    def test_ultron_mode_has_distinct_identity_environment_and_strength_control(self):
+        self.assertIn('id="ultronLaughter"', self.html)
+        self.assertIn('id="strengthButton"', self.html)
+        self.assertIn('id="identityAssistantName"', self.html)
+        self.assertIn('id="conversationAssistantName"', self.html)
+        self.assertIn('html[data-persona="ultron"]', self.css)
+        self.assertIn("@keyframes ultron-laugh-drift", self.css)
+        self.assertIn("--cyan: #ef4444", self.css)
+        self.assertIn("#240307", self.html)
+        self.assertIn("#EF4444", self.html)
+        self.assertIn('document.documentElement.dataset.persona = ultron ? "ultron" : "jarvis"', self.app_js)
+        self.assertIn('strength: session.strength', self.app_js)
+        self.assertIn('"jarvis-response-strength"', self.app_js)
+        self.assertIn("scheduleUltronLaughter", self.app_js)
+        self.assertIn("const OWNER_RED = 0xef3340", self.presence_js)
+        self.assertIn("ultron-red-identity-v1", self.presence_js)
+        self.assertNotIn("modo master", self.html.casefold())
+        self.assertNotIn("modo master", self.app_js.casefold())
 
 
 if __name__ == "__main__":

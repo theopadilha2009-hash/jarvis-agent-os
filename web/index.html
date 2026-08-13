@@ -10,10 +10,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-<link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-clarity1">
-<link rel="icon" href="/ui/jarvis-logo.png?v=20260813-clarity1" type="image/png">
-<link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-clarity1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-clarity1">
+<link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-ultron1">
+<link rel="icon" href="/ui/jarvis-logo.png?v=20260813-ultron1" type="image/png">
+<link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-ultron1">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-ultron1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
@@ -24,9 +24,9 @@
     <header class="topbar">
       <div class="identity">
         <span class="identity-mark" aria-hidden="true">
-<img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-clarity1" alt="">
+<img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-ultron1" alt="">
         </span>
-        <span class="identity-name"><b>JARVIS</b><small>para Theo</small></span>
+        <span class="identity-name"><b id="identityAssistantName">JARVIS</b><small>para Theo</small></span>
       </div>
       <div class="connection">
         <span class="connection-dot" id="connectionDot"></span>
@@ -43,7 +43,7 @@
     </header>
 
     <main class="stage" id="stage" data-state="idle" data-access="guest">
-      <section class="presence" aria-label="Presença visual do JARVIS">
+      <section class="presence" id="presence" aria-label="Presença visual do JARVIS">
         <div class="aurora-visual" id="auroraVisual" aria-hidden="true"></div>
         <div class="grid-plane" aria-hidden="true"></div>
         <div class="environment-depth" aria-hidden="true">
@@ -53,6 +53,7 @@
           <i class="depth-light depth-light-left"></i>
           <i class="depth-light depth-light-right"></i>
         </div>
+        <div class="ultron-laughter" id="ultronLaughter" aria-hidden="true"></div>
         <div class="strands-visual" id="strandsVisual" aria-hidden="true"></div>
         <div class="avatar" id="avatar3d" aria-hidden="true"></div>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -153,7 +154,7 @@
 
       <section class="conversation" aria-label="Conversa com JARVIS">
         <div class="conversation-head">
-          <span><i aria-hidden="true"></i><b>JARVIS</b><small id="conversationState">pronto</small></span>
+          <span><i aria-hidden="true"></i><b id="conversationAssistantName">JARVIS</b><small id="conversationState">pronto</small></span>
           <div class="conversation-head-actions">
             <small class="conversation-channel">voz + texto</small>
             <button class="new-conversation-button" id="newConversationButton" type="button" title="Começar sem o contexto da conversa atual">Nova</button>
@@ -182,6 +183,9 @@
           </button>
           <input id="attachmentInput" type="file" hidden multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json,.md,.json,.csv">
           <input id="commandInput" maxlength="8000" autocomplete="off" placeholder="Escreva ou fale comigo…" aria-label="Pedido para JARVIS">
+          <button class="strength-button" id="strengthButton" type="button" title="Ajustar força da resposta" aria-label="Força da resposta: Automática">
+            <span>Força</span><b>Auto</b>
+          </button>
           <button class="send-button" id="sendButton" type="submit">Enviar</button>
         </form>
         <div class="attachment-tray" id="attachmentTray" hidden></div>
@@ -204,11 +208,11 @@
         <span>Conexão privada</span>
         <strong id="workerValue">verificando worker do Mac</strong>
         <div class="admin-login">
-          <input id="adminUsername" autocomplete="username" value="admin" placeholder="Login" aria-label="Login master">
-          <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha master">
-          <button id="adminLoginButton" type="button">Entrar master</button>
+          <input id="adminUsername" autocomplete="username" value="admin" placeholder="Login" aria-label="Login do modo Ultron">
+          <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha do modo Ultron">
+          <button id="adminLoginButton" type="button">Entrar no modo Ultron</button>
         </div>
-        <button class="leave-owner-mode" id="leaveOwnerMode" type="button" hidden>Voltar ao modo visitante</button>
+        <button class="leave-owner-mode" id="leaveOwnerMode" type="button" hidden>Sair do modo Ultron</button>
         <small id="pairingHint">A senha é validada no servidor; este navegador recebe apenas uma sessão temporária.</small>
         <details class="advanced-pairing">
           <summary>Pareamento avançado</summary>
@@ -256,7 +260,7 @@
       <button id="closeTour" type="button" aria-label="Fechar guia">×</button>
     </div>
     <div class="tour-grid">
-      <section><i>01</i><strong>Peça naturalmente</strong><p>Escreva, fale ou anexe arquivos. O JARVIS decide se responde, pesquisa, salva ou executa.</p></section>
+      <section><i>01</i><strong>Peça naturalmente</strong><p id="tourIdentityDescription">Escreva, fale ou anexe arquivos. O JARVIS decide se responde, pesquisa, salva ou executa.</p></section>
       <section><i>02</i><strong>Veja a execução</strong><p>Núcleo pensa, Forja trabalha, Memória grava e Resultado exibe a evidência real.</p></section>
       <section><i>03</i><strong>Controle o Mac</strong><p>O worker abre apps, captura e grava tela, consulta GitHub e diagnostica o computador.</p></section>
       <section><i>04</i><strong>Continue de onde parou</strong><p>Agenda, conversa e memórias confirmadas persistem no Supabase privado.</p></section>
@@ -276,24 +280,35 @@
     </div>
   </dialog>
 
-<script src="/ui/jarvis.js?v=20260813-clarity1" defer></script>
+<script src="/ui/jarvis.js?v=20260813-ultron1" defer></script>
   <script type="module">
     let presenceScheduled = false;
 
+    const paletteForPersona = () => document.documentElement.dataset.persona === "ultron"
+      ? {
+          aurora: ["#240307", "#7F1D1D", "#EF4444"],
+          strands: ["#7F1D1D", "#DC2626", "#FB7185"],
+        }
+      : {
+          aurora: ["#2E1065", "#7C3AED", "#A855F7"],
+          strands: ["#6D28D9", "#A855F7", "#C084FC"],
+        };
+
     const loadPresence = async () => {
       const [auroraModule, strandsModule] = await Promise.all([
-import("/ui/aurora.js?v=20260813-clarity1"),
-import("/ui/strands.js?v=20260813-clarity1"),
-import("/ui/jarvis-3d.js?v=20260813-clarity1"),
+import("/ui/aurora.js?v=20260813-ultron1"),
+import("/ui/strands.js?v=20260813-ultron1"),
+import("/ui/jarvis-3d.js?v=20260813-ultron1"),
       ]);
-      auroraModule.createAurora(document.getElementById("auroraVisual"), {
-        colorStops: ["#2E1065", "#7C3AED", "#A855F7"],
+      const initialPalette = paletteForPersona();
+      const aurora = auroraModule.createAurora(document.getElementById("auroraVisual"), {
+        colorStops: initialPalette.aurora,
         blend: 0.5,
         amplitude: 1,
         speed: 0.5,
       });
-      strandsModule.createStrands(document.getElementById("strandsVisual"), {
-        colors: ["#6D28D9", "#A855F7", "#C084FC"],
+      const strands = strandsModule.createStrands(document.getElementById("strandsVisual"), {
+        colors: initialPalette.strands,
         count: 3,
         speed: 0.5,
         amplitude: 1,
@@ -307,6 +322,11 @@ import("/ui/jarvis-3d.js?v=20260813-clarity1"),
         opacity: 1,
         scale: 1.5,
         glass: false,
+      });
+      window.addEventListener("jarvis-persona", () => {
+        const palette = paletteForPersona();
+        aurora?.setProps({ colorStops: palette.aurora });
+        strands?.setProps({ colors: palette.strands });
       });
       const renderTelemetry = document.getElementById("sceneRender");
       if (renderTelemetry) renderTelemetry.textContent = "Aurora + Strands + 3D";

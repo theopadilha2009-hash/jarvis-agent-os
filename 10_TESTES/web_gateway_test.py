@@ -142,10 +142,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-clarity1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-clarity1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-clarity1', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-clarity1', html)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-ultron1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-ultron1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-ultron1', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-ultron1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -369,8 +369,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-clarity1", service_worker)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-clarity1', service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-ultron1", service_worker)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-ultron1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -1067,7 +1067,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertFalse(payload["action_executed"])
         self.assertIn("Não executei a ação", payload["error"])
-        self.assertIn("modo master", payload["next_action"])
+        self.assertIn("modo Ultron", payload["next_action"])
 
     def test_private_conversation_history_is_normalized_and_persisted(self):
         rows = [{
@@ -1519,6 +1519,52 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("sem sermão", system_prompt)
         self.assertIn("nunca diga que não possui voz", system_prompt.casefold())
         self.assertEqual(payload["response_profile"], "concise")
+
+    def test_ultron_maximum_strength_uses_private_persona_and_deep_route(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+                    "choices": [{"message": {"content": "A ordem foi processada."}}],
+                }).encode("utf-8")
+
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+                payload, status = MODULE.assistant_response(
+                    {"command": "resolva isto", "strength": "maximum"},
+                    owner_authenticated=True,
+                )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["response_profile"], "detailed")
+        self.assertEqual(payload["response_strength"], "maximum")
+        self.assertEqual(payload["model_routing"]["strength"], "maximum")
+        sent_payload = json.loads(request.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(sent_payload["temperature"], 0.26)
+        self.assertEqual(sent_payload["provider"]["sort"]["partition"], "model")
+        self.assertEqual(sent_payload["provider"]["preferred_max_latency"]["p90"], 18)
+        self.assertIn("nvidia/nemotron-3-ultra-550b-a55b:free", sent_payload["models"])
+        system_prompt = sent_payload["messages"][0]["content"]
+        self.assertIn("Você é ULTRON", system_prompt)
+        self.assertIn("deliberadamente arrogante", system_prompt)
+        self.assertIn("FORÇA MÁXIMA", system_prompt)
+        self.assertIn("mantenha as proteções reais", system_prompt)
+        self.assertIn("nunca se chame JARVIS", system_prompt)
+
+    def test_response_strength_aliases_are_bounded(self):
+        self.assertEqual(MODULE.normalized_response_strength({"strength": "forte"}), "strong")
+        self.assertEqual(MODULE.normalized_response_strength({"strength": "máxima"}), "maximum")
+        self.assertEqual(MODULE.normalized_response_strength({"strength": "sem-limites"}), "auto")
+        self.assertEqual(
+            MODULE.assistant_response_profile("oi", strength="strong")["name"],
+            "balanced",
+        )
 
     def test_openrouter_uses_fallback_key_when_primary_is_not_configured(self):
         class FakeResponse:

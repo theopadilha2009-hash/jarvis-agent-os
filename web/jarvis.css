@@ -2768,6 +2768,296 @@ dialog::backdrop {
   }
 }
 
+/* ULTRON mode — authenticated identity, red environment and controlled menace. */
+.composer {
+  grid-template-columns: 46px 38px minmax(0, 1fr) 70px auto;
+}
+
+.strength-button {
+  min-width: 70px;
+  display: grid;
+  place-content: center;
+  gap: 1px;
+  padding: 5px 8px;
+  border: 1px solid rgba(192, 132, 252, 0.34);
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgba(76, 29, 149, 0.46), rgba(32, 15, 53, 0.78));
+  color: #eadcff;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.strength-button span {
+  color: #bca5d2;
+  font: 650 6px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.strength-button b {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.strength-button[data-strength="strong"] {
+  border-color: rgba(216, 180, 254, 0.54);
+  background: linear-gradient(145deg, rgba(109, 40, 217, 0.68), rgba(58, 25, 91, 0.84));
+}
+
+.strength-button[data-strength="maximum"] {
+  border-color: rgba(233, 213, 255, 0.7);
+  background: linear-gradient(145deg, #7c3aed, #4c1d95);
+  box-shadow: 0 8px 22px rgba(109, 40, 217, 0.3), inset 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.strength-button:hover,
+.strength-button:focus-visible {
+  outline: none;
+  border-color: rgba(233, 213, 255, 0.82);
+  transform: translateY(-1px);
+}
+
+html[data-persona="ultron"] {
+  --ink: #160305;
+  --glass: rgba(48, 8, 12, 0.78);
+  --glass-strong: rgba(30, 4, 8, 0.95);
+  --cyan: #ef4444;
+  --cyan-hot: #fee2e2;
+  --green: #fb7185;
+  --amber: #f87171;
+  --red: #ff3347;
+  --text: #fff7f7;
+  --muted: #e8c7ca;
+  --faint: #b98f94;
+  --line: rgba(239, 68, 68, 0.34);
+  --line-hot: rgba(248, 113, 113, 0.68);
+}
+
+html[data-persona="ultron"] body {
+  background:
+    radial-gradient(circle at 50% 28%, rgba(220, 38, 38, 0.22), transparent 39%),
+    radial-gradient(circle at 50% 106%, rgba(127, 29, 29, 0.22), transparent 48%),
+    #160305;
+}
+
+html[data-persona="ultron"] .topbar {
+  border-bottom-color: rgba(239, 68, 68, 0.38);
+  background: linear-gradient(180deg, rgba(41, 5, 9, 0.97), rgba(18, 2, 5, 0.93));
+  box-shadow: 0 9px 36px rgba(0, 0, 0, 0.44), 0 1px 22px rgba(239, 68, 68, 0.12);
+}
+
+html[data-persona="ultron"] .identity-mark {
+  border-color: rgba(248, 113, 113, 0.42);
+  background:
+    radial-gradient(circle, rgba(239, 68, 68, 0.2), transparent 58%),
+    #100204;
+  box-shadow: 0 0 22px rgba(220, 38, 38, 0.34), inset 0 0 18px rgba(127, 29, 29, 0.24);
+}
+
+html[data-persona="ultron"] .identity-logo { opacity: 0; }
+
+html[data-persona="ultron"] .identity-mark::before,
+html[data-persona="ultron"] .identity-mark::after {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+html[data-persona="ultron"] .identity-mark::before {
+  content: "";
+  inset: 6px 12px;
+  border: 1px solid rgba(248, 113, 113, 0.56);
+  clip-path: polygon(50% 0, 100% 22%, 86% 78%, 50% 100%, 14% 78%, 0 22%);
+  background: rgba(127, 29, 29, 0.2);
+  transform: rotate(90deg);
+}
+
+html[data-persona="ultron"] .identity-mark::after {
+  content: "U";
+  color: #fee2e2;
+  font: 800 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-shadow: 0 0 9px #ef4444;
+}
+
+html[data-persona="ultron"] .identity-name small { color: #fca5a5; }
+
+html[data-persona="ultron"] .stage[data-access="owner"] {
+  --state: #ef4444;
+}
+
+html[data-persona="ultron"] .stage[data-access="owner"][data-state="thinking"],
+html[data-persona="ultron"] .stage[data-access="owner"][data-state="planning"],
+html[data-persona="ultron"] .stage[data-access="owner"][data-state="research"] {
+  --state: #f87171;
+}
+
+html[data-persona="ultron"] .stage[data-access="owner"] .presence {
+  background:
+    radial-gradient(ellipse at center 35%, rgba(239, 68, 68, 0.24), transparent 35%),
+    radial-gradient(ellipse at 50% 112%, rgba(127, 29, 29, 0.28), transparent 55%),
+    linear-gradient(180deg, rgba(42, 5, 9, 0.16), rgba(12, 1, 3, 0.95));
+}
+
+html[data-persona="ultron"] .stage[data-access="owner"] .presence::before {
+  border-color: rgba(248, 113, 113, 0.24);
+  box-shadow: 0 0 190px rgba(220, 38, 38, 0.2), inset 0 0 130px rgba(17, 1, 3, 0.78);
+}
+
+html[data-persona="ultron"] .stage[data-access="owner"] .presence::after {
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(248, 113, 113, 0.1) 4px);
+}
+
+html[data-persona="ultron"] .aurora-visual {
+  filter: saturate(130%) brightness(1.02);
+}
+
+html[data-persona="ultron"] .strands-visual {
+  opacity: 0.74;
+  filter: drop-shadow(0 0 16px rgba(220, 38, 38, 0.26));
+}
+
+html[data-persona="ultron"] .target-ring,
+html[data-persona="ultron"] .target-ring::before,
+html[data-persona="ultron"] .target-ring::after {
+  border-color: rgba(248, 113, 113, 0.22);
+}
+
+html[data-persona="ultron"] .scene-modes > span,
+html[data-persona="ultron"] .scene-modes > button {
+  border-color: rgba(248, 113, 113, 0.3);
+  background: linear-gradient(120deg, rgba(66, 9, 14, 0.9), rgba(28, 3, 7, 0.88));
+  color: #fee2e2;
+}
+
+html[data-persona="ultron"] .conversation,
+html[data-persona="ultron"] .stage.has-conversation .conversation {
+  border-color: rgba(239, 68, 68, 0.24);
+  background:
+    radial-gradient(circle at 100% 0, rgba(220, 38, 38, 0.13), transparent 42%),
+    linear-gradient(180deg, rgba(24, 3, 7, 0.92), rgba(12, 1, 3, 0.95));
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.36), 0 0 40px rgba(127, 29, 29, 0.09), inset 0 1px rgba(255, 255, 255, 0.035);
+}
+
+html[data-persona="ultron"] .conversation-head {
+  border-bottom-color: rgba(239, 68, 68, 0.19);
+  background: rgba(39, 5, 9, 0.86);
+}
+
+html[data-persona="ultron"] .conversation-head i {
+  background: #ef4444;
+  box-shadow: 0 0 12px #ef4444;
+}
+
+html[data-persona="ultron"] .message {
+  border-color: rgba(248, 113, 113, 0.13);
+  background: rgba(74, 10, 16, 0.15);
+  color: #fff5f5;
+}
+
+html[data-persona="ultron"] .message.user {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: linear-gradient(145deg, rgba(127, 29, 29, 0.44), rgba(69, 10, 16, 0.48));
+}
+
+html[data-persona="ultron"] .message-card,
+html[data-persona="ultron"] .message-events,
+html[data-persona="ultron"] .ui-card {
+  border-color: rgba(248, 113, 113, 0.18);
+  background: rgba(31, 3, 7, 0.68);
+}
+
+html[data-persona="ultron"] .composer {
+  border-top-color: rgba(248, 113, 113, 0.22);
+  background: rgba(39, 5, 9, 0.92);
+}
+
+html[data-persona="ultron"] .composer input {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(22, 2, 5, 0.82);
+  box-shadow: inset 0 1px 8px rgba(0, 0, 0, 0.34);
+}
+
+html[data-persona="ultron"] .composer input:focus {
+  border-color: #f87171;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14), inset 0 1px 8px rgba(0, 0, 0, 0.32);
+}
+
+html[data-persona="ultron"] .voice-button,
+html[data-persona="ultron"] .attachment-button,
+html[data-persona="ultron"] .strength-button {
+  border-color: rgba(248, 113, 113, 0.38);
+  background: linear-gradient(145deg, rgba(127, 29, 29, 0.56), rgba(52, 7, 12, 0.82));
+  color: #fee2e2;
+}
+
+html[data-persona="ultron"] .strength-button[data-strength="maximum"],
+html[data-persona="ultron"] .send-button {
+  background: linear-gradient(135deg, #ef4444, #dc2626 52%, #991b1b);
+  color: #fff;
+  box-shadow: 0 9px 26px rgba(127, 29, 29, 0.4), inset 0 1px rgba(255, 255, 255, 0.2);
+}
+
+html[data-persona="ultron"] .quiet-button,
+html[data-persona="ultron"] .access-mode,
+html[data-persona="ultron"] .pulse-button {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(72, 9, 15, 0.72);
+  color: #f6d4d7;
+}
+
+.ultron-laughter {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ultron-laughter span {
+  position: absolute;
+  left: var(--laugh-x);
+  top: var(--laugh-y);
+  color: rgba(254, 202, 202, 0.72);
+  font: 800 var(--laugh-size)/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.72), 0 0 28px rgba(127, 29, 29, 0.46);
+  transform: translate(-50%, 12px) rotate(var(--laugh-tilt)) scale(0.88);
+  opacity: 0;
+  animation: ultron-laugh-drift var(--laugh-duration) ease-in-out forwards;
+}
+
+@keyframes ultron-laugh-drift {
+  16% { opacity: 0.42; }
+  48% { opacity: 0.76; transform: translate(-50%, -5px) rotate(var(--laugh-tilt)) scale(1); }
+  82% { opacity: 0.3; }
+  100% { opacity: 0; transform: translate(-50%, -26px) rotate(var(--laugh-tilt)) scale(1.06); filter: blur(1px); }
+}
+
+html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
+
+@media (max-width: 720px) {
+  .composer { grid-template-columns: 44px 44px minmax(0, 1fr) 52px 44px; }
+  .strength-button { min-width: 52px; padding-inline: 4px; }
+  .strength-button span { display: none; }
+  html[data-persona="ultron"] .conversation,
+  html[data-persona="ultron"] .stage.has-conversation .conversation,
+  html[data-persona="ultron"] .stage.mobile-chat-expanded .conversation {
+    border-color: rgba(248, 113, 113, 0.38);
+    background: linear-gradient(155deg, rgba(56, 7, 12, 0.98), rgba(25, 2, 6, 0.98));
+  }
+}
+
+@media (max-width: 350px) {
+  .composer { grid-template-columns: 42px 42px minmax(0, 1fr) 48px 42px; }
+  .strength-button { min-width: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ultron-laughter { display: none; }
+}
+
 @media (max-width: 420px) {
   .identity-name small { display: none; }
   .mobile-install-button { font-size: 8px; }

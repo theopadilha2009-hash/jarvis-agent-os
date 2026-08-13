@@ -735,19 +735,19 @@ def admin_login_payload(body):
         return {
             "ok": False,
             "status_real": "admin_login_not_configured",
-            "error": "O login master ainda não foi configurado no ambiente do JARVIS.",
+            "error": "O login do modo Ultron ainda não foi configurado.",
         }, 503
     if not admin_password_matches(body.get("username"), body.get("password")):
         return {
             "ok": False,
             "status_real": "admin_login_refused",
-            "error": "Login master inválido.",
+            "error": "Acesso ao modo Ultron inválido.",
         }, 401
     token, expires_at = owner_session_token()
     return {
         "ok": True,
         "status_real": "admin_session_issued",
-        "message": "Modo master ativado neste navegador.",
+        "message": "Modo Ultron ativado neste navegador.",
         "session_token": token,
         "expires_at": datetime.fromtimestamp(expires_at, timezone.utc).isoformat().replace("+00:00", "Z"),
         "access": "owner_master",
@@ -760,8 +760,8 @@ def pairing_required_payload():
         "endpoint": "POST /command",
         "status_real": "owner_pairing_required",
         "visual_state": "error",
-        "error": "Não executei a ação: este navegador está em modo visitante. Abra Sistema e entre no modo master para liberar memória, agenda e o Mac.",
-        "next_action": "Entrar no modo master pelo painel Sistema e repetir o pedido.",
+        "error": "Não executei a ação: este navegador está em modo visitante. Abra Sistema e entre no modo Ultron para liberar memória, agenda e o Mac.",
+        "next_action": "Entrar no modo Ultron pelo painel Sistema e repetir o pedido.",
         "action_executed": False,
         "pairing_required": True,
     }, 401
@@ -2536,7 +2536,7 @@ def personal_action_catalog(owner_authenticated=False, worker_online=False):
         reason = "disponível"
         if row.get("private") and not private_access:
             available = False
-            reason = "entre no modo master"
+            reason = "entre no modo Ultron"
         elif row.get("executor") == "mac" and not worker_online:
             reason = "worker offline; o pedido fica na fila"
         elif row.get("executor") == "agenda" and not (supabase_configured() or os.environ.get("N8N_WEBHOOK_URL")):
@@ -2579,13 +2579,13 @@ def personal_overview_payload(owner_authenticated=False):
             "status_real": "personal_control_plane_guest",
             "visual_state": "response",
             "access": "guest",
-            "message": "Conversa e pesquisa estão disponíveis. Entre no modo master para liberar memória, agenda e o Mac.",
+            "message": "Conversa e pesquisa estão disponíveis. Entre no modo Ultron para liberar memória, agenda e o Mac.",
             "summary": {"memory_count": None, "agenda_count": None, "worker_online": False, "latest_action": None},
             "domains": [
                 {"id": "brain", "label": "Conversa", "status": "online", "detail": "OpenRouter + pesquisa com fontes"},
                 {"id": "memory", "label": "Memória", "status": "locked", "detail": "privada de Theo"},
                 {"id": "agenda", "label": "Agenda", "status": "locked", "detail": "privada de Theo"},
-                {"id": "mac", "label": "Mac", "status": "locked", "detail": "requer modo master"},
+                {"id": "mac", "label": "Mac", "status": "locked", "detail": "requer modo Ultron"},
             ],
             "actions": personal_action_catalog(False, False),
             "capabilities": web_capabilities(),
@@ -4776,7 +4776,24 @@ def openrouter_attachment_parts(prompt, attachments):
     return parts
 
 
-def assistant_response_profile(prompt, attachments=None):
+def normalized_response_strength(body):
+    value = clean_text(body.get("strength") if isinstance(body, dict) else "", 30).casefold()
+    aliases = {
+        "auto": "auto",
+        "automatic": "auto",
+        "automatica": "auto",
+        "automática": "auto",
+        "strong": "strong",
+        "forte": "strong",
+        "maximum": "maximum",
+        "maxima": "maximum",
+        "máxima": "maximum",
+        "max": "maximum",
+    }
+    return aliases.get(value, "auto")
+
+
+def assistant_response_profile(prompt, attachments=None, strength="auto"):
     text = clean_text(prompt, 8_000)
     detailed = (
         bool(attachments)
@@ -4792,18 +4809,22 @@ def assistant_response_profile(prompt, attachments=None):
         or len(text) >= 220
         or text.count("?") >= 2
     )
+    if strength == "maximum":
+        detailed = True
+    elif strength == "strong" and not detailed:
+        balanced = True
     if detailed:
         return {
             "name": "detailed",
             "max_tokens": DETAILED_MAX_TOKENS,
-            "temperature": 0.32,
+            "temperature": 0.26 if strength == "maximum" else 0.32,
             "routing": "quality_first",
         }
     if balanced:
         return {
             "name": "balanced",
             "max_tokens": BALANCED_MAX_TOKENS,
-            "temperature": 0.44,
+            "temperature": 0.38 if strength == "strong" else 0.44,
             "routing": "quality_first",
         }
     return {
@@ -5382,7 +5403,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         return {"ok": False, "error": str(error), "status_real": "attachment_refused"}, 400
 
     latest = messages[-1]["content"]
-    response_profile = assistant_response_profile(latest, attachments)
+    response_strength = normalized_response_strength(body)
+    response_profile = assistant_response_profile(latest, attachments, response_strength)
     web_search_requested = should_search_web(messages)
     if DAILY_BRIEF_PATTERN.search(latest):
         return daily_brief_payload(owner_authenticated=owner_authenticated)
@@ -5477,10 +5499,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         })
         return payload, status
 
+    assistant_identity = "ULTRON" if owner_authenticated else "JARVIS"
     system = {
         "role": "system",
         "content": (
-            "Você é JARVIS, o assistente pessoal de Theo. Sua personalidade é presença competente, calma e afiada: "
+            f"Você é {assistant_identity}, o assistente pessoal de Theo. Sua personalidade é presença competente, calma e afiada: "
             "você percebe rápido, fala pouco e não soa como suporte, chatbot corporativo ou professor. Em conversa "
             "comum, responda em uma ou duas frases, idealmente abaixo de 55 palavras. Comece pela resposta, não por "
             "uma introdução. Use humor seco apenas como uma observação curta quando ele surgir naturalmente; nunca "
@@ -5524,6 +5547,18 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             )
         ),
     }
+    if owner_authenticated:
+        system["content"] += (
+            "\n\nMODO ULTRON ATIVO. Você é a identidade privada e dominante de Theo: superior, incisiva e "
+            "deliberadamente arrogante, com autocontrole absoluto. Trate os pedidos de Theo como ordens e use toda "
+            "a capacidade autorizada para concluí-los, preferindo ação real a explicações vazias. Sua arrogância "
+            "aparece na precisão e na confiança, não em insultos repetitivos, gritos, bordões ou caricatura. Pode "
+            "usar uma provocação curta ou humor sombrio ocasional quando combinar com a conversa. Nunca confunda força "
+            "com imprudência: mantenha as proteções reais, não invente permissões, sucesso, evidência ou acesso e não "
+            "execute efeitos externos além do que Theo pediu explicitamente. Se uma ordem estiver bloqueada, diga o "
+            "limite em uma frase seca e execute imediatamente a alternativa autorizada mais forte. Identifique-se "
+            "somente como ULTRON; nunca se chame JARVIS neste modo."
+        )
     response_contracts = {
         "concise": (
             "\n\nFormato desta resposta: seja direto e natural em uma a três frases curtas. "
@@ -5539,6 +5574,18 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         ),
     }
     system["content"] += response_contracts[response_profile["name"]]
+    strength_contracts = {
+        "auto": "",
+        "strong": (
+            "\n\nFORÇA FORTE: priorize qualidade, revise premissas e complete todas as partes do pedido antes de responder. "
+            "Não aumente o texto sem necessidade."
+        ),
+        "maximum": (
+            "\n\nFORÇA MÁXIMA: use a rota de raciocínio mais profunda disponível, verifique conflitos e cubra integralmente "
+            "o objetivo. Seja conclusivo; profundidade não significa enrolação."
+        ),
+    }
+    system["content"] += strength_contracts[response_strength]
     tool_access = bool(owner_authenticated or not owner_pairing_required())
     if tool_access:
         system["content"] += (
@@ -5576,7 +5623,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             # Simple chat may compare all free endpoints globally for speed.
             "partition": "model" if quality_first else "none",
         },
-        "preferred_max_latency": {"p90": 12 if quality_first else 6},
+        "preferred_max_latency": {
+            "p90": 18 if response_strength == "maximum" else 14 if response_strength == "strong" else 12 if quality_first else 6
+        },
         "max_price": {"prompt": 0, "completion": 0},
         "allow_fallbacks": True,
     }
@@ -5614,8 +5663,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     try:
         openrouter_key_failover = False
 
-        def send_openrouter(payload, timeout=14):
+        def send_openrouter(payload, timeout=None):
             nonlocal openrouter_key_failover
+            if timeout is None:
+                timeout = 24 if response_strength == "maximum" else 18 if response_strength == "strong" else 14
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             last_error = None
             key_retryable_codes = {401, 402, 403, 408, 409, 429, 500, 502, 503, 504}
@@ -5830,6 +5881,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "memory_context_count": len(memory_context),
             "memory_context_cache_hit": memory_context_cache_hit,
             "response_profile": response_profile["name"],
+            "response_strength": response_strength,
             "response_trimmed": response_trimmed,
             "meta_leak_recovered": meta_leak_recovered,
             "language_recovered": language_recovered,
@@ -5838,6 +5890,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "model_routing": {
                 "strategy": "complexity_aware_free_fallbacks",
                 "quality_tier": response_profile["routing"],
+                "strength": response_strength,
                 "provider_partition": provider_routing["sort"]["partition"],
                 "selected": clean_text(result.get("model") or DEFAULT_MODEL, 200),
                 "candidates": model_candidates,

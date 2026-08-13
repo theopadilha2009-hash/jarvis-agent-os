@@ -20,6 +20,7 @@
   const mobileChatToggle = byId("mobileChatToggle");
   const newConversationButton = byId("newConversationButton");
   const qualityButton = byId("qualityButton");
+  const strengthButton = byId("strengthButton");
   const installButton = byId("installButton");
   const installDialog = byId("installDialog");
   const mobileLayout = window.matchMedia("(max-width: 720px)");
@@ -28,6 +29,12 @@
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
     input: Boolean(Recognition),
+  };
+  const RESPONSE_STRENGTH = ["auto", "strong", "maximum"];
+  const RESPONSE_STRENGTH_LABELS = {
+    auto: ["Auto", "Automática"],
+    strong: ["Forte", "Forte"],
+    maximum: ["Máxima", "Máxima"],
   };
 
   const session = {
@@ -60,6 +67,14 @@
     workingStartedAt: 0,
     lastResponseOk: true,
     filePreviewing: false,
+    strength: (() => {
+      try {
+        const saved = localStorage.getItem("jarvis-response-strength");
+        return RESPONSE_STRENGTH.includes(saved) ? saved : "auto";
+      } catch {
+        return "auto";
+      }
+    })(),
   };
 
   const GRAPHICS_QUALITY = ["excellent", "medium", "low"];
@@ -96,6 +111,89 @@
   let viewportWidth = window.innerWidth;
   let voiceLevel = 0;
   let voiceAudioContext = null;
+  let laughterTimer = 0;
+
+  function assistantName() {
+    return session.paired ? "ULTRON" : "JARVIS";
+  }
+
+  function identityText(value) {
+    const text = String(value || "");
+    if (!session.paired) return text;
+    return text
+      .replace(/\bJARVIS\b/gi, "ULTRON");
+  }
+
+  function renderStrength() {
+    if (!strengthButton) return;
+    const [shortLabel, fullLabel] = RESPONSE_STRENGTH_LABELS[session.strength] || RESPONSE_STRENGTH_LABELS.auto;
+    strengthButton.querySelector("b").textContent = shortLabel;
+    strengthButton.dataset.strength = session.strength;
+    strengthButton.setAttribute("aria-label", `Força da resposta: ${fullLabel}`);
+    strengthButton.title = {
+      auto: "Auto adapta velocidade e profundidade ao pedido",
+      strong: "Forte prioriza modelos e respostas de maior qualidade",
+      maximum: "Máxima usa a rota mais profunda disponível",
+    }[session.strength];
+  }
+
+  function spawnUltronLaugh() {
+    const field = byId("ultronLaughter");
+    if (!field || !session.paired || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (field.childElementCount >= 2) return;
+    const laugh = document.createElement("span");
+    const variants = ["HA", "HAHA", "HA HA", "HAHAHA"];
+    laugh.textContent = variants[Math.floor(Math.random() * variants.length)];
+    laugh.style.setProperty("--laugh-x", `${12 + Math.random() * 72}%`);
+    laugh.style.setProperty("--laugh-y", `${10 + Math.random() * 68}%`);
+    laugh.style.setProperty("--laugh-tilt", `${-14 + Math.random() * 28}deg`);
+    laugh.style.setProperty("--laugh-size", `${10 + Math.random() * 8}px`);
+    laugh.style.setProperty("--laugh-duration", `${5.5 + Math.random() * 2.5}s`);
+    field.appendChild(laugh);
+    laugh.addEventListener("animationend", () => laugh.remove(), { once: true });
+  }
+
+  function scheduleUltronLaughter(initial = false) {
+    window.clearTimeout(laughterTimer);
+    if (!session.paired) {
+      byId("ultronLaughter")?.replaceChildren();
+      return;
+    }
+    if (initial) byId("ultronLaughter")?.replaceChildren();
+    laughterTimer = window.setTimeout(() => {
+      spawnUltronLaugh();
+      scheduleUltronLaughter(false);
+    }, initial ? 3200 : 9000 + Math.random() * 9000);
+  }
+
+  function applyIdentityMode() {
+    const name = assistantName();
+    const ultron = session.paired;
+    document.documentElement.dataset.persona = ultron ? "ultron" : "jarvis";
+    document.title = `${name} · Theo`;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", ultron ? "#190305" : "#130824");
+    document.querySelector('meta[name="description"]')?.setAttribute("content", `${name}, central pessoal de memória, automação e controle do Mac de Theo.`);
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", name);
+    byId("identityAssistantName").textContent = name;
+    byId("conversationAssistantName").textContent = name;
+    byId("systemDialogTitle").textContent = `SISTEMA ${name}`;
+    byId("installDialogTitle").textContent = `${name} NO CELULAR`;
+    byId("tourIdentityDescription").textContent = `Escreva, fale ou anexe arquivos. O ${name} decide se responde, pesquisa, salva ou executa.`;
+    byId("presence").setAttribute("aria-label", `Presença visual do ${name}`);
+    document.querySelector(".conversation")?.setAttribute("aria-label", `Conversa com ${name}`);
+    document.querySelector(".scene-modes")?.setAttribute("aria-label", `Modos do ${name}`);
+    byId("actionHub")?.setAttribute("aria-label", `Ações contextuais do ${name}`);
+    input.setAttribute("aria-label", `Pedido para ${name}`);
+    byId("ownerTokenInput")?.setAttribute("aria-label", `Token privado do ${name}`);
+    if (!session.currentCommand) {
+      byId("requestText").textContent = ultron
+        ? "Dê a ordem. ULTRON escolhe a rota mais forte disponível."
+        : "Fale naturalmente. O JARVIS escolhe as ferramentas por trás.";
+    }
+    renderMuteState();
+    scheduleUltronLaughter(true);
+    window.dispatchEvent(new CustomEvent("jarvis-persona", { detail: { persona: ultron ? "ultron" : "jarvis" } }));
+  }
 
   function ownerToken() {
     try {
@@ -118,6 +216,7 @@
     }
     byId("ownerTokenInput").value = "";
     session.paired = false;
+    applyIdentityMode();
     session.history = [];
     session.historyRestored = false;
     session.currentCommand = "";
@@ -188,11 +287,11 @@
 
   function renderWelcomeState(note = "") {
     const defaultHint = session.paired
-      ? "Escreva ou fale naturalmente."
+      ? "Dê a ordem. Eu escolho a rota mais forte disponível."
       : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
     feed.innerHTML = (
       `<div class="welcome" id="welcomeMessage">`
-      + `<strong>Estou aqui.</strong>`
+      + `<strong>${session.paired ? "Diga. Eu assumo daqui." : "Estou aqui."}</strong>`
       + `<span id="welcomeHint">${escapeHtml(note || defaultHint)}</span>`
       + `<div class="starter-actions" id="starterActions" aria-label="Sugestões para começar"></div>`
       + `</div>`
@@ -237,7 +336,9 @@
     byId("conversationMemoryValue").textContent = session.paired ? "0 turnos" : "sessão local";
     byId("contextCount").textContent = "0 turnos";
     byId("requestTitle").textContent = "Pronto para você";
-    byId("requestText").textContent = "Fale naturalmente. O JARVIS escolhe as ferramentas por trás.";
+    byId("requestText").textContent = session.paired
+      ? "Dê a ordem. ULTRON escolhe a rota mais forte disponível."
+      : "Fale naturalmente. O JARVIS escolhe as ferramentas por trás.";
     byId("sceneEyebrow").textContent = "SISTEMA ONLINE";
     byId("sceneMission").textContent = "Aguardando comando";
     byId("sceneDetail").textContent = "Núcleo pronto para conversar ou agir.";
@@ -353,10 +454,10 @@
     byId("actionHubHint").textContent = data.job?.id
       ? "A ação foi enviada ao Mac. Aqui ficam os próximos comandos úteis."
       : data.agentic || data.executed_locally
-        ? "O JARVIS escolheu uma ferramenta real. Você pode encadear outra ação."
+        ? `${assistantName()} escolheu uma ferramenta real. Você pode encadear outra ação.`
         : session.paired
           ? "Escolha uma ação real ou continue conversando normalmente."
-          : "Conversa e pesquisa são públicas; ações pessoais exigem o modo master.";
+          : "Conversa e pesquisa são públicas; ações pessoais exigem o modo Ultron.";
     const hasContext = Boolean(
       data.job?.id
       || data.agentic
@@ -378,14 +479,14 @@
       session.deviceOnline = Boolean(summary.worker_online);
       byId("hubWorkerValue").textContent = session.paired
         ? session.deviceOnline ? "online" : "offline · aceita fila"
-        : "modo master necessário";
+        : "modo Ultron necessário";
       byId("hubMemoryValue").textContent = summary.memory_count == null ? "privada" : `${summary.memory_count} registros`;
       byId("hubAgendaValue").textContent = summary.agenda_count == null ? "privada" : `${summary.agenda_count} pendentes`;
       byId("hubLastActionValue").textContent = summary.latest_action || "nenhuma execução registrada";
       byId("hubReadyValue").textContent = summary.ready_actions == null
-        ? "entre no modo master"
+        ? "entre no modo Ultron"
         : `${summary.ready_actions} disponíveis`;
-      byId("actionHubOverview").textContent = data.message || "Central pessoal carregada.";
+      byId("actionHubOverview").textContent = identityText(data.message || "Central pessoal carregada.");
       updateActionHub(session.currentCommand, data);
       return data;
     } catch {
@@ -481,7 +582,8 @@
     const presentation = normalized === "memory" && session.memoryViewing
       ? ["◇", "MEMÓRIA", "NÚCLEO", "lendo contexto persistente"]
       : statePresentation[normalized] || statePresentation.idle;
-    const [symbol, phase, name, description] = presentation;
+    const [symbol, phase, presentedName, description] = presentation;
+    const name = normalized === "idle" ? assistantName() : presentedName;
     byId("stateSymbol").textContent = symbol;
     byId("statePhase").textContent = phase;
     byId("stateName").textContent = name;
@@ -510,7 +612,7 @@
     voiceButton?.classList.toggle("speaking", interrupting);
     if (voiceLabel) voiceLabel.textContent = session.listening ? "Parar" : interrupting ? "Interromper" : "Falar";
     if (voiceButton) {
-      voiceButton.setAttribute("aria-label", session.listening ? "Parar escuta" : interrupting ? "Interromper JARVIS e falar" : "Falar com JARVIS");
+      voiceButton.setAttribute("aria-label", session.listening ? "Parar escuta" : interrupting ? `Interromper ${assistantName()} e falar` : `Falar com ${assistantName()}`);
       voiceButton.title = interrupting ? "Interromper a resposta e falar agora" : "Clique, fale normalmente e o comando será enviado quando você terminar.";
     }
     window.dispatchEvent(new CustomEvent("jarvis-state", { detail: { state: normalized } }));
@@ -689,7 +791,7 @@
     if (mobileLayout.matches) setMobileChatExpanded(true);
     const message = document.createElement("div");
     message.className = `message ${type}`;
-    message.innerHTML = `<span>${messageHtml(text)}</span>${extraHtml}`;
+    message.innerHTML = `<span>${messageHtml(identityText(text))}</span>${extraHtml}`;
     feed.appendChild(message);
     const visibleMessages = feed.querySelectorAll(".message");
     if (visibleMessages.length > MAX_VISIBLE_MESSAGES) {
@@ -1187,7 +1289,7 @@
     const mobileLabel = session.muted ? "Mudo" : "Voz";
     muteButton.innerHTML = `<span class="desktop-label">${desktopLabel}</span><span class="mobile-label">${mobileLabel}</span>`;
     muteButton.setAttribute("aria-pressed", String(session.muted));
-    muteButton.title = session.muted ? "Ativar a voz do JARVIS" : "Mutar a voz do JARVIS";
+    muteButton.title = session.muted ? `Ativar a voz do ${assistantName()}` : `Mutar a voz do ${assistantName()}`;
   }
 
   function reportVoiceFailure(status, terminal = false) {
@@ -1360,12 +1462,14 @@
     session.responseState = responseVisualState(data);
     stage.classList.add("spatial-result");
     session.mission = data.mission || null;
-    const answer = data.message || data.summary || data.next_action || data.status_real || "Pronto.";
+    const answer = identityText(data.message || data.summary || data.next_action || data.status_real || "Pronto.");
     byId("sceneEyebrow").textContent = data.job?.id || data.executed_locally ? "AÇÃO CONFIRMADA" : "RESULTADO";
     byId("sceneMission").textContent = compactHudText(answer, "Resultado disponível");
     byId("sceneDetail").textContent = data.web_search?.used
       ? `${Number(data.web_search.source_count) || 0} fontes verificadas ao vivo.`
-      : data.model_routing?.quality_tier === "quality_first"
+      : data.response_strength === "maximum"
+        ? "Resposta processada com força máxima."
+        : data.model_routing?.quality_tier === "quality_first"
         ? "Resposta processada pela rota de qualidade."
         : "Resposta pronta no canal principal.";
     let extra = "";
@@ -1507,7 +1611,13 @@
       const data = await request("/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, messages: session.history, input_mode: options.source || "text", attachments }),
+        body: JSON.stringify({
+          command,
+          messages: session.history,
+          input_mode: options.source || "text",
+          attachments,
+          strength: session.strength,
+        }),
       });
       const minimumReflectionMs = data.mode === "memory" || data.intent === "memory_view_close"
         ? 180
@@ -1533,7 +1643,7 @@
       }
     } catch {
       session.lastResponseOk = false;
-      showResponse({ ok: false, error: "A conexão com o núcleo do JARVIS caiu." });
+      showResponse({ ok: false, error: `A conexão com o núcleo do ${assistantName()} caiu.` });
     } finally {
       setWorking(false);
       finishRequestProgress(session.lastResponseOk);
@@ -1614,22 +1724,23 @@
         : "IA offline";
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
-      byId("accessMode").textContent = session.paired ? "Theo · modo master" : "modo visitante";
+      applyIdentityMode();
+      byId("accessMode").textContent = session.paired ? "Theo · modo Ultron" : "modo visitante";
       const canLeaveOwnerMode = Boolean(session.paired && status.owner_pairing?.required);
       byId("accessMode").dataset.action = canLeaveOwnerMode ? "logout" : "details";
       byId("accessMode").title = canLeaveOwnerMode
         ? "Voltar ao modo visitante"
-        : session.paired ? "Ver detalhes do acesso master" : "Entrar no modo master";
+        : session.paired ? "Ver detalhes do modo Ultron" : "Entrar no modo Ultron";
       byId("leaveOwnerMode").hidden = !canLeaveOwnerMode;
       byId("accessValue").textContent = session.paired
-        ? "Theo master · memória, GitHub e Mac privados disponíveis"
+        ? "Modo Ultron · memória, GitHub e Mac privados disponíveis"
         : status.access?.public_chat
           ? "Visitante · conversa liberada, memória e Mac privados"
           : "Visitante · conversa aguarda OpenRouter";
       const welcomeHint = byId("welcomeHint");
       if (welcomeHint) {
         welcomeHint.textContent = session.paired
-          ? "Escreva ou fale naturalmente."
+          ? "Dê a ordem. Eu escolho a rota mais forte disponível."
           : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
       }
       renderStarterActions();
@@ -1662,11 +1773,11 @@
       byId("adminUsername").closest(".admin-login").hidden = session.paired;
       document.querySelector(".advanced-pairing").hidden = !status.owner_pairing?.required;
       byId("pairingHint").textContent = session.paired
-        ? "Modo master ativo neste navegador. A sessão é temporária e pode ser encerrada em Sair."
+        ? "Modo Ultron ativo neste navegador. A sessão é temporária e pode ser encerrada em Sair."
         : status.owner_pairing?.required
           ? status.owner_pairing?.admin_login_configured
             ? "Entre como admin para liberar memória, agenda, GitHub e ações no Mac."
-            : "Login master ainda não configurado no ambiente; use o pareamento avançado."
+            : "Login do modo Ultron ainda não configurado; use o pareamento avançado."
           : "Pareamento ainda não foi exigido neste ambiente.";
       const workerValue = byId("workerValue");
       if (session.paired && status.device_bridge?.configured) {
@@ -1745,15 +1856,22 @@
     applyGraphicsQuality();
   });
   applyGraphicsQuality();
+  strengthButton?.addEventListener("click", () => {
+    const current = RESPONSE_STRENGTH.indexOf(session.strength);
+    session.strength = RESPONSE_STRENGTH[(current + 1) % RESPONSE_STRENGTH.length];
+    try { localStorage.setItem("jarvis-response-strength", session.strength); } catch { /* session only */ }
+    renderStrength();
+  });
+  renderStrength();
   byId("adminLoginButton").addEventListener("click", async () => {
     const username = byId("adminUsername").value.trim();
     const password = byId("adminPassword").value;
     if (!username || !password) {
-      byId("pairingHint").textContent = "Informe login e senha para entrar no modo master.";
+      byId("pairingHint").textContent = "Informe login e senha para entrar no modo Ultron.";
       return;
     }
     byId("adminLoginButton").disabled = true;
-    byId("pairingHint").textContent = "Validando login master…";
+    byId("pairingHint").textContent = "Ativando modo Ultron…";
     try {
       const data = await request("/admin-login", {
         method: "POST",
@@ -1761,7 +1879,7 @@
         body: JSON.stringify({ username, password }),
       });
       if (!data.ok || !data.session_token) {
-        byId("pairingHint").textContent = data.error || "Login master recusado.";
+        byId("pairingHint").textContent = identityText(data.error || "Acesso ao modo Ultron recusado.");
         return;
       }
       localStorage.setItem(OWNER_TOKEN_KEY, data.session_token);
@@ -1861,10 +1979,12 @@
     window.clearInterval(progressInterval);
     window.clearTimeout(progressHideTimer);
     window.clearTimeout(filePreviewTimer);
+    window.clearTimeout(laughterTimer);
     stopSpeechOutput();
   }, { once: true });
 
   renderMuteState();
+  applyIdentityMode();
   renderStarterActions();
   renderInstallAvailability();
   syncMobileViewport();
