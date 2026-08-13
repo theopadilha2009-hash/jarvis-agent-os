@@ -82,6 +82,8 @@
   let currentAudio = null;
   let currentAudioUrl = "";
   let currentSpeechController = null;
+  let currentCommandController = null;
+  const interruptedCommandControllers = new WeakSet();
   let speechGeneration = 0;
   let voiceFailureNotified = false;
   let currentPulse = null;
@@ -559,7 +561,7 @@
     byId("sceneEyebrow").textContent = phase;
     byId("sceneDetail").textContent = description;
     const voiceLabel = voiceButton?.querySelector("b");
-    const interrupting = session.speaking || session.voicePending;
+    const interrupting = session.speaking || session.voicePending || session.working;
     voiceButton?.classList.toggle("speaking", interrupting);
     if (voiceLabel) voiceLabel.textContent = session.listening ? "Parar" : interrupting ? "Interromper" : "Falar";
     if (voiceButton) {
@@ -582,7 +584,7 @@
     session.working = value;
     if (value) session.workingState = state;
     sendButton.disabled = value;
-    voiceButton.disabled = value || !voiceSupport.input;
+    voiceButton.disabled = !voiceSupport.input;
     attachmentButton.disabled = value;
     sendButton.textContent = value ? (state === "forge" ? "Construindo…" : state === "memory" ? "Gravando…" : state === "research" ? "Pesquisando…" : "Pensando…") : "Enviar";
     settleState();
@@ -1317,18 +1319,18 @@
     return data;
   }
 
-  async function requestCommandStream(payload, onEvent) {
+  async function requestCommandStream(payload, onEvent, signal = null) {
     const headers = new Headers({ "Content-Type": "application/json" });
     const token = ownerToken();
     if (token) headers.set("X-Jarvis-Owner-Token", token);
-    const signal = typeof window.AbortSignal?.timeout === "function"
+    const requestSignal = signal || (typeof window.AbortSignal?.timeout === "function"
       ? window.AbortSignal.timeout(60000)
-      : undefined;
+      : undefined);
     const response = await fetch("/command-stream", {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
-      signal,
+      signal: requestSignal,
     });
     const contentType = response.headers.get("Content-Type") || "";
     if (!contentType.includes("application/x-ndjson")) {
@@ -1385,6 +1387,18 @@
     if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
     currentAudioUrl = "";
     if (session.speaking) finishSpeaking();
+  }
+
+  function interruptActiveResponse() {
+    if (!currentCommandController || currentCommandController.signal.aborted) return false;
+    interruptedCommandControllers.add(currentCommandController);
+    currentCommandController.abort();
+    session.working = false;
+    session.responseState = "";
+    setWorking(false);
+    byId("spokenCaption").textContent = "Interrompido. Estou ouvindo.";
+    byId("sceneDetail").textContent = "Resposta anterior interrompida por Theo.";
+    return true;
   }
 
   async function fetchSpeechChunk(text, generation) {
@@ -1796,6 +1810,9 @@
     setWorking(true, workingState);
     let streamedMessage = null;
     let streamedText = "";
+    const commandController = new AbortController();
+    currentCommandController = commandController;
+    const commandTimeout = window.setTimeout(() => commandController.abort(), 60000);
     try {
       const data = await requestCommandStream({
         command,
@@ -1816,7 +1833,7 @@
           streamedMessage.querySelector("span").innerHTML = messageHtml(streamedText);
           feed.scrollTop = feed.scrollHeight;
         }
-      });
+      }, commandController.signal);
       if (attachments.length) {
         session.attachments = [];
         renderAttachmentTray();
@@ -1834,14 +1851,22 @@
         session.history = session.history.slice(-24);
         window.setTimeout(syncConversationHistory, 0);
       }
-    } catch {
+    } catch (error) {
       streamedMessage?.remove();
+      if (interruptedCommandControllers.has(commandController)) {
+        return;
+      }
       session.lastResponseOk = false;
       showResponse({ ok: false, error: "A conexão com o núcleo do JARVIS caiu." });
     } finally {
-      setWorking(false);
-      finishRequestProgress(session.lastResponseOk);
-      input.focus();
+      window.clearTimeout(commandTimeout);
+      const ownsRequestState = currentCommandController === commandController;
+      if (ownsRequestState) currentCommandController = null;
+      if (ownsRequestState || !currentCommandController) {
+        setWorking(false);
+        finishRequestProgress(session.lastResponseOk);
+        input.focus();
+      }
     }
   }
 
@@ -1855,6 +1880,7 @@
     recognition.lang = "pt-BR";
     recognition.interimResults = true;
     recognition.continuous = false;
+    recognition.maxAlternatives = 1;
     let submitted = false;
     recognition.onstart = () => {
       submitted = false;
@@ -1891,6 +1917,7 @@
         recognition.abort();
         return;
       }
+      interruptActiveResponse();
       stopSpeechOutput();
       try {
         recognition.start();
@@ -1898,7 +1925,7 @@
         addMessage("O microfone já está iniciando. Aguarde um instante.", "error");
       }
     });
-    voiceButton.title = "Clique, fale normalmente e o comando será enviado quando você terminar.";
+    voiceButton.title = "Clique para interromper qualquer resposta e falar imediatamente.";
     byId("voiceValue").textContent = "ouvir e responder";
   }
 
@@ -2240,7 +2267,10 @@
       return;
     }
     if (event.key === "Escape" && !actionHub.hidden) setActionHub(false);
-    else if (event.key === "Escape" && mobileLayout.matches && stage.classList.contains("mobile-chat-expanded")) setMobileChatExpanded(false);
+    else if (event.key === "Escape" && (session.working || session.speaking || session.voicePending)) {
+      interruptActiveResponse();
+      stopSpeechOutput();
+    } else if (event.key === "Escape" && mobileLayout.matches && stage.classList.contains("mobile-chat-expanded")) setMobileChatExpanded(false);
   });
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
