@@ -178,6 +178,7 @@
   let voiceLevel = 0;
   let voiceAudioContext = null;
   let laughterTimer = 0;
+  let ultronSignalTimer = 0;
 
   function assistantName() {
     return session.paired ? "ULTRON" : "JARVIS";
@@ -569,11 +570,12 @@
     }
   }
 
-  function spawnUltronLaugh() {
+  function spawnUltronLaugh(reason = "ambient") {
     const field = byId("ultronLaughter");
     if (!field || !session.paired || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const available = Math.max(0, 4 - field.childElementCount);
-    const amount = Math.min(available, Math.random() > 0.58 ? 2 : 1);
+    const eventDriven = reason !== "ambient";
+    const amount = Math.min(available, eventDriven ? 2 : Math.random() > 0.58 ? 2 : 1);
     const variants = ["HA HA", "HAHA", "HA HA HA", "HAHAHA"];
     for (let index = 0; index < amount; index += 1) {
       const laugh = document.createElement("span");
@@ -586,6 +588,19 @@
       field.appendChild(laugh);
       laugh.addEventListener("animationend", () => laugh.remove(), { once: true });
     }
+  }
+
+  function signalUltron(reason = "response") {
+    if (!session.paired) return;
+    window.clearTimeout(ultronSignalTimer);
+    stage.dataset.ultronSignal = reason;
+    stage.classList.remove("ultron-signal");
+    window.requestAnimationFrame(() => stage.classList.add("ultron-signal"));
+    ultronSignalTimer = window.setTimeout(() => {
+      stage.classList.remove("ultron-signal");
+      delete stage.dataset.ultronSignal;
+    }, 900);
+    spawnUltronLaugh(reason);
   }
 
   function scheduleUltronLaughter(initial = false) {
@@ -2016,6 +2031,9 @@
     byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.jobs?.length > 1 ? "Execução enviada ao Mac" : data.job?.id ? "Ação enviada ao Mac" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
     renderLiveCanvas(data);
     updateActionHub(session.currentCommand, data);
+    const ultronMoment = data.persona?.id === "ultron_private"
+      && (data.response_strength === "maximum" || data.executed_locally || data.external_processing || data.provider === "n8n");
+    if (ultronMoment) signalUltron(data.executed_locally || data.provider === "n8n" ? "victory" : "response");
     if (Array.isArray(data.jobs) && data.jobs.length > 1 && !data.run?.terminal) {
       monitorDeviceRun(data.jobs.map((job) => job.id), message);
     } else if (data.job?.id && ["pending", "running"].includes(data.job.status)) {
@@ -2045,6 +2063,7 @@
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-24);
     setRequest(command);
+    if (session.paired && session.strength === "maximum") signalUltron("order");
     const workingState = workingStateFor(command);
     const reflectionStartedAt = performance.now();
     beginRequestProgress(workingState);

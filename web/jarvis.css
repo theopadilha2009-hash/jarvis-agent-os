@@ -3061,6 +3061,26 @@ html[data-persona="ultron"] .pulse-button {
   100% { opacity: 0; transform: translate(-50%, -26px) rotate(var(--laugh-tilt)) scale(1.06); filter: blur(1px); }
 }
 
+html[data-persona="ultron"] .stage.ultron-signal .target-ring {
+  animation: ultron-target-lock 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html[data-persona="ultron"] .stage.ultron-signal .conversation {
+  animation: ultron-panel-answer 0.9s ease-out;
+}
+
+@keyframes ultron-target-lock {
+  0%, 100% { filter: none; }
+  24% { filter: brightness(1.65) saturate(1.25); }
+  44% { filter: brightness(0.92) saturate(1.6); }
+  66% { filter: brightness(1.35); }
+}
+
+@keyframes ultron-panel-answer {
+  0%, 100% { box-shadow: 0 20px 64px rgba(0, 0, 0, 0.48); }
+  32% { box-shadow: 0 20px 64px rgba(0, 0, 0, 0.48), 0 0 34px rgba(239, 51, 64, 0.25); }
+}
+
 html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
 
 @media (max-width: 720px) {

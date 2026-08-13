@@ -234,7 +234,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
         self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
-        self.assertGreaterEqual(self.html.count("20260813-apiux1"), 4)
+        self.assertGreaterEqual(self.html.count("20260813-ultron2"), 4)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
@@ -293,9 +293,12 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('strength: session.strength', self.app_js)
         self.assertIn('"jarvis-response-strength"', self.app_js)
         self.assertIn("scheduleUltronLaughter", self.app_js)
+        self.assertIn("function signalUltron", self.app_js)
+        self.assertIn('data.persona?.id === "ultron_private"', self.app_js)
         self.assertIn("4 - field.childElementCount", self.app_js)
         self.assertIn("24 + Math.random() * 18", self.app_js)
         self.assertIn("3.8 + Math.random() * 1.9", self.app_js)
+        self.assertIn("@keyframes ultron-target-lock", self.css)
         self.assertIn('font-family: "Marker Felt", "Noteworthy"', self.ui_repair_css)
         self.assertIn('html[data-persona="ultron"] .message-context', self.ui_repair_css)
         self.assertIn('html[data-persona="ultron"] .message-actions .speak-command', self.ui_repair_css)
