@@ -13,10 +13,11 @@
 <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-apitools1">
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-final1">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-health1">
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260813-uipolish1">
-<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-final1">
-<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260813-final1">
+<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-health1">
+<link rel="stylesheet" href="/ui/integration-health.css?v=20260813-health1">
+<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260813-health1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
@@ -265,6 +266,7 @@
           <nav class="integration-tabs" id="integrationTabs" role="tablist" aria-label="Área da integração">
             <button type="button" role="tab" aria-selected="true" aria-controls="integrationConnectionPanel" data-integration-tab="connection">Conexão</button>
             <button type="button" role="tab" aria-selected="false" aria-controls="integrationToolsPanel" data-integration-tab="tools">Ferramentas</button>
+            <button type="button" role="tab" aria-selected="false" aria-controls="integrationHealthPanel" data-integration-tab="health">Saúde</button>
             <button type="button" role="tab" aria-selected="false" aria-controls="integrationWorkflowsPanel" data-integration-tab="workflows">Workflows</button>
           </nav>
         </div>
@@ -300,6 +302,10 @@
               <div id="integrationHistoryList"><small>Nenhuma operação registrada neste dispositivo.</small></div>
             </section>
           </section>
+        </section>
+
+        <section class="integration-tab-panel" id="integrationHealthPanel" role="tabpanel" data-integration-panel="health" hidden>
+          <div id="integrationHealthMount"></div>
         </section>
 
         <section class="integration-tab-panel" id="integrationWorkflowsPanel" role="tabpanel" data-integration-panel="workflows" hidden>
@@ -391,9 +397,10 @@
     </div>
   </dialog>
 
-<script src="/ui/api-vault.js?v=20260813-final1" defer></script>
-<script src="/ui/integration-history.js?v=20260813-final1" defer></script>
-<script src="/ui/jarvis.js?v=20260813-final1" defer></script>
+<script src="/ui/api-vault.js?v=20260813-health1" defer></script>
+<script src="/ui/integration-history.js?v=20260813-health1" defer></script>
+<script src="/ui/integration-health.js?v=20260813-health1" defer></script>
+<script src="/ui/jarvis.js?v=20260813-health1" defer></script>
   <script type="module">
     let presenceScheduled = false;
 

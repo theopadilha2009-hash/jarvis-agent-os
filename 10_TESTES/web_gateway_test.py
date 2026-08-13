@@ -143,13 +143,15 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-final1', html)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-final1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-final1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-final1', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-health1', html)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-health1', html)
+        self.assertIn(b'/ui/integration-health.js?v=20260813-health1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-health1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-health1', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', html)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-final1', html)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-final1', html)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-health1', html)
+        self.assertIn(b'/ui/integration-health.css?v=20260813-health1', html)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-health1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -294,6 +296,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b".integration-tabs", api_panel_css)
         self.assertIn(b".integration-actions-sticky", api_panel_css)
 
+        status, headers, health_css = self.request("/ui/integration-health.css")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/css")
+        self.assertIn(b".integration-health-card", health_css)
+
+        status, headers, health_js = self.request("/ui/integration-health.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"integrationHealthRefresh", health_js)
+
         status, headers, responsive_css = self.request("/ui/responsive-polish.css")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
@@ -401,13 +413,15 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-final1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-health1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', service_worker)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-final1', service_worker)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-final1', service_worker)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-final1', service_worker)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-final1', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-health1', service_worker)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-health1', service_worker)
+        self.assertIn(b'/ui/integration-health.js?v=20260813-health1', service_worker)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-health1', service_worker)
+        self.assertIn(b'/ui/integration-health.css?v=20260813-health1', service_worker)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-health1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -3778,6 +3792,33 @@ São Paulo - SP
         self.assertFalse(payload["credential_persisted_server_side"])
         self.assertNotIn("n8n-secret", json.dumps(payload))
         self.assertEqual(provider.call_args.kwargs["headers"]["X-N8N-API-KEY"], "n8n-secret")
+
+    def test_integration_health_returns_only_safe_openrouter_and_elevenlabs_quota(self):
+        cases = (
+            (
+                "openrouter",
+                {"data": {"label": "Theo", "limit": 100, "limit_remaining": 72.5, "usage": 27.5}},
+                {"quota_remaining": 72.5, "quota_limit": 100, "quota_unit": "créditos"},
+            ),
+            (
+                "elevenlabs",
+                {"tier": "creator", "character_count": 1250, "character_limit": 10000},
+                {"quota_remaining": 8750, "quota_limit": 10000, "quota_unit": "caracteres"},
+            ),
+        )
+        for name, provider_result, expected in cases:
+            with self.subTest(provider=name), patch.object(
+                MODULE, "integration_json_request", return_value=(provider_result, 200)
+            ):
+                payload, status = MODULE.integration_test_payload({
+                    "provider": name,
+                    "config": {"api_key": f"{name}-secret"},
+                })
+                self.assertEqual(status, 200)
+                self.assertEqual(payload["health"]["quota_remaining"], expected["quota_remaining"])
+                self.assertEqual(payload["health"]["quota_limit"], expected["quota_limit"])
+                self.assertEqual(payload["health"]["quota_unit"], expected["quota_unit"])
+                self.assertNotIn(f"{name}-secret", json.dumps(payload))
 
     def test_browser_vault_elevenlabs_key_can_power_speech_without_environment_key(self):
         class FakeAudioResponse:

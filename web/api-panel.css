@@ -556,7 +556,7 @@ html[data-persona="ultron"] .integrations-button b {
 
 .integration-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
   gap: 5px;
   padding: 4px;
   border: 1px solid color-mix(in srgb, var(--cyan) 16%, transparent);

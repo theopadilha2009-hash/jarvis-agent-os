@@ -1,0 +1,24 @@
+.integration-health-panel { display: grid; gap: 12px; }
+.integration-health-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.integration-health-head span { display: grid; gap: 4px; }
+.integration-health-head small { color: var(--cyan); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
+.integration-health-head strong { color: #f3e8ff; font-size: 15px; }
+.integration-health-head button { min-height: 38px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--cyan) 38%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--cyan) 9%, transparent); color: var(--cyan-hot); cursor: pointer; }
+.integration-health-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.integration-health-card { display: grid; gap: 10px; min-width: 0; padding: 12px; border: 1px solid color-mix(in srgb, var(--cyan) 17%, transparent); border-radius: 12px; background: rgba(0, 0, 0, .2); }
+.integration-health-card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.integration-health-card > header strong { overflow: hidden; color: #f3e8ff; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.integration-health-card > header b { color: var(--faint); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.integration-health-card[data-state="ok"] { border-color: rgba(34, 197, 94, .27); }
+.integration-health-card[data-state="ok"] > header b { color: #86efac; }
+.integration-health-card[data-state="error"] { border-color: rgba(248, 113, 113, .34); }
+.integration-health-card[data-state="error"] > header b { color: #fca5a5; }
+.integration-health-card > div { display: grid; grid-template-columns: .7fr 1.3fr; gap: 7px; }
+.integration-health-card > div span { display: grid; gap: 3px; min-width: 0; padding: 8px; border-radius: 8px; background: color-mix(in srgb, var(--cyan) 5%, transparent); }
+.integration-health-card > div small { color: var(--faint); font: 6px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .1em; }
+.integration-health-card > div b { overflow: hidden; color: #e9d5ff; font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.integration-health-card p,
+.integration-health-feedback { margin: 0; color: var(--muted); font-size: 8px; line-height: 1.5; overflow-wrap: anywhere; }
+.integration-health-feedback { padding: 9px 11px; border-left: 2px solid color-mix(in srgb, var(--cyan) 48%, transparent); background: color-mix(in srgb, var(--cyan) 5%, transparent); }
+@media (max-width: 720px) { .integration-health-grid { grid-template-columns: 1fr; } .integration-health-head button { min-height: 44px; } }
+@media (max-width: 420px) { .integration-health-head { display: grid; } .integration-health-head button { width: 100%; } }
