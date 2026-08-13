@@ -143,11 +143,11 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-voice2', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-voice2', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-voice2', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-n8n2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-n8n2', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-n8n2', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', html)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-voice2', html)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-n8n2', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -388,11 +388,11 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-voice2", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-n8n2", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', service_worker)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-voice2', service_worker)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-voice2', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-n8n2', service_worker)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-n8n2', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -3639,6 +3639,63 @@ São Paulo - SP
         self.assertEqual(payload["power_profile"]["mode"], "jarvis_1x")
         self.assertEqual(len(payload["workflows"]), 1)
         self.assertEqual(payload["workflow"]["id"], "wf-jarvis")
+
+    def test_n8n_inspection_is_read_only_and_hides_node_parameters(self):
+        workflow = {
+            "id": "wf-source",
+            "name": "Receber leads",
+            "active": False,
+            "nodes": [
+                {"name": "Webhook", "type": "n8n-nodes-base.webhook", "parameters": {"path": "private-path"}},
+                {"name": "API", "type": "n8n-nodes-base.httpRequest", "disabled": True, "credentials": {"http": {"id": "cred-1"}}},
+            ],
+            "connections": {},
+        }
+        with patch.object(MODULE, "integration_json_request", return_value=(workflow, 200)) as provider:
+            payload, status = MODULE.n8n_workflow_action_payload({
+                "action": "inspect",
+                "workflow_id": "wf-source",
+                "config": {"base_url": "https://theo.app.n8n.cloud", "api_key": "n8n-secret"},
+            }, owner_authenticated=True)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "n8n_workflow_inspected")
+        self.assertEqual(payload["inspection"]["node_count"], 2)
+        self.assertFalse(payload["inspection"]["ready_to_activate"])
+        self.assertNotIn("private-path", json.dumps(payload))
+        self.assertNotIn("cred-1", json.dumps(payload))
+        self.assertEqual(provider.call_args.args[0], "https://theo.app.n8n.cloud/api/v1/workflows/wf-source")
+
+    def test_ultron_duplicate_requires_confirmation_and_creates_inactive_copy(self):
+        workflow = {
+            "id": "wf-source",
+            "name": "Rotina diária",
+            "active": True,
+            "nodes": [{"name": "Agenda", "type": "n8n-nodes-base.scheduleTrigger", "parameters": {}}],
+            "connections": {},
+            "settings": {"executionOrder": "v1"},
+        }
+        base_body = {
+            "action": "duplicate",
+            "workflow_id": "wf-source",
+            "config": {"base_url": "https://theo.app.n8n.cloud", "api_key": "n8n-secret"},
+        }
+        with patch.object(MODULE, "integration_json_request", return_value=(workflow, 200)):
+            blocked, blocked_status = MODULE.n8n_workflow_action_payload(base_body, owner_authenticated=True)
+        self.assertEqual(blocked_status, 409)
+        self.assertEqual(blocked["status_real"], "n8n_duplicate_confirmation_required")
+
+        with patch.object(MODULE, "integration_json_request", side_effect=[
+            (workflow, 200),
+            ({"id": "wf-copy", "name": "Cópia · Rotina diária", "active": False}, 200),
+        ]) as provider:
+            payload, status = MODULE.n8n_workflow_action_payload({**base_body, "confirmed": True}, owner_authenticated=True)
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["status_real"], "n8n_workflow_duplicated_inactive")
+        self.assertFalse(payload["workflow"]["active"])
+        duplicate_request = provider.call_args_list[1]
+        self.assertEqual(duplicate_request.kwargs["method"], "POST")
+        self.assertNotIn("active", duplicate_request.kwargs["body"])
+        self.assertNotIn("n8n-secret", json.dumps(payload))
 
     def test_integration_test_does_not_echo_the_key(self):
         with patch.object(MODULE, "integration_json_request", return_value=({"data": []}, 200)) as provider:

@@ -1162,9 +1162,45 @@ def n8n_workflow_template(goal, template="auto", owner_authenticated=False):
     return workflow, requested, plan
 
 
+def n8n_workflow_inspection(workflow):
+    """Summarize a workflow without returning node parameters or credentials."""
+    nodes = workflow.get("nodes") if isinstance(workflow, dict) else []
+    nodes = nodes if isinstance(nodes, list) else []
+    trigger_nodes = []
+    disabled_nodes = []
+    external_nodes = []
+    review_nodes = []
+    for node in nodes[:200]:
+        if not isinstance(node, dict):
+            continue
+        node_type = clean_text(node.get("type"), 160)
+        node_name = clean_text(node.get("name") or "Etapa", 160)
+        if node_type.casefold().endswith("trigger") or "webhook" in node_type.casefold():
+            trigger_nodes.append(node_name)
+        if bool(node.get("disabled")):
+            disabled_nodes.append(node_name)
+        if any(marker in node_type.casefold() for marker in ("httprequest", "gmail", "slack", "supabase", "postgres")):
+            external_nodes.append(node_name)
+        if any(marker in node_type.casefold() for marker in ("executecommand", ".ssh", ".code")):
+            review_nodes.append(node_name)
+    return {
+        "protocol": "jarvis-n8n-inspection/1",
+        "workflow_id": clean_text(workflow.get("id"), 120) if isinstance(workflow, dict) else "",
+        "name": clean_text(workflow.get("name") or "Workflow", 180) if isinstance(workflow, dict) else "Workflow",
+        "active": bool(workflow.get("active")) if isinstance(workflow, dict) else False,
+        "node_count": len(nodes),
+        "trigger_nodes": trigger_nodes,
+        "disabled_nodes": disabled_nodes,
+        "external_nodes": external_nodes,
+        "review_nodes": review_nodes,
+        "ready_to_activate": bool(nodes) and not disabled_nodes and not review_nodes,
+        "activation_gate": "manual_review_and_test_required",
+    }
+
+
 def n8n_workflow_action_payload(body, owner_authenticated=False):
     action = clean_text(body.get("action") or "preview", 30).casefold()
-    if action not in {"preview", "create", "list"}:
+    if action not in {"preview", "create", "list", "inspect", "duplicate"}:
         return {"ok": False, "error": "Ação n8n inválida."}, 400
     power = execution_power_profile(owner_authenticated)
     goals = n8n_requested_goals(body, power["max_workflows_per_request"])
@@ -1210,6 +1246,63 @@ def n8n_workflow_action_payload(body, owner_authenticated=False):
     if not api_key:
         return {"ok": False, "status_real": "n8n_key_missing", "error": "Cole a API key do n8n antes de continuar."}, 400
     try:
+        if action in {"inspect", "duplicate"}:
+            workflow_id = clean_text(body.get("workflow_id"), 120)
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,120}", workflow_id):
+                return {"ok": False, "status_real": "n8n_workflow_id_invalid", "error": "Workflow inválido."}, 400
+            original, _ = integration_json_request(
+                f"{base}/api/v1/workflows/{quote(workflow_id)}",
+                headers={"X-N8N-API-KEY": api_key},
+            )
+            if not isinstance(original, dict) or not isinstance(original.get("nodes"), list):
+                return {"ok": False, "status_real": "n8n_workflow_invalid_response", "error": "O n8n não devolveu um workflow válido."}, 502
+            inspection = n8n_workflow_inspection(original)
+            if action == "inspect":
+                return {
+                    "ok": True,
+                    "endpoint": "POST /integrations/n8n/workflows",
+                    "status_real": "n8n_workflow_inspected",
+                    "message": f"Workflow “{inspection['name']}” inspecionado sem executar nada.",
+                    "inspection": inspection,
+                    "credential_persisted_server_side": False,
+                }, 200
+            if not owner_authenticated:
+                return {"ok": False, "status_real": "n8n_duplicate_owner_required", "error": "Entre no modo Ultron para duplicar workflows."}, 403
+            if body.get("confirmed") is not True:
+                return {"ok": False, "status_real": "n8n_duplicate_confirmation_required", "error": "Confirme a duplicação inativa antes de continuar."}, 409
+            duplicate_body = {
+                "name": clean_text(f"Cópia · {inspection['name']}", 180),
+                "nodes": original["nodes"],
+                "connections": original.get("connections") if isinstance(original.get("connections"), dict) else {},
+                "settings": original.get("settings") if isinstance(original.get("settings"), dict) else {"executionOrder": "v1"},
+            }
+            duplicated, _ = integration_json_request(
+                f"{base}/api/v1/workflows",
+                method="POST",
+                headers={"X-N8N-API-KEY": api_key},
+                body=duplicate_body,
+                timeout=20,
+            )
+            duplicated_id = clean_text(duplicated.get("id"), 120) if isinstance(duplicated, dict) else ""
+            if not duplicated_id or bool(duplicated.get("active")):
+                return {"ok": False, "status_real": "n8n_duplicate_not_confirmed_inactive", "error": "O n8n não confirmou uma cópia inativa; nenhuma ativação foi assumida."}, 409
+            return {
+                "ok": True,
+                "endpoint": "POST /integrations/n8n/workflows",
+                "status_real": "n8n_workflow_duplicated_inactive",
+                "visual_state": "success",
+                "provider": "n8n",
+                "message": f"Workflow “{duplicate_body['name']}” duplicado e mantido inativo.",
+                "workflow": {
+                    "id": duplicated_id,
+                    "name": clean_text(duplicated.get("name") or duplicate_body["name"], 180),
+                    "active": False,
+                    "nodes": len(duplicate_body["nodes"]),
+                    "editor_url": f"{base}/workflow/{quote(duplicated_id)}",
+                },
+                "inspection": inspection,
+                "credential_persisted_server_side": False,
+            }, 201
         if action == "list":
             result, _ = integration_json_request(
                 f"{base}/api/v1/workflows?limit=20",

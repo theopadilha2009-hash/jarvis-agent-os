@@ -155,6 +155,8 @@ class UIQualityTest(unittest.TestCase):
             "integrationWorkflowsPanel",
             "n8nStudio",
             "n8nWorkflowMap",
+            "n8nTemplateGallery",
+            "n8nWorkflowList",
             "n8nWorkflowSummary",
             "n8nPreviewButton",
             "n8nCreateButton",
@@ -172,6 +174,12 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('document.createElement("article")', self.app_js)
         self.assertIn("n8n-map-node", self.api_panel_css)
         self.assertIn("n8n-map-connector", self.api_panel_css)
+        self.assertIn("n8n-template-gallery", self.api_panel_css)
+        self.assertIn("n8n-workflow-row", self.api_panel_css)
+        self.assertIn('data-n8n-template="webhook"', self.html)
+        self.assertIn('inspect.dataset.n8nWorkflowAction = "inspect"', self.app_js)
+        self.assertIn('duplicate.dataset.n8nWorkflowAction = "duplicate"', self.app_js)
+        self.assertIn('action === "duplicate" && !window.confirm', self.app_js)
         self.assertIn("ULTRON · 3×", self.app_js)
         self.assertIn('data-integration-tab="connection"', self.html)
         self.assertIn('data-integration-tab="tools"', self.html)
@@ -238,7 +246,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
         self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
-        self.assertGreaterEqual(self.html.count("20260813-voice2"), 4)
+        self.assertGreaterEqual(self.html.count("20260813-n8n2"), 4)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
