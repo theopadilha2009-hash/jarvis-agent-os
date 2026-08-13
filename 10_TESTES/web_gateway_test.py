@@ -143,15 +143,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-n8npack1', html)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-n8npack1', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-memory1', html)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-memory1', html)
+        self.assertIn(b'/ui/feature-loader.js?v=20260813-memory1', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-n8npack1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-n8npack1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-memory1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-memory1', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', html)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-n8npack1', html)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-memory1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-n8npack1', html)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-memory1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -322,6 +323,20 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"whatsapp-lead", n8n_template_pack)
         self.assertIn(b"github-incident", n8n_template_pack)
 
+        status, headers, feature_loader = self.request("/ui/feature-loader.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"memory-explorer.js", feature_loader)
+
+        status, headers, memory_explorer_js = self.request("/ui/memory-explorer.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"/memory-explorer?", memory_explorer_js)
+
+        status, headers, memory_explorer_css = self.request("/ui/memory-explorer.css")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/css")
+        self.assertIn(b".memory-explorer-form", memory_explorer_css)
+
         status, headers, responsive_css = self.request("/ui/responsive-polish.css")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
@@ -429,18 +444,21 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-n8npack1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-memory1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', service_worker)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-n8npack1', service_worker)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-n8npack1', service_worker)
-        self.assertIn(b'/ui/integration-health.js?v=20260813-n8npack1', service_worker)
-        self.assertIn(b'/ui/voice-calibrator.js?v=20260813-n8npack1', service_worker)
-        self.assertIn(b'/ui/n8n-template-pack.js?v=20260813-n8npack1', service_worker)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-n8npack1', service_worker)
-        self.assertIn(b'/ui/integration-health.css?v=20260813-n8npack1', service_worker)
-        self.assertIn(b'/ui/voice-calibrator.css?v=20260813-n8npack1', service_worker)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-n8npack1', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/feature-loader.js?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/integration-health.js?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/voice-calibrator.js?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/n8n-template-pack.js?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/memory-explorer.js?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/integration-health.css?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/voice-calibrator.css?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/memory-explorer.css?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-memory1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -642,6 +660,38 @@ class WebGatewayTest(unittest.TestCase):
         status, _, direct = self.json_request("/memory-search?q=busto")
         self.assertEqual(status, 200)
         self.assertGreaterEqual(direct["count"], 1)
+
+    def test_memory_explorer_filters_subject_kind_and_inclusive_period(self):
+        tree = {
+            "ok": True,
+            "provider": "supabase",
+            "count": 3,
+            "nodes": [
+                {"id": "1", "label": "Voz tranquila", "content": "A voz do JARVIS deve ser tranquila", "kind": "preference", "category": "PREFERÊNCIAS", "created_at": "2026-08-13T12:00:00Z"},
+                {"id": "2", "label": "Deploy", "content": "Deploy do cockpit concluído", "kind": "decision", "category": "DECISÕES", "created_at": "2026-08-12T18:00:00Z"},
+                {"id": "3", "label": "Voz antiga", "content": "Ajuste de voz anterior", "kind": "preference", "category": "PREFERÊNCIAS", "created_at": "2026-07-01T12:00:00Z"},
+            ],
+        }
+        with patch.object(MODULE, "memory_tree_payload", return_value=tree):
+            payload, status = MODULE.memory_explorer_payload({
+                "q": "voz tranquila", "kind": "preference", "from": "2026-08-13", "to": "2026-08-13"
+            })
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "private_memory_filtered_read")
+        self.assertTrue(payload["read_only"])
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["results"][0]["id"], "1")
+
+    def test_memory_explorer_rejects_invalid_period(self):
+        payload, status = MODULE.memory_explorer_payload({"from": "13-08-2026"})
+        self.assertEqual(status, 400)
+        self.assertIn("AAAA-MM-DD", payload["error"])
+
+    def test_memory_explorer_requires_private_pairing_when_configured(self):
+        with patch.dict(os.environ, {"JARVIS_OWNER_TOKEN": "private-test-token"}):
+            status, _, payload = self.json_request("/memory-explorer?q=voz")
+        self.assertEqual(status, 401)
+        self.assertEqual(payload["endpoint"], "GET /memory-explorer")
 
     def test_capabilities_expose_shared_action_registry(self):
         status, _, payload = self.json_request("/capabilities")
