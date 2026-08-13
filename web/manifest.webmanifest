@@ -8,8 +8,8 @@
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "background_color": "#08040f",
-  "theme_color": "#0b0615",
+  "background_color": "#090414",
+  "theme_color": "#090414",
   "categories": ["productivity", "utilities"],
   "shortcuts": [
     {
@@ -21,7 +21,7 @@
   ],
   "icons": [
     {
-      "src": "/ui/jarvis-logo.png?v=20260813-v10-purple",
+      "src": "/ui/jarvis-logo.png?v=20260813-essence1",
       "sizes": "458x368",
       "type": "image/png",
       "purpose": "any"
