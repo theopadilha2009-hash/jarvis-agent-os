@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 import html as html_lib
 import hmac
 import hashlib
+import ipaddress
 import json
 import mimetypes
 import os
@@ -146,6 +147,21 @@ DEFAULT_DEEP_MODEL_POOL = (
     "openrouter/free",
 )
 OWNER_SESSION_SECONDS = 30 * 24 * 60 * 60
+CLIENT_INTEGRATION_PROVIDERS = {
+    "n8n",
+    "openrouter",
+    "elevenlabs",
+    "github",
+    "supabase",
+    "webhook",
+}
+N8N_WORKFLOW_CREATE_PATTERN = re.compile(
+    r"\b(?:cri(?:a|ar|e)|mont(?:a|ar|e)|constru(?:a|ir)|ger(?:a|ar|e))\b.{0,120}"
+    r"\b(?:workflow|fluxo|automa[cç][aã]o|n8n)\b|"
+    r"\b(?:workflow|fluxo|automa[cç][aã]o|n8n)\b.{0,120}"
+    r"\b(?:cri(?:a|ar|e)|mont(?:a|ar|e)|constru(?:a|ir)|ger(?:a|ar|e))\b",
+    re.I,
+)
 AUTOMOTIVE_BRANDS = {
     "audi": "audi", "bmw": "bmw", "byd": "byd", "caoa chery": "caoa-chery",
     "chery": "chery", "chevrolet": "chevrolet", "citroen": "citroen", "fiat": "fiat",
@@ -321,6 +337,466 @@ def openrouter_api_keys():
         if value and value not in keys:
             keys.append(value)
     return keys
+
+
+def execution_power_profile(owner_authenticated=False):
+    """Return an honest capability budget instead of blindly spending API calls."""
+    multiplier = 3 if owner_authenticated else 1
+    return {
+        "mode": "ultron_3x" if owner_authenticated else "jarvis_1x",
+        "multiplier": multiplier,
+        "max_provider_attempts": 3 if owner_authenticated else 1,
+        "max_workflows_per_request": 3 if owner_authenticated else 1,
+        "max_workflow_nodes": 18 if owner_authenticated else 6,
+        "default_response_strength": "strong" if owner_authenticated else "auto",
+    }
+
+
+def client_integrations(body):
+    """Normalize ephemeral browser-vault credentials without persisting or echoing them."""
+    raw = body.get("client_integrations") if isinstance(body, dict) else None
+    if not isinstance(raw, dict):
+        return {}
+    normalized = {}
+    for provider, value in raw.items():
+        name = clean_text(provider, 40).casefold()
+        if name not in CLIENT_INTEGRATION_PROVIDERS or not isinstance(value, dict):
+            continue
+        config = {}
+        api_key = clean_text(value.get("api_key") or value.get("token"), 2_000)
+        base_url = clean_text(value.get("base_url") or value.get("url"), 2_000).rstrip("/")
+        if api_key:
+            config["api_key"] = api_key
+        if base_url:
+            config["base_url"] = base_url
+        if config:
+            normalized[name] = config
+    return normalized
+
+
+def client_integration(body, provider):
+    return client_integrations(body).get(provider, {})
+
+
+def safe_integration_base_url(value, provider="integration"):
+    """Allow public HTTPS integrations while refusing common SSRF targets."""
+    raw = clean_text(value, 2_000).rstrip("/")
+    parsed = urlparse(raw)
+    hostname = (parsed.hostname or "").casefold().rstrip(".")
+    if (
+        parsed.scheme != "https"
+        or not hostname
+        or parsed.username
+        or parsed.password
+        or parsed.port not in {None, 443}
+        or hostname in {"localhost", "localhost.localdomain"}
+        or hostname.endswith((".local", ".internal", ".localhost"))
+    ):
+        raise ValueError(f"A URL do {provider} precisa ser HTTPS pública, sem usuário, senha ou porta privada.")
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        if "." not in hostname:
+            raise ValueError(f"A URL do {provider} precisa usar um domínio público.")
+    else:
+        if not address.is_global:
+            raise ValueError(f"A URL do {provider} não pode apontar para rede local ou reservada.")
+    return raw
+
+
+def n8n_requested_goals(body, max_count=1):
+    """Return up to the power-profile limit while preserving the user's order."""
+    raw_goals = body.get("goals") if isinstance(body, dict) else None
+    candidates = raw_goals if isinstance(raw_goals, list) else [
+        body.get("goal") or body.get("command") if isinstance(body, dict) else ""
+    ]
+    goals = []
+    for value in candidates:
+        goal = clean_text(value, 1_000)
+        if goal and goal not in goals:
+            goals.append(goal)
+        if len(goals) >= max(1, int(max_count or 1)):
+            break
+    return goals or ["Automação criada pelo JARVIS"]
+
+
+def integration_json_request(url, *, headers=None, method="GET", body=None, timeout=15):
+    request_headers = {"Accept": "application/json", **(headers or {})}
+    data = None
+    if body is not None:
+        request_headers["Content-Type"] = "application/json"
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    req = Request(url, data=data, headers=request_headers, method=method)
+    with urlopen(req, timeout=timeout) as response:
+        raw = response.read(1_000_000)
+        status = int(getattr(response, "status", 200) or 200)
+    if not raw:
+        return {}, status
+    return json.loads(raw.decode("utf-8")), status
+
+
+def integration_test_payload(body, owner_authenticated=False):
+    provider = clean_text(body.get("provider"), 40).casefold()
+    if provider not in CLIENT_INTEGRATION_PROVIDERS:
+        return {"ok": False, "error": "Integração não reconhecida."}, 400
+    if provider in {"n8n", "github", "supabase", "webhook"} and owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    config = client_integration({"client_integrations": {provider: body.get("config") or {}}}, provider)
+    api_key = config.get("api_key", "")
+    base_url = config.get("base_url", "")
+    if not api_key and provider != "webhook":
+        return {"ok": False, "status_real": "integration_key_missing", "error": "Cole a chave antes de testar."}, 400
+    try:
+        if provider == "n8n":
+            base = safe_integration_base_url(base_url, "n8n")
+            result, _ = integration_json_request(
+                f"{base}/api/v1/workflows?limit=1",
+                headers={"X-N8N-API-KEY": api_key},
+            )
+            count = len(result.get("data") or []) if isinstance(result, dict) else 0
+            detail = f"n8n conectado · {count} workflow(s) lido(s) no teste"
+        elif provider == "openrouter":
+            result, _ = integration_json_request(
+                "https://openrouter.ai/api/v1/key",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            metadata = result.get("data") if isinstance(result, dict) else {}
+            detail = f"OpenRouter conectado · {clean_text(metadata.get('label') or 'chave válida', 100)}"
+        elif provider == "elevenlabs":
+            result, _ = integration_json_request(
+                "https://api.elevenlabs.io/v1/user/subscription",
+                headers={"xi-api-key": api_key},
+            )
+            detail = f"ElevenLabs conectado · plano {clean_text(result.get('tier') or 'ativo', 60)}"
+        elif provider == "github":
+            result, _ = integration_json_request(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                    "User-Agent": "Theo-Jarvis",
+                },
+            )
+            detail = f"GitHub conectado · @{clean_text(result.get('login') or 'usuário autenticado', 100)}"
+        elif provider == "supabase":
+            base = safe_integration_base_url(base_url, "Supabase")
+            integration_json_request(f"{base}/rest/v1/", headers={"apikey": api_key})
+            detail = "Supabase conectado · Data API respondeu"
+        else:
+            base = safe_integration_base_url(base_url, "webhook")
+            integration_json_request(base, headers={"Authorization": f"Bearer {api_key}"} if api_key else {})
+            detail = "Endpoint HTTPS respondeu ao teste de leitura"
+        return {
+            "ok": True,
+            "endpoint": "POST /integrations/test",
+            "status_real": "client_integration_verified",
+            "provider": provider,
+            "message": detail,
+            "credential_persisted_server_side": False,
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/test",
+            "status_real": "client_integration_refused",
+            "provider": provider,
+            "error": f"A API recusou a credencial ou o acesso (HTTP {error.code}).",
+            "credential_persisted_server_side": False,
+        }, 400 if error.code in {400, 401, 403, 404, 422} else 502
+    except (URLError, TimeoutError):
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/test",
+            "status_real": "client_integration_timeout",
+            "provider": provider,
+            "error": "A API não respondeu a tempo.",
+            "credential_persisted_server_side": False,
+        }, 504
+    except (ValueError, KeyError, json.JSONDecodeError) as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/test",
+            "status_real": "client_integration_invalid",
+            "provider": provider,
+            "error": clean_text(error, 240) or "A integração respondeu em formato inválido.",
+            "credential_persisted_server_side": False,
+        }, 400
+
+
+def n8n_workflow_template(goal, template="auto", owner_authenticated=False):
+    """Build a small credential-free workflow accepted by n8n's public API."""
+    clean_goal = clean_text(goal, 1_000) or "Automação criada pelo JARVIS"
+    requested = clean_text(template, 40).casefold()
+    if requested not in {"auto", "manual", "webhook", "schedule"}:
+        requested = "auto"
+    if requested == "auto":
+        requested = (
+            "webhook"
+            if re.search(r"\b(?:webhook|lead|formul[aá]rio|receb(?:e|er)|entrada|whatsapp)\b", clean_goal, re.I)
+            else "schedule"
+            if re.search(r"\b(?:todo dia|di[aá]ri[oa]|agenda|hor[aá]ri[oa]|schedule|cron|semanal)\b", clean_goal, re.I)
+            else "manual"
+        )
+    slug = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", clean_goal).encode("ascii", "ignore").decode().lower()).strip("-")[:48]
+    slug = slug or "jarvis-workflow"
+    digest = hashlib.sha256(f"{requested}:{clean_goal}".encode("utf-8")).hexdigest()
+
+    def node_id(index):
+        raw = digest[index * 8:(index + 1) * 8]
+        return f"jarvis-{raw or index}"
+
+    source = "ULTRON" if owner_authenticated else "JARVIS"
+    if requested == "webhook":
+        trigger_name = "Receber webhook"
+        trigger = {
+            "id": node_id(0),
+            "name": trigger_name,
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [-320, 0],
+            "parameters": {
+                "httpMethod": "POST",
+                "path": f"jarvis-{slug}",
+                "responseMode": "lastNode",
+                "options": {},
+            },
+        }
+    elif requested == "schedule":
+        trigger_name = "Agendamento diário"
+        trigger = {
+            "id": node_id(0),
+            "name": trigger_name,
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [-320, 0],
+            "parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 24}]}},
+        }
+    else:
+        trigger_name = "Executar manualmente"
+        trigger = {
+            "id": node_id(0),
+            "name": trigger_name,
+            "type": "n8n-nodes-base.manualTrigger",
+            "typeVersion": 1,
+            "position": [-320, 0],
+            "parameters": {},
+        }
+    prepare_name = "Preparar contexto"
+    prepare = {
+        "id": node_id(1),
+        "name": prepare_name,
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [-40, 0],
+        "parameters": {
+            "assignments": {
+                "assignments": [
+                    {"id": node_id(2), "name": "jarvis_source", "value": source, "type": "string"},
+                    {"id": node_id(3), "name": "objective", "value": clean_goal, "type": "string"},
+                    {"id": node_id(4), "name": "status", "value": "draft_inactive", "type": "string"},
+                ]
+            },
+            "options": {},
+        },
+    }
+    name = clean_text(re.sub(r"\s+", " ", clean_goal), 120)
+    if not re.search(r"\b(?:jarvis|ultron)\b", name, re.I):
+        name = f"{source} · {name}"
+    return {
+        "name": name,
+        "nodes": [trigger, prepare],
+        "connections": {
+            trigger_name: {"main": [[{"node": prepare_name, "type": "main", "index": 0}]]}
+        },
+        "settings": {"executionOrder": "v1"},
+    }, requested
+
+
+def n8n_workflow_action_payload(body, owner_authenticated=False):
+    action = clean_text(body.get("action") or "preview", 30).casefold()
+    if action not in {"preview", "create", "list"}:
+        return {"ok": False, "error": "Ação n8n inválida."}, 400
+    power = execution_power_profile(owner_authenticated)
+    goals = n8n_requested_goals(body, power["max_workflows_per_request"])
+    workflow_specs = [
+        n8n_workflow_template(goal, body.get("template"), owner_authenticated)
+        for goal in goals
+    ]
+    workflow, template = workflow_specs[0]
+    if action == "preview":
+        payload = {
+            "ok": True,
+            "endpoint": "POST /integrations/n8n/workflows",
+            "status_real": "n8n_workflow_preview",
+            "message": (
+                f"{len(workflow_specs)} previews montados. Nada foi enviado ao n8n."
+                if len(workflow_specs) > 1
+                else "Preview montado. Nada foi enviado ao n8n."
+            ),
+            "template": template,
+            "workflow": workflow,
+            "active": False,
+            "power_profile": power,
+            "credential_persisted_server_side": False,
+        }
+        if len(workflow_specs) > 1:
+            payload["workflow_previews"] = [
+                {**item, "template": item_template, "active": False}
+                for item, item_template in workflow_specs
+            ]
+        return payload, 200
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    config = client_integration({"client_integrations": {"n8n": body.get("config") or {}}}, "n8n")
+    api_key = config.get("api_key", "")
+    try:
+        base = safe_integration_base_url(config.get("base_url"), "n8n")
+        if base.casefold().endswith("/api/v1"):
+            base = base[:-7]
+    except ValueError as error:
+        return {"ok": False, "status_real": "n8n_url_invalid", "error": str(error)}, 400
+    if not api_key:
+        return {"ok": False, "status_real": "n8n_key_missing", "error": "Cole a API key do n8n antes de continuar."}, 400
+    try:
+        if action == "list":
+            result, _ = integration_json_request(
+                f"{base}/api/v1/workflows?limit=20",
+                headers={"X-N8N-API-KEY": api_key},
+            )
+            rows = result.get("data") if isinstance(result, dict) and isinstance(result.get("data"), list) else []
+            workflows = [
+                {
+                    "id": clean_text(item.get("id"), 120),
+                    "name": clean_text(item.get("name"), 180),
+                    "active": bool(item.get("active")),
+                    "updated_at": clean_text(item.get("updatedAt"), 80),
+                }
+                for item in rows[:20]
+                if isinstance(item, dict)
+            ]
+            return {
+                "ok": True,
+                "endpoint": "POST /integrations/n8n/workflows",
+                "status_real": "n8n_workflows_listed",
+                "message": f"{len(workflows)} workflow(s) encontrado(s).",
+                "workflows": workflows,
+                "power_profile": power,
+                "credential_persisted_server_side": False,
+            }, 200
+        created_workflows = []
+        for workflow, template in workflow_specs:
+            try:
+                result, _ = integration_json_request(
+                    f"{base}/api/v1/workflows",
+                    method="POST",
+                    headers={"X-N8N-API-KEY": api_key},
+                    body=workflow,
+                    timeout=20,
+                )
+            except HTTPError as error:
+                return {
+                    "ok": False,
+                    "endpoint": "POST /integrations/n8n/workflows",
+                    "status_real": "n8n_workflows_partially_created" if created_workflows else "n8n_workflow_api_refused",
+                    "error": (
+                        f"O n8n recusou a operação (HTTP {error.code}) depois de criar {len(created_workflows)} workflow(s)."
+                        if created_workflows
+                        else f"O n8n recusou a operação (HTTP {error.code}). Confira URL, escopos e chave."
+                    ),
+                    "created_workflows": created_workflows,
+                    "credential_persisted_server_side": False,
+                }, 207 if created_workflows else (400 if error.code in {400, 401, 403, 404, 422} else 502)
+            except (URLError, TimeoutError):
+                return {
+                    "ok": False,
+                    "endpoint": "POST /integrations/n8n/workflows",
+                    "status_real": "n8n_workflows_partially_created" if created_workflows else "n8n_workflow_timeout",
+                    "error": (
+                        f"O n8n parou de responder depois de criar {len(created_workflows)} workflow(s)."
+                        if created_workflows
+                        else "O n8n não respondeu a tempo."
+                    ),
+                    "created_workflows": created_workflows,
+                    "credential_persisted_server_side": False,
+                }, 207 if created_workflows else 504
+            except (ValueError, KeyError, json.JSONDecodeError):
+                return {
+                    "ok": False,
+                    "endpoint": "POST /integrations/n8n/workflows",
+                    "status_real": "n8n_workflows_partially_created" if created_workflows else "n8n_workflow_invalid_response",
+                    "error": (
+                        f"O n8n devolveu uma resposta inválida depois de criar {len(created_workflows)} workflow(s)."
+                        if created_workflows
+                        else "O n8n devolveu uma resposta inválida."
+                    ),
+                    "created_workflows": created_workflows,
+                    "credential_persisted_server_side": False,
+                }, 207 if created_workflows else 502
+            workflow_id = clean_text(result.get("id"), 120) if isinstance(result, dict) else ""
+            active = bool(result.get("active")) if isinstance(result, dict) else False
+            if active:
+                return {
+                    "ok": False,
+                    "endpoint": "POST /integrations/n8n/workflows",
+                    "status_real": "n8n_workflow_unexpectedly_active",
+                    "error": "O n8n devolveu um workflow ativo; interrompi as próximas criações e recomendo desativá-lo no painel.",
+                    "workflow_id": workflow_id,
+                    "created_workflows": created_workflows,
+                    "credential_persisted_server_side": False,
+                }, 409
+            created_workflows.append({
+                "id": workflow_id,
+                "name": clean_text(result.get("name") or workflow["name"], 180) if isinstance(result, dict) else workflow["name"],
+                "active": False,
+                "nodes": len(workflow["nodes"]),
+                "template": template,
+                "editor_url": f"{base}/workflow/{quote(workflow_id)}" if workflow_id else base,
+            })
+        primary_workflow = created_workflows[0]
+        return {
+            "ok": True,
+            "endpoint": "POST /integrations/n8n/workflows",
+            "status_real": (
+                "n8n_workflows_created_inactive"
+                if len(created_workflows) > 1
+                else "n8n_workflow_created_inactive"
+            ),
+            "visual_state": "success",
+            "provider": "n8n",
+            "message": (
+                f"{len(created_workflows)} workflows criados no n8n e mantidos inativos."
+                if len(created_workflows) > 1
+                else f"Workflow “{primary_workflow['name']}” criado no n8n e mantido inativo."
+            ),
+            "workflow": primary_workflow,
+            "workflows": created_workflows,
+            "power_profile": power,
+            "credential_persisted_server_side": False,
+        }, 201
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/n8n/workflows",
+            "status_real": "n8n_workflow_api_refused",
+            "error": f"O n8n recusou a operação (HTTP {error.code}). Confira URL, escopos e chave.",
+            "credential_persisted_server_side": False,
+        }, 400 if error.code in {400, 401, 403, 404, 422} else 502
+    except (URLError, TimeoutError):
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/n8n/workflows",
+            "status_real": "n8n_workflow_timeout",
+            "error": "O n8n não respondeu a tempo.",
+            "credential_persisted_server_side": False,
+        }, 504
+    except (ValueError, KeyError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/n8n/workflows",
+            "status_real": "n8n_workflow_invalid_response",
+            "error": "O n8n devolveu uma resposta inválida.",
+            "credential_persisted_server_side": False,
+        }, 502
 
 BASE_WEB_CAPABILITIES = [
     {
@@ -2690,6 +3166,7 @@ def status_payload(owner_authenticated=False):
         "runtime": "vercel_serverless" if os.environ.get("VERCEL") else "local_web_preview",
         "status_real": "web_cockpit_ready",
         "mode": "personal_single_operator",
+        "power_profile": execution_power_profile(owner_authenticated),
         "ai": {
             "provider": "openrouter",
             "model": model_candidates[0],
@@ -2720,6 +3197,11 @@ def status_payload(owner_authenticated=False):
         },
         "automations": {
             "n8n": {"configured": n8n_ready, "agenda": n8n_ready},
+            "client_vault": {
+                "supported": True,
+                "providers": sorted(CLIENT_INTEGRATION_PROVIDERS),
+                "server_persistence": False,
+            },
             "agenda": {
                 "configured": bool(n8n_ready or supabase_configured()),
                 "provider": "n8n" if n8n_ready else "supabase" if supabase_configured() else "none",
@@ -3367,7 +3849,8 @@ def elevenlabs_speech(body):
         return {"ok": False, "error": "Texto vazio para síntese de voz."}, 400
     if any(has_secret_like_text(item) for item in (text, previous_text, next_text)):
         return {"ok": False, "error": "Não envio credenciais para síntese de voz."}, 400
-    api_key = os.environ.get("ELEVENLABS_API_KEY")
+    browser_key = client_integration(body, "elevenlabs").get("api_key", "")
+    api_key = browser_key or os.environ.get("ELEVENLABS_API_KEY")
     if not api_key:
         return {
             "ok": False,
@@ -5405,6 +5888,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     latest = messages[-1]["content"]
     response_strength = normalized_response_strength(body)
     response_profile = assistant_response_profile(latest, attachments, response_strength)
+    power_profile = execution_power_profile(owner_authenticated)
     web_search_requested = should_search_web(messages)
     if DAILY_BRIEF_PATTERN.search(latest):
         return daily_brief_payload(owner_authenticated=owner_authenticated)
@@ -5488,7 +5972,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         # free text model to restate the same arithmetic.
         return search_results_without_synthesis(free_search_bundle), 200
 
-    api_keys = openrouter_api_keys()
+    browser_openrouter_key = client_integration(body, "openrouter").get("api_key", "")
+    api_keys = []
+    for candidate_key in [browser_openrouter_key, *openrouter_api_keys()]:
+        if candidate_key and candidate_key not in api_keys:
+            api_keys.append(candidate_key)
     if not api_keys:
         if free_search_sources:
             return search_results_without_synthesis(free_search_bundle, "openrouter_not_configured"), 200
@@ -5558,6 +6046,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "execute efeitos externos além do que Theo pediu explicitamente. Se uma ordem estiver bloqueada, diga o "
             "limite em uma frase seca e execute imediatamente a alternativa autorizada mais forte. Identifique-se "
             "somente como ULTRON; nunca se chame JARVIS neste modo."
+            " Seu orçamento operacional é 3x: até três frentes verificadas por pedido, respostas com até três vezes "
+            "o orçamento-base de tokens e até três criações n8n numa operação composta. Não desperdice chamadas "
+            "duplicando trabalho; use a potência extra para cobrir mais partes reais do objetivo."
         )
     response_contracts = {
         "concise": (
@@ -5632,7 +6123,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     openrouter_payload = {
             "messages": [system, *provider_messages],
             "temperature": response_profile["temperature"],
-            "max_tokens": response_profile["max_tokens"],
+            "max_tokens": min(response_profile["max_tokens"] * power_profile["multiplier"], 1_800),
             "stream": False,
             "provider": provider_routing,
         }
@@ -5882,6 +6373,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "memory_context_cache_hit": memory_context_cache_hit,
             "response_profile": response_profile["name"],
             "response_strength": response_strength,
+            "power_profile": power_profile,
+            "client_openrouter_key_used": bool(browser_openrouter_key),
             "response_trimmed": response_trimmed,
             "meta_leak_recovered": meta_leak_recovered,
             "language_recovered": language_recovered,
@@ -5975,6 +6468,14 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
             "error": "O comando parece conter uma credencial. Remova o segredo e tente novamente.",
         }, 400
 
+    if N8N_WORKFLOW_CREATE_PATTERN.search(command):
+        return n8n_workflow_action_payload({
+            "action": "create",
+            "goal": command,
+            "template": "auto",
+            "config": client_integration(body, "n8n"),
+        }, owner_authenticated=owner_authenticated)
+
     if VOICE_DESIGN_PATTERN.search(command):
         if owner_pairing_required() and not owner_authenticated:
             return pairing_required_payload()
@@ -6063,6 +6564,7 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
             "messages": body.get("messages"),
             "attachments": body.get("attachments"),
             "strength": normalized_response_strength(body),
+            "client_integrations": body.get("client_integrations"),
         },
         origin=origin,
         local_execute=local_execute,
@@ -6384,6 +6886,22 @@ def execution_events(payload, started_at, status_code):
 def response_cards(payload):
     """Build small, typed UI cards only from fields confirmed in a response."""
     cards = []
+    n8n_workflow = payload.get("workflow") if isinstance(payload.get("workflow"), dict) else {}
+    if payload.get("provider") == "n8n" and n8n_workflow.get("id"):
+        cards.append({
+            "id": f"n8n-{clean_text(n8n_workflow.get('id'), 120)}",
+            "type": "automation",
+            "status": "inactive" if not n8n_workflow.get("active") else "active",
+            "title": "Workflow n8n criado",
+            "subtitle": clean_text(n8n_workflow.get("name"), 180),
+            "items": [
+                f"ID: {clean_text(n8n_workflow.get('id'), 120)}",
+                f"Nós: {int(n8n_workflow.get('nodes') or 0)}",
+                f"Template: {clean_text(n8n_workflow.get('template'), 40)}",
+                "Estado: inativo; nenhuma execução disparada",
+            ],
+            "artifact_url": clean_text(n8n_workflow.get("editor_url"), 2_000),
+        })
     agent_plan = payload.get("plan") if isinstance(payload.get("plan"), list) else []
     if agent_plan and not payload.get("steps"):
         cards.append({
@@ -6984,6 +7502,13 @@ class handler(BaseHTTPRequestHandler):
                 payload, status = clear_conversation_history()
                 payload["endpoint"] = "POST /conversation-clear"
             return self.send_json(status, payload)
+        if path == "/integrations/test":
+            payload, status = integration_test_payload(body, owner_authenticated=owner_authenticated)
+            return self.send_json(status, payload)
+        if path == "/integrations/n8n/workflows":
+            payload, status = n8n_workflow_action_payload(body, owner_authenticated=owner_authenticated)
+            payload = attach_execution_events(payload, started_at, status, clean_text(body.get("goal"), 1_000))
+            return self.send_json(status, payload)
         if path in {"/memory-update", "/memory-archive"}:
             if owner_pairing_required() and not owner_authenticated:
                 payload, status = pairing_required_payload()
@@ -7180,6 +7705,7 @@ def main():
     required = [
         UI_FILE,
         WEB_DIR / "jarvis.css",
+        WEB_DIR / "api-vault.js",
         WEB_DIR / "jarvis.js",
         WEB_DIR / "jarvis-3d.js",
         WEB_DIR / "manifest.webmanifest",

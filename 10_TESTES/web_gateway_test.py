@@ -142,10 +142,11 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-ultron1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-ultron1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-ultron1', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-ultron1', html)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-integrations1', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-integrations1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-integrations1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-integrations1', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-integrations1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -166,6 +167,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="qualityButton"', html)
         self.assertIn(b'id="installButton"', html)
         self.assertIn(b'id="installDialog"', html)
+        self.assertIn(b'id="integrationsButton"', html)
+        self.assertIn(b'id="integrationsDialog"', html)
+        self.assertIn(b'id="n8nStudio"', html)
         self.assertIn(b'id="actionHubOverview"', html)
         self.assertIn(b'id="sceneObjective"', html)
         self.assertIn(b'id="sceneCommandButton"', html)
@@ -369,8 +373,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-ultron1", service_worker)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-ultron1', service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-integrations1", service_worker)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-integrations1', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-integrations1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -3041,6 +3046,172 @@ São Paulo - SP
         self.assertEqual(payload["mission"]["protocol"], "jarvis-mission/2")
         self.assertEqual(payload["mission"]["steps"][-1]["status"], "succeeded")
         self.assertTrue(payload["mission"]["success_criteria"])
+
+    def test_execution_power_profile_is_one_x_for_jarvis_and_three_x_for_ultron(self):
+        jarvis = MODULE.execution_power_profile(False)
+        ultron = MODULE.execution_power_profile(True)
+        self.assertEqual(jarvis["mode"], "jarvis_1x")
+        self.assertEqual(jarvis["multiplier"], 1)
+        self.assertEqual(ultron["mode"], "ultron_3x")
+        self.assertEqual(ultron["multiplier"], 3)
+        self.assertEqual(ultron["max_workflows_per_request"], 3)
+        self.assertEqual(ultron["max_workflow_nodes"], jarvis["max_workflow_nodes"] * 3)
+
+    def test_client_integration_normalizes_ephemeral_credentials_without_echo_contract(self):
+        body = {
+            "client_integrations": {
+                "n8n": {"base_url": "https://theo.app.n8n.cloud/", "api_key": "private-n8n-key"},
+                "unknown": {"api_key": "ignored"},
+            }
+        }
+        integrations = MODULE.client_integrations(body)
+        self.assertEqual(integrations["n8n"]["base_url"], "https://theo.app.n8n.cloud")
+        self.assertEqual(integrations["n8n"]["api_key"], "private-n8n-key")
+        self.assertNotIn("unknown", integrations)
+
+    def test_integration_url_refuses_local_and_non_https_targets(self):
+        for target in ("http://n8n.example.com", "https://localhost", "https://127.0.0.1", "https://metadata.internal"):
+            with self.subTest(target=target):
+                with self.assertRaises(ValueError):
+                    MODULE.safe_integration_base_url(target, "n8n")
+        self.assertEqual(
+            MODULE.safe_integration_base_url("https://theo.app.n8n.cloud/", "n8n"),
+            "https://theo.app.n8n.cloud",
+        )
+
+    def test_n8n_preview_is_credential_free_and_never_active(self):
+        payload, status = MODULE.n8n_workflow_action_payload({
+            "action": "preview",
+            "goal": "receber leads por webhook",
+            "template": "auto",
+        }, owner_authenticated=False)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "n8n_workflow_preview")
+        self.assertEqual(payload["template"], "webhook")
+        self.assertFalse(payload["active"])
+        self.assertNotIn("active", payload["workflow"])
+        self.assertEqual(payload["workflow"]["settings"]["executionOrder"], "v1")
+        self.assertNotRegex(json.dumps(payload["workflow"]), r"api[_-]?key|credential")
+
+    def test_n8n_create_uses_official_api_and_keeps_workflow_inactive(self):
+        captured = {}
+
+        def fake_request(url, **kwargs):
+            captured["url"] = url
+            captured.update(kwargs)
+            return {"id": "wf-123", "name": "ULTRON · leads", "active": False}, 200
+
+        with patch.object(MODULE, "integration_json_request", side_effect=fake_request):
+            payload, status = MODULE.n8n_workflow_action_payload({
+                "action": "create",
+                "goal": "receber leads por webhook",
+                "template": "webhook",
+                "config": {"base_url": "https://theo.app.n8n.cloud", "api_key": "n8n-secret"},
+            }, owner_authenticated=True)
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["status_real"], "n8n_workflow_created_inactive")
+        self.assertFalse(payload["workflow"]["active"])
+        self.assertEqual(payload["power_profile"]["multiplier"], 3)
+        self.assertEqual(captured["url"], "https://theo.app.n8n.cloud/api/v1/workflows")
+        self.assertEqual(captured["method"], "POST")
+        self.assertEqual(captured["headers"]["X-N8N-API-KEY"], "n8n-secret")
+        self.assertNotIn("active", captured["body"])
+        self.assertNotIn("n8n-secret", json.dumps(payload))
+
+    def test_ultron_can_create_three_inactive_n8n_workflows_in_one_operation(self):
+        counter = {"value": 0}
+
+        def fake_request(_url, **_kwargs):
+            counter["value"] += 1
+            return {
+                "id": f"wf-{counter['value']}",
+                "name": f"ULTRON · fluxo {counter['value']}",
+                "active": False,
+            }, 200
+
+        with patch.object(MODULE, "integration_json_request", side_effect=fake_request) as provider:
+            payload, status = MODULE.n8n_workflow_action_payload({
+                "action": "create",
+                "goals": ["captar lead", "avisar no Slack", "salvar no banco", "ignorar quarto"],
+                "template": "manual",
+                "config": {"base_url": "https://theo.app.n8n.cloud/api/v1", "api_key": "n8n-secret"},
+            }, owner_authenticated=True)
+
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["status_real"], "n8n_workflows_created_inactive")
+        self.assertEqual(provider.call_count, 3)
+        self.assertEqual(len(payload["workflows"]), 3)
+        self.assertTrue(all(not item["active"] for item in payload["workflows"]))
+        self.assertEqual(provider.call_args.args[0], "https://theo.app.n8n.cloud/api/v1/workflows")
+        self.assertNotIn("n8n-secret", json.dumps(payload))
+
+    def test_integration_test_does_not_echo_the_key(self):
+        with patch.object(MODULE, "integration_json_request", return_value=({"data": []}, 200)) as provider:
+            payload, status = MODULE.integration_test_payload({
+                "provider": "n8n",
+                "config": {"base_url": "https://theo.app.n8n.cloud", "api_key": "n8n-secret"},
+            }, owner_authenticated=True)
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["credential_persisted_server_side"])
+        self.assertNotIn("n8n-secret", json.dumps(payload))
+        self.assertEqual(provider.call_args.kwargs["headers"]["X-N8N-API-KEY"], "n8n-secret")
+
+    def test_browser_vault_elevenlabs_key_can_power_speech_without_environment_key(self):
+        class FakeAudioResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, _limit=-1):
+                return b"audio"
+
+        body = {
+            "text": "Sistemas online.",
+            "client_integrations": {"elevenlabs": {"api_key": "eleven-browser-key"}},
+        }
+        with patch.dict(os.environ, {}, clear=False), patch.object(
+            MODULE, "active_voice_setting", return_value={"voice_id": MODULE.DEFAULT_ELEVENLABS_VOICE_ID}
+        ), patch.object(MODULE, "urlopen", return_value=FakeAudioResponse()) as provider:
+            os.environ.pop("ELEVENLABS_API_KEY", None)
+            payload, status = MODULE.elevenlabs_speech(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, b"audio")
+        self.assertEqual(provider.call_args.args[0].get_header("Xi-api-key"), "eleven-browser-key")
+
+    def test_browser_vault_openrouter_key_powers_chat_without_environment_key(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Cofre conectado."}}],
+                }).encode("utf-8")
+
+        body = {
+            "command": "converse comigo",
+            "client_integrations": {"openrouter": {"api_key": "browser-openrouter-key"}},
+        }
+        env = {"OPENROUTER_API_KEY": "", "OPENROUTER_FALLBACK_API_KEY": ""}
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "urlopen", return_value=FakeResponse()
+        ) as provider:
+            payload, status = MODULE.assistant_response(body)
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["message"], "Cofre conectado.")
+        self.assertEqual(
+            provider.call_args.args[0].headers["Authorization"],
+            "Bearer browser-openrouter-key",
+        )
+        self.assertTrue(payload["client_openrouter_key_used"])
 
     def test_vercel_rewrite_path_and_asset_traversal(self):
         vercel_config = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))

@@ -21,6 +21,8 @@
   const newConversationButton = byId("newConversationButton");
   const qualityButton = byId("qualityButton");
   const strengthButton = byId("strengthButton");
+  const integrationsButton = byId("integrationsButton");
+  const integrationsDialog = byId("integrationsDialog");
   const installButton = byId("installButton");
   const installDialog = byId("installDialog");
   const mobileLayout = window.matchMedia("(max-width: 720px)");
@@ -36,6 +38,49 @@
     strong: ["Forte", "Forte"],
     maximum: ["Máxima", "Máxima"],
   };
+  const API_PROVIDERS = {
+    n8n: {
+      label: "n8n",
+      eyebrow: "AUTOMAÇÃO",
+      fields: [
+        { name: "base_url", label: "URL da instância", placeholder: "https://sua-instancia.app.n8n.cloud", secret: false },
+        { name: "api_key", label: "API key", placeholder: "Chave criada em Settings > n8n API", secret: true },
+      ],
+    },
+    openrouter: {
+      label: "OpenRouter",
+      eyebrow: "INTELIGÊNCIA",
+      fields: [{ name: "api_key", label: "API key", placeholder: "sk-or-v1-…", secret: true }],
+    },
+    elevenlabs: {
+      label: "ElevenLabs",
+      eyebrow: "VOZ",
+      fields: [{ name: "api_key", label: "API key", placeholder: "Chave da ElevenLabs", secret: true }],
+    },
+    github: {
+      label: "GitHub",
+      eyebrow: "CÓDIGO",
+      fields: [{ name: "api_key", label: "Fine-grained token", placeholder: "github_pat_…", secret: true }],
+    },
+    supabase: {
+      label: "Supabase",
+      eyebrow: "DADOS",
+      fields: [
+        { name: "base_url", label: "Project URL", placeholder: "https://projeto.supabase.co", secret: false },
+        { name: "api_key", label: "Publishable / secret key", placeholder: "sb_publishable_…", secret: true },
+      ],
+    },
+    webhook: {
+      label: "Webhook",
+      eyebrow: "API PERSONALIZADA",
+      fields: [
+        { name: "base_url", label: "Endpoint HTTPS", placeholder: "https://api.exemplo.com/health", secret: false },
+        { name: "api_key", label: "Bearer token opcional", placeholder: "Token", secret: true },
+      ],
+    },
+  };
+  let activeIntegrationProvider = "n8n";
+  let integrationSecretVisible = false;
 
   const session = {
     listening: false,
@@ -137,6 +182,240 @@
     }[session.strength];
   }
 
+  function apiVault() {
+    if (!window.JarvisApiVault) throw new Error("O cofre local ainda não terminou de carregar.");
+    return window.JarvisApiVault;
+  }
+
+  function renderApiPower() {
+    const badge = byId("apiPowerBadge");
+    if (badge) badge.textContent = session.paired ? "ULTRON · 3×" : "JARVIS · 1×";
+    if (byId("integrationsDialogTitle")) {
+      byId("integrationsDialogTitle").textContent = session.paired ? "ARSENAL DE APIs · ULTRON" : "CENTRAL DE APIs · JARVIS";
+    }
+  }
+
+  function renderIntegrationRegistry() {
+    let configured = [];
+    try { configured = apiVault().list().map((item) => item.provider); } catch { configured = []; }
+    document.querySelectorAll("[data-provider]").forEach((button) => {
+      const active = button.dataset.provider === activeIntegrationProvider;
+      const connected = configured.includes(button.dataset.provider);
+      button.classList.toggle("active", active);
+      button.classList.toggle("configured", connected);
+      const status = button.querySelector("em");
+      if (status) status.textContent = connected ? "salva" : "—";
+    });
+    if (byId("integrationsCount")) byId("integrationsCount").textContent = String(configured.length);
+    renderApiPower();
+    return configured;
+  }
+
+  function setIntegrationFeedback(message, state = "") {
+    const target = byId("integrationFeedback");
+    if (!target) return;
+    target.textContent = message;
+    target.dataset.state = state;
+  }
+
+  function renderIntegrationFields(config = {}) {
+    const definition = API_PROVIDERS[activeIntegrationProvider];
+    if (!definition) return;
+    byId("integrationEditorEyebrow").textContent = definition.eyebrow;
+    byId("integrationEditorTitle").textContent = definition.label;
+    integrationSecretVisible = false;
+    byId("integrationRevealButton").textContent = "Mostrar";
+    byId("integrationFields").innerHTML = definition.fields.map((field) => (
+      `<label>${escapeHtml(field.label)}`
+      + `<input data-integration-field="${field.name}" ${field.secret ? 'data-secret="true" type="password" autocomplete="new-password"' : 'type="url" autocomplete="url"'} `
+      + `value="${escapeHtml(config[field.name] || "")}" placeholder="${escapeHtml(field.placeholder)}"></label>`
+    )).join("");
+    const configured = Boolean(config && Object.keys(config).length);
+    byId("integrationConnectionState").textContent = configured ? "salva neste dispositivo" : "não configurada";
+    byId("integrationRemoveButton").disabled = !configured;
+    byId("integrationCopyButton").disabled = !config.api_key;
+    byId("n8nStudio").hidden = activeIntegrationProvider !== "n8n";
+  }
+
+  function integrationConfigFromFields() {
+    const config = {};
+    byId("integrationFields").querySelectorAll("[data-integration-field]").forEach((field) => {
+      const value = String(field.value || "").trim();
+      if (value) config[field.dataset.integrationField] = value;
+    });
+    return config;
+  }
+
+  async function selectIntegrationProvider(provider) {
+    if (!API_PROVIDERS[provider]) return;
+    activeIntegrationProvider = provider;
+    renderIntegrationRegistry();
+    setIntegrationFeedback("Abrindo o cofre local…");
+    try {
+      const config = await apiVault().get(provider) || {};
+      renderIntegrationFields(config);
+      setIntegrationFeedback(
+        Object.keys(config).length
+          ? "Configuração aberta somente neste dispositivo. Você pode testar, copiar, substituir ou remover."
+          : "Cole os dados da API e salve. Nada será gravado no servidor.",
+      );
+    } catch (error) {
+      renderIntegrationFields({});
+      setIntegrationFeedback(error.message || "Não foi possível abrir o cofre.", "error");
+    }
+  }
+
+  async function runtimeClientIntegrations(command = "") {
+    const providers = ["openrouter", "elevenlabs"];
+    if (/\b(?:n8n|workflow|fluxo|automa[cç][aã]o)\b/i.test(command)) providers.push("n8n");
+    const integrations = {};
+    await Promise.all(providers.map(async (provider) => {
+      try {
+        const config = await apiVault().get(provider);
+        if (config) integrations[provider] = config;
+      } catch {
+        // A falha de um segredo local não derruba conversa nem voz.
+      }
+    }));
+    return integrations;
+  }
+
+  async function saveActiveIntegration() {
+    const config = integrationConfigFromFields();
+    const definition = API_PROVIDERS[activeIntegrationProvider];
+    const needsUrl = definition.fields.some((field) => field.name === "base_url");
+    if ((needsUrl && !config.base_url) || (activeIntegrationProvider !== "webhook" && !config.api_key)) {
+      setIntegrationFeedback("Preencha os campos obrigatórios antes de salvar.", "error");
+      return;
+    }
+    byId("integrationSaveButton").disabled = true;
+    setIntegrationFeedback("Criptografando neste dispositivo…");
+    try {
+      await apiVault().save(activeIntegrationProvider, config);
+      renderIntegrationRegistry();
+      renderIntegrationFields(config);
+      setIntegrationFeedback(`${definition.label} salva e disponível para o runtime.`, "success");
+    } catch (error) {
+      setIntegrationFeedback(error.message || "Não foi possível proteger esta configuração.", "error");
+    } finally {
+      byId("integrationSaveButton").disabled = false;
+    }
+  }
+
+  async function testActiveIntegration() {
+    const config = integrationConfigFromFields();
+    byId("integrationTestButton").disabled = true;
+    setIntegrationFeedback("Testando diretamente no provedor…");
+    try {
+      const data = await request("/integrations/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: activeIntegrationProvider, config }),
+      });
+      setIntegrationFeedback(data.message || data.error || "Teste concluído.", data.ok ? "success" : "error");
+    } catch {
+      setIntegrationFeedback("A conexão com o núcleo caiu durante o teste.", "error");
+    } finally {
+      byId("integrationTestButton").disabled = false;
+    }
+  }
+
+  async function copyActiveIntegrationSecret() {
+    try {
+      const config = await apiVault().get(activeIntegrationProvider);
+      if (!config?.api_key) throw new Error("Nenhuma chave salva para copiar.");
+      await navigator.clipboard.writeText(config.api_key);
+      setIntegrationFeedback("Chave copiada. Evite colá-la em conversas ou arquivos.", "success");
+    } catch (error) {
+      setIntegrationFeedback(error.message || "O navegador bloqueou a cópia.", "error");
+    }
+  }
+
+  async function removeActiveIntegration() {
+    const definition = API_PROVIDERS[activeIntegrationProvider];
+    if (!window.confirm(`Remover ${definition.label} deste dispositivo?`)) return;
+    apiVault().remove(activeIntegrationProvider);
+    renderIntegrationRegistry();
+    renderIntegrationFields({});
+    setIntegrationFeedback(`${definition.label} removida do cofre local.`, "success");
+  }
+
+  function toggleIntegrationSecret() {
+    integrationSecretVisible = !integrationSecretVisible;
+    byId("integrationFields").querySelectorAll("[data-secret='true']").forEach((field) => {
+      field.type = integrationSecretVisible ? "text" : "password";
+    });
+    byId("integrationRevealButton").textContent = integrationSecretVisible ? "Ocultar" : "Mostrar";
+  }
+
+  function renderN8nWorkflowResult(data) {
+    const target = byId("n8nWorkflowPreview");
+    if (!data?.ok) {
+      target.textContent = data?.error || "O n8n não confirmou a operação.";
+      return;
+    }
+    if (Array.isArray(data.workflow_previews)) {
+      target.textContent = data.workflow_previews.map((item, index) => (
+        `${index + 1}. ${item.name}\n${item.nodes.length} nós · template ${item.template} · PREVIEW`
+      )).join("\n\n");
+      return;
+    }
+    if (data.provider === "n8n" && data.status_real?.includes("created_inactive") && Array.isArray(data.workflows)) {
+      target.textContent = data.workflows.map((item, index) => (
+        `${index + 1}. INATIVO · ${item.name}${item.editor_url ? `\n${item.editor_url}` : ""}`
+      )).join("\n\n");
+      return;
+    }
+    if (Array.isArray(data.workflows)) {
+      target.textContent = data.workflows.length
+        ? data.workflows.map((item) => `${item.active ? "ATIVO" : "INATIVO"} · ${item.name} · ${item.id}`).join("\n")
+        : "Nenhum workflow encontrado.";
+      return;
+    }
+    if (data.workflow?.nodes && Array.isArray(data.workflow.nodes)) {
+      target.textContent = `${data.workflow.name}\n${data.workflow.nodes.length} nós · template ${data.template}\nPREVIEW · nada enviado ao n8n`;
+      return;
+    }
+    target.textContent = `${data.message || "Workflow criado."}${data.workflow?.editor_url ? `\n${data.workflow.editor_url}` : ""}`;
+  }
+
+  async function runN8nWorkflowAction(action) {
+    const goal = byId("n8nWorkflowGoal").value.trim();
+    const goals = goal.split("||").map((item) => item.trim()).filter(Boolean).slice(0, session.paired ? 3 : 1);
+    if (action !== "list" && !goal) {
+      setIntegrationFeedback("Descreva o objetivo do workflow primeiro.", "error");
+      byId("n8nWorkflowGoal").focus();
+      return;
+    }
+    if (action !== "preview" && !session.paired) {
+      setIntegrationFeedback("A criação real é protegida. Entre no modo Ultron; o preview continua disponível no JARVIS.", "error");
+      return;
+    }
+    const config = await apiVault().get("n8n") || {};
+    const button = byId(action === "preview" ? "n8nPreviewButton" : action === "list" ? "n8nListButton" : "n8nCreateButton");
+    button.disabled = true;
+    byId("n8nWorkflowPreview").textContent = action === "create" ? "Criando workflow inativo…" : "Consultando n8n…";
+    try {
+      const data = await request("/integrations/n8n/workflows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          goal: goals[0] || goal,
+          goals,
+          template: byId("n8nWorkflowTemplate").value,
+          config,
+        }),
+      });
+      renderN8nWorkflowResult(data);
+      setIntegrationFeedback(data.message || data.error || "Operação n8n concluída.", data.ok ? "success" : "error");
+    } catch {
+      setIntegrationFeedback("A conexão com o núcleo caiu durante a operação n8n.", "error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function spawnUltronLaugh() {
     const field = byId("ultronLaughter");
     if (!field || !session.paired || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -191,6 +470,8 @@
         : "Fale naturalmente. O JARVIS escolhe as ferramentas por trás.";
     }
     renderMuteState();
+    renderApiPower();
+    renderIntegrationRegistry();
     scheduleUltronLaughter(true);
     window.dispatchEvent(new CustomEvent("jarvis-persona", { detail: { persona: ultron ? "ultron" : "jarvis" } }));
   }
@@ -243,6 +524,7 @@
     { id: "computer", label: "Diagnosticar o Mac", description: "Memória e processos", command: "meu computador está travando, analise a memória", executor: "mac", keywords: /mac|computador|trav|ram/i },
     { id: "memory", label: "Abrir memória", description: "Persistente ou local", command: "mostre minhas memórias", executor: "memory", keywords: /mem[oó]ria|lembr/i },
     { id: "agenda", label: "Ver agenda", description: "Tarefas e lembretes", command: "mostre minha agenda", executor: "agenda", keywords: /agenda|tarefa|lembrete/i },
+    { id: "n8n", label: "Criar workflow n8n", description: "Gerar e importar inativo pela API", command: "crie um workflow n8n para receber leads por webhook e preparar os dados", executor: "n8n", keywords: /n8n|workflow|fluxo|automa[cç]/i },
     { id: "github", label: "Inspecionar GitHub", description: "Conta autenticada no Mac", command: "mostre meus repositórios do GitHub", executor: "mac", keywords: /github|repo|c[oó]digo|pull/i },
     { id: "research", label: "Pesquisar com fontes", description: "Web e READMEs reais", command: "pesquise projetos públicos de assistente pessoal no GitHub e compare as funções comprovadas", executor: "web", keywords: /pesquis|busc|github|internet/i },
   ];
@@ -256,6 +538,8 @@
     "Tirar print, abrir o gravador e analisar arquivos",
     "Consultar GitHub autenticado sem mostrar credenciais",
     "Ler agenda, criar tarefas e usar n8n quando conectado",
+    "Criar, listar e revisar workflows n8n inativos pela API oficial",
+    "Usar chaves OpenRouter e ElevenLabs do cofre criptografado deste dispositivo",
     "Guardar memória confirmada e restaurar conversa privada",
     "Editar o próprio projeto; deploy só com pedido explícito",
   ];
@@ -270,6 +554,7 @@
       ["Resumo do meu dia", "me dê um resumo operacional do meu dia"],
       ["Analisar meu Mac", "meu computador está travando, analise a memória"],
       ["Abrir Spotify", "abra o Spotify"],
+      ["Criar fluxo n8n", "crie um workflow n8n para receber leads por webhook e preparar os dados"],
     ],
   };
 
@@ -1197,6 +1482,7 @@
   async function fetchSpeechChunk(text, generation, previousText = "", nextText = "") {
     const controller = new AbortController();
     currentSpeechController = controller;
+    const clientIntegrations = await runtimeClientIntegrations();
     const response = await fetch("/speech", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1204,6 +1490,7 @@
         text,
         previous_text: previousText,
         next_text: nextText,
+        client_integrations: clientIntegrations,
       }),
       signal: controller.signal,
     });
@@ -1608,6 +1895,7 @@
     beginRequestProgress(workingState);
     setWorking(true, workingState);
     try {
+      const clientIntegrations = await runtimeClientIntegrations(command);
       const data = await request("/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1617,6 +1905,7 @@
           input_mode: options.source || "text",
           attachments,
           strength: session.strength,
+          client_integrations: clientIntegrations,
         }),
       });
       const minimumReflectionMs = data.mode === "memory" || data.intent === "memory_view_close"
@@ -1715,11 +2004,14 @@
       byId("serviceValue").textContent = status.service || "jarvis-web";
       byId("modelValue").textContent = status.ai?.model || "—";
       session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
+      const browserProviders = renderIntegrationRegistry();
+      const browserOpenRouter = browserProviders.includes("openrouter");
+      const browserN8n = browserProviders.includes("n8n");
       const toolCount = session.paired ? Number(status.agent_runtime?.available_tools) || 0 : 0;
-      byId("aiValue").textContent = status.ai?.configured
-        ? `OpenRouter conectado${status.web_search?.configured ? " · web ao vivo" : ""}${toolCount ? ` · ${toolCount} ferramentas` : ""}`
+      byId("aiValue").textContent = status.ai?.configured || browserOpenRouter
+        ? `OpenRouter conectado${browserOpenRouter ? " · cofre local" : ""}${status.web_search?.configured ? " · web ao vivo" : ""}${toolCount ? ` · ${toolCount} ferramentas` : ""}`
         : "OpenRouter não configurado";
-      byId("sceneBrain").textContent = status.ai?.configured
+      byId("sceneBrain").textContent = status.ai?.configured || browserOpenRouter
         ? status.ai?.deep_model ? "IA adaptativa online" : "IA online"
         : "IA offline";
       const accessMode = session.paired ? "owner" : "guest";
@@ -1745,7 +2037,7 @@
       }
       renderStarterActions();
       session.deviceBridge = Boolean(status.device_bridge?.configured);
-      session.elevenlabs = Boolean(status.voice?.configured);
+      session.elevenlabs = Boolean(status.voice?.configured || browserProviders.includes("elevenlabs"));
       session.voiceError = "";
       byId("voiceValue").textContent = session.elevenlabs
         ? `ElevenLabs${voiceSupport.input ? " + microfone" : ""}`
@@ -1753,16 +2045,19 @@
           ? "microfone ativo · saída aguarda ElevenLabs"
           : "ElevenLabs aguarda chave";
       const ready = [
-        status.ai?.configured ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
-        status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
-        status.automations?.n8n?.configured ? "n8n" : "",
+        status.ai?.configured || browserOpenRouter ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
+        session.elevenlabs ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
+        status.automations?.n8n?.configured || browserN8n ? "n8n" : "",
+        browserProviders.length ? `${browserProviders.length} API(s) no cofre` : "",
         session.paired && status.device_bridge?.configured ? "Mac pareado" : "",
         status.runtime === "local_web_preview" ? "worker local" : "",
       ].filter(Boolean);
       byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
-      byId("integrationHint").textContent = !status.web_search?.configured
+      byId("integrationHint").textContent = browserProviders.length
+        ? `${browserProviders.length} integração(ões) protegida(s) neste dispositivo. ${session.paired ? "Ultron opera com orçamento 3×." : "JARVIS opera em 1×; ações externas protegidas pedem Ultron."}`
+        : !status.web_search?.configured
         ? "Pesquisa ao vivo aguarda o OpenRouter; as demais integrações continuam independentes."
-        : status.automations?.n8n?.configured
+        : status.automations?.n8n?.configured || browserN8n
         ? "Pesquisa ao vivo e roteamento contextual ativos; agenda e tarefas estão conectadas ao n8n."
         : status.automations?.agenda?.provider === "supabase"
           ? "Pesquisa ao vivo ativa; memória e agenda ficam no Supabase e ações usam o worker local."
@@ -1849,6 +2144,31 @@
     dialog.showModal();
     refreshActionHistory();
   });
+  integrationsButton?.addEventListener("click", async () => {
+    renderIntegrationRegistry();
+    integrationsDialog.showModal();
+    await selectIntegrationProvider(activeIntegrationProvider);
+  });
+  byId("closeIntegrationsDialog")?.addEventListener("click", () => integrationsDialog.close());
+  integrationsDialog?.addEventListener("click", (event) => {
+    if (event.target === integrationsDialog) integrationsDialog.close();
+  });
+  integrationsDialog?.addEventListener("close", () => {
+    integrationSecretVisible = false;
+    byId("integrationFields")?.replaceChildren();
+  });
+  byId("integrationProviderList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-provider]");
+    if (button) selectIntegrationProvider(button.dataset.provider);
+  });
+  byId("integrationSaveButton")?.addEventListener("click", saveActiveIntegration);
+  byId("integrationTestButton")?.addEventListener("click", testActiveIntegration);
+  byId("integrationCopyButton")?.addEventListener("click", copyActiveIntegrationSecret);
+  byId("integrationRemoveButton")?.addEventListener("click", removeActiveIntegration);
+  byId("integrationRevealButton")?.addEventListener("click", toggleIntegrationSecret);
+  byId("n8nPreviewButton")?.addEventListener("click", () => runN8nWorkflowAction("preview"));
+  byId("n8nCreateButton")?.addEventListener("click", () => runN8nWorkflowAction("create"));
+  byId("n8nListButton")?.addEventListener("click", () => runN8nWorkflowAction("list"));
   qualityButton?.addEventListener("click", () => {
     const current = GRAPHICS_QUALITY.indexOf(graphicsQuality);
     graphicsQuality = GRAPHICS_QUALITY[(current + 1) % GRAPHICS_QUALITY.length];
@@ -1980,6 +2300,7 @@
     window.clearTimeout(progressHideTimer);
     window.clearTimeout(filePreviewTimer);
     window.clearTimeout(laughterTimer);
+    byId("integrationFields")?.replaceChildren();
     stopSpeechOutput();
   }, { once: true });
 
