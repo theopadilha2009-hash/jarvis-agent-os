@@ -237,6 +237,7 @@
     if (!target) return;
     target.textContent = message;
     target.dataset.state = state;
+    if (state) byId("integrationConnectionState").dataset.state = state;
   }
 
   function renderIntegrationFields(config = {}) {
@@ -252,10 +253,13 @@
       + `value="${escapeHtml(config[field.name] || "")}" placeholder="${escapeHtml(field.placeholder)}"></label>`
     )).join("");
     const configured = Boolean(config && Object.keys(config).length);
-    byId("integrationConnectionState").textContent = configured ? "salva neste dispositivo" : "não configurada";
+    const connectionState = byId("integrationConnectionState");
+    connectionState.textContent = configured ? "configurada" : "não configurada";
+    connectionState.dataset.state = configured ? "configured" : "idle";
     byId("integrationRemoveButton").disabled = !configured;
     byId("integrationCopyButton").disabled = !config.api_key;
     byId("n8nStudio").hidden = activeIntegrationProvider !== "n8n";
+    window.JarvisIntegrationTabs?.provider(activeIntegrationProvider);
     renderIntegrationTool();
   }
 
