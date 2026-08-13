@@ -3816,6 +3816,7 @@ def local_memory_tree_payload():
                 "category": category,
                 "kind": kind,
                 "path": f"03_MEMORIA/{node_id}",
+                "created_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
             })
             edges.append({"source": category, "target": node_id})
     categories = sorted({node["category"] for node in nodes})
@@ -3904,6 +3905,94 @@ def memory_tree_payload():
         "persistent_write": False,
         "provider": "supabase",
     }
+
+
+def memory_explorer_payload(filters):
+    """Search active private memory by subject, kind and an inclusive date interval."""
+    tree = memory_tree_payload()
+    if not tree.get("ok"):
+        return {
+            **tree,
+            "endpoint": "GET /memory-explorer",
+            "status_real": "memory_explorer_unavailable",
+        }, 503
+
+    term = clean_text(filters.get("q"), 300)
+    kind = clean_text(filters.get("kind"), 40).casefold()
+    if kind in {"", "all"}:
+        kind = ""
+    elif kind not in MEMORY_KIND_LABELS:
+        return {"ok": False, "error": "Tipo de memória inválido."}, 400
+    try:
+        limit = max(1, min(int(filters.get("limit") or 30), 50))
+    except (TypeError, ValueError):
+        limit = 30
+
+    def boundary(name, inclusive_end=False):
+        value = clean_text(filters.get(name), 10)
+        if not value:
+            return None
+        parsed = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        return parsed + timedelta(days=1) if inclusive_end else parsed
+
+    try:
+        date_from = boundary("from")
+        date_to = boundary("to", True)
+    except ValueError:
+        return {"ok": False, "error": "Período inválido; use datas no formato AAAA-MM-DD."}, 400
+    if date_from and date_to and date_from >= date_to:
+        return {"ok": False, "error": "A data inicial precisa vir antes da data final."}, 400
+
+    terms = [
+        token for token in re.findall(r"[\wÀ-ÿ-]{2,}", term.casefold(), re.UNICODE)[:10]
+    ]
+    results = []
+    for node in tree.get("nodes", []):
+        if not isinstance(node, dict):
+            continue
+        node_kind = clean_text(node.get("kind"), 40).casefold()
+        if kind and node_kind != kind:
+            continue
+        created_raw = clean_text(node.get("created_at"), 80)
+        try:
+            created_at = datetime.fromisoformat(created_raw.replace("Z", "+00:00")) if created_raw else None
+            if created_at and created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+        except ValueError:
+            created_at = None
+        if date_from and (not created_at or created_at < date_from):
+            continue
+        if date_to and (not created_at or created_at >= date_to):
+            continue
+        content = clean_text(node.get("content") or node.get("label"), 4_000)
+        haystack = " ".join((content, clean_text(node.get("label"), 200), clean_text(node.get("category"), 100))).casefold()
+        if terms and not all(token in haystack for token in terms):
+            continue
+        position = min((haystack.find(token) for token in terms if token in haystack), default=0)
+        snippet = content[max(0, position - 80):max(0, position - 80) + 360]
+        results.append({
+            "id": clean_text(node.get("id"), 140),
+            "title": clean_text(node.get("label"), 180) or "Memória",
+            "kind": node_kind or "context",
+            "category": clean_text(node.get("category"), 100),
+            "snippet": snippet,
+            "created_at": created_raw,
+            "source": tree.get("provider"),
+        })
+        if len(results) >= limit:
+            break
+    return {
+        "ok": True,
+        "endpoint": "GET /memory-explorer",
+        "status_real": "private_memory_filtered_read",
+        "provider": tree.get("provider"),
+        "query": term,
+        "filters": {"kind": kind or "all", "from": clean_text(filters.get("from"), 10), "to": clean_text(filters.get("to"), 10)},
+        "count": len(results),
+        "total_active": int(tree.get("count") or 0),
+        "results": results,
+        "read_only": True,
+    }, 200
 
 
 def personal_action_catalog(owner_authenticated=False, worker_online=False):
@@ -8620,6 +8709,19 @@ class handler(BaseHTTPRequestHandler):
                 "status_real": "local_memory_search",
                 **search,
             })
+        if path == "/memory-explorer":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /memory-explorer"
+                return self.send_json(status, payload)
+            payload, status = memory_explorer_payload({
+                "q": (query.get("q") or [""])[0],
+                "kind": (query.get("kind") or ["all"])[0],
+                "from": (query.get("from") or [""])[0],
+                "to": (query.get("to") or [""])[0],
+                "limit": (query.get("limit") or ["30"])[0],
+            })
+            return self.send_json(status, payload)
         if path == "/tasks":
             if owner_pairing_required() and not owner_authenticated:
                 payload, status = pairing_required_payload()

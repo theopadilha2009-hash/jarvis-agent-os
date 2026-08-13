@@ -2238,7 +2238,8 @@ dialog::backdrop {
   margin-bottom: 14px;
 }
 
-.action-hub-status span { display: grid; gap: 4px; padding: 10px; border: 1px solid rgba(168,85,247,.1); border-radius: 10px; background: rgba(255,255,255,.018); }
+.action-hub-status :is(span,button) { display: grid; gap: 4px; padding: 10px; border: 1px solid rgba(168,85,247,.1); border-radius: 10px; background: rgba(255,255,255,.018); color: inherit; font: inherit; text-align: left; }
+.action-hub-status button { cursor: pointer; }
 .action-hub-status small { color: var(--faint); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
 .action-hub-status b { color: #eadcff; font-size: 10px; font-weight: 600; }
 
@@ -3244,7 +3245,7 @@ html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
   }
 
   .action-hub-status { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .action-hub-status span { min-width: 0; padding: 8px 6px; }
+  .action-hub-status :is(span,button) { min-width: 0; padding: 8px 6px; }
   .action-hub-status b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 

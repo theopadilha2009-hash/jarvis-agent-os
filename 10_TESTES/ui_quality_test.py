@@ -22,6 +22,9 @@ INTEGRATION_HEALTH_JS = WEB / "integration-health.js"
 VOICE_CALIBRATOR_JS = WEB / "voice-calibrator.js"
 VOICE_CALIBRATOR_CSS = WEB / "voice-calibrator.css"
 N8N_TEMPLATE_PACK_JS = WEB / "n8n-template-pack.js"
+FEATURE_LOADER_JS = WEB / "feature-loader.js"
+MEMORY_EXPLORER_JS = WEB / "memory-explorer.js"
+MEMORY_EXPLORER_CSS = WEB / "memory-explorer.css"
 MISSION_CONTROL_JS = WEB / "mission-control.js"
 MISSION_CONTROL_CSS = WEB / "mission-control.css"
 VOICE_PACING_JS = WEB / "voice-pacing.js"
@@ -80,7 +83,7 @@ class UIQualityTest(unittest.TestCase):
     def test_dialogs_have_valid_accessible_titles(self):
         known_ids = set(self.parser.ids)
         dialogs = [attrs for tag, attrs in self.parser.elements if tag == "dialog"]
-        self.assertEqual(len(dialogs), 5)
+        self.assertEqual(len(dialogs), 6)
         for dialog in dialogs:
             label_id = dialog.get("aria-labelledby")
             self.assertTrue(label_id, f"Dialog sem aria-labelledby: {dialog.get('id')}")
@@ -173,6 +176,9 @@ class UIQualityTest(unittest.TestCase):
             "n8nTemplateGallery",
             "n8nWorkflowList",
             "n8nWorkflowSummary",
+            "memoryExplorerButton",
+            "memoryExplorerDialog",
+            "memoryExplorerMount",
             "n8nPreviewButton",
             "n8nCreateButton",
         ):
@@ -225,8 +231,14 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('data-voice-setting="speed"', voice_calibrator)
         self.assertIn("sem aplicar pitch artificial", voice_calibrator)
         self.assertIn("voice_profile: window.JarvisVoiceCalibrator?.profile()", self.app_js)
-        self.assertIn("voice-calibrator.js?v=20260813-n8npack1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
-        self.assertIn("n8n-template-pack.js?v=20260813-n8npack1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
+        self.assertIn("voice-calibrator.js?v=20260813-memory1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
+        self.assertIn("n8n-template-pack.js?v=20260813-memory1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
+        memory_explorer = MEMORY_EXPLORER_JS.read_text(encoding="utf-8")
+        self.assertIn('name="q"', memory_explorer)
+        self.assertIn('name="kind"', memory_explorer)
+        self.assertIn('name="from"', memory_explorer)
+        self.assertIn('name="to"', memory_explorer)
+        self.assertIn("memory-explorer.js?v=20260813-memory1", FEATURE_LOADER_JS.read_text(encoding="utf-8"))
 
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
@@ -238,6 +250,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(VOICE_CALIBRATOR_JS.stat().st_size, 7 * 1024)
         self.assertLess(VOICE_CALIBRATOR_CSS.stat().st_size, 4 * 1024)
         self.assertLess(N8N_TEMPLATE_PACK_JS.stat().st_size, 5 * 1024)
+        self.assertLess(FEATURE_LOADER_JS.stat().st_size, 1024)
+        self.assertLess(MEMORY_EXPLORER_JS.stat().st_size, 8 * 1024)
+        self.assertLess(MEMORY_EXPLORER_CSS.stat().st_size, 4 * 1024)
         self.assertLess(UI_REPAIR_CSS.stat().st_size, 8 * 1024)
         self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
         self.assertLess(RESPONSIVE_POLISH_CSS.stat().st_size, 12 * 1024)
@@ -293,7 +308,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
         self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
-        self.assertGreaterEqual(self.html.count("20260813-n8npack1"), 6)
+        self.assertGreaterEqual(self.html.count("20260813-memory1"), 7)
 
     def test_final_responsive_guardrails_cover_real_viewports(self):
         css = RESPONSIVE_POLISH_CSS.read_text(encoding="utf-8")
