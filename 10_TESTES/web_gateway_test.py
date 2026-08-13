@@ -1002,7 +1002,6 @@ class WebGatewayTest(unittest.TestCase):
             selected = MODULE.native_ptbr_voice("private-test-key")
         self.assertEqual(selected["voice_id"], "calm_native_voice_2")
         self.assertEqual(selected["language"], "pt-BR")
-        self.assertEqual(selected["profile"], MODULE.JARVIS_VOICE_PROFILE)
 
     def test_native_voice_activation_replaces_english_fallback_and_persists_it(self):
         selected = {
@@ -1013,12 +1012,11 @@ class WebGatewayTest(unittest.TestCase):
             "source": "elevenlabs_voice_library",
         }
 
-        def persist(voice_id, name, _description, language="", profile=""):
+        def persist(voice_id, name, _description, language=""):
             MODULE._ACTIVE_VOICE_CACHE.update({
                 "voice_id": voice_id,
                 "name": name,
                 "language": language,
-                "profile": profile,
                 "source": "supabase",
                 "expires_at": time.monotonic() + 60,
             })
@@ -1032,7 +1030,6 @@ class WebGatewayTest(unittest.TestCase):
             active = MODULE.ensure_native_ptbr_voice("private-test-key")
         self.assertEqual(active["voice_id"], "calm_native_voice_2")
         self.assertEqual(active["language"], "pt-BR")
-        self.assertEqual(active["profile"], MODULE.JARVIS_VOICE_PROFILE)
         self.assertEqual(active["source"], "supabase")
         saved.assert_called_once()
 
@@ -2736,54 +2733,6 @@ São Paulo - SP
             payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
         self.assertEqual(status, 503)
         self.assertEqual(payload["fallback"], "text_only")
-
-    def test_elevenlabs_speech_retries_native_voices_and_persists_only_working_one(self):
-        class FakeAudioResponse:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                return False
-
-            def read(self, *_args):
-                return b"ID3-native-audio"
-
-        candidates = [
-            {
-                "voice_id": "paid_native_voice_1",
-                "name": "Voz indisponível",
-                "description": "Voz brasileira.",
-                "language": "pt-BR",
-                "profile": MODULE.JARVIS_VOICE_PROFILE,
-            },
-            {
-                "voice_id": "working_native_voice_2",
-                "name": "Caio Natural",
-                "description": "Voz brasileira calma.",
-                "language": "pt-BR",
-                "profile": MODULE.JARVIS_VOICE_PROFILE,
-            },
-        ]
-        unavailable = HTTPError("https://api.elevenlabs.io", 402, "unavailable", {}, None)
-        english = {
-            "voice_id": MODULE.DEFAULT_ELEVENLABS_VOICE_ID,
-            "name": "Brian",
-            "language": "en",
-            "profile": "",
-            "source": "environment",
-        }
-        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key"}, clear=False), patch.object(
-            MODULE, "active_voice_setting", return_value=english
-        ), patch.object(MODULE, "speech_voice_candidates", return_value=candidates), patch.object(
-            MODULE, "urlopen", side_effect=[unavailable, FakeAudioResponse()]
-        ) as provider, patch.object(MODULE, "persist_active_voice", return_value={}) as persist:
-            audio, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
-        self.assertEqual(status, 200)
-        self.assertTrue(audio.startswith(b"ID3"))
-        self.assertEqual(provider.call_count, 2)
-        persist.assert_called_once()
-        self.assertEqual(persist.call_args.args[0], "working_native_voice_2")
-        self.assertEqual(persist.call_args.kwargs["profile"], MODULE.JARVIS_VOICE_PROFILE)
 
     def test_elevenlabs_quota_error_is_reported_honestly(self):
         provider_error = HTTPError("https://api.elevenlabs.io", 402, "payment required", {}, None)
