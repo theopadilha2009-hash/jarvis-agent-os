@@ -13,10 +13,10 @@
 <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-apitools1">
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-memory1">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-permissions1">
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260813-uipolish1">
-<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-memory1">
-<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260813-memory1">
+<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-permissions1">
+<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260813-permissions1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
@@ -344,6 +344,10 @@
     <div id="memoryExplorerMount"></div>
   </dialog>
 
+  <dialog id="actionPermissionsDialog" class="action-permissions-dialog" aria-labelledby="actionPermissionsTitle">
+    <span id="actionPermissionsTitle" hidden>Permissões de ações</span><div id="actionPermissionsMount"></div>
+  </dialog>
+
   <aside class="action-hub" id="actionHub" hidden aria-label="Ações contextuais do JARVIS">
     <header>
       <span><small>CENTRAL PESSOAL</small><strong>Peça. Eu executo.</strong></span>
@@ -355,6 +359,7 @@
       <span><small>CONVERSA</small><b id="conversationMemoryValue">sessão local</b></span>
       <span><small>MAC</small><b id="hubWorkerValue">verificando</b></span>
       <button id="memoryExplorerButton" type="button"><small>MEMÓRIA</small><b id="hubMemoryValue">verificando</b></button>
+      <button id="actionPermissionsButton" type="button"><small>PERMISSÕES</small><b>perguntar antes</b></button>
       <span><small>AGENDA</small><b id="hubAgendaValue">verificando</b></span>
     </div>
     <div class="action-hub-last"><small>ÚLTIMA EVIDÊNCIA</small><b id="hubLastActionValue">nenhuma execução carregada</b></div>
@@ -392,10 +397,10 @@
     </div>
   </dialog>
 
-<script src="/ui/api-vault.js?v=20260813-memory1" defer></script>
-<script src="/ui/integration-history.js?v=20260813-memory1" defer></script>
-<script src="/ui/feature-loader.js?v=20260813-memory1" defer></script>
-<script src="/ui/jarvis.js?v=20260813-memory1" defer></script>
+<script src="/ui/api-vault.js?v=20260813-permissions1" defer></script>
+<script src="/ui/integration-history.js?v=20260813-permissions1" defer></script>
+<script src="/ui/feature-loader.js?v=20260813-permissions1" defer></script>
+<script src="/ui/jarvis.js?v=20260813-permissions1" defer></script>
   <script type="module">
     let presenceScheduled = false;
 

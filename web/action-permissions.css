@@ -1,0 +1,25 @@
+.action-permissions-dialog { width: min(650px, calc(100vw - 24px)); }
+.permissions-head > span { display: grid; gap: 3px; }
+.permissions-head small { color: var(--cyan); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
+.permissions-body,
+.permission-request { display: grid; gap: 14px; padding: 18px; }
+.permissions-body > p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.permissions-list { display: grid; gap: 8px; }
+.permissions-list article { display: grid; grid-template-columns: minmax(160px,1fr) 140px 105px; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.018); }
+.permissions-list article > span { display: grid; gap: 4px; }
+.permissions-list strong { color: #f3e8ff; font-size: 10px; }
+.permissions-list small { color: var(--faint); font-size: 8px; line-height: 1.4; }
+.permissions-list select,
+.permissions-list button,
+.permission-request button { min-height: 38px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: rgba(0,0,0,.2); color: var(--muted); font-size: 8px; cursor: pointer; color-scheme: dark; }
+.permissions-list button:disabled { opacity: .45; cursor: default; }
+.permission-request { text-align: center; }
+.permission-request > i { width: max-content; margin: 0 auto; padding: 6px 9px; border: 1px solid var(--line-hot); border-radius: 999px; color: var(--cyan); font: normal 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
+.permission-request > strong { color: #f3e8ff; font-size: 18px; }
+.permission-request > p { margin: 0; color: #eadcff; font-size: 11px; line-height: 1.55; }
+.permission-request > small,
+.permission-request > em { color: var(--faint); font-size: 8px; font-style: normal; }
+.permission-request > div { display: grid; grid-template-columns: .8fr 1fr 1.3fr; gap: 8px; }
+#permissionOnce,
+#permissionSession { border-color: color-mix(in srgb, var(--cyan) 48%, transparent); background: color-mix(in srgb, var(--cyan) 12%, transparent); color: var(--cyan-hot); }
+@media (max-width: 620px) { .permissions-list article { grid-template-columns: 1fr 1fr; } .permissions-list article > span { grid-column: 1 / -1; } .permission-request > div { grid-template-columns: 1fr; } .permission-request button { min-height: 44px; } }

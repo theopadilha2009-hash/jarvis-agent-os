@@ -7,7 +7,7 @@ const kindLabels = Object.freeze({ all: "Todos", decision: "Decisão", preferenc
 if (!document.querySelector("link[data-jarvis-memory-explorer]")) {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
-  stylesheet.href = "/ui/memory-explorer.css?v=20260813-memory1";
+  stylesheet.href = "/ui/memory-explorer.css?v=20260813-permissions1";
   stylesheet.dataset.jarvisMemoryExplorer = "true";
   document.head.appendChild(stylesheet);
 }
