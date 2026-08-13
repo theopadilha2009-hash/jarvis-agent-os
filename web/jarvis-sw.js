@@ -1,12 +1,16 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260812-v9";
+const CACHE_VERSION = "jarvis-mobile-shell-20260813-v10";
 const SHELL = [
   "/",
-  "/ui/manifest.webmanifest?v=20260812-v9",
-  "/ui/jarvis-icon.svg?v=20260812-v9",
-  "/ui/jarvis.css?v=20260812-v9",
-  "/ui/jarvis.js?v=20260812-v9",
+  "/ui/manifest.webmanifest",
+  "/ui/jarvis-icon.svg",
+  "/ui/jarvis-icon-192.png",
+  "/ui/jarvis-icon-512.png",
+  "/ui/jarvis.css",
+  "/ui/jarvis.js",
+  "/ui/jarvis-3d.js",
+  "/ui/vendor/three.module.js",
 ];
 
 self.addEventListener("install", (event) => {
@@ -26,20 +30,24 @@ self.addEventListener("activate", (event) => {
 });
 
 async function networkFirst(request) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3500);
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { signal: controller.signal });
     if (response.ok) {
       const cache = await caches.open(CACHE_VERSION);
       cache.put(request, response.clone());
     }
     return response;
   } catch {
-    return (await caches.match(request)) || (await caches.match("/"));
+    return (await caches.match(request, { ignoreSearch: true })) || (await caches.match("/", { ignoreSearch: true }));
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 async function staticAsset(request) {
-  const cached = await caches.match(request);
+  const cached = await caches.match(request, { ignoreSearch: true });
   if (cached) return cached;
   try {
     const response = await fetch(request);

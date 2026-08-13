@@ -872,10 +872,11 @@
   function openFileWorkspaceDatabase() {
     return new Promise((resolve, reject) => {
       if (!("indexedDB" in window)) return reject(new Error("indexeddb_unavailable"));
-      const request = indexedDB.open(FILE_WORKSPACE_DB, 1);
+      const request = indexedDB.open(FILE_WORKSPACE_DB, 2);
       request.onupgradeneeded = () => {
         const database = request.result;
         if (!database.objectStoreNames.contains("files")) database.createObjectStore("files", { keyPath: "id" });
+        if (!database.objectStoreNames.contains("outbox")) database.createObjectStore("outbox", { keyPath: "id" });
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error || new Error("indexeddb_failed"));
@@ -914,6 +915,72 @@
       transaction.oncomplete = () => { database.close(); resolve(); };
       transaction.onerror = () => { database.close(); reject(transaction.error); };
     });
+  }
+
+  async function readOfflineOutbox() {
+    const database = await openFileWorkspaceDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("outbox", "readonly");
+      const request = transaction.objectStore("outbox").getAll();
+      request.onsuccess = () => resolve((request.result || []).sort((left, right) => String(left.created_at).localeCompare(String(right.created_at))));
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => database.close();
+    });
+  }
+
+  async function saveOfflineCommand(command, attachments = []) {
+    const database = await openFileWorkspaceDatabase();
+    const record = {
+      id: window.crypto?.randomUUID?.() || `offline-${Date.now()}`,
+      command: String(command || "").slice(0, 8000),
+      attachment_names: attachments.map((item) => String(item.name || "arquivo").slice(0, 200)),
+      created_at: new Date().toISOString(),
+    };
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("outbox", "readwrite");
+      transaction.objectStore("outbox").put(record);
+      transaction.oncomplete = () => { database.close(); resolve(record); };
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
+    });
+  }
+
+  async function deleteOfflineCommand(id = "") {
+    const database = await openFileWorkspaceDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("outbox", "readwrite");
+      const store = transaction.objectStore("outbox");
+      if (id) store.delete(id);
+      else store.clear();
+      transaction.oncomplete = () => { database.close(); resolve(); };
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
+    });
+  }
+
+  async function renderOfflineOutbox() {
+    const panel = byId("offlineOutbox");
+    try {
+      const rows = await readOfflineOutbox();
+      panel.hidden = rows.length === 0;
+      if (!rows.length) return;
+      const first = rows[0];
+      byId("offlineOutboxTitle").textContent = `${rows.length} ${rows.length === 1 ? "pedido guardado" : "pedidos guardados"} offline`;
+      byId("offlineOutboxDetail").textContent = first.attachment_names?.length
+        ? `${first.command} · reanexe: ${first.attachment_names.join(", ")}`
+        : first.command;
+    } catch {
+      panel.hidden = true;
+    }
+  }
+
+  function updateConnectivity() {
+    const online = navigator.onLine !== false;
+    byId("connectionDot").classList.toggle("online", online);
+    byId("connectionText").textContent = online ? "online" : "offline";
+    if (!online && !session.working) {
+      session.responseState = "offline";
+      settleState();
+    }
+    renderOfflineOutbox();
   }
 
   function workspaceFileKind(item) {
@@ -1857,7 +1924,18 @@
         return;
       }
       session.lastResponseOk = false;
-      showResponse({ ok: false, error: "A conexão com o núcleo do JARVIS caiu." });
+      const offlineFailure = navigator.onLine === false || error instanceof TypeError;
+      if (offlineFailure) {
+        try {
+          await saveOfflineCommand(command, attachments);
+          await renderOfflineOutbox();
+          showResponse({ ok: false, error: "Sem conexão. Guardei o pedido neste navegador; ele só será reenviado quando você confirmar." });
+        } catch {
+          showResponse({ ok: false, error: "Sem conexão e sem acesso ao armazenamento local. O pedido continua no histórico da conversa." });
+        }
+      } else {
+        showResponse({ ok: false, error: "A conexão com o núcleo do JARVIS caiu." });
+      }
     } finally {
       window.clearTimeout(commandTimeout);
       const ownsRequestState = currentCommandController === commandController;
@@ -1931,6 +2009,7 @@
 
   async function boot() {
     renderNotificationState();
+    updateConnectivity();
     try {
       const status = await request("/status");
       byId("connectionDot").classList.toggle("online", Boolean(status.ok));
@@ -2234,6 +2313,24 @@
     renderFileWorkspace();
   });
   byId("notificationButton")?.addEventListener("click", toggleNotifications);
+  byId("retryOfflineOutbox")?.addEventListener("click", async () => {
+    const rows = await readOfflineOutbox().catch(() => []);
+    const next = rows[0];
+    if (!next) return renderOfflineOutbox();
+    await deleteOfflineCommand(next.id);
+    await renderOfflineOutbox();
+    sendCommand(next.command, { source: "offline-outbox" });
+  });
+  byId("discardOfflineOutbox")?.addEventListener("click", async () => {
+    if (!window.confirm("Descartar todos os pedidos guardados offline?")) return;
+    await deleteOfflineCommand();
+    renderOfflineOutbox();
+  });
+  window.addEventListener("online", () => {
+    updateConnectivity();
+    boot();
+  });
+  window.addEventListener("offline", updateConnectivity);
   byId("refreshRunHistory")?.addEventListener("click", refreshActionHistory);
   byId("runHistoryFilter")?.addEventListener("change", refreshActionHistory);
   dialog.addEventListener("click", (event) => {

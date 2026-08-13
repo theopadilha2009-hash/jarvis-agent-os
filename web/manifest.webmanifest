@@ -11,6 +11,14 @@
   "background_color": "#02070c",
   "theme_color": "#03090f",
   "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Novo pedido",
+      "short_name": "Novo",
+      "url": "/?action=new",
+      "icons": [{"src": "/ui/jarvis-icon-192.png", "sizes": "192x192"}]
+    }
+  ],
   "icons": [
     {
       "src": "/ui/jarvis-icon.svg?v=20260811-commanddeck",

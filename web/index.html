@@ -94,6 +94,11 @@
             </button>
           </div>
         </div>
+        <div class="offline-outbox" id="offlineOutbox" role="status" aria-live="polite" hidden>
+          <span><b id="offlineOutboxTitle">Pedido guardado offline</b><small id="offlineOutboxDetail">Será reenviado somente quando você confirmar.</small></span>
+          <button id="retryOfflineOutbox" type="button">Reenviar</button>
+          <button id="discardOfflineOutbox" type="button">Descartar</button>
+        </div>
         <div class="request-progress" id="requestProgress" role="status" aria-live="polite" aria-busy="false" hidden>
           <span data-run-step="request"><i></i><b>Pedido</b></span>
           <span data-run-step="core"><i></i><b id="requestCoreLabel">Núcleo</b></span>
