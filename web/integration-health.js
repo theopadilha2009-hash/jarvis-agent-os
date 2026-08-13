@@ -10,7 +10,7 @@ window.JarvisIntegrationHealth = (() => {
   if (!document.querySelector('link[data-jarvis-integration-health]')) {
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "/ui/integration-health.css?v=20260813-voicecal1";
+    stylesheet.href = "/ui/integration-health.css?v=20260813-n8npack1";
     stylesheet.dataset.jarvisIntegrationHealth = "true";
     document.head.appendChild(stylesheet);
   }

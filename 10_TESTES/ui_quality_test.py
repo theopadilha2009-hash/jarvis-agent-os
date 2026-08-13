@@ -21,6 +21,7 @@ INTEGRATION_HISTORY_JS = WEB / "integration-history.js"
 INTEGRATION_HEALTH_JS = WEB / "integration-health.js"
 VOICE_CALIBRATOR_JS = WEB / "voice-calibrator.js"
 VOICE_CALIBRATOR_CSS = WEB / "voice-calibrator.css"
+N8N_TEMPLATE_PACK_JS = WEB / "n8n-template-pack.js"
 MISSION_CONTROL_JS = WEB / "mission-control.js"
 MISSION_CONTROL_CSS = WEB / "mission-control.css"
 VOICE_PACING_JS = WEB / "voice-pacing.js"
@@ -190,7 +191,12 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("n8n-map-connector", self.api_panel_css)
         self.assertIn("n8n-template-gallery", self.api_panel_css)
         self.assertIn("n8n-workflow-row", self.api_panel_css)
-        self.assertIn('data-n8n-template="webhook"', self.html)
+        template_pack = N8N_TEMPLATE_PACK_JS.read_text(encoding="utf-8")
+        self.assertIn('id: "whatsapp-lead"', template_pack)
+        self.assertIn('id: "gmail-digest"', template_pack)
+        self.assertIn('id: "github-incident"', template_pack)
+        self.assertIn('id: "supabase-intake"', template_pack)
+        self.assertIn('data-integration-tab="workflows"', self.html)
         self.assertIn('inspect.dataset.n8nWorkflowAction = "inspect"', self.app_js)
         self.assertIn('duplicate.dataset.n8nWorkflowAction = "duplicate"', self.app_js)
         self.assertIn('action === "duplicate" && !window.confirm', self.app_js)
@@ -219,7 +225,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('data-voice-setting="speed"', voice_calibrator)
         self.assertIn("sem aplicar pitch artificial", voice_calibrator)
         self.assertIn("voice_profile: window.JarvisVoiceCalibrator?.profile()", self.app_js)
-        self.assertIn("voice-calibrator.js?v=20260813-voicecal1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
+        self.assertIn("voice-calibrator.js?v=20260813-n8npack1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
+        self.assertIn("n8n-template-pack.js?v=20260813-n8npack1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
 
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
@@ -230,6 +237,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(INTEGRATION_HEALTH_CSS.stat().st_size, 4 * 1024)
         self.assertLess(VOICE_CALIBRATOR_JS.stat().st_size, 7 * 1024)
         self.assertLess(VOICE_CALIBRATOR_CSS.stat().st_size, 4 * 1024)
+        self.assertLess(N8N_TEMPLATE_PACK_JS.stat().st_size, 5 * 1024)
         self.assertLess(UI_REPAIR_CSS.stat().st_size, 8 * 1024)
         self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
         self.assertLess(RESPONSIVE_POLISH_CSS.stat().st_size, 12 * 1024)
@@ -285,7 +293,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
         self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
-        self.assertGreaterEqual(self.html.count("20260813-voicecal1"), 6)
+        self.assertGreaterEqual(self.html.count("20260813-n8npack1"), 6)
 
     def test_final_responsive_guardrails_cover_real_viewports(self):
         css = RESPONSIVE_POLISH_CSS.read_text(encoding="utf-8")

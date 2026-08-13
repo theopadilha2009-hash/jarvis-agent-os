@@ -13,10 +13,10 @@
 <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-apitools1">
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-voicecal1">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-n8npack1">
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260813-uipolish1">
-<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-voicecal1">
-<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260813-voicecal1">
+<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-n8npack1">
+<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260813-n8npack1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
@@ -314,20 +314,7 @@
         <section class="integration-tab-panel" id="integrationWorkflowsPanel" role="tabpanel" data-integration-panel="workflows" hidden>
           <section class="n8n-studio" id="n8nStudio">
             <header><span><small>AUTOMAÇÃO</small><strong>Forja de workflows</strong></span><b>sempre inativo ao criar</b></header>
-            <div class="n8n-template-gallery" id="n8nTemplateGallery" aria-label="Galeria de automações">
-              <button type="button" data-n8n-template="webhook" data-n8n-goal="Receber novos leads por webhook, classificar com inteligência artificial e salvar no Supabase">
-                <small>LEADS</small><b>Lead inteligente</b><span>Webhook · IA · Supabase</span>
-              </button>
-              <button type="button" data-n8n-template="schedule" data-n8n-goal="Todo dia buscar pendências, preparar um resumo e enviar por Gmail">
-                <small>ROTINA</small><b>Resumo diário</b><span>Agenda · resumo · Gmail</span>
-              </button>
-              <button type="button" data-n8n-template="webhook" data-n8n-goal="Receber evento do GitHub por webhook e avisar a equipe no Slack">
-                <small>CÓDIGO</small><b>Alerta de deploy</b><span>GitHub · webhook · Slack</span>
-              </button>
-              <button type="button" data-n8n-template="schedule" data-n8n-goal="Todo dia consultar dados no Supabase e enviar uma cópia para uma API de backup">
-                <small>DADOS</small><b>Backup verificado</b><span>Supabase · API · registro</span>
-              </button>
-            </div>
+            <div class="n8n-template-gallery" id="n8nTemplateGallery" aria-label="Galeria de automações"><small>Carregando templates…</small></div>
             <label>Objetivo do fluxo<textarea id="n8nWorkflowGoal" maxlength="3000" rows="3" aria-label="Objetivo do workflow n8n" placeholder="Ex.: receber leads por webhook e preparar os dados"></textarea></label>
             <label>Estrutura inicial<select id="n8nWorkflowTemplate" aria-label="Estrutura inicial do workflow n8n">
               <option value="auto">Automática</option>
@@ -400,9 +387,9 @@
     </div>
   </dialog>
 
-<script src="/ui/api-vault.js?v=20260813-voicecal1" defer></script>
-<script src="/ui/integration-history.js?v=20260813-voicecal1" defer></script>
-<script src="/ui/jarvis.js?v=20260813-voicecal1" defer></script>
+<script src="/ui/api-vault.js?v=20260813-n8npack1" defer></script>
+<script src="/ui/integration-history.js?v=20260813-n8npack1" defer></script>
+<script src="/ui/jarvis.js?v=20260813-n8npack1" defer></script>
   <script type="module">
     let presenceScheduled = false;
 
