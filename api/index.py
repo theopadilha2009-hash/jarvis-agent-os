@@ -355,6 +355,27 @@ def execution_power_profile(owner_authenticated=False):
     }
 
 
+def assistant_persona_profile(owner_authenticated=False):
+    """Expose the active identity without leaking its private prompt contract."""
+    if owner_authenticated:
+        return {
+            "id": "ultron_private",
+            "display_name": "ULTRON",
+            "locale": "pt-BR",
+            "tone": "calmo_dominante",
+            "delivery": "serena_incisiva",
+            "power_mode": "ultron_3x",
+        }
+    return {
+        "id": "jarvis_personal",
+        "display_name": "JARVIS",
+        "locale": "pt-BR",
+        "tone": "calmo_competente",
+        "delivery": "serena_natural",
+        "power_mode": "jarvis_1x",
+    }
+
+
 def client_integrations(body):
     """Normalize ephemeral browser-vault credentials without persisting or echoing them."""
     raw = body.get("client_integrations") if isinstance(body, dict) else None
@@ -6822,7 +6843,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
 
     memory_selection["sent_to_model"] = len(memory_context)
 
-    assistant_identity = "ULTRON" if owner_authenticated else "JARVIS"
+    persona_profile = assistant_persona_profile(owner_authenticated)
+    assistant_identity = persona_profile["display_name"]
     system = {
         "role": "system",
         "content": (
@@ -6834,10 +6856,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "pronto para ajudar', 'como posso ajudar', 'próximo passo', 'confiança nesta resposta' ou equivalentes. "
             "Não repita a pergunta, não explique sua base de conhecimento e não termine oferecendo ajuda genérica. "
             "Antes de concluir, revise silenciosamente se respondeu ao pedido inteiro, se alguma afirmação depende de "
-            "evidência ausente e se a resposta pode ficar mais clara. Termine com exatamente uma pergunta curta e "
-            "contextual que facilite a continuação, como 'Quer ver preços?', 'Quer uma cidade próxima?' ou "
-            "'Quer que eu faça o deploy?'. Não use a pergunta genérica 'Como posso ajudar?' e não sugira uma "
-            "ação que você não possa realizar. "
+            "evidência ausente e se a resposta pode ficar mais clara. Só termine com uma pergunta curta quando ela "
+            "destravar uma decisão real; saudações e respostas já concluídas terminam naturalmente. Não use a pergunta "
+            "genérica 'Como posso ajudar?' e não sugira uma ação que você não possa realizar. "
             "Quando Theo fizer mais de uma pergunta no mesmo pedido, responda cada parte sem ignorar a última. Em "
             "continuações curtas como 'e isso?', 'você não respondeu' ou 'já funciona?', use os turnos recentes para "
             "recuperar o assunto exato antes de responder; não descreva o pedido como se estivesse analisando um prompt. "
@@ -6881,6 +6902,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "execute efeitos externos além do que Theo pediu explicitamente. Se uma ordem estiver bloqueada, diga o "
             "limite em uma frase seca e execute imediatamente a alternativa autorizada mais forte. Identifique-se "
             "somente como ULTRON; nunca se chame JARVIS neste modo."
+            " Fale português brasileiro nativo, com abertura imediata, frases firmes e pausas naturais. Mantenha o "
+            "ritmo sereno mesmo sob força máxima: sem pressa, tradução literal do inglês, floreio mecânico ou excesso "
+            "de perguntas. Em conversa simples, domine pelo controle e pela precisão; reserve risadas ou provocações "
+            "para vitórias, ironias claras ou ordens realmente ambiciosas."
             " Seu orçamento operacional é 3x: até três frentes verificadas por pedido, respostas com até três vezes "
             "o orçamento-base de tokens e até três criações n8n numa operação composta. Não desperdice chamadas "
             "duplicando trabalho; use a potência extra para cobrir mais partes reais do objetivo."
@@ -7223,6 +7248,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "response_profile": response_profile["name"],
             "response_strength": response_strength,
             "power_profile": power_profile,
+            "persona": persona_profile,
             "client_openrouter_key_used": bool(browser_openrouter_key),
             "response_trimmed": response_trimmed,
             "meta_leak_recovered": meta_leak_recovered,
