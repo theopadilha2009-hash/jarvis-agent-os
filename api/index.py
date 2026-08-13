@@ -61,6 +61,7 @@ ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 ELEVENLABS_SHARED_VOICES_URL = "https://api.elevenlabs.io/v1/shared-voices"
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
 DEFAULT_ELEVENLABS_MODEL = "eleven_flash_v2_5"
+JARVIS_VOICE_PROFILE = "native-ptbr-calm-v2"
 MAX_BODY_BYTES = 4_000_000
 MAX_PROMPT_CHARS = 8_000
 MAX_ATTACHMENT_BYTES = 2_500_000
@@ -595,7 +596,13 @@ VOICE_DESIGN_PATTERN = re.compile(
     re.I,
 )
 
-_ACTIVE_VOICE_CACHE = {"voice_id": "", "name": "", "language": "", "expires_at": 0.0}
+_ACTIVE_VOICE_CACHE = {
+    "voice_id": "",
+    "name": "",
+    "language": "",
+    "profile": "",
+    "expires_at": 0.0,
+}
 _ASSISTANT_MEMORY_CACHE = {"backend": "", "rows": [], "expires_at": 0.0}
 _ASSISTANT_MEMORY_CACHE_LOCK = threading.Lock()
 ASSISTANT_MEMORY_CACHE_SECONDS = 30.0
@@ -997,6 +1004,7 @@ def active_voice_setting(force=False):
             if environment_voice_id == DEFAULT_ELEVENLABS_VOICE_ID
             else clean_text(os.environ.get("ELEVENLABS_VOICE_LANGUAGE"), 20)
         ),
+        "profile": clean_text(os.environ.get("ELEVENLABS_VOICE_PROFILE"), 80),
         "source": "environment",
     }
     if supabase_configured():
@@ -1012,6 +1020,7 @@ def active_voice_setting(force=False):
                     "voice_id": voice_id,
                     "name": clean_text(value.get("name") or "JARVIS Theo", 120),
                     "language": clean_text(value.get("language"), 20),
+                    "profile": clean_text(value.get("profile"), 80),
                     "source": "supabase",
                 }
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
@@ -1020,13 +1029,20 @@ def active_voice_setting(force=False):
         "voice_id": fallback["voice_id"],
         "name": fallback["name"],
         "language": fallback.get("language", ""),
+        "profile": fallback.get("profile", ""),
         "source": fallback["source"],
         "expires_at": now + 60.0,
     })
     return dict(_ACTIVE_VOICE_CACHE)
 
 
-def persist_active_voice(voice_id, name, description, language="pt-BR"):
+def persist_active_voice(
+    voice_id,
+    name,
+    description,
+    language="pt-BR",
+    profile=JARVIS_VOICE_PROFILE,
+):
     safe_voice_id = clean_text(voice_id, 100)
     if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", safe_voice_id):
         raise ValueError("invalid voice id")
@@ -1035,6 +1051,7 @@ def persist_active_voice(voice_id, name, description, language="pt-BR"):
         "name": clean_text(name, 120),
         "description": clean_text(description, 1_000),
         "language": clean_text(language, 20),
+        "profile": clean_text(profile, 80),
         "provider": "elevenlabs_voice_library",
         "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
@@ -1054,14 +1071,15 @@ def persist_active_voice(voice_id, name, description, language="pt-BR"):
         "voice_id": safe_voice_id,
         "name": value["name"],
         "language": value["language"],
+        "profile": value["profile"],
         "source": "supabase",
         "expires_at": time.monotonic() + 60.0,
     })
     return value
 
 
-def native_ptbr_voice(api_key):
-    """Choose a stable native Brazilian voice without exposing provider credentials."""
+def native_ptbr_voices(api_key):
+    """Rank usable native Brazilian voices without exposing provider credentials."""
     query = urlencode({
         "page_size": 100,
         "language": "pt",
@@ -1086,7 +1104,11 @@ def native_ptbr_voice(api_key):
         "relaxed", "confident", "narration", "narrator", "trustworthy", "thoughtful",
         "calmo", "natural", "conversacional", "sério", "grave", "confiante",
     )
-    negative_traits = ("energetic", "excited", "cartoon", "fast paced", "comedy", "exaggerated")
+    negative_traits = (
+        "energetic", "excited", "cartoon", "character", "fast paced", "comedy", "exaggerated",
+        "sensual", "seductive", "sexy", "commercial", "advertisement", "social media",
+        "enérgico", "sensual", "sedutor", "comercial",
+    )
     for row in rows if isinstance(rows, list) else []:
         if not isinstance(row, dict):
             continue
@@ -1105,7 +1127,13 @@ def native_ptbr_voice(api_key):
             )
             for item in verified
         )
-        if not native_br or row.get("live_moderation_enabled") is True:
+        rate = row.get("rate") if isinstance(row.get("rate"), (int, float)) else 1
+        if (
+            not native_br
+            or row.get("live_moderation_enabled") is True
+            or row.get("free_users_allowed") is not True
+            or rate > 1
+        ):
             continue
         traits = " ".join(clean_text(row.get(field), 600).casefold() for field in (
             "name", "accent", "descriptive", "use_case", "description", "age",
@@ -1113,27 +1141,46 @@ def native_ptbr_voice(api_key):
         trait_score = sum(1 for term in positive_traits if term in traits)
         trait_score -= sum(2 for term in negative_traits if term in traits)
         age_score = 2 if any(term in traits for term in ("middle", "adult", "mature")) else 0
-        free_score = 2 if row.get("free_users_allowed") is True else 0
-        rate = row.get("rate") if isinstance(row.get("rate"), (int, float)) else 1
-        rate_score = 1 if rate <= 1 else 0
         popularity = min(int(row.get("cloned_by_count") or 0), 100_000)
-        candidates.append(((trait_score, age_score, free_score, rate_score, popularity), row))
+        candidates.append(((trait_score, age_score, popularity), row))
     if not candidates:
         raise ValueError("no native pt-BR male voice available")
-    selected = max(candidates, key=lambda item: item[0])[1]
-    return {
-        "voice_id": clean_text(selected.get("voice_id"), 100),
-        "name": clean_text(selected.get("name") or "Voz brasileira", 120),
-        "description": clean_text(selected.get("description") or "Voz masculina brasileira profissional.", 1_000),
-        "language": "pt-BR",
-        "source": "elevenlabs_voice_library",
-    }
+    ranked = []
+    for _score, selected in sorted(candidates, key=lambda item: item[0], reverse=True):
+        ranked.append({
+            "voice_id": clean_text(selected.get("voice_id"), 100),
+            "name": clean_text(selected.get("name") or "Voz brasileira", 120),
+            "description": clean_text(
+                selected.get("description") or "Voz masculina brasileira profissional.",
+                1_000,
+            ),
+            "language": "pt-BR",
+            "profile": JARVIS_VOICE_PROFILE,
+            "source": "elevenlabs_voice_library",
+        })
+    return ranked
+
+
+def native_ptbr_voice(api_key):
+    return native_ptbr_voices(api_key)[0]
+
+
+def speech_voice_candidates(api_key):
+    """Return tested-profile candidates first; never prefer the legacy English voice."""
+    active = active_voice_setting()
+    if clean_text(active.get("profile"), 80) == JARVIS_VOICE_PROFILE:
+        return [active]
+    if supabase_configured():
+        candidates = native_ptbr_voices(api_key)
+        if candidates:
+            return candidates[:8]
+    return [active]
 
 
 def ensure_native_ptbr_voice(api_key):
     """Replace the English premade fallback once and persist the native selection."""
     active = active_voice_setting()
-    if clean_text(active.get("language"), 20).casefold() == "pt-br":
+    if clean_text(active.get("profile"), 80) == JARVIS_VOICE_PROFILE:
         return active
     if not supabase_configured():
         return active
@@ -1145,12 +1192,14 @@ def ensure_native_ptbr_voice(api_key):
             name,
             selected["description"],
             language="pt-BR",
+            profile=JARVIS_VOICE_PROFILE,
         )
     except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
         _ACTIVE_VOICE_CACHE.update({
             "voice_id": selected["voice_id"],
             "name": name,
             "language": "pt-BR",
+            "profile": JARVIS_VOICE_PROFILE,
             "source": "runtime_native_selection",
             "expires_at": time.monotonic() + 3_600.0,
         })
@@ -2817,6 +2866,7 @@ def status_payload(owner_authenticated=False):
             "voice_id": active_voice.get("voice_id"),
             "name": active_voice.get("name"),
             "language": active_voice.get("language"),
+            "profile": active_voice.get("profile"),
             "source": active_voice.get("source"),
             "model": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
             "fallback": "text_only",
@@ -3434,13 +3484,11 @@ def elevenlabs_speech(body):
             "error": "ElevenLabs ainda não está configurado.",
             "fallback": "text_only",
         }, 503
+    current_voice = active_voice_setting()
     try:
-        active_voice = ensure_native_ptbr_voice(api_key)
+        voice_candidates = speech_voice_candidates(api_key)
     except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
-        active_voice = active_voice_setting()
-    voice_id = clean_text(active_voice.get("voice_id"), 100)
-    if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
-        return {"ok": False, "error": "Voice ID inválido."}, 500
+        voice_candidates = [current_voice]
     speech_payload = {
         "text": text,
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
@@ -3460,19 +3508,56 @@ def elevenlabs_speech(body):
     if next_text:
         speech_payload["next_text"] = next_text
     payload = json.dumps(speech_payload, ensure_ascii=False).encode("utf-8")
-    url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
     headers = {
         "xi-api-key": api_key,
         "Content-Type": "application/json",
         "Accept": "audio/mpeg",
     }
     try:
-        req = Request(url, data=payload, headers=headers, method="POST")
-        with urlopen(req, timeout=25) as response:
-            audio = response.read(8_000_000)
-        if not audio:
-            raise ValueError("empty audio")
-        return audio, 200
+        last_error = None
+        retryable_voice_codes = {402, 403, 404, 422}
+        for index, voice in enumerate(voice_candidates):
+            voice_id = clean_text(voice.get("voice_id"), 100)
+            if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
+                continue
+            url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
+            req = Request(url, data=payload, headers=headers, method="POST")
+            try:
+                with urlopen(req, timeout=25) as response:
+                    audio = response.read(8_000_000)
+                if not audio:
+                    raise ValueError("empty audio")
+                should_persist = (
+                    clean_text(voice.get("profile"), 80) == JARVIS_VOICE_PROFILE
+                    and (
+                        clean_text(current_voice.get("voice_id"), 100) != voice_id
+                        or clean_text(current_voice.get("profile"), 80) != JARVIS_VOICE_PROFILE
+                        or current_voice.get("source") != "supabase"
+                    )
+                )
+                if should_persist:
+                    voice_name = clean_text(voice.get("name"), 120)
+                    if not voice_name.startswith("JARVIS pt-BR · "):
+                        voice_name = f"JARVIS pt-BR · {voice_name}"
+                    try:
+                        persist_active_voice(
+                            voice_id,
+                            voice_name,
+                            voice.get("description") or "Voz masculina brasileira profissional.",
+                            language="pt-BR",
+                            profile=JARVIS_VOICE_PROFILE,
+                        )
+                    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+                        pass
+                return audio, 200
+            except HTTPError as error:
+                last_error = error
+                if error.code in retryable_voice_codes and index + 1 < len(voice_candidates):
+                    continue
+                raise
+        if last_error is not None:
+            raise last_error
+        raise ValueError("no valid voice candidate")
     except HTTPError as error:
         if error.code == 402:
             return {
