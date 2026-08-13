@@ -2889,6 +2889,7 @@ dialog::backdrop {
 }
 
 .integration-editor > header,
+.integration-toolbox > header,
 .n8n-studio > header {
   display: flex;
   align-items: flex-start;
@@ -2897,16 +2898,20 @@ dialog::backdrop {
 }
 
 .integration-editor > header span,
+.integration-toolbox > header span,
 .n8n-studio > header span { display: grid; gap: 4px; }
 .integration-editor > header small,
+.integration-toolbox > header small,
 .n8n-studio > header small {
   color: var(--cyan);
   font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: 0.16em;
 }
 .integration-editor > header strong,
+.integration-toolbox > header strong,
 .n8n-studio > header strong { color: #f3e8ff; font-size: 17px; }
 .integration-editor > header > b,
+.integration-toolbox > header > b,
 .n8n-studio > header > b {
   color: var(--faint);
   font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -2915,6 +2920,7 @@ dialog::backdrop {
 
 .integration-fields { display: grid; gap: 10px; }
 .integration-fields label,
+.integration-tool-fields label,
 .n8n-studio label {
   display: grid;
   gap: 6px;
@@ -2923,6 +2929,8 @@ dialog::backdrop {
 }
 
 .integration-fields input,
+.integration-tool-fields input,
+.integration-tool-fields textarea,
 .n8n-studio input,
 .n8n-studio textarea,
 .n8n-studio select {
@@ -2943,6 +2951,8 @@ dialog::backdrop {
 }
 
 .integration-fields input:focus,
+.integration-tool-fields input:focus,
+.integration-tool-fields textarea:focus,
 .n8n-studio input:focus,
 .n8n-studio textarea:focus,
 .n8n-studio select:focus { border-color: color-mix(in srgb, var(--cyan) 55%, transparent); }
@@ -3001,6 +3011,61 @@ dialog::backdrop {
   line-height: 1.55;
 }
 .vault-security-note b { margin-right: 5px; color: var(--cyan); letter-spacing: 0.12em; }
+
+.integration-toolbox {
+  display: grid;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 24%, transparent);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 90% 0, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 38%),
+    rgba(5, 2, 12, 0.42);
+}
+
+.integration-toolbox > header strong { font-size: 14px; }
+.integration-toolbox > header > b[data-effect="read"] { color: #c4b5fd; }
+.integration-toolbox > header > b[data-effect="external_write"] { color: #fca5a5; }
+.integration-toolbox > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.integration-tool-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.integration-tool-fields label:only-child { grid-column: 1 / -1; }
+.integration-tool-fields textarea {
+  min-height: 86px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.integration-tool-run {
+  min-height: 38px;
+  width: max-content;
+  padding: 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 48%, transparent);
+  border-radius: 10px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cyan) 24%, transparent), color-mix(in srgb, var(--cyan) 8%, transparent));
+  color: var(--cyan-hot);
+  cursor: pointer;
+  font-size: 9px;
+}
+.integration-tool-run:disabled { opacity: 0.5; cursor: wait; }
+.integration-tool-result {
+  max-height: 210px;
+  margin: 0;
+  padding: 11px;
+  overflow: auto;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.26);
+  color: var(--muted);
+  font: 8px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+}
 
 .n8n-studio {
   display: grid;
@@ -3133,10 +3198,14 @@ html[data-persona="ultron"] .integrations-button b {
   .integration-provider-list small,
   .integration-provider-list em { display: none; }
   .integration-editor { padding: 15px; }
+  .integration-tool-fields { grid-template-columns: 1fr; }
   .integration-fields input,
+  .integration-tool-fields input,
+  .integration-tool-fields textarea,
   .n8n-studio input,
   .n8n-studio select { min-height: 44px; font-size: 16px; }
   .integration-actions button,
+  .integration-tool-run,
   .n8n-studio-actions button { min-height: 44px; }
   .integration-actions .integration-danger { margin-left: 0; }
 }
