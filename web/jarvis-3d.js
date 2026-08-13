@@ -624,8 +624,8 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const [visitorModel, topologyGeometry] = await Promise.all([
-    loadObjHead("/asset/models/male_head.obj?v=20260813-human5"),
-    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-human5"),
+    loadObjHead("/asset/models/male_head.obj?v=20260813-human6"),
+    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-human6"),
   ]);
   const visitorHeadLook = installVisitorHeadPose(visitorModel.material);
   let ownerModel = new THREE.Group();
