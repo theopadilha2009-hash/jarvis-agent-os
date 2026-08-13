@@ -143,11 +143,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-n8n2', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-n8n2', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-n8n2', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-integrations2', html)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-integrations2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-integrations2', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-integrations2', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', html)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-n8n2', html)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-integrations2', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -292,6 +293,11 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b".integration-tabs", api_panel_css)
         self.assertIn(b".integration-actions-sticky", api_panel_css)
 
+        status, headers, integration_history = self.request("/ui/integration-history.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"jarvis-integration-history-v1", integration_history)
+
         self.assertIn(b"@keyframes shimmer-text", app_css)
         self.assertIn(b".starter-actions", app_css)
         self.assertIn(b".mobile-chat-toggle", app_css)
@@ -388,11 +394,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-n8n2", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-integrations2", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', service_worker)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-n8n2', service_worker)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-n8n2', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-integrations2', service_worker)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-integrations2', service_worker)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-integrations2', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -3320,13 +3327,15 @@ São Paulo - SP
             "https://theo.app.n8n.cloud",
         )
 
-    def test_integration_tool_catalog_has_one_bounded_tool_per_saved_api(self):
+    def test_integration_tool_catalog_has_bounded_tools_for_each_saved_api(self):
         catalog = MODULE.integration_tool_catalog()
         self.assertEqual(
             {item["provider"] for item in catalog},
             {"n8n", "openrouter", "elevenlabs", "github", "supabase", "webhook"},
         )
-        self.assertEqual(len({item["tool"] for item in catalog}), 6)
+        self.assertEqual(len({item["tool"] for item in catalog}), 13)
+        self.assertEqual(sum(item["provider"] == "github" for item in catalog), 5)
+        self.assertEqual(sum(item["provider"] == "n8n" for item in catalog), 2)
         self.assertEqual(
             next(item for item in catalog if item["provider"] == "webhook")["effect"],
             "external_write",
@@ -3343,6 +3352,59 @@ São Paulo - SP
         self.assertEqual(payload["status_real"], "integration_tool_key_missing")
         self.assertEqual(payload["event_stream"]["protocol"], "jarvis-events/1")
         self.assertFalse(payload["credential_persisted_server_side"])
+
+    def test_n8n_execution_history_excludes_processed_payloads(self):
+        captured = {}
+
+        def fake_request(url, **kwargs):
+            captured["url"] = url
+            captured.update(kwargs)
+            return {"data": [{
+                "id": "exec-1",
+                "workflowId": "wf-1",
+                "status": "success",
+                "mode": "webhook",
+                "startedAt": "2026-08-13T18:00:00Z",
+                "stoppedAt": "2026-08-13T18:00:01Z",
+                "data": {"secret": "must-not-return"},
+            }]}, 200
+
+        with patch.object(MODULE, "integration_json_request", side_effect=fake_request):
+            payload, status = MODULE.integration_tool_payload({
+                "provider": "n8n",
+                "tool": "list_executions",
+                "config": {"base_url": "https://theo.app.n8n.cloud", "api_key": "n8n-key"},
+            })
+
+        self.assertEqual(status, 200)
+        self.assertIn("includeData=false", captured["url"])
+        self.assertEqual(payload["result"][0]["id"], "exec-1")
+        self.assertNotIn("must-not-return", json.dumps(payload))
+
+    def test_github_issue_reader_uses_repository_route_and_filters_pull_requests(self):
+        captured = {}
+
+        def fake_request(url, **kwargs):
+            captured["url"] = url
+            captured.update(kwargs)
+            return [
+                {"number": 7, "title": "Corrigir UI", "state": "open", "user": {"login": "theo"}, "updated_at": "2026-08-13", "html_url": "https://github.com/theo/jarvis/issues/7"},
+                {"number": 8, "title": "PR", "pull_request": {"url": "private"}},
+            ], 200
+
+        with patch.object(MODULE, "integration_json_request", side_effect=fake_request):
+            payload, status = MODULE.integration_tool_payload({
+                "provider": "github",
+                "tool": "list_issues",
+                "config": {"api_key": "github-key"},
+                "parameters": {"repository": "theo/jarvis"},
+            })
+
+        self.assertEqual(status, 200)
+        self.assertIn("/repos/theo/jarvis/issues?state=open", captured["url"])
+        self.assertEqual([item["number"] for item in payload["result"]], [7])
+        self.assertEqual(captured["headers"]["X-GitHub-Api-Version"], "2022-11-28")
+        self.assertNotIn("github-key", json.dumps(payload))
 
     def test_openrouter_saved_api_executes_real_usage_tool_without_echoing_key(self):
         captured = {}
