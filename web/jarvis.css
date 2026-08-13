@@ -1052,6 +1052,24 @@ dialog::backdrop { background: rgba(0, 3, 4, 0.8); backdrop-filter: blur(9px); }
 .history-row ul { display: grid; gap: 3px; margin: 6px 0 0; padding-left: 16px; color: #6f8c92; }
 .history-row button { width: fit-content; margin-top: 5px; padding: 5px 8px; border: 1px solid rgba(85, 216, 231, 0.16); border-radius: 8px; background: rgba(85, 216, 231, 0.035); color: #9fdce3; cursor: pointer; }
 .history-row a { width: fit-content; color: #91dce5; text-underline-offset: 3px; }
+.memory-dialog { width: min(760px, calc(100% - 28px)); }
+.memory-tools { position: sticky; z-index: 1; top: 54px; display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: rgba(7, 11, 14, 0.96); }
+.memory-tools input,
+.memory-tools select { min-width: 0; min-height: 40px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px; outline: 0; background: rgba(0, 0, 0, 0.22); color: #bdd1d5; }
+.memory-manager-status { padding: 10px 14px 0; color: #6f8b91; font: 9px ui-monospace, monospace; }
+.memory-manager-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding: 12px 14px 16px; }
+.memory-item { min-width: 0; display: grid; align-content: start; gap: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255, 255, 255, 0.012); }
+.memory-item header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.memory-item header i { color: #6ed4de; font: normal 8px ui-monospace, monospace; letter-spacing: 0.12em; }
+.memory-item header small { color: #526c72; font-size: 8px; }
+.memory-item > p { max-height: 112px; margin: 0; overflow: auto; color: #a8bec3; font-size: 11px; line-height: 1.55; white-space: pre-wrap; }
+.memory-item footer { display: flex; gap: 6px; }
+.memory-item button { min-height: 32px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: rgba(85, 216, 231, 0.03); color: #94ccd2; cursor: pointer; }
+.memory-item button.danger { color: #d9949f; }
+.memory-editor { display: grid; gap: 7px; }
+.memory-editor textarea { min-height: 110px; resize: vertical; padding: 9px; border: 1px solid var(--line); border-radius: 9px; background: rgba(0, 0, 0, 0.24); color: #c8dade; font: 11px/1.5 inherit; }
+.memory-editor select { min-height: 34px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: #0b1114; color: #a9c1c6; }
+.memory-empty { grid-column: 1 / -1; padding: 28px; color: #6f8b91; text-align: center; }
 .tour-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px; }
 .tour-grid section { padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
 .tour-grid i { color: var(--accent); font: normal 8px ui-monospace, monospace; }
@@ -1155,7 +1173,9 @@ dialog::backdrop { background: rgba(0, 3, 4, 0.8); backdrop-filter: blur(9px); }
   .action-hub-grid button { min-height: 58px; }
   dialog { width: calc(100% - 16px); max-height: calc(var(--jarvis-viewport-height, 100dvh) - 16px); border-radius: 20px; }
   .dialog-grid,
-  .tour-grid { grid-template-columns: 1fr; }
+  .tour-grid,
+  .memory-manager-list { grid-template-columns: 1fr; }
+  .memory-tools { grid-template-columns: 1fr; }
   .dialog-wide { grid-column: auto; }
   .admin-login,
   .pairing-controls { grid-template-columns: 1fr; }

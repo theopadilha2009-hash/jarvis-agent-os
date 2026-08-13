@@ -160,6 +160,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="tourDialog"', html)
         self.assertIn(b'id="adminLoginButton"', html)
         self.assertIn(b'id="requestProgress"', html)
+        self.assertIn(b'id="memoryDialog"', html)
+        self.assertIn(b'id="memoryManagerSearch"', html)
         self.assertIn(b'id="starterActions"', html)
         self.assertIn(b'id="mobileChatToggle"', html)
         self.assertIn(b'id="newConversationButton"', html)
@@ -217,6 +219,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'addEventListener("paste"', app_js)
         self.assertIn(b"retry-command", app_js)
         self.assertIn(b"showAttachmentPreview", app_js)
+        self.assertIn(b"loadMemoryManager", app_js)
+        self.assertIn(b'"/memory-update"', app_js)
+        self.assertIn(b'"/memory-archive"', app_js)
         self.assertIn("Esta é uma prévia do arquivo que estou analisando.".encode(), app_js)
         self.assertIn(b"exitOwnerMode", app_js)
         self.assertIn(b'dataset.action = canLeaveOwnerMode ? "logout" : "details"', app_js)
@@ -455,6 +460,29 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["provider"], "sqlite_local_index")
         self.assertEqual(payload["state"], "completed")
         self.assertTrue(any("busto" in row["snippet"].casefold() for row in payload["memory_results"]))
+
+    def test_memory_manager_updates_and_archives_supabase_rows(self):
+        saved = [{"id": "42", "content": "conteúdo atualizado", "kind": "decision"}]
+        with patch.object(MODULE, "supabase_configured", return_value=True), patch.object(
+            MODULE, "supabase_request", return_value=saved
+        ) as request_mock:
+            status, _, updated = self.json_request(
+                "/memory-update", "POST", {"id": "42", "content": "conteúdo atualizado", "kind": "decision"}
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(updated["status_real"], "supabase_memory_updated")
+            self.assertEqual(request_mock.call_args.args[0], "PATCH")
+
+            status, _, archived = self.json_request("/memory-archive", "POST", {"id": "42"})
+            self.assertEqual(status, 200)
+            self.assertEqual(archived["status_real"], "supabase_memory_archived")
+
+    def test_memory_manager_refuses_secret_like_content(self):
+        status, _, payload = self.json_request(
+            "/memory-update", "POST", {"id": "42", "content": "api_key=abcdefghijk123456", "kind": "learning"}
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("credenciais", payload["error"])
 
         status, _, direct = self.json_request("/memory-search?q=busto")
         self.assertEqual(status, 200)

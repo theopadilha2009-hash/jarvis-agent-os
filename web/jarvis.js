@@ -16,6 +16,7 @@
   const conversation = document.querySelector(".conversation");
   const dialog = byId("systemDialog");
   const tourDialog = byId("tourDialog");
+  const memoryDialog = byId("memoryDialog");
   const actionHub = byId("actionHub");
   const actionHubBackdrop = byId("actionHubBackdrop");
   const actionHubButton = byId("actionHubButton");
@@ -78,6 +79,7 @@
   let deferredInstallPrompt = null;
   let viewportCeiling = Math.round(window.visualViewport?.height || window.innerHeight);
   let viewportWidth = window.innerWidth;
+  const memoryManager = { nodes: [], writable: false, provider: "" };
 
   function ownerToken() {
     try {
@@ -940,6 +942,88 @@
     } catch {
       renderActionHistory([]);
     }
+  }
+
+  function renderMemoryManager() {
+    const target = byId("memoryManagerList");
+    const search = searchableActionText(byId("memoryManagerSearch")?.value);
+    const kind = byId("memoryManagerKind")?.value || "";
+    const rows = memoryManager.nodes.filter((item) => {
+      const matchesKind = !kind || item.kind === kind;
+      const haystack = searchableActionText([item.label, item.content, item.category, item.layer, item.kind, item.path].join(" "));
+      return matchesKind && (!search || haystack.includes(search));
+    });
+    byId("memoryManagerStatus").textContent = `${rows.length} de ${memoryManager.nodes.length} registros · ${memoryManager.provider || "índice local"}${memoryManager.writable ? " · edição ativa" : " · somente leitura"}`;
+    if (!rows.length) {
+      target.innerHTML = '<p class="memory-empty">Nenhuma memória corresponde a este filtro.</p>';
+      return;
+    }
+    target.innerHTML = rows.map((item) => {
+      const memoryId = String(item.id || "").replace(/^supabase:/, "");
+      const editable = memoryManager.writable && String(item.id || "").startsWith("supabase:");
+      return `<article class="memory-item" data-memory-id="${escapeHtml(memoryId)}">`
+        + `<header><i>${escapeHtml(item.category || item.layer || "MEMÓRIA")}</i><small>${escapeHtml(item.kind || "context")}</small></header>`
+        + `<p>${escapeHtml(item.content || item.label || item.path)}</p>`
+        + (editable ? `<footer><button type="button" data-edit-memory>Editar</button><button class="danger" type="button" data-archive-memory>Excluir</button></footer>` : `<small>${escapeHtml(item.path || "registro local")}</small>`)
+        + (editable ? `<div class="memory-editor" hidden><textarea maxlength="4000" aria-label="Conteúdo da memória">${escapeHtml(item.content || "")}</textarea><select aria-label="Tipo da memória"><option value="learning" ${item.kind === "learning" ? "selected" : ""}>Aprendizado</option><option value="decision" ${item.kind === "decision" ? "selected" : ""}>Decisão</option><option value="preference" ${item.kind === "preference" ? "selected" : ""}>Preferência</option><option value="context" ${item.kind === "context" ? "selected" : ""}>Contexto</option></select><footer><button type="button" data-save-memory>Salvar</button><button type="button" data-cancel-memory>Cancelar</button></footer></div>` : "")
+        + `</article>`;
+    }).join("");
+    target.querySelectorAll("[data-edit-memory]").forEach((button) => button.addEventListener("click", () => {
+      const card = button.closest(".memory-item");
+      card.querySelector(".memory-editor").hidden = false;
+      card.querySelector(".memory-editor textarea").focus();
+    }));
+    target.querySelectorAll("[data-cancel-memory]").forEach((button) => button.addEventListener("click", () => {
+      button.closest(".memory-editor").hidden = true;
+    }));
+    target.querySelectorAll("[data-save-memory]").forEach((button) => button.addEventListener("click", async () => {
+      const card = button.closest(".memory-item");
+      button.disabled = true;
+      const data = await request("/memory-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: card.dataset.memoryId, content: card.querySelector("textarea").value, kind: card.querySelector("select").value }),
+      });
+      if (data.ok === false) {
+        button.disabled = false;
+        byId("memoryManagerStatus").textContent = data.error || "Edição não confirmada.";
+        return;
+      }
+      await loadMemoryManager();
+      window.dispatchEvent(new CustomEvent("jarvis-memory-refresh"));
+    }));
+    target.querySelectorAll("[data-archive-memory]").forEach((button) => button.addEventListener("click", async () => {
+      const card = button.closest(".memory-item");
+      if (!window.confirm("Excluir esta memória da visão ativa? Ela será arquivada, não destruída.")) return;
+      button.disabled = true;
+      const data = await request("/memory-archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: card.dataset.memoryId }),
+      });
+      if (data.ok === false) {
+        button.disabled = false;
+        byId("memoryManagerStatus").textContent = data.error || "Exclusão não confirmada.";
+        return;
+      }
+      await loadMemoryManager();
+      window.dispatchEvent(new CustomEvent("jarvis-memory-refresh"));
+    }));
+  }
+
+  async function loadMemoryManager() {
+    byId("memoryManagerStatus").textContent = "Sincronizando memória…";
+    const data = await request("/memory-tree");
+    if (data.ok === false) {
+      memoryManager.nodes = [];
+      byId("memoryManagerStatus").textContent = data.error || "Memória indisponível.";
+      byId("memoryManagerList").innerHTML = '<p class="memory-empty">Entre no modo master para consultar a memória privada.</p>';
+      return;
+    }
+    memoryManager.nodes = Array.isArray(data.nodes) ? data.nodes : [];
+    memoryManager.writable = Boolean(data.persistent_write);
+    memoryManager.provider = data.provider || "";
+    renderMemoryManager();
   }
 
   async function refreshPulse() {
@@ -1828,6 +1912,17 @@
     renderMuteState();
   });
   byId("closeDialog").addEventListener("click", () => dialog.close());
+  byId("memoryManagerButton")?.addEventListener("click", () => {
+    dialog.close();
+    memoryDialog.showModal();
+    loadMemoryManager();
+  });
+  byId("closeMemoryDialog")?.addEventListener("click", () => memoryDialog.close());
+  memoryDialog?.addEventListener("click", (event) => {
+    if (event.target === memoryDialog) memoryDialog.close();
+  });
+  byId("memoryManagerSearch")?.addEventListener("input", renderMemoryManager);
+  byId("memoryManagerKind")?.addEventListener("change", renderMemoryManager);
   byId("refreshRunHistory")?.addEventListener("click", refreshActionHistory);
   byId("runHistoryFilter")?.addEventListener("change", refreshActionHistory);
   dialog.addEventListener("click", (event) => {

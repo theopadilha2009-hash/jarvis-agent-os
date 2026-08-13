@@ -2406,10 +2406,18 @@ def local_memory_tree_payload():
             category = relative.parts[0] if len(relative.parts) > 1 else "MEMORIA"
             node_id = str(relative).replace(os.sep, "/")
             label = path.stem.replace("_", " ").replace("-", " ")[:80]
+            folded_path = node_id.casefold()
+            kind = "learning" if "aprendizado" in folded_path else "decision" if "decis" in folded_path else "preference" if "prefer" in folded_path else "context"
+            try:
+                content = clean_text(path.read_text(encoding="utf-8"), 4_000)
+            except (OSError, UnicodeError):
+                content = ""
             nodes.append({
                 "id": node_id,
                 "label": label,
+                "content": content,
                 "category": category,
+                "kind": kind,
                 "path": f"03_MEMORIA/{node_id}",
             })
             edges.append({"source": category, "target": node_id})
@@ -2481,6 +2489,7 @@ def memory_tree_payload():
             "content": content,
             "category": category,
             "layer": layer,
+            "kind": kind,
             "path": f"supabase/{SUPABASE_MEMORY_TABLE}/{memory_id}",
             "created_at": clean_text(row.get("created_at"), 80),
         })
@@ -2917,6 +2926,75 @@ def supabase_memory_save(command):
             "intent": "memory_save",
             "provider": "supabase",
         }, 504
+
+
+def memory_record_id(value):
+    safe_id = clean_text(value, 100)
+    return safe_id if re.fullmatch(r"[A-Za-z0-9-]{1,100}", safe_id) else ""
+
+
+def supabase_memory_update(body):
+    memory_id = memory_record_id(body.get("id"))
+    content = clean_text(body.get("content"), 4_000)
+    kind = clean_text(body.get("kind"), 40).lower()
+    if not memory_id or len(content) < 3 or kind not in MEMORY_KIND_LABELS:
+        return {"ok": False, "error": "Memória inválida; informe conteúdo e tipo válidos."}, 400
+    if has_secret_like_text(content):
+        return {"ok": False, "error": "Não salvo credenciais na memória."}, 400
+    if not supabase_configured():
+        return {"ok": False, "error": "A memória local em Markdown é somente leitura neste painel."}, 409
+    layer = memory_layer(content, kind)
+    try:
+        rows = supabase_request(
+            "PATCH",
+            query=f"owner_id=eq.theo&id=eq.{quote(memory_id, safe='')}&archived_at=is.null",
+            body={"content": content, "kind": kind, "metadata": {"schema_version": 2, "layer": layer}},
+            prefer="return=representation",
+        )
+        saved = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+        if not saved:
+            return {"ok": False, "error": "Memória não encontrada ou já arquivada."}, 404
+        invalidate_assistant_memory_cache()
+        return {
+            "ok": True,
+            "endpoint": "POST /memory-update",
+            "status_real": "supabase_memory_updated",
+            "message": "Memória atualizada.",
+            "memory": {"id": memory_id, "content": content, "kind": kind, "layer": layer},
+        }, 200
+    except HTTPError as error:
+        return {"ok": False, "error": f"O Supabase recusou a edição (HTTP {error.code})."}, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {"ok": False, "error": "A edição não foi confirmada no Supabase."}, 504
+
+
+def supabase_memory_archive(body):
+    memory_id = memory_record_id(body.get("id"))
+    if not memory_id:
+        return {"ok": False, "error": "Identificador de memória inválido."}, 400
+    if not supabase_configured():
+        return {"ok": False, "error": "A memória local em Markdown é somente leitura neste painel."}, 409
+    try:
+        rows = supabase_request(
+            "PATCH",
+            query=f"owner_id=eq.theo&id=eq.{quote(memory_id, safe='')}&archived_at=is.null",
+            body={"archived_at": datetime.now(timezone.utc).isoformat()},
+            prefer="return=representation",
+        )
+        saved = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+        if not saved:
+            return {"ok": False, "error": "Memória não encontrada ou já arquivada."}, 404
+        invalidate_assistant_memory_cache()
+        return {
+            "ok": True,
+            "endpoint": "POST /memory-archive",
+            "status_real": "supabase_memory_archived",
+            "message": "Memória removida da visão ativa e preservada no arquivo.",
+        }, 200
+    except HTTPError as error:
+        return {"ok": False, "error": f"O Supabase recusou o arquivamento (HTTP {error.code})."}, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {"ok": False, "error": "O arquivamento não foi confirmado no Supabase."}, 504
 
 
 def computer_app_command(command, intent):
@@ -6684,6 +6762,15 @@ class handler(BaseHTTPRequestHandler):
             else:
                 payload, status = clear_conversation_history()
                 payload["endpoint"] = "POST /conversation-clear"
+            return self.send_json(status, payload)
+        if path in {"/memory-update", "/memory-archive"}:
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = f"POST {path}"
+            elif path == "/memory-update":
+                payload, status = supabase_memory_update(body)
+            else:
+                payload, status = supabase_memory_archive(body)
             return self.send_json(status, payload)
         if path == "/command-stream":
             return self.send_command_stream(

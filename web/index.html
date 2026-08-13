@@ -142,6 +142,7 @@
         <div>
           <button id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Voz ligada</span><span class="mobile-label">Voz</span></button>
           <button id="tourButton" type="button">Guia rápido</button>
+          <button id="memoryManagerButton" type="button">Gerenciar memória</button>
           <button id="installButton" type="button" hidden>Instalar aplicativo</button>
         </div>
       </section>
@@ -182,6 +183,25 @@
         <div class="history-list" id="actionHistory" aria-live="polite"><small>Nenhum run carregado.</small></div>
       </section>
     </div>
+  </dialog>
+
+  <dialog id="memoryDialog" class="memory-dialog" aria-labelledby="memoryDialogTitle">
+    <div class="dialog-head">
+      <b id="memoryDialogTitle">MEMÓRIA DO JARVIS</b>
+      <button id="closeMemoryDialog" type="button" aria-label="Fechar memória">×</button>
+    </div>
+    <div class="memory-tools">
+      <input id="memoryManagerSearch" type="search" autocomplete="off" placeholder="Buscar nas memórias…" aria-label="Buscar nas memórias">
+      <select id="memoryManagerKind" aria-label="Filtrar memória por tipo">
+        <option value="">Todos os tipos</option>
+        <option value="learning">Aprendizados</option>
+        <option value="decision">Decisões</option>
+        <option value="preference">Preferências</option>
+        <option value="context">Contexto</option>
+      </select>
+    </div>
+    <div class="memory-manager-status" id="memoryManagerStatus" aria-live="polite">Carregando índice…</div>
+    <div class="memory-manager-list" id="memoryManagerList"></div>
   </dialog>
 
   <button class="action-hub-backdrop" id="actionHubBackdrop" type="button" hidden tabindex="-1" aria-label="Fechar central operacional"></button>
