@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
-  <meta name="theme-color" content="#0b0615">
+  <meta name="theme-color" content="#090414">
   <meta name="description" content="JARVIS, central pessoal de memória, automação e controle do Mac de Theo.">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-v10-purple">
-  <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-v10-purple" type="image/png">
-  <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-v10-purple">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260813-v10-purple">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-essence1">
+  <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-essence1" type="image/png">
+  <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-essence1">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260813-essence1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -24,23 +24,26 @@
     <header class="topbar">
       <div class="identity">
         <span class="identity-mark" aria-hidden="true">
-          <img src="/ui/jarvis-logo.png?v=20260813-v10-purple" alt="">
+          <img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-essence1" alt="">
         </span>
-        <span class="identity-name"><b>JARVIS</b><small>AI WORKER · THEO</small></span>
+        <span class="identity-name"><b>JARVIS</b><small>para Theo</small></span>
       </div>
       <div class="connection">
         <span class="connection-dot" id="connectionDot"></span>
         <span id="connectionText">acordando</span>
         <button class="access-mode" id="accessMode" type="button" title="Ver acesso atual">verificando acesso</button>
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
-        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" aria-controls="actionHub" title="Abrir central de ações · ⌘K">Ações <kbd>⌘K</kbd></button>
-        <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema">•••</button>
+        <button class="quiet-button" id="tourButton" type="button">Guia</button>
+        <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
+        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir ações contextuais · ⌘K">Ações <kbd>⌘K</kbd></button>
+        <button class="quiet-button" id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Fala ligada</span><span class="mobile-label">Voz</span></button>
+        <button class="quiet-button quality-button" id="qualityButton" type="button" title="Mudar qualidade gráfica">Excelente</button>
+        <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema"><i></i><i></i><i></i></button>
       </div>
     </header>
 
-    <main class="stage" id="stage" data-state="idle">
-      <section class="presence" aria-label="Núcleo visual do JARVIS">
-        <img class="presence-brand" src="/ui/jarvis-logo.png?v=20260813-v10-purple" alt="" aria-hidden="true">
+    <main class="stage" id="stage" data-state="idle" data-access="guest">
+      <section class="presence" aria-label="Presença visual do JARVIS">
         <div class="grid-plane" aria-hidden="true"></div>
         <div class="environment-depth" aria-hidden="true">
           <i class="depth-horizon"></i>
@@ -53,10 +56,81 @@
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
 
         <section class="scene-objective" id="sceneObjective" aria-live="polite">
-          <small id="sceneEyebrow">PRONTO</small>
-          <strong id="sceneMission">O que vamos fazer?</strong>
-          <span id="sceneDetail">Conversa, pesquisa, memória e execução em um só lugar.</span>
+          <small id="sceneEyebrow">SISTEMA ONLINE</small>
+          <strong id="sceneMission">Aguardando comando</strong>
+          <span id="sceneDetail">Núcleo pronto para conversar ou agir.</span>
         </section>
+
+        <nav class="scene-modes" aria-label="Modos do JARVIS">
+          <span data-scene-mode="core"><i>01</i><b>NÚCLEO</b><small>pensar</small></span>
+          <span data-scene-mode="forge"><i>02</i><b>FORJA</b><small>construir</small></span>
+          <span data-scene-mode="memory"><i>03</i><b>MEMÓRIA</b><small>guardar</small></span>
+          <button id="sceneCommandButton" type="button"><i>⌘</i><span><b>ARSENAL</b><small>ações reais</small></span></button>
+        </nav>
+
+        <div class="scene-telemetry" aria-label="Telemetria do sistema">
+          <span><i></i><b id="sceneBrain">IA verificando</b></span>
+          <span><i></i><b id="sceneMac">Mac verificando</b></span>
+          <span><i></i><b id="sceneRender">3D carregando</b></span>
+        </div>
+
+        <div class="state-beacon" id="stateBeacon" aria-live="polite">
+          <span class="state-symbol" id="stateSymbol" aria-hidden="true">●</span>
+          <span class="state-copy">
+            <small id="statePhase">PRESENÇA</small>
+            <strong id="stateName">JARVIS</strong>
+            <em id="stateDescription">ambiente em espera</em>
+          </span>
+          <span class="state-progress" aria-hidden="true"><i></i></span>
+        </div>
+
+        <div class="request-progress" id="requestProgress" role="status" aria-live="polite" aria-busy="false" hidden>
+          <div class="shimmer-loader" id="shimmerLoader" aria-label="Progresso do processamento">
+            <b class="shimmer-icon" id="shimmerIcon" aria-hidden="true">✦</b>
+            <span class="shimmer-label" id="shimmerLabel">Analisando…</span>
+            <strong class="shimmer-percent" id="shimmerPercent">0%</strong>
+            <small class="shimmer-tokens" id="shimmerTokens">0.0k</small>
+          </div>
+          <span data-run-step="request"><i></i><b>Pedido</b></span>
+          <span data-run-step="core"><i></i><b id="requestCoreLabel">Núcleo</b></span>
+          <span data-run-step="result"><i></i><b>Resultado</b></span>
+          <time id="requestElapsed" datetime="PT0S">0,0 s</time>
+        </div>
+
+        <aside class="hud-rail hud-left" aria-label="Contexto atual">
+          <section class="hud-surface signal-surface">
+            <div class="hud-label">VOZ</div>
+            <strong id="voiceLink">aguardando</strong>
+            <div class="signal-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </section>
+          <section class="hud-surface request-surface" id="requestSurface">
+            <div class="hud-label">AGORA</div>
+            <strong id="requestTitle">Pronto para você</strong>
+            <p id="requestText">Fale naturalmente. O JARVIS escolhe as ferramentas por trás.</p>
+          </section>
+          <section class="hud-surface compact-surface">
+            <div><span>CONTEXTO</span><b id="contextCount">0 turnos</b></div>
+            <div><span>RUNTIME</span><b id="runtimeLabel">local</b></div>
+          </section>
+        </aside>
+
+        <aside class="hud-rail hud-right" aria-label="Canvas de trabalho">
+          <section class="hud-surface mode-surface">
+            <div class="hud-label">ESTADO</div>
+            <strong id="modeLabel">PRESENÇA</strong>
+            <p id="stateLabel">JARVIS está inicializando.</p>
+          </section>
+          <section class="hud-surface live-surface" id="liveSurface">
+            <div class="hud-label">ATIVIDADE</div>
+            <div class="canvas-empty" id="canvasEmpty">O que eu estiver fazendo aparece aqui.</div>
+            <div class="canvas-content" id="canvasContent"></div>
+          </section>
+          <section class="hud-surface actions-surface">
+            <div class="hud-label">CONEXÕES</div>
+            <strong id="integrationValue">checando conexões</strong>
+            <p id="integrationHint">IA, voz, agenda e worker local com estado real.</p>
+          </section>
+        </aside>
 
         <div class="spoken-caption" id="spokenCaption" aria-live="polite">Estou aqui.</div>
 
@@ -76,36 +150,20 @@
       </section>
 
       <section class="conversation" aria-label="Conversa com JARVIS">
-        <div class="drop-overlay" id="dropOverlay" aria-hidden="true">
-          <span aria-hidden="true">＋</span>
-          <strong>Solte para anexar</strong>
-          <small>Imagem, PDF ou texto · até 2 arquivos</small>
-        </div>
         <div class="conversation-head">
           <span><i aria-hidden="true"></i><b>JARVIS</b><small id="conversationState">pronto</small></span>
           <div class="conversation-head-actions">
-            <small class="conversation-channel">operacional</small>
+            <small class="conversation-channel">voz + texto</small>
             <button class="new-conversation-button" id="newConversationButton" type="button" title="Começar sem o contexto da conversa atual">Nova</button>
             <button class="mobile-chat-toggle" id="mobileChatToggle" type="button" aria-expanded="false" aria-label="Expandir conversa">
               <span>Expandir</span><i aria-hidden="true"></i>
             </button>
           </div>
         </div>
-        <div class="offline-outbox" id="offlineOutbox" role="status" aria-live="polite" hidden>
-          <span><b id="offlineOutboxTitle">Pedido guardado offline</b><small id="offlineOutboxDetail">Será reenviado somente quando você confirmar.</small></span>
-          <button id="retryOfflineOutbox" type="button">Reenviar</button>
-          <button id="discardOfflineOutbox" type="button">Descartar</button>
-        </div>
-        <div class="request-progress" id="requestProgress" role="status" aria-live="polite" aria-busy="false" hidden>
-          <span data-run-step="request"><i></i><b>Pedido</b></span>
-          <span data-run-step="core"><i></i><b id="requestCoreLabel">Núcleo</b></span>
-          <span data-run-step="result"><i></i><b>Resultado</b></span>
-          <time id="requestElapsed" datetime="PT0S">0,0 s</time>
-        </div>
         <div class="conversation-feed" id="conversationFeed" aria-live="polite">
           <div class="welcome" id="welcomeMessage">
-            <strong>Pronto, Theo.</strong>
-            <span id="welcomeHint">Peça o resultado. Eu planejo, confirmo riscos e mostro a evidência.</span>
+            <strong>Estou aqui.</strong>
+            <span id="welcomeHint">Escreva ou fale naturalmente.</span>
             <div class="starter-actions" id="starterActions" aria-label="Sugestões para começar"></div>
           </div>
         </div>
@@ -121,7 +179,7 @@
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8.5 12.5 14.8 6.2a3 3 0 0 1 4.2 4.2l-8.5 8.5a5 5 0 0 1-7.1-7.1l8-8"></path></svg>
           </button>
           <input id="attachmentInput" type="file" hidden multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json,.md,.json,.csv">
-          <textarea id="commandInput" rows="1" maxlength="8000" autocomplete="off" placeholder="O que você quer fazer?" aria-label="Pedido para JARVIS"></textarea>
+          <input id="commandInput" maxlength="8000" autocomplete="off" placeholder="Escreva ou fale comigo…" aria-label="Pedido para JARVIS">
           <button class="send-button" id="sendButton" type="submit">Enviar</button>
         </form>
         <div class="attachment-tray" id="attachmentTray" hidden></div>
@@ -139,18 +197,6 @@
       <section><span>Inteligência</span><strong id="aiValue">—</strong></section>
       <section><span>Modelo</span><strong id="modelValue">—</strong></section>
       <section><span>Voz</span><strong id="voiceValue">detectando</strong></section>
-      <section class="dialog-wide dialog-controls">
-        <span>Preferências</span>
-        <div>
-          <button id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Voz ligada</span><span class="mobile-label">Voz</span></button>
-          <button id="tourButton" type="button">Guia rápido</button>
-          <button id="memoryManagerButton" type="button">Gerenciar memória</button>
-          <button id="taskQueueButton" type="button">Fila de tarefas</button>
-          <button id="fileWorkspaceButton" type="button">Meus arquivos</button>
-          <button id="notificationButton" type="button" aria-pressed="false">Ativar notificações</button>
-          <button id="installButton" type="button" hidden>Instalar aplicativo</button>
-        </div>
-      </section>
       <section class="dialog-wide"><span>Acesso atual</span><strong id="accessValue">verificando</strong></section>
       <section class="dialog-wide pairing-panel">
         <span>Conexão privada</span>
@@ -171,84 +217,21 @@
           </div>
         </details>
       </section>
-      <section class="dialog-wide"><span>Presença</span><strong id="presenceValue">carregando núcleo 3D</strong></section>
+      <section class="dialog-wide"><span>Presença</span><strong id="presenceValue">carregando modelo 3D</strong></section>
       <section class="dialog-wide"><span>Última ação</span><strong id="activityValue">Nenhuma ação nesta sessão.</strong></section>
       <section class="dialog-wide history-panel">
-        <span>Histórico de runs</span>
-        <div class="history-toolbar">
-          <select id="runHistoryFilter" aria-label="Filtrar runs por estado">
-            <option value="">Todos os estados</option>
-            <option value="running,planned,waiting_confirmation">Em andamento</option>
-            <option value="completed">Concluídos</option>
-            <option value="failed">Falhos</option>
-            <option value="canceled">Cancelados</option>
-          </select>
-          <button id="refreshRunHistory" type="button">Atualizar</button>
-        </div>
-        <div class="history-list" id="actionHistory" aria-live="polite"><small>Nenhum run carregado.</small></div>
+        <span>Histórico real</span>
+        <div class="history-list" id="actionHistory"><small>Nenhuma ação carregada.</small></div>
       </section>
     </div>
   </dialog>
 
-  <dialog id="memoryDialog" class="memory-dialog" aria-labelledby="memoryDialogTitle">
-    <div class="dialog-head">
-      <b id="memoryDialogTitle">MEMÓRIA DO JARVIS</b>
-      <button id="closeMemoryDialog" type="button" aria-label="Fechar memória">×</button>
-    </div>
-    <div class="memory-tools">
-      <input id="memoryManagerSearch" type="search" autocomplete="off" placeholder="Buscar nas memórias…" aria-label="Buscar nas memórias">
-      <select id="memoryManagerKind" aria-label="Filtrar memória por tipo">
-        <option value="">Todos os tipos</option>
-        <option value="learning">Aprendizados</option>
-        <option value="decision">Decisões</option>
-        <option value="preference">Preferências</option>
-        <option value="context">Contexto</option>
-      </select>
-    </div>
-    <div class="memory-manager-status" id="memoryManagerStatus" aria-live="polite">Carregando índice…</div>
-    <div class="memory-manager-list" id="memoryManagerList"></div>
-  </dialog>
-
-  <dialog id="taskDialog" class="task-dialog" aria-labelledby="taskDialogTitle">
-    <div class="dialog-head">
-      <b id="taskDialogTitle">FILA DE TAREFAS</b>
-      <button id="closeTaskDialog" type="button" aria-label="Fechar tarefas">×</button>
-    </div>
-    <form class="task-quick-add" id="taskQuickAdd">
-      <input id="taskQuickText" maxlength="2000" autocomplete="off" placeholder="Nova tarefa local…" aria-label="Texto da nova tarefa" required>
-      <input id="taskQuickProject" maxlength="100" autocomplete="off" placeholder="Projeto (opcional)" aria-label="Projeto da tarefa">
-      <button type="submit">Adicionar</button>
-    </form>
-    <div class="task-summary" id="taskSummary" aria-live="polite">Carregando fila…</div>
-    <div class="task-board" id="taskBoard"></div>
-  </dialog>
-
-  <dialog id="fileWorkspaceDialog" class="file-workspace-dialog" aria-labelledby="fileWorkspaceTitle">
-    <div class="dialog-head">
-      <b id="fileWorkspaceTitle">ESPAÇO DE ARQUIVOS</b>
-      <button id="closeFileWorkspace" type="button" aria-label="Fechar arquivos">×</button>
-    </div>
-    <div class="file-workspace-tools">
-      <label for="workspaceFileInput">Guardar arquivos</label>
-      <input id="workspaceFileInput" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json,.md,.csv,.json" hidden>
-      <button id="clearFileWorkspace" type="button">Limpar espaço</button>
-      <span id="fileWorkspaceStatus" aria-live="polite">Somente neste navegador.</span>
-    </div>
-    <div class="file-workspace-list" id="fileWorkspaceList"></div>
-  </dialog>
-
-  <button class="action-hub-backdrop" id="actionHubBackdrop" type="button" hidden tabindex="-1" aria-label="Fechar central operacional"></button>
-  <aside class="action-hub" id="actionHub" hidden role="dialog" aria-modal="true" aria-labelledby="actionHubTitle">
+  <aside class="action-hub" id="actionHub" hidden aria-label="Ações contextuais do JARVIS">
     <header>
-      <span><small>AÇÕES DO JARVIS</small><strong id="actionHubTitle">Central operacional</strong></span>
+      <span><small>CENTRAL PESSOAL</small><strong>Peça. Eu executo.</strong></span>
       <button id="closeActionHub" type="button" aria-label="Fechar ações">×</button>
     </header>
-    <p id="actionHubHint">Memória, agenda, pesquisa e Mac com estado e evidência reais.</p>
-    <label class="action-hub-search">
-      <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
-      <input id="actionHubSearch" type="search" autocomplete="off" placeholder="Buscar ação…" aria-label="Buscar ação" aria-controls="actionHubGrid">
-      <kbd>⌘K</kbd>
-    </label>
+    <p id="actionHubHint">Visão real da sua memória, agenda, Mac e últimas execuções.</p>
     <div class="action-hub-overview" id="actionHubOverview">Carregando o estado real das conexões…</div>
     <div class="action-hub-status">
       <span><small>CONVERSA</small><b id="conversationMemoryValue">sessão local</b></span>
@@ -257,7 +240,7 @@
       <span><small>AGENDA</small><b id="hubAgendaValue">verificando</b></span>
     </div>
     <div class="action-hub-last"><small>ÚLTIMA EVIDÊNCIA</small><b id="hubLastActionValue">nenhuma execução carregada</b></div>
-    <div class="action-hub-section"><span>COMANDOS DISPONÍVEIS</span><small id="hubReadyValue" aria-live="polite">checando disponibilidade</small></div>
+    <div class="action-hub-section"><span>AÇÕES REAIS</span><small id="hubReadyValue">checando disponibilidade</small></div>
     <div class="action-hub-grid" id="actionHubGrid"></div>
     <details class="capability-list">
       <summary>Ver conexões e capacidades</summary>
@@ -291,35 +274,21 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260813-v10-purple" defer></script>
+  <script src="/ui/jarvis.js?v=20260813-essence1" defer></script>
   <script type="module">
-    const stage = document.getElementById("stage");
-    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    const capableViewport = window.matchMedia("(min-width: 721px)").matches;
-    const acceptsMotion = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const capableHardware = (!navigator.deviceMemory || navigator.deviceMemory >= 4)
-      && (!navigator.hardwareConcurrency || navigator.hardwareConcurrency >= 4);
-    const canLoadPresence = capableViewport && acceptsMotion && capableHardware && !connection?.saveData;
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260813-v10-purple").catch(() => {
-      stage.classList.add("model-lite", "model-ready");
-      stage.dataset.renderProfile = "static-fallback";
-      document.getElementById("presenceValue").textContent = "Núcleo visual leve · GPU indisponível";
-    });
+    let presenceScheduled = false;
+
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260813-essence1");
     const schedulePresence = () => {
-      if (!canLoadPresence) {
-        stage.classList.add("model-lite", "model-ready");
-        stage.dataset.renderProfile = "static-lite";
-        document.getElementById("presenceValue").textContent = "Núcleo visual leve · sem GPU contínua";
-        return;
-      }
+      if (presenceScheduled) return;
+      presenceScheduled = true;
       if ("requestIdleCallback" in window) {
-        window.requestIdleCallback(loadPresence, { timeout: 1200 });
+        window.requestIdleCallback(loadPresence, { timeout: 700 });
       } else {
-        window.setTimeout(loadPresence, 350);
+        window.setTimeout(loadPresence, 200);
       }
     };
-    if (document.readyState === "complete") schedulePresence();
-    else window.addEventListener("load", schedulePresence, { once: true });
+    schedulePresence();
   </script>
 </body>
 </html>

@@ -305,6 +305,7 @@ ASSET_TYPES = {
     ".jpg": "image/jpeg",
     ".js": "text/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
+    ".obj": "model/obj",
     ".png": "image/png",
     ".svg": "image/svg+xml",
     ".webmanifest": "application/manifest+json; charset=utf-8",
@@ -7013,7 +7014,7 @@ class handler(BaseHTTPRequestHandler):
         if path == "/self-test":
             checks = [
                 {"name": "cockpit", "ok": UI_FILE.is_file()},
-                {"name": "purple_cognitive_bust", "ok": "jarvis-purple-cognitive-bust" in (WEB_DIR / "jarvis-3d.js").read_text(encoding="utf-8")},
+                {"name": "purple_cognitive_bust", "ok": "visitor-internal-neural-network" in (WEB_DIR / "jarvis-3d.js").read_text(encoding="utf-8")},
                 {"name": "action_registry", "ok": bool(ACTION_REGISTRY)},
                 {"name": "stateless_gateway", "ok": True},
                 {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},
