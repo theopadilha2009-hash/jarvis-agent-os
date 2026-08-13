@@ -18,6 +18,7 @@
   const tourDialog = byId("tourDialog");
   const memoryDialog = byId("memoryDialog");
   const taskDialog = byId("taskDialog");
+  const fileWorkspaceDialog = byId("fileWorkspaceDialog");
   const actionHub = byId("actionHub");
   const actionHubBackdrop = byId("actionHubBackdrop");
   const actionHubButton = byId("actionHubButton");
@@ -29,6 +30,9 @@
   const mobileLayout = window.matchMedia("(max-width: 720px)");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const MAX_VISIBLE_MESSAGES = 24;
+  const FILE_WORKSPACE_DB = "jarvis-file-workspace-v1";
+  const FILE_WORKSPACE_LIMIT = 12;
+  const FILE_WORKSPACE_BYTES = 12_000_000;
   const ALLOWED_ATTACHMENT_TYPES = new Set([
     "image/jpeg", "image/png", "image/webp", "application/pdf",
     "text/plain", "text/markdown", "text/csv", "application/json",
@@ -787,6 +791,119 @@
     attachmentInput.value = "";
     renderAttachmentTray();
     if (added.length) showAttachmentPreview(session.attachments);
+  }
+
+  function openFileWorkspaceDatabase() {
+    return new Promise((resolve, reject) => {
+      if (!("indexedDB" in window)) return reject(new Error("indexeddb_unavailable"));
+      const request = indexedDB.open(FILE_WORKSPACE_DB, 1);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains("files")) database.createObjectStore("files", { keyPath: "id" });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("indexeddb_failed"));
+    });
+  }
+
+  async function readWorkspaceFiles() {
+    const database = await openFileWorkspaceDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("files", "readonly");
+      const request = transaction.objectStore("files").getAll();
+      request.onsuccess = () => resolve((request.result || []).sort((left, right) => String(right.updated_at).localeCompare(String(left.updated_at))));
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => database.close();
+    });
+  }
+
+  async function writeWorkspaceFiles(records) {
+    const database = await openFileWorkspaceDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("files", "readwrite");
+      const store = transaction.objectStore("files");
+      records.forEach((record) => store.put(record));
+      transaction.oncomplete = () => { database.close(); resolve(); };
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
+    });
+  }
+
+  async function deleteWorkspaceFile(id = "") {
+    const database = await openFileWorkspaceDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("files", "readwrite");
+      const store = transaction.objectStore("files");
+      if (id) store.delete(id);
+      else store.clear();
+      transaction.oncomplete = () => { database.close(); resolve(); };
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
+    });
+  }
+
+  function workspaceFileKind(item) {
+    const kind = attachmentKind(item);
+    return ({ image: "IMG", pdf: "PDF", json: "JSON", csv: "CSV", text: "TXT" })[kind] || "FILE";
+  }
+
+  async function renderFileWorkspace() {
+    const target = byId("fileWorkspaceList");
+    try {
+      const files = await readWorkspaceFiles();
+      const total = files.reduce((sum, item) => sum + Number(item.size || 0), 0);
+      byId("fileWorkspaceStatus").textContent = `${files.length}/${FILE_WORKSPACE_LIMIT} arquivos · ${(total / 1000000).toFixed(1).replace(".", ",")} MB · só neste navegador`;
+      target.innerHTML = files.length ? files.map((item) => (
+        `<article class="workspace-file" data-workspace-id="${escapeHtml(item.id)}"><i>${workspaceFileKind(item)}</i><span><b title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</b><small>${Math.ceil(item.size / 1024)} KB · ${escapeHtml(item.type || "arquivo")}</small><footer><button type="button" data-workspace-use>Usar</button><button type="button" data-workspace-delete>Remover</button></footer></span></article>`
+      )).join("") : '<p class="memory-empty">Guarde PDFs, imagens e textos para reutilizar em outras conversas.</p>';
+      target.querySelectorAll("[data-workspace-use]").forEach((button) => button.addEventListener("click", () => {
+        const item = files.find((row) => row.id === button.closest(".workspace-file").dataset.workspaceId);
+        if (!item) return;
+        const totalSize = session.attachments.reduce((sum, row) => sum + row.size, 0) + item.size;
+        if (session.attachments.length >= 2 || totalSize > 2500000) {
+          byId("fileWorkspaceStatus").textContent = "O pedido aceita no máximo dois arquivos e 2,5 MB no total.";
+          return;
+        }
+        session.attachments.push({ name: item.name, type: item.type, size: item.size, data_url: item.data_url });
+        renderAttachmentTray();
+        showAttachmentPreview(session.attachments);
+        byId("fileWorkspaceStatus").textContent = `${item.name} anexado ao próximo pedido.`;
+      }));
+      target.querySelectorAll("[data-workspace-delete]").forEach((button) => button.addEventListener("click", async () => {
+        if (!window.confirm("Remover este arquivo do espaço local do JARVIS?")) return;
+        await deleteWorkspaceFile(button.closest(".workspace-file").dataset.workspaceId);
+        renderFileWorkspace();
+      }));
+    } catch {
+      byId("fileWorkspaceStatus").textContent = "Este navegador não liberou armazenamento local de arquivos.";
+      target.innerHTML = "";
+    }
+  }
+
+  async function storeFilesInWorkspace(files) {
+    const selected = Array.from(files || []).filter(supportedAttachment);
+    try {
+      const existing = await readWorkspaceFiles();
+      let total = existing.reduce((sum, item) => sum + Number(item.size || 0), 0);
+      const available = Math.max(0, FILE_WORKSPACE_LIMIT - existing.length);
+      const records = [];
+      for (const file of selected.slice(0, available)) {
+        if (!file.size || file.size > 2500000 || total + file.size > FILE_WORKSPACE_BYTES) continue;
+        records.push({
+          id: window.crypto?.randomUUID?.() || `file-${Date.now()}-${records.length}`,
+          name: file.name,
+          type: file.type || "text/plain",
+          size: file.size,
+          data_url: await fileDataUrl(file),
+          updated_at: new Date().toISOString(),
+        });
+        total += file.size;
+      }
+      if (records.length) await writeWorkspaceFiles(records);
+      byId("workspaceFileInput").value = "";
+      await renderFileWorkspace();
+      if (!records.length) byId("fileWorkspaceStatus").textContent = "Nada salvo: confira formato, limite de 12 arquivos e 12 MB.";
+    } catch {
+      byId("fileWorkspaceStatus").textContent = "Não consegui salvar no espaço local deste navegador.";
+    }
   }
 
   function renderEventStream(stream) {
@@ -1993,6 +2110,21 @@
     }
     byId("taskQuickText").value = "";
     loadTaskBoard();
+  });
+  byId("fileWorkspaceButton")?.addEventListener("click", () => {
+    dialog.close();
+    fileWorkspaceDialog.showModal();
+    renderFileWorkspace();
+  });
+  byId("closeFileWorkspace")?.addEventListener("click", () => fileWorkspaceDialog.close());
+  fileWorkspaceDialog?.addEventListener("click", (event) => {
+    if (event.target === fileWorkspaceDialog) fileWorkspaceDialog.close();
+  });
+  byId("workspaceFileInput")?.addEventListener("change", (event) => storeFilesInWorkspace(event.target.files));
+  byId("clearFileWorkspace")?.addEventListener("click", async () => {
+    if (!window.confirm("Remover todos os arquivos guardados neste navegador?")) return;
+    await deleteWorkspaceFile();
+    renderFileWorkspace();
   });
   byId("refreshRunHistory")?.addEventListener("click", refreshActionHistory);
   byId("runHistoryFilter")?.addEventListener("change", refreshActionHistory);

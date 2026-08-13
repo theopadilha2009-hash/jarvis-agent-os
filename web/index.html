@@ -144,6 +144,7 @@
           <button id="tourButton" type="button">Guia rápido</button>
           <button id="memoryManagerButton" type="button">Gerenciar memória</button>
           <button id="taskQueueButton" type="button">Fila de tarefas</button>
+          <button id="fileWorkspaceButton" type="button">Meus arquivos</button>
           <button id="installButton" type="button" hidden>Instalar aplicativo</button>
         </div>
       </section>
@@ -217,6 +218,20 @@
     </form>
     <div class="task-summary" id="taskSummary" aria-live="polite">Carregando fila…</div>
     <div class="task-board" id="taskBoard"></div>
+  </dialog>
+
+  <dialog id="fileWorkspaceDialog" class="file-workspace-dialog" aria-labelledby="fileWorkspaceTitle">
+    <div class="dialog-head">
+      <b id="fileWorkspaceTitle">ESPAÇO DE ARQUIVOS</b>
+      <button id="closeFileWorkspace" type="button" aria-label="Fechar arquivos">×</button>
+    </div>
+    <div class="file-workspace-tools">
+      <label for="workspaceFileInput">Guardar arquivos</label>
+      <input id="workspaceFileInput" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json,.md,.csv,.json" hidden>
+      <button id="clearFileWorkspace" type="button">Limpar espaço</button>
+      <span id="fileWorkspaceStatus" aria-live="polite">Somente neste navegador.</span>
+    </div>
+    <div class="file-workspace-list" id="fileWorkspaceList"></div>
   </dialog>
 
   <button class="action-hub-backdrop" id="actionHubBackdrop" type="button" hidden tabindex="-1" aria-label="Fechar central operacional"></button>

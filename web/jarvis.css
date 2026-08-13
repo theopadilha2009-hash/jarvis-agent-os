@@ -1085,6 +1085,20 @@ dialog::backdrop { background: rgba(0, 3, 4, 0.8); backdrop-filter: blur(9px); }
 .task-card footer { display: flex; flex-wrap: wrap; gap: 5px; }
 .task-card button { min-height: 30px; padding: 4px 7px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: #91cbd1; font-size: 8px; cursor: pointer; }
 .task-card button[data-task-action="block"] { color: #d8aa75; }
+.file-workspace-dialog { width: min(720px, calc(100% - 28px)); }
+.file-workspace-tools { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 13px 14px; border-bottom: 1px solid var(--line); }
+.file-workspace-tools label,
+.file-workspace-tools button { min-height: 38px; display: inline-grid; place-items: center; padding: 7px 11px; border: 1px solid var(--line); border-radius: 9px; background: rgba(85, 216, 231, 0.03); color: #9fd8de; font-size: 9px; cursor: pointer; }
+.file-workspace-tools span { color: #617c82; font: 8px ui-monospace, monospace; text-align: right; }
+.file-workspace-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding: 13px 14px 16px; }
+.workspace-file { min-width: 0; display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 10px; align-items: center; padding: 11px; border: 1px solid var(--line); border-radius: 12px; }
+.workspace-file > i { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 10px; background: rgba(85, 216, 231, 0.04); color: #65cbd5; font: normal 8px ui-monospace, monospace; }
+.workspace-file > span { min-width: 0; display: grid; gap: 4px; }
+.workspace-file b { overflow: hidden; color: #b5cbd0; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-file small { color: #58747a; font-size: 8px; }
+.workspace-file footer { display: flex; gap: 5px; }
+.workspace-file button { min-height: 29px; padding: 4px 7px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: #8bcbd2; font-size: 8px; cursor: pointer; }
+.workspace-file button[data-workspace-delete] { color: #d48e99; }
 .tour-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px; }
 .tour-grid section { padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
 .tour-grid i { color: var(--accent); font: normal 8px ui-monospace, monospace; }
@@ -1192,7 +1206,10 @@ dialog::backdrop { background: rgba(0, 3, 4, 0.8); backdrop-filter: blur(9px); }
   .memory-manager-list { grid-template-columns: 1fr; }
   .memory-tools { grid-template-columns: 1fr; }
   .task-quick-add,
-  .task-board { grid-template-columns: 1fr; }
+  .task-board,
+  .file-workspace-list { grid-template-columns: 1fr; }
+  .file-workspace-tools { grid-template-columns: 1fr 1fr; }
+  .file-workspace-tools span { grid-column: 1 / -1; text-align: left; }
   .dialog-wide { grid-column: auto; }
   .admin-login,
   .pairing-controls { grid-template-columns: 1fr; }
