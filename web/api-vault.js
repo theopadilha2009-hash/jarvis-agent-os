@@ -154,4 +154,16 @@
 
   Object.freeze(vault);
   window.JarvisApiVault = vault;
+
+  const missionHub = document.getElementById("actionHub");
+  const loadMissionControl = () => import("/ui/mission-control.js?v=20260813-missions1").catch(() => null);
+  document.getElementById("actionHubButton")?.addEventListener("click", loadMissionControl, { once: true });
+  if (missionHub) {
+    const observer = new MutationObserver(() => {
+      if (missionHub.hidden) return;
+      observer.disconnect();
+      loadMissionControl();
+    });
+    observer.observe(missionHub, { attributes: true, attributeFilter: ["hidden"] });
+  }
 })();

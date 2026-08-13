@@ -56,6 +56,7 @@ import task_queue as task_queue_store  # noqa: E402
 
 AGENT_RUNS = RunStore()
 LOCAL_MEMORY_INDEX = MemoryIndex()
+MISSION_CONTROL_PROTOCOL = "jarvis-mission-control/1"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openrouter/free"
 ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
@@ -7359,6 +7360,138 @@ def refresh_agent_run(record):
     )
 
 
+def mission_control_entry(record):
+    """Build a compact mission row from a durable run without exposing private evidence."""
+    state = clean_text(record.get("state") or "planned", 40)
+    action = ACTION_REGISTRY.get(record.get("action")) or ACTION_REGISTRY["assistant_chat"]
+    plan = record.get("plan") if isinstance(record.get("plan"), list) else []
+    succeeded_steps = sum(
+        1 for step in plan
+        if isinstance(step, dict) and step.get("status") == "succeeded"
+    )
+    total_steps = max(1, len(plan))
+    if state == "completed":
+        succeeded_steps = total_steps
+    elif state == "running" and not succeeded_steps:
+        succeeded_steps = min(1, total_steps - 1)
+    progress = round((succeeded_steps / total_steps) * 100)
+    if state in {"failed", "canceled", "waiting_confirmation", "planned"} and not succeeded_steps:
+        progress = 0
+
+    operations = []
+    if state == "waiting_confirmation":
+        operations = ["confirm", "cancel"]
+    elif state in {"planned", "running"}:
+        operations = ["cancel"]
+    elif state in {"failed", "canceled"}:
+        operations = ["retry"]
+    next_labels = {
+        "waiting_confirmation": "Revisar e confirmar",
+        "running": "Acompanhar evidência",
+        "planned": "Aguardar início",
+        "failed": "Repetir com segurança",
+        "canceled": "Criar nova tentativa",
+        "completed": "Missão concluída",
+    }
+    state_labels = {
+        "waiting_confirmation": "aguardando confirmação",
+        "running": "em execução",
+        "planned": "planejada",
+        "failed": "falhou",
+        "canceled": "cancelada",
+        "completed": "concluída",
+    }
+    events = record.get("events") if isinstance(record.get("events"), list) else []
+    last_event = events[-1] if events and isinstance(events[-1], dict) else {}
+    return {
+        "run_id": record.get("id"),
+        "state": state,
+        "state_label": state_labels.get(state, state),
+        "objective": clean_text(record.get("command"), 500),
+        "action": {
+            "name": action.name,
+            "label": action.label,
+            "executor": action.executor,
+            "risk": action.risk,
+        },
+        "progress": {
+            "completed": succeeded_steps,
+            "total": total_steps,
+            "percent": progress,
+        },
+        "evidence_count": len(record.get("evidence") or []),
+        "event_count": len(events),
+        "last_event": {
+            "type": clean_text(last_event.get("type"), 80),
+            "timestamp": clean_text(last_event.get("timestamp"), 80),
+        },
+        "next_step": next_labels.get(state, "Revisar estado"),
+        "operations": operations,
+        "created_at": record.get("created_at"),
+        "updated_at": record.get("updated_at"),
+    }
+
+
+def mission_control_payload(limit=12):
+    """Summarize the real run store into one operator-facing control plane."""
+    safe_limit = max(1, min(int(limit or 12), 30))
+    records = AGENT_RUNS.list(limit=100)
+    refreshed = []
+    for record in records:
+        if record.get("state") == "running":
+            try:
+                record = refresh_agent_run(record) or record
+            except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+                pass
+        refreshed.append(record)
+    counts = {state: 0 for state in ("planned", "waiting_confirmation", "running", "completed", "failed", "canceled")}
+    for record in refreshed:
+        state = record.get("state")
+        if state in counts:
+            counts[state] += 1
+    priority = {
+        "waiting_confirmation": 0,
+        "running": 1,
+        "planned": 2,
+        "failed": 3,
+        "completed": 4,
+        "canceled": 5,
+    }
+    ordered = sorted(refreshed, key=lambda item: priority.get(item.get("state"), 9))
+    missions = [mission_control_entry(record) for record in ordered[:safe_limit]]
+    attention = counts["waiting_confirmation"] + counts["failed"]
+    active = counts["planned"] + counts["running"]
+    if attention:
+        health = "needs_attention"
+        message = f"{attention} missão(ões) precisam da sua atenção."
+    elif active:
+        health = "active"
+        message = f"{active} missão(ões) seguem em andamento."
+    elif missions:
+        health = "clear"
+        message = "Nenhuma missão pendente. As últimas evidências estão organizadas abaixo."
+    else:
+        health = "empty"
+        message = "Nenhuma missão registrada ainda. Seu próximo pedido aparecerá aqui."
+    return {
+        "ok": True,
+        "endpoint": "GET /mission-control",
+        "protocol": MISSION_CONTROL_PROTOCOL,
+        "status_real": "mission_control_read",
+        "health": health,
+        "message": message,
+        "summary": {
+            "total": len(refreshed),
+            "active": active,
+            "waiting_confirmation": counts["waiting_confirmation"],
+            "completed": counts["completed"],
+            "failed": counts["failed"],
+            "canceled": counts["canceled"],
+        },
+        "missions": missions,
+    }
+
+
 def command_payload(body, origin="", local_execute=False, owner_authenticated=False):
     """Run the legacy dispatcher behind the durable JARVIS run contract."""
     command = clean_text(body.get("command") or body.get("prompt"))
@@ -8001,6 +8134,16 @@ class handler(BaseHTTPRequestHandler):
                 },
                 "device_actions": [intent for _, intent in LOCAL_INTENTS],
             })
+        if path == "/mission-control":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /mission-control"
+                return self.send_json(status, payload)
+            try:
+                limit = int((query.get("limit") or ["12"])[0])
+            except ValueError:
+                limit = 12
+            return self.send_json(200, mission_control_payload(limit))
         if path == "/runs":
             if owner_pairing_required() and not owner_authenticated:
                 payload, status = pairing_required_payload()
