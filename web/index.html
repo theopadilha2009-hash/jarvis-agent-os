@@ -10,12 +10,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-essence1">
-  <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-essence1" type="image/png">
-  <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-essence1">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260813-essence1">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-space2">
+  <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-space2" type="image/png">
+  <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-space2">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260813-space2">
   <script type="importmap">
-    {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
+    {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
 </head>
 <body>
@@ -24,7 +24,7 @@
     <header class="topbar">
       <div class="identity">
         <span class="identity-mark" aria-hidden="true">
-          <img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-essence1" alt="">
+          <img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-space2" alt="">
         </span>
         <span class="identity-name"><b>JARVIS</b><small>para Theo</small></span>
       </div>
@@ -44,6 +44,7 @@
 
     <main class="stage" id="stage" data-state="idle" data-access="guest">
       <section class="presence" aria-label="Presença visual do JARVIS">
+        <div class="aurora-visual" id="auroraVisual" aria-hidden="true"></div>
         <div class="grid-plane" aria-hidden="true"></div>
         <div class="environment-depth" aria-hidden="true">
           <i class="depth-horizon"></i>
@@ -52,6 +53,7 @@
           <i class="depth-light depth-light-left"></i>
           <i class="depth-light depth-light-right"></i>
         </div>
+        <div class="strands-visual" id="strandsVisual" aria-hidden="true"></div>
         <div class="avatar" id="avatar3d" aria-hidden="true"></div>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
 
@@ -274,11 +276,41 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260813-essence1" defer></script>
+  <script src="/ui/jarvis.js?v=20260813-space2" defer></script>
   <script type="module">
     let presenceScheduled = false;
 
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260813-essence1");
+    const loadPresence = async () => {
+      const [auroraModule, strandsModule] = await Promise.all([
+        import("/ui/aurora.js?v=20260813-space2"),
+        import("/ui/strands.js?v=20260813-space2"),
+        import("/ui/jarvis-3d.js?v=20260813-space2"),
+      ]);
+      auroraModule.createAurora(document.getElementById("auroraVisual"), {
+        colorStops: ["#2E1065", "#7C3AED", "#A855F7"],
+        blend: 0.5,
+        amplitude: 1,
+        speed: 0.5,
+      });
+      strandsModule.createStrands(document.getElementById("strandsVisual"), {
+        colors: ["#6D28D9", "#A855F7", "#C084FC"],
+        count: 3,
+        speed: 0.5,
+        amplitude: 1,
+        waviness: 1,
+        thickness: 0.7,
+        glow: 2.6,
+        taper: 3,
+        spread: 1,
+        intensity: 0.6,
+        saturation: 1.5,
+        opacity: 1,
+        scale: 1.5,
+        glass: false,
+      });
+      const renderTelemetry = document.getElementById("sceneRender");
+      if (renderTelemetry) renderTelemetry.textContent = "Aurora + Strands + 3D";
+    };
     const schedulePresence = () => {
       if (presenceScheduled) return;
       presenceScheduled = true;

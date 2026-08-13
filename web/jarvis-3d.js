@@ -6,17 +6,11 @@ const stage = document.getElementById("stage");
 const presenceValue = document.getElementById("presenceValue");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
-const constrainedHardware = (navigator.deviceMemory && navigator.deviceMemory <= 4)
-  || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 14 : 24;
-const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 5 : 8;
-const BACKGROUND_TARGET_FPS = 1;
-const EFFECT_TARGET_FPS = 10;
-const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
+const EFFECT_TARGET_FPS = 12;
 const QUALITY_PROFILES = {
-  excellent: { activeFps: ACTIVE_TARGET_FPS, idleFps: IDLE_TARGET_FPS, pixelRatio: compactViewport || constrainedHardware ? 0.9 : 1.08 },
-  medium: { activeFps: compactViewport || constrainedHardware ? 12 : 20, idleFps: 7, pixelRatio: 0.88 },
-  low: { activeFps: 12, idleFps: 5, pixelRatio: 0.68 },
+  excellent: { activeFps: 45, idleFps: 24, pixelRatio: 1.25 },
+  medium: { activeFps: 30, idleFps: 18, pixelRatio: 1 },
+  low: { activeFps: 20, idleFps: 10, pixelRatio: 0.75 },
 };
 let graphicsQuality = (() => {
   try {
@@ -45,7 +39,7 @@ const COLORS = {
 };
 const OWNER_RED = 0xa855f7;
 
-async function loadObjHead(url) {
+async function loadObjGeometry(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`OBJ unavailable (${response.status})`);
   const source = await response.text();
@@ -69,74 +63,125 @@ async function loadObjHead(url) {
   });
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
+  if (normals.length) geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
+  else geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
+  return geometry;
+}
+
+async function loadObjHead(url) {
+  const geometry = await loadObjGeometry(url);
   const material = new THREE.MeshPhysicalMaterial({
-    color: 0x7e43c8,
-    metalness: 0.08,
-    roughness: 0.62,
-    emissive: 0x3a176e,
-    emissiveIntensity: 0.72,
+    color: 0x7741ad,
+    metalness: 0.04,
+    roughness: 0.7,
+    emissive: 0x2e105c,
+    emissiveIntensity: 0.54,
     transparent: true,
-    opacity: 0.52,
+    opacity: 0.66,
     depthWrite: false,
     side: THREE.FrontSide,
-    clearcoat: 0.16,
-    clearcoatRoughness: 0.72,
+    clearcoat: 0.12,
+    clearcoatRoughness: 0.8,
   });
   material.name = "visitor-purple-volume";
   const head = new THREE.Mesh(geometry, material);
   return head;
 }
 
-function makeVisitorLife() {
+function makeVisitorLife(topologyGeometry) {
   const group = new THREE.Group();
   group.name = "visitor-life-details";
-  const network = new THREE.Group();
-  network.name = "visitor-internal-neural-network";
-  network.renderOrder = 1;
-  group.add(network);
+  const surface = new THREE.Group();
+  surface.name = "visitor-topology-surface";
 
-  const neuralMaterial = new THREE.MeshBasicMaterial({
-    color: 0xa978ff,
+  const topologyMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uEnergy: { value: 0 },
+    },
+    vertexShader: `
+      varying float vSweep;
+      uniform float uTime;
+      void main() {
+        float diagonal = position.x * 0.034 + position.z * 0.028;
+        float wave = 0.5 + 0.5 * sin((diagonal - uTime * 0.17) * 6.2831853);
+        vSweep = pow(wave, 10.0);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying float vSweep;
+      uniform float uEnergy;
+      void main() {
+        float alpha = 0.055 + vSweep * (0.36 + uEnergy * 0.16);
+        gl_FragColor = vec4(0.75, 0.48, 1.0, alpha);
+      }
+    `,
     transparent: true,
-    opacity: 0.2,
     depthWrite: false,
     depthTest: true,
     blending: THREE.AdditiveBlending,
   });
-  const neuralPaths = [
-    [[0, 0.58, 0.27], [-0.02, 0.34, 0.33], [0.02, 0.08, 0.35], [-0.03, -0.2, 0.31], [0, -0.5, 0.23], [0, -0.7, 0.14]],
-    [[-0.02, 0.34, 0.33], [-0.16, 0.4, 0.31], [-0.3, 0.31, 0.24]],
-    [[0.02, 0.34, 0.33], [0.16, 0.4, 0.31], [0.3, 0.31, 0.24]],
-    [[-0.03, -0.2, 0.31], [-0.2, -0.32, 0.27], [-0.31, -0.52, 0.18]],
-    [[-0.03, -0.2, 0.31], [0.2, -0.32, 0.27], [0.31, -0.52, 0.18]],
-    [[0, -0.5, 0.23], [-0.22, -0.62, 0.16], [-0.44, -0.68, 0.08]],
-    [[0, -0.5, 0.23], [0.22, -0.62, 0.16], [0.44, -0.68, 0.08]],
-  ];
-  const neuralTubes = neuralPaths.map((points, index) => {
-    const curve = new THREE.CatmullRomCurve3(points.map((point) => new THREE.Vector3(...point)));
-    const tube = new THREE.Mesh(
-      new THREE.TubeGeometry(curve, 28, index === 0 ? 0.006 : 0.0045, 6, false),
-      neuralMaterial.clone(),
-    );
-    tube.material.opacity = index === 0 ? 0.24 : 0.16;
-    tube.userData.baseOpacity = tube.material.opacity;
-    tube.userData.phase = index * 0.72;
-    network.add(tube);
-    return tube;
-  });
+  topologyMaterial.name = "visitor-animated-surface-topology";
+  const topology = new THREE.LineSegments(new THREE.WireframeGeometry(topologyGeometry), topologyMaterial);
+  topology.name = "visitor-surface-topology-2225";
+  topology.renderOrder = 2;
 
-  const nodeGeometry = new THREE.SphereGeometry(0.011, 12, 8);
-  const nodePositions = neuralPaths.flatMap((path) => path.slice(1, -1));
-  const neuralNodes = nodePositions.map((position, index) => {
-    const node = new THREE.Mesh(nodeGeometry, neuralMaterial.clone());
-    node.position.set(...position);
-    node.material.opacity = 0.3;
-    node.userData.phase = index * 0.61;
-    network.add(node);
-    return node;
+  const source = topologyGeometry.getAttribute("position");
+  const box = new THREE.Box3().setFromBufferAttribute(source);
+  const cutoff = box.min.x + (box.max.x - box.min.x) * 0.28;
+  const dissolvePositions = [];
+  const dissolveSeeds = [];
+  for (let index = 0; index < source.count; index += 7) {
+    const x = source.getX(index);
+    if (x > cutoff) continue;
+    dissolvePositions.push(x, source.getY(index), source.getZ(index));
+    dissolveSeeds.push(((index * 73) % 997) / 997);
+  }
+  const dissolveGeometry = new THREE.BufferGeometry();
+  dissolveGeometry.setAttribute("position", new THREE.Float32BufferAttribute(dissolvePositions, 3));
+  dissolveGeometry.setAttribute("aSeed", new THREE.Float32BufferAttribute(dissolveSeeds, 1));
+  const dissolveMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uEnergy: { value: 0 },
+      uPixelRatio: { value: 1 },
+    },
+    vertexShader: `
+      attribute float aSeed;
+      varying float vAlpha;
+      uniform float uTime;
+      uniform float uEnergy;
+      uniform float uPixelRatio;
+      void main() {
+        float flow = 0.5 + 0.5 * sin(uTime * 0.52 + aSeed * 12.0);
+        vec3 p = position;
+        p.x -= flow * (0.45 + aSeed * 0.75);
+        p.z += sin(uTime * 0.38 + aSeed * 18.0) * 0.12;
+        vAlpha = (1.0 - flow * 0.62) * (0.28 + uEnergy * 0.18);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = (1.1 + aSeed * 1.8 + uEnergy) * uPixelRatio;
+      }
+    `,
+    fragmentShader: `
+      varying float vAlpha;
+      void main() {
+        vec2 point = gl_PointCoord - 0.5;
+        float soft = 1.0 - smoothstep(0.16, 0.5, length(point));
+        gl_FragColor = vec4(0.72, 0.42, 1.0, vAlpha * soft);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.AdditiveBlending,
   });
+  dissolveMaterial.name = "visitor-left-silhouette-dissolve";
+  const dissolve = new THREE.Points(dissolveGeometry, dissolveMaterial);
+  dissolve.name = "visitor-mesh-derived-dissolution";
+  dissolve.renderOrder = 3;
+  surface.add(topology, dissolve);
 
   const eyes = [-0.145, 0.145].map((x, index) => {
     const eye = new THREE.Group();
@@ -146,14 +191,14 @@ function makeVisitorLife() {
     const sclera = new THREE.Mesh(
       new THREE.SphereGeometry(0.052, 24, 16),
       new THREE.MeshPhysicalMaterial({
-        color: 0xe7e1f6,
-        emissive: 0x24113f,
-        emissiveIntensity: 0.22,
-        roughness: 0.2,
-        clearcoat: 0.86,
-        clearcoatRoughness: 0.12,
+        color: 0xcbbbd8,
+        emissive: 0x160b25,
+        emissiveIntensity: 0.08,
+        roughness: 0.38,
+        clearcoat: 0.42,
+        clearcoatRoughness: 0.28,
         transparent: true,
-        opacity: 0.94,
+        opacity: 0.88,
         depthWrite: false,
       }),
     );
@@ -162,8 +207,8 @@ function makeVisitorLife() {
     eye.add(sclera);
 
     const iris = new THREE.Mesh(
-      new THREE.CircleGeometry(0.017, 24),
-      new THREE.MeshBasicMaterial({ color: 0x8d62d8, transparent: true, opacity: 0.94, depthTest: false }),
+      new THREE.CircleGeometry(0.016, 28),
+      new THREE.MeshPhysicalMaterial({ color: 0x6d28d9, emissive: 0x24084d, emissiveIntensity: 0.22, roughness: 0.3, transparent: true, opacity: 0.92, depthTest: false }),
     );
     iris.position.z = 0.019;
     iris.scale.y = 0.78;
@@ -171,8 +216,8 @@ function makeVisitorLife() {
     eye.add(iris);
 
     const pupil = new THREE.Mesh(
-      new THREE.CircleGeometry(0.007, 20),
-      new THREE.MeshBasicMaterial({ color: 0x090510, transparent: true, opacity: 0.96, depthTest: false }),
+      new THREE.CircleGeometry(0.0065, 24),
+      new THREE.MeshBasicMaterial({ color: 0x050208, transparent: true, opacity: 0.98, depthTest: false }),
     );
     pupil.position.z = 0.0205;
     pupil.scale.y = 0.78;
@@ -180,8 +225,8 @@ function makeVisitorLife() {
     eye.add(pupil);
 
     const catchlight = new THREE.Mesh(
-      new THREE.CircleGeometry(0.0028, 12),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.86, depthTest: false }),
+      new THREE.CircleGeometry(0.0023, 12),
+      new THREE.MeshBasicMaterial({ color: 0xf3e8ff, transparent: true, opacity: 0.72, depthTest: false }),
     );
     catchlight.position.set(-0.005, 0.005, 0.0215);
     catchlight.renderOrder = 6;
@@ -194,15 +239,11 @@ function makeVisitorLife() {
   });
 
   function update(time, speakingEnergy = 0) {
-    neuralTubes.forEach((tube) => {
-      const pulse = (Math.sin(time * 0.78 + tube.userData.phase) + 1) * 0.5;
-      tube.material.opacity = tube.userData.baseOpacity + pulse * 0.09 + speakingEnergy * 0.08;
-    });
-    neuralNodes.forEach((node) => {
-      const pulse = (Math.sin(time * 1.15 + node.userData.phase) + 1) * 0.5;
-      node.scale.setScalar(0.72 + pulse * 0.54 + speakingEnergy * 0.18);
-      node.material.opacity = 0.2 + pulse * 0.25 + speakingEnergy * 0.12;
-    });
+    topologyMaterial.uniforms.uTime.value = time;
+    topologyMaterial.uniforms.uEnergy.value = speakingEnergy;
+    dissolveMaterial.uniforms.uTime.value = time;
+    dissolveMaterial.uniforms.uEnergy.value = speakingEnergy;
+    dissolveMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio || 1, 1.5);
     const blink = Math.pow(Math.max(0, Math.sin(time * 0.54 - 0.42)), 32);
     eyes.forEach((eye) => {
       eye.scale.y = 1 - blink * 0.92;
@@ -210,7 +251,7 @@ function makeVisitorLife() {
     });
   }
 
-  return { group, network, eyes, update };
+  return { group, surface, topology, dissolve, eyes, update };
 }
 
 let visualState = stage.dataset.state || "idle";
@@ -298,7 +339,7 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(x, y);
     ctx.stroke();
-    ctx.fillStyle = index % 3 ? "rgba(167,139,250,.9)" : "rgba(125,211,252,.95)";
+    ctx.fillStyle = index % 3 ? "rgba(167,139,250,.9)" : "rgba(216, 180, 254,.95)";
     ctx.shadowColor = "#a78bfa";
     ctx.shadowBlur = 12;
     ctx.beginPath();
@@ -315,7 +356,7 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
   const writeProgress = (time * 0.24) % 1;
   const writeX = centerX - span * (0.38 - writeProgress * 0.38);
   const writeY = centerY + Math.sin(writeProgress * Math.PI) * -span * 0.055;
-  ctx.strokeStyle = "rgba(125,211,252,.26)";
+  ctx.strokeStyle = "rgba(216, 180, 254,.26)";
   ctx.beginPath();
   ctx.moveTo(centerX - span * 0.38, centerY);
   ctx.quadraticCurveTo(centerX - span * 0.18, centerY - span * 0.11, centerX, centerY);
@@ -360,7 +401,7 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
   const aura = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, span * 0.42);
-  aura.addColorStop(0, `rgba(245,185,87,${0.13 + assembly * 0.08})`);
+  aura.addColorStop(0, `rgba(168, 85, 247,${0.13 + assembly * 0.08})`);
   aura.addColorStop(0.48, "rgba(192,132,252,.045)");
   aura.addColorStop(1, "rgba(109,40,217,0)");
   ctx.fillStyle = aura;
@@ -368,7 +409,7 @@ function drawForge(ctx, width, height, time, opacity = 1) {
 
   for (let ring = 1; ring <= 3; ring += 1) {
     const radius = ring * span * 0.09;
-    ctx.strokeStyle = ring === 2 ? "rgba(245,185,87,.2)" : "rgba(168,85,247,.12)";
+    ctx.strokeStyle = ring === 2 ? "rgba(168, 85, 247,.2)" : "rgba(168,85,247,.12)";
     ctx.lineWidth = ring === 2 ? 1.4 : 1;
     ctx.beginPath();
     for (let side = 0; side <= 8; side += 1) {
@@ -387,7 +428,7 @@ function drawForge(ctx, width, height, time, opacity = 1) {
     const angle = component.angle + time * (index % 2 ? -0.08 : 0.08);
     const x = centerX + Math.cos(angle) * distance;
     const y = centerY + Math.sin(angle) * distance * 0.78;
-    ctx.strokeStyle = index % 3 ? "rgba(168,85,247,.11)" : "rgba(245,185,87,.18)";
+    ctx.strokeStyle = index % 3 ? "rgba(168,85,247,.11)" : "rgba(168, 85, 247,.18)";
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(x, y);
@@ -395,8 +436,8 @@ function drawForge(ctx, width, height, time, opacity = 1) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(component.phase + time * (0.18 + index % 3 * 0.04));
-    ctx.strokeStyle = index % 3 ? `rgba(233,213,255,${0.34 + assembly * 0.38})` : `rgba(253,230,138,${0.4 + assembly * 0.4})`;
-    ctx.fillStyle = index % 3 ? "rgba(109,40,217,.12)" : "rgba(245,158,11,.13)";
+    ctx.strokeStyle = index % 3 ? `rgba(233,213,255,${0.34 + assembly * 0.38})` : `rgba(216,180,254,${0.4 + assembly * 0.4})`;
+    ctx.fillStyle = index % 3 ? "rgba(109,40,217,.12)" : "rgba(168,85,247,.13)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.roundRect(-component.size, -component.size * 0.55, component.size * 2, component.size * 1.1, 2);
@@ -407,8 +448,8 @@ function drawForge(ctx, width, height, time, opacity = 1) {
 
   const coreRadius = 12 + assembly * 14;
   const glow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius * 2.4);
-  glow.addColorStop(0, `rgba(255,251,235,${0.7 + assembly * 0.24})`);
-  glow.addColorStop(0.42, `rgba(245,185,87,${0.24 + assembly * 0.18})`);
+  glow.addColorStop(0, `rgba(243,232,255,${0.7 + assembly * 0.24})`);
+  glow.addColorStop(0.42, `rgba(168, 85, 247,${0.24 + assembly * 0.18})`);
   glow.addColorStop(1, "rgba(192,132,252,0)");
   ctx.fillStyle = glow;
   ctx.beginPath();
@@ -420,7 +461,7 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   ctx.fill();
   ctx.strokeStyle = "rgba(168,85,247,.5)";
   ctx.strokeRect(centerX - span * 0.105, centerY - span * 0.06, span * 0.21, span * 0.12);
-  ctx.fillStyle = "rgba(254,243,199,.75)";
+  ctx.fillStyle = "rgba(233,213,255,.75)";
   ctx.font = "700 9px ui-monospace, Menlo, monospace";
   ctx.textAlign = "center";
   ctx.fillText("FORJA · CONSTRUÇÃO EM CURSO", centerX, centerY + span * 0.28);
@@ -428,7 +469,7 @@ function drawForge(ctx, width, height, time, opacity = 1) {
     const angle = -Math.PI * 0.8 + index * Math.PI * 0.53;
     const x = centerX + Math.cos(angle) * span * 0.27;
     const y = centerY + Math.sin(angle) * span * 0.25;
-    ctx.fillStyle = index <= Math.floor(assembly * 4) ? "rgba(254,243,199,.72)" : "rgba(233,213,255,.38)";
+    ctx.fillStyle = index <= Math.floor(assembly * 4) ? "rgba(233,213,255,.72)" : "rgba(233,213,255,.38)";
     ctx.fillText(label, x, y);
   });
   ctx.restore();
@@ -557,8 +598,8 @@ function installCyanRemap(material) {
 async function start() {
   const renderer = new THREE.WebGLRenderer({
     alpha: true,
-    antialias: !compactViewport && !constrainedHardware,
-    powerPreference: constrainedHardware ? "low-power" : "high-performance",
+    antialias: true,
+    powerPreference: "high-performance",
     preserveDrawingBuffer: false,
   });
   renderer.domElement.style.position = "absolute";
@@ -595,7 +636,10 @@ async function start() {
 
   const root = new THREE.Group();
   scene.add(root);
-  const visitorModel = await loadObjHead("/asset/models/male_head.obj?v=20260813-essence1");
+  const [visitorModel, topologyGeometry] = await Promise.all([
+    loadObjHead("/asset/models/male_head.obj?v=20260813-space2"),
+    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-space2"),
+  ]);
   let ownerModel = new THREE.Group();
   let ownerMixer = null;
   let ownerLoadPromise = null;
@@ -614,7 +658,8 @@ async function start() {
   // The OBJ is Z-up with its face toward negative Y. Converting that axis to
   // Three.js Y-up makes the eyes and face point directly at the camera.
   normalizeModel(visitorModel, -Math.PI / 2, 0, 0, 1.5);
-  const visitorLife = makeVisitorLife();
+  const visitorLife = makeVisitorLife(topologyGeometry);
+  normalizeModel(visitorLife.surface, -Math.PI / 2, 0, 0, 1.5);
   root.add(visitorLife.group);
 
   const glowMaterials = new Set();
@@ -672,9 +717,9 @@ async function start() {
 
   stage.dataset.modelAsset = "visitor-purple-bust";
   stage.dataset.modelAnimations = "lazy-owner";
-  stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "command-deck";
+  stage.dataset.renderProfile = `quality-${graphicsQuality}`;
 
-  const particleCount = compactViewport || constrainedHardware ? 12 : 20;
+  const particleCount = 20;
   const particlePositions = new Float32Array(particleCount * 3);
   for (let index = 0; index < particleCount; index += 1) {
     const angle = Math.random() * Math.PI * 2;
@@ -747,9 +792,7 @@ async function start() {
   let currentScale = 1;
   let sampledFrames = 0;
   let fpsWindowStart = performance.now();
-  let frameIntervalMs = BASE_FRAME_INTERVAL_MS;
-  let adaptiveMaxFps = QUALITY_PROFILES[graphicsQuality].activeFps;
-  let slowFrameWindows = 0;
+  let frameIntervalMs = 1000 / QUALITY_PROFILES[graphicsQuality].activeFps;
   let lastVisualMode = "";
   let effectLastFrameMs = 0;
   let windowFocused = document.hasFocus();
@@ -762,20 +805,17 @@ async function start() {
 
   const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "speaking", "preview", "memory", "local"]);
   function requestedTargetFps() {
-    if (!windowFocused) return BACKGROUND_TARGET_FPS;
+    if (!windowFocused || document.hidden) return 0;
     const profile = QUALITY_PROFILES[graphicsQuality];
     return activeStates.has(visualState) ? profile.activeFps : profile.idleFps;
   }
 
   function updateRenderBudget() {
-    const requestedFps = requestedTargetFps();
-    const targetFps = Math.max(1, Math.min(requestedFps, adaptiveMaxFps));
-    frameIntervalMs = 1000 / targetFps;
-    const profile = !windowFocused
-      ? `background-${targetFps}fps`
-      : targetFps < requestedFps
-        ? `adaptive-lite-${targetFps}fps`
-        : activeStates.has(visualState) ? `active-${targetFps}fps` : `idle-${targetFps}fps`;
+    const targetFps = requestedTargetFps();
+    if (targetFps > 0) frameIntervalMs = 1000 / targetFps;
+    const profile = targetFps === 0
+      ? "paused"
+      : `${graphicsQuality}-${activeStates.has(visualState) ? "active" : "idle"}-${targetFps}fps`;
     if (lastRenderTargetFps !== targetFps) {
       stage.dataset.renderTargetFps = String(targetFps);
       lastRenderTargetFps = targetFps;
@@ -793,6 +833,8 @@ async function start() {
   });
   window.addEventListener("blur", () => {
     windowFocused = false;
+    window.clearTimeout(animationTimerId);
+    cancelAnimationFrame(animationFrameId);
     updateRenderBudget();
   });
   updateRenderBudget();
@@ -801,15 +843,13 @@ async function start() {
     const requested = event.detail?.quality;
     if (!QUALITY_PROFILES[requested]) return;
     graphicsQuality = requested;
-    adaptiveMaxFps = QUALITY_PROFILES[graphicsQuality].activeFps;
-    slowFrameWindows = 0;
     resize();
     updateRenderBudget();
     scheduleRender(0);
   });
 
   function scheduleRender(delay = frameIntervalMs) {
-    if (disposed || reducedMotion) return;
+    if (disposed || reducedMotion || !windowFocused || document.hidden) return;
     window.clearTimeout(animationTimerId);
     animationTimerId = window.setTimeout(() => {
       animationFrameId = requestAnimationFrame(render);
@@ -825,6 +865,7 @@ async function start() {
     const ownerAccess = stage.dataset.access === "owner";
     visitorModel.visible = !ownerAccess;
     visitorLife.group.visible = !ownerAccess;
+    visitorLife.surface.visible = !ownerAccess;
     if (ownerAccess) {
       presenceValue.textContent = "Busto master carregando";
       if (ownerLoadPromise) {
@@ -859,14 +900,22 @@ async function start() {
   syncAccessModel();
 
   window.addEventListener("jarvis-state", wakeRender);
-  document.addEventListener("visibilitychange", wakeRender);
+  const onVisibilityChange = () => {
+    if (document.hidden) {
+      window.clearTimeout(animationTimerId);
+      cancelAnimationFrame(animationFrameId);
+      updateRenderBudget();
+    } else if (windowFocused) {
+      wakeRender();
+    }
+  };
+  document.addEventListener("visibilitychange", onVisibilityChange);
 
   function render(timeMs) {
     if (disposed) return;
     updateRenderBudget();
-    if (document.hidden) {
+    if (document.hidden || !windowFocused) {
       previousFrameMs = timeMs;
-      scheduleRender(1000);
       return;
     }
     const deltaSeconds = previousFrameMs ? Math.min((timeMs - previousFrameMs) / 1000, 0.1) : 0;
@@ -877,15 +926,6 @@ async function start() {
       stage.dataset.renderFps = String(measuredFps);
       const renderTelemetry = document.getElementById("sceneRender");
       if (renderTelemetry) renderTelemetry.textContent = `3D ${measuredFps} FPS`;
-      const currentTargetFps = 1000 / frameIntervalMs;
-      slowFrameWindows = measuredFps < currentTargetFps * 0.72
-        ? slowFrameWindows + 1
-        : Math.max(0, slowFrameWindows - 1);
-      if (slowFrameWindows >= 5) {
-        adaptiveMaxFps = Math.min(adaptiveMaxFps, 12);
-      } else if (slowFrameWindows >= 2) {
-        adaptiveMaxFps = Math.min(adaptiveMaxFps, 18);
-      }
       sampledFrames = 0;
       fpsWindowStart = timeMs;
     }
@@ -902,6 +942,8 @@ async function start() {
     });
     const isOwner = stage.dataset.access === "owner";
     visitorModel.visible = !isOwner;
+    visitorLife.group.visible = !isOwner;
+    visitorLife.surface.visible = !isOwner;
     ownerModel.visible = isOwner;
     ambient.color.setHex(isOwner ? 0x291044 : 0x2b174d);
     key.color.setHex(isOwner ? 0xd8b4fe : 0xb899ff);
@@ -973,14 +1015,14 @@ async function start() {
     window.clearTimeout(animationTimerId);
     cancelAnimationFrame(animationFrameId);
     window.removeEventListener("jarvis-state", wakeRender);
-    document.removeEventListener("visibilitychange", wakeRender);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
     resizeObserver.disconnect();
     accessObserver.disconnect();
     ownerMixer?.stopAllAction();
     const disposedTextures = new Set();
-    [visitorModel, ownerModel].forEach((model) => {
+    [visitorModel, visitorLife.group, visitorLife.surface, ownerModel].forEach((model) => {
       model.traverse((object) => {
-        if (!object.isMesh) return;
+        if (!(object.isMesh || object.isLineSegments || object.isPoints)) return;
         object.geometry?.dispose();
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.filter(Boolean).forEach((material) => {
