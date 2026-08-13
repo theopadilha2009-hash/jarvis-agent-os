@@ -233,6 +233,27 @@ class RunStore:
                 return None
         return value if isinstance(value, dict) else None
 
+    def list(self, *, limit: int = 30, states: set[str] | None = None) -> list[dict[str, Any]]:
+        """Return newest valid records without trusting filenames or malformed JSON."""
+        selected_states = {state for state in (states or set()) if state in VALID_STATES}
+        safe_limit = max(1, min(int(limit or 30), 100))
+        records = []
+        with self._lock:
+            try:
+                paths = list(self.directory.glob("jr-*.json"))
+            except OSError:
+                paths = []
+            for path in paths:
+                run_id = path.stem
+                if not RUN_ID_PATTERN.fullmatch(run_id):
+                    continue
+                record = self.get(run_id)
+                if not record or selected_states and record.get("state") not in selected_states:
+                    continue
+                records.append(record)
+        records.sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
+        return records[:safe_limit]
+
     def update(
         self,
         run_id: str,
@@ -287,12 +308,34 @@ def run_public_payload(record: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "run_id": record.get("id"),
         "state": record.get("state"),
+        "command": record.get("command") or "",
+        "source": record.get("source") or "",
+        "created_at": record.get("created_at"),
+        "updated_at": record.get("updated_at"),
         "plan": record.get("plan") or [],
         "events": record.get("events") or [],
         "result": record.get("result"),
         "evidence": record.get("evidence") or [],
+        "error": record.get("error") or "",
         "needs_confirmation": record.get("state") == "waiting_confirmation",
         "action": action.public_dict() if action else None,
+    }
+
+
+def run_summary_payload(record: dict[str, Any]) -> dict[str, Any]:
+    """Compact history row; detailed events stay available at GET /runs/<id>."""
+    action = ACTION_REGISTRY.get(record.get("action"))
+    return {
+        "run_id": record.get("id"),
+        "state": record.get("state"),
+        "command": str(record.get("command") or "")[:500],
+        "action": action.public_dict() if action else None,
+        "created_at": record.get("created_at"),
+        "updated_at": record.get("updated_at"),
+        "evidence": list(record.get("evidence") or [])[:12],
+        "error": str(record.get("error") or "")[:500],
+        "event_count": len(record.get("events") or []),
+        "retryable": record.get("state") in {"failed", "canceled"},
     }
 
 

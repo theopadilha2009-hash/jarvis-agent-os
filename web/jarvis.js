@@ -886,23 +886,57 @@
     const target = byId("actionHistory");
     if (!target) return;
     if (!Array.isArray(items) || !items.length) {
-      target.innerHTML = "<small>Nenhuma ação registrada.</small>";
+      target.innerHTML = "<small>Nenhum run registrado neste filtro.</small>";
       return;
     }
-    target.innerHTML = items.slice(0, 8).map((item) => {
-      const suffix = item.target ? ` · ${escapeHtml(item.target)}` : "";
-      const evidence = item.artifact_url
-        ? `<a href="${escapeHtml(item.artifact_url)}" target="_blank" rel="noopener noreferrer">Ver evidência</a>`
+    target.innerHTML = items.slice(0, 30).map((item) => {
+      const state = item.state || "unknown";
+      const action = item.action?.label || item.action?.name || "Run do JARVIS";
+      const timestamp = item.updated_at ? new Date(item.updated_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "horário indisponível";
+      const evidence = Array.isArray(item.evidence) ? item.evidence : [];
+      const evidenceRows = evidence.map((row) => {
+        const value = String(row?.value || "evidência confirmada");
+        const content = /^https?:\/\//i.test(value)
+          ? `<a href="${escapeHtml(value)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.type || "fonte")}</a>`
+          : `${escapeHtml(row?.type || "evidência")}: ${escapeHtml(value)}`;
+        return `<li>${content}</li>`;
+      }).join("");
+      const retry = item.retryable
+        ? `<button type="button" data-retry-run="${escapeHtml(item.run_id)}">Reexecutar</button>`
         : "";
-      return `<div class="history-row" data-status="${escapeHtml(item.status || "unknown")}"><i></i><span><b>${escapeHtml(item.action || "ação")}</b>${suffix}<small>${escapeHtml(item.status || "unknown")}</small>${evidence}</span></div>`;
+      return `<div class="history-row" data-status="${escapeHtml(state)}"><i></i><span>`
+        + `<b title="${escapeHtml(item.command || action)}">${escapeHtml(action)}</b>`
+        + `<small>${escapeHtml(state)} · ${escapeHtml(timestamp)}</small>`
+        + `<details><summary>Detalhes e evidências</summary><p>${escapeHtml(item.command || "Comando não registrado")}</p>${item.error ? `<p>${escapeHtml(item.error)}</p>` : ""}${evidenceRows ? `<ul>${evidenceRows}</ul>` : "<small>Sem evidência anexada.</small>"}</details>`
+        + `${retry}</span></div>`;
     }).join("");
+    target.querySelectorAll("[data-retry-run]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        button.textContent = "Reexecutando…";
+        const data = await request(`/runs/${encodeURIComponent(button.dataset.retryRun)}/retry`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (data.ok === false) addMessage(data.error || "Não consegui reexecutar este run.", "error");
+        else addMessage(data.message || "Nova tentativa criada.", "jarvis", renderMessageContext(data));
+        refreshActionHistory();
+      });
+    });
   }
 
   async function refreshActionHistory() {
-    if (!session.paired || !session.deviceBridge) return renderActionHistory([]);
+    const target = byId("actionHistory");
+    if (target) target.innerHTML = "<small>Carregando runs…</small>";
     try {
-      const data = await request("/device-history?limit=8");
-      renderActionHistory(data.history || []);
+      const state = byId("runHistoryFilter")?.value || "";
+      const data = await request(`/runs?limit=30${state ? `&state=${encodeURIComponent(state)}` : ""}`);
+      if (data.ok === false) {
+        if (target) target.innerHTML = `<small>${escapeHtml(data.error || "Histórico privado indisponível.")}</small>`;
+        return;
+      }
+      renderActionHistory(data.runs || []);
     } catch {
       renderActionHistory([]);
     }
@@ -1794,6 +1828,8 @@
     renderMuteState();
   });
   byId("closeDialog").addEventListener("click", () => dialog.close());
+  byId("refreshRunHistory")?.addEventListener("click", refreshActionHistory);
+  byId("runHistoryFilter")?.addEventListener("change", refreshActionHistory);
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });

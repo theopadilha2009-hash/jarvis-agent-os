@@ -422,6 +422,14 @@ class WebGatewayTest(unittest.TestCase):
         status, _, loaded = self.json_request(f"/runs/{run_id}")
         self.assertEqual(status, 200)
         self.assertEqual(loaded["run_id"], run_id)
+        self.assertIn("created_at", loaded)
+
+        status, _, history = self.json_request("/runs?limit=1&state=waiting_confirmation")
+        self.assertEqual(status, 200)
+        self.assertEqual(history["protocol"], MODULE.RUN_PROTOCOL)
+        self.assertEqual(history["count"], 1)
+        self.assertEqual(history["runs"][0]["run_id"], run_id)
+        self.assertEqual(history["runs"][0]["state"], "waiting_confirmation")
 
         status, _, confirmed = self.json_request(f"/runs/{run_id}/confirm", "POST", {})
         self.assertEqual(status, 200)

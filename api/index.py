@@ -48,6 +48,7 @@ from action_registry import (  # noqa: E402
     action_payloads,
     needs_interactive_confirmation,
     run_public_payload,
+    run_summary_payload,
 )
 from memory_index import MemoryIndex  # noqa: E402
 
@@ -6498,6 +6499,28 @@ class handler(BaseHTTPRequestHandler):
                     "actions": web_action_registry(),
                 },
                 "device_actions": [intent for _, intent in LOCAL_INTENTS],
+            })
+        if path == "/runs":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /runs"
+                return self.send_json(status, payload)
+            try:
+                limit = int((query.get("limit") or ["30"])[0])
+            except ValueError:
+                limit = 30
+            requested_states = {
+                value.strip()
+                for value in (query.get("state") or [""])[0].split(",")
+                if value.strip()
+            }
+            records = AGENT_RUNS.list(limit=limit, states=requested_states)
+            return self.send_json(200, {
+                "ok": True,
+                "endpoint": "GET /runs",
+                "protocol": RUN_PROTOCOL,
+                "count": len(records),
+                "runs": [run_summary_payload(record) for record in records],
             })
         if path.startswith("/runs/"):
             if owner_pairing_required() and not owner_authenticated:

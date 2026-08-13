@@ -168,8 +168,18 @@
       <section class="dialog-wide"><span>Presença</span><strong id="presenceValue">carregando núcleo 3D</strong></section>
       <section class="dialog-wide"><span>Última ação</span><strong id="activityValue">Nenhuma ação nesta sessão.</strong></section>
       <section class="dialog-wide history-panel">
-        <span>Histórico real</span>
-        <div class="history-list" id="actionHistory"><small>Nenhuma ação carregada.</small></div>
+        <span>Histórico de runs</span>
+        <div class="history-toolbar">
+          <select id="runHistoryFilter" aria-label="Filtrar runs por estado">
+            <option value="">Todos os estados</option>
+            <option value="running,planned,waiting_confirmation">Em andamento</option>
+            <option value="completed">Concluídos</option>
+            <option value="failed">Falhos</option>
+            <option value="canceled">Cancelados</option>
+          </select>
+          <button id="refreshRunHistory" type="button">Atualizar</button>
+        </div>
+        <div class="history-list" id="actionHistory" aria-live="polite"><small>Nenhum run carregado.</small></div>
       </section>
     </div>
   </dialog>

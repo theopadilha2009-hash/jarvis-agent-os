@@ -1035,11 +1035,22 @@ dialog::backdrop { background: rgba(0, 3, 4, 0.8); backdrop-filter: blur(9px); }
 .advanced-pairing summary { cursor: pointer; }
 .history-list { display: grid; gap: 6px; max-height: 190px; overflow: auto; }
 .history-list > * { padding: 8px 0; border-bottom: 1px solid var(--line); color: #8ca6ac; font-size: 10px; }
+.history-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.history-toolbar select,
+.history-toolbar button { min-height: 34px; border: 1px solid var(--line); border-radius: 9px; background: rgba(0, 0, 0, 0.22); color: #9eb6bb; font: 9px ui-monospace, monospace; }
+.history-toolbar select { min-width: 0; padding: 0 9px; }
+.history-toolbar button { padding: 0 11px; cursor: pointer; }
 .history-row { display: grid; grid-template-columns: 7px minmax(0, 1fr); gap: 8px; }
 .history-row > i { width: 6px; height: 6px; margin-top: 4px; border-radius: 50%; background: var(--warning); }
-.history-row[data-status="succeeded"] > i { background: var(--success); }
+.history-row[data-status="succeeded"] > i,
+.history-row[data-status="completed"] > i { background: var(--success); }
 .history-row[data-status="failed"] > i { background: var(--danger); }
 .history-row > span { min-width: 0; display: grid; gap: 3px; }
+.history-row > span > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b8d0d4; }
+.history-row details { margin-top: 3px; }
+.history-row summary { width: fit-content; cursor: pointer; color: #79cbd4; }
+.history-row ul { display: grid; gap: 3px; margin: 6px 0 0; padding-left: 16px; color: #6f8c92; }
+.history-row button { width: fit-content; margin-top: 5px; padding: 5px 8px; border: 1px solid rgba(85, 216, 231, 0.16); border-radius: 8px; background: rgba(85, 216, 231, 0.035); color: #9fdce3; cursor: pointer; }
 .history-row a { width: fit-content; color: #91dce5; text-underline-offset: 3px; }
 .tour-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px; }
 .tour-grid section { padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
