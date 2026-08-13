@@ -521,6 +521,266 @@ def integration_test_payload(body, owner_authenticated=False):
         }, 400
 
 
+INTEGRATION_RUNTIME_TOOLS = {
+    "n8n": {
+        "tool": "list_workflows",
+        "label": "Ler workflows",
+        "description": "Lista os workflows mais recentes sem alterar nem ativar nada.",
+        "effect": "read",
+    },
+    "openrouter": {
+        "tool": "inspect_account",
+        "label": "Ver uso da chave",
+        "description": "Consulta limite, saldo e uso da chave atualmente salva.",
+        "effect": "read",
+    },
+    "elevenlabs": {
+        "tool": "list_voices",
+        "label": "Listar vozes",
+        "description": "Lista as vozes disponíveis para uso no JARVIS.",
+        "effect": "read",
+    },
+    "github": {
+        "tool": "list_repositories",
+        "label": "Ler repositórios",
+        "description": "Lista repositórios acessíveis pela credencial, incluindo privados quando autorizados.",
+        "effect": "read",
+    },
+    "supabase": {
+        "tool": "read_rows",
+        "label": "Ler tabela",
+        "description": "Lê uma amostra limitada de uma tabela pela Data API.",
+        "effect": "read",
+        "fields": ["table", "limit"],
+    },
+    "webhook": {
+        "tool": "send_event",
+        "label": "Enviar evento",
+        "description": "Envia um JSON ao endpoint somente após confirmação explícita no modo Ultron.",
+        "effect": "external_write",
+        "fields": ["payload"],
+    },
+}
+
+
+def integration_safe_result(value, depth=0):
+    """Bound provider output and redact fields that commonly contain credentials."""
+    if depth > 5:
+        return "[TRUNCATED]"
+    if isinstance(value, dict):
+        safe = {}
+        for raw_key, item in list(value.items())[:40]:
+            key = clean_text(raw_key, 120)
+            if re.search(r"(?i)(?:api[_-]?key|token|password|passwd|senha|secret|authorization|cookie|service_role)", key):
+                safe[key] = "[REDACTED]"
+            else:
+                safe[key] = integration_safe_result(item, depth + 1)
+        return safe
+    if isinstance(value, list):
+        return [integration_safe_result(item, depth + 1) for item in value[:20]]
+    if isinstance(value, str):
+        return "[REDACTED]" if has_secret_like_text(value) else clean_text(value, 1_000)
+    if isinstance(value, (bool, int, float)) or value is None:
+        return value
+    return clean_text(value, 500)
+
+
+def integration_tool_catalog():
+    return [
+        {"provider": provider, **definition}
+        for provider, definition in INTEGRATION_RUNTIME_TOOLS.items()
+    ]
+
+
+def integration_tool_payload(body, owner_authenticated=False):
+    """Execute one bounded provider adapter using an ephemeral browser-vault credential."""
+    provider = clean_text(body.get("provider"), 40).casefold()
+    definition = INTEGRATION_RUNTIME_TOOLS.get(provider)
+    if not definition:
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/tools",
+            "status_real": "integration_tool_unknown",
+            "error": "Esta API ainda não possui uma ferramenta verificada.",
+            "tools": integration_tool_catalog(),
+        }, 400
+    tool = clean_text(body.get("tool"), 80).casefold()
+    if tool != definition["tool"]:
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/tools",
+            "status_real": "integration_tool_refused",
+            "error": "A ferramenta solicitada não pertence a este provedor.",
+        }, 400
+    config = client_integration({"client_integrations": {provider: body.get("config") or {}}}, provider)
+    api_key = config.get("api_key", "")
+    base_url = config.get("base_url", "")
+    parameters = body.get("parameters") if isinstance(body.get("parameters"), dict) else {}
+    if not api_key and provider != "webhook":
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/tools",
+            "status_real": "integration_tool_key_missing",
+            "error": "Salve a chave desta API antes de executar a ferramenta.",
+        }, 400
+    try:
+        result = None
+        message = ""
+        if provider == "n8n":
+            base = safe_integration_base_url(base_url, "n8n")
+            if base.casefold().endswith("/api/v1"):
+                base = base[:-7]
+            raw, _ = integration_json_request(
+                f"{base}/api/v1/workflows?limit=12",
+                headers={"X-N8N-API-KEY": api_key},
+            )
+            rows = raw.get("data") if isinstance(raw, dict) and isinstance(raw.get("data"), list) else []
+            result = [{
+                "id": clean_text(item.get("id"), 120),
+                "name": clean_text(item.get("name"), 180),
+                "active": bool(item.get("active")),
+                "updated_at": clean_text(item.get("updatedAt"), 80),
+            } for item in rows[:12] if isinstance(item, dict)]
+            message = f"n8n respondeu com {len(result)} workflow(s). Nenhum foi alterado."
+        elif provider == "openrouter":
+            raw, _ = integration_json_request(
+                "https://openrouter.ai/api/v1/key",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            data = raw.get("data") if isinstance(raw, dict) and isinstance(raw.get("data"), dict) else {}
+            result = {
+                "free_tier": bool(data.get("is_free_tier")),
+                "limit": data.get("limit"),
+                "limit_remaining": data.get("limit_remaining"),
+                "limit_reset": clean_text(data.get("limit_reset"), 40),
+                "usage": data.get("usage"),
+                "usage_daily": data.get("usage_daily"),
+                "usage_monthly": data.get("usage_monthly"),
+                "expires_at": clean_text(data.get("expires_at"), 80),
+            }
+            message = "OpenRouter respondeu com o uso e o limite da chave atual."
+        elif provider == "elevenlabs":
+            raw, _ = integration_json_request(
+                "https://api.elevenlabs.io/v2/voices?page_size=20&sort=name&sort_direction=asc",
+                headers={"xi-api-key": api_key},
+            )
+            voices = raw.get("voices") if isinstance(raw, dict) and isinstance(raw.get("voices"), list) else []
+            result = [{
+                "voice_id": clean_text(item.get("voice_id"), 120),
+                "name": clean_text(item.get("name"), 160),
+                "category": clean_text(item.get("category"), 60),
+                "description": clean_text(item.get("description"), 240),
+            } for item in voices[:20] if isinstance(item, dict)]
+            message = f"ElevenLabs respondeu com {len(result)} voz(es) disponíveis."
+        elif provider == "github":
+            raw, _ = integration_json_request(
+                "https://api.github.com/user/repos?per_page=20&sort=updated&affiliation=owner%2Ccollaborator%2Corganization_member",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                    "User-Agent": "Theo-Jarvis",
+                },
+            )
+            rows = raw if isinstance(raw, list) else []
+            result = [{
+                "full_name": clean_text(item.get("full_name"), 200),
+                "private": bool(item.get("private")),
+                "html_url": clean_text(item.get("html_url"), 2_000),
+                "default_branch": clean_text(item.get("default_branch"), 100),
+                "pushed_at": clean_text(item.get("pushed_at"), 80),
+            } for item in rows[:20] if isinstance(item, dict)]
+            message = f"GitHub respondeu com {len(result)} repositório(s) acessíveis."
+        elif provider == "supabase":
+            base = safe_integration_base_url(base_url, "Supabase")
+            table = clean_text(parameters.get("table"), 80)
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,62}", table):
+                raise ValueError("Informe uma tabela simples, usando somente letras, números e sublinhado.")
+            try:
+                limit = max(1, min(int(parameters.get("limit") or 10), 20))
+            except (TypeError, ValueError) as error:
+                raise ValueError("O limite da leitura precisa ser um número entre 1 e 20.") from error
+            raw, _ = integration_json_request(
+                f"{base}/rest/v1/{quote(table)}?select=*&limit={limit}",
+                headers={"apikey": api_key, "Authorization": f"Bearer {api_key}"},
+            )
+            rows = raw if isinstance(raw, list) else []
+            result = integration_safe_result(rows[:limit])
+            message = f"Supabase respondeu com {len(rows[:limit])} linha(s) de {table}. Nenhum dado foi alterado."
+        else:
+            base = safe_integration_base_url(base_url, "webhook")
+            payload = parameters.get("payload")
+            if not isinstance(payload, (dict, list)):
+                raise ValueError("O evento do webhook precisa ser um objeto ou lista JSON.")
+            serialized = json.dumps(payload, ensure_ascii=False)
+            if len(serialized.encode("utf-8")) > 32_000:
+                raise ValueError("O evento do webhook ultrapassa 32 KB.")
+            if has_secret_like_text(serialized):
+                raise ValueError("O evento parece conter uma credencial. Remova o segredo antes de enviar.")
+            if not owner_authenticated or body.get("confirmed") is not True:
+                return {
+                    "ok": False,
+                    "endpoint": "POST /integrations/tools",
+                    "status_real": "integration_tool_confirmation_required",
+                    "error": "O envio externo exige modo Ultron e confirmação explícita.",
+                    "provider": provider,
+                    "tool": tool,
+                    "effect": definition["effect"],
+                    "credential_persisted_server_side": False,
+                }, 409
+            request_headers = {"Accept": "application/json", "Content-Type": "application/json"}
+            if api_key:
+                request_headers["Authorization"] = f"Bearer {api_key}"
+            request = Request(base, data=serialized.encode("utf-8"), headers=request_headers, method="POST")
+            with urlopen(request, timeout=15) as response:
+                status_code = int(getattr(response, "status", 200) or 200)
+                response.read(65_536)
+            result = {"delivered": 200 <= status_code < 300, "http_status": status_code}
+            message = f"Webhook respondeu HTTP {status_code}; o envio foi observado pelo JARVIS."
+        safe_result = integration_safe_result(result)
+        return {
+            "ok": True,
+            "endpoint": "POST /integrations/tools",
+            "status_real": "integration_tool_executed",
+            "provider": provider,
+            "tool": tool,
+            "effect": definition["effect"],
+            "message": message,
+            "result": safe_result,
+            "credential_persisted_server_side": False,
+        }, 200
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/tools",
+            "status_real": "integration_tool_provider_refused",
+            "provider": provider,
+            "tool": tool,
+            "error": f"A API recusou a ferramenta (HTTP {error.code}).",
+            "credential_persisted_server_side": False,
+        }, 400 if error.code in {400, 401, 403, 404, 409, 422} else 502
+    except (URLError, TimeoutError):
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/tools",
+            "status_real": "integration_tool_timeout",
+            "provider": provider,
+            "tool": tool,
+            "error": "A API não respondeu a tempo.",
+            "credential_persisted_server_side": False,
+        }, 504
+    except (ValueError, KeyError, json.JSONDecodeError) as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /integrations/tools",
+            "status_real": "integration_tool_invalid",
+            "provider": provider,
+            "tool": tool,
+            "error": clean_text(error, 240) or "A ferramenta recebeu dados inválidos.",
+            "credential_persisted_server_side": False,
+        }, 400
+
+
 N8N_SMART_ACTIONS = (
     {
         "kind": "supabase",
@@ -7771,6 +8031,15 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(status, payload)
         if path == "/integrations/test":
             payload, status = integration_test_payload(body, owner_authenticated=owner_authenticated)
+            return self.send_json(status, payload)
+        if path == "/integrations/tools":
+            payload, status = integration_tool_payload(body, owner_authenticated=owner_authenticated)
+            payload = attach_execution_events(
+                payload,
+                started_at,
+                status,
+                f"{clean_text(body.get('provider'), 40)}:{clean_text(body.get('tool'), 80)}",
+            )
             return self.send_json(status, payload)
         if path == "/integrations/n8n/workflows":
             payload, status = n8n_workflow_action_payload(body, owner_authenticated=owner_authenticated)

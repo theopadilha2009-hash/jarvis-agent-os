@@ -42,6 +42,7 @@
     n8n: {
       label: "n8n",
       eyebrow: "AUTOMAÇÃO",
+      tool: { name: "list_workflows", label: "Ler workflows", description: "Lista workflows sem alterar nada.", effect: "read", fields: [] },
       fields: [
         { name: "base_url", label: "URL da instância", placeholder: "https://sua-instancia.app.n8n.cloud", secret: false },
         { name: "api_key", label: "API key", placeholder: "Chave criada em Settings > n8n API", secret: true },
@@ -50,21 +51,34 @@
     openrouter: {
       label: "OpenRouter",
       eyebrow: "INTELIGÊNCIA",
+      tool: { name: "inspect_account", label: "Ver uso da chave", description: "Consulta saldo e uso atual.", effect: "read", fields: [] },
       fields: [{ name: "api_key", label: "API key", placeholder: "sk-or-v1-…", secret: true }],
     },
     elevenlabs: {
       label: "ElevenLabs",
       eyebrow: "VOZ",
+      tool: { name: "list_voices", label: "Listar vozes", description: "Mostra as vozes disponíveis.", effect: "read", fields: [] },
       fields: [{ name: "api_key", label: "API key", placeholder: "Chave da ElevenLabs", secret: true }],
     },
     github: {
       label: "GitHub",
       eyebrow: "CÓDIGO",
+      tool: { name: "list_repositories", label: "Ler repositórios", description: "Lista os repositórios acessíveis.", effect: "read", fields: [] },
       fields: [{ name: "api_key", label: "Fine-grained token", placeholder: "github_pat_…", secret: true }],
     },
     supabase: {
       label: "Supabase",
       eyebrow: "DADOS",
+      tool: {
+        name: "read_rows",
+        label: "Ler tabela",
+        description: "Lê até 20 linhas sem fazer insert, update ou delete.",
+        effect: "read",
+        fields: [
+          { name: "table", label: "Tabela", placeholder: "jarvis_memories", type: "text" },
+          { name: "limit", label: "Limite", placeholder: "10", type: "number", value: "10" },
+        ],
+      },
       fields: [
         { name: "base_url", label: "Project URL", placeholder: "https://projeto.supabase.co", secret: false },
         { name: "api_key", label: "Publishable / secret key", placeholder: "sb_publishable_…", secret: true },
@@ -73,6 +87,13 @@
     webhook: {
       label: "Webhook",
       eyebrow: "API PERSONALIZADA",
+      tool: {
+        name: "send_event",
+        label: "Enviar evento",
+        description: "Envia um JSON real. Exige modo Ultron e uma confirmação explícita.",
+        effect: "external_write",
+        fields: [{ name: "payload", label: "Evento JSON", placeholder: '{\n  "event": "jarvis.test"\n}', type: "textarea" }],
+      },
       fields: [
         { name: "base_url", label: "Endpoint HTTPS", placeholder: "https://api.exemplo.com/health", secret: false },
         { name: "api_key", label: "Bearer token opcional", placeholder: "Token", secret: true },
@@ -235,6 +256,89 @@
     byId("integrationRemoveButton").disabled = !configured;
     byId("integrationCopyButton").disabled = !config.api_key;
     byId("n8nStudio").hidden = activeIntegrationProvider !== "n8n";
+    renderIntegrationTool();
+  }
+
+  function renderIntegrationTool() {
+    const definition = API_PROVIDERS[activeIntegrationProvider];
+    const tool = definition?.tool;
+    if (!tool) return;
+    byId("integrationToolTitle").textContent = tool.label;
+    byId("integrationToolDescription").textContent = tool.description;
+    byId("integrationToolEffect").textContent = tool.effect === "external_write" ? "AÇÃO EXTERNA" : "SOMENTE LEITURA";
+    byId("integrationToolEffect").dataset.effect = tool.effect;
+    byId("integrationToolRunButton").textContent = tool.effect === "external_write" ? "Confirmar e enviar" : "Executar agora";
+    byId("integrationToolFields").innerHTML = (tool.fields || []).map((field) => {
+      const value = escapeHtml(field.value || "");
+      if (field.type === "textarea") {
+        return `<label>${escapeHtml(field.label)}<textarea data-tool-field="${field.name}" rows="4" placeholder="${escapeHtml(field.placeholder)}">${value}</textarea></label>`;
+      }
+      return `<label>${escapeHtml(field.label)}<input data-tool-field="${field.name}" type="${field.type || "text"}" value="${value}" placeholder="${escapeHtml(field.placeholder)}"></label>`;
+    }).join("");
+    byId("integrationToolResult").textContent = "Nenhuma execução nesta sessão.";
+  }
+
+  function integrationToolParameters() {
+    const parameters = {};
+    byId("integrationToolFields").querySelectorAll("[data-tool-field]").forEach((field) => {
+      const value = String(field.value || "").trim();
+      if (!value) return;
+      if (field.dataset.toolField === "payload") {
+        parameters.payload = JSON.parse(value);
+      } else if (field.type === "number") {
+        parameters[field.dataset.toolField] = Number(value);
+      } else {
+        parameters[field.dataset.toolField] = value;
+      }
+    });
+    return parameters;
+  }
+
+  async function runActiveIntegrationTool() {
+    const definition = API_PROVIDERS[activeIntegrationProvider];
+    const tool = definition?.tool;
+    if (!tool) return;
+    let parameters;
+    try {
+      parameters = integrationToolParameters();
+    } catch {
+      setIntegrationFeedback("O evento precisa ser um JSON válido.", "error");
+      byId("integrationToolResult").textContent = "Execução recusada antes de chamar a API.";
+      return;
+    }
+    if (tool.effect === "external_write") {
+      if (!session.paired) {
+        setIntegrationFeedback("Entre no modo Ultron para autorizar um envio externo.", "error");
+        return;
+      }
+      if (!window.confirm(`Enviar este evento para ${definition.label}? Esta ação acontece fora do JARVIS.`)) return;
+    }
+    const button = byId("integrationToolRunButton");
+    button.disabled = true;
+    byId("integrationToolResult").textContent = "Executando pelo adaptador verificado…";
+    try {
+      const config = integrationConfigFromFields();
+      const data = await request("/integrations/tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: activeIntegrationProvider,
+          tool: tool.name,
+          parameters,
+          confirmed: tool.effect === "external_write",
+          config,
+        }),
+      });
+      byId("integrationToolResult").textContent = data.ok
+        ? `${data.message || "Ferramenta concluída."}\n\n${JSON.stringify(data.result, null, 2)}`
+        : data.error || "A ferramenta não confirmou a execução.";
+      setIntegrationFeedback(data.message || data.error || "Ferramenta concluída.", data.ok ? "success" : "error");
+    } catch {
+      byId("integrationToolResult").textContent = "O núcleo não respondeu durante a execução.";
+      setIntegrationFeedback("A ferramenta perdeu a conexão com o núcleo.", "error");
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function integrationConfigFromFields() {
@@ -2214,6 +2318,7 @@
   byId("integrationCopyButton")?.addEventListener("click", copyActiveIntegrationSecret);
   byId("integrationRemoveButton")?.addEventListener("click", removeActiveIntegration);
   byId("integrationRevealButton")?.addEventListener("click", toggleIntegrationSecret);
+  byId("integrationToolRunButton")?.addEventListener("click", runActiveIntegrationTool);
   byId("n8nPreviewButton")?.addEventListener("click", () => runN8nWorkflowAction("preview"));
   byId("n8nCreateButton")?.addEventListener("click", () => runN8nWorkflowAction("create"));
   byId("n8nListButton")?.addEventListener("click", () => runN8nWorkflowAction("list"));

@@ -142,11 +142,11 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-smartforge1', html)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-smartforge1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-smartforge1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-smartforge1', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-smartforge1', html)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-apitools1', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-apitools1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-apitools1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-apitools1', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -373,9 +373,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-smartforge1", service_worker)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-smartforge1', service_worker)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-smartforge1', service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-apitools1", service_worker)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-apitools1', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-apitools1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -3078,6 +3078,172 @@ São Paulo - SP
             MODULE.safe_integration_base_url("https://theo.app.n8n.cloud/", "n8n"),
             "https://theo.app.n8n.cloud",
         )
+
+    def test_integration_tool_catalog_has_one_bounded_tool_per_saved_api(self):
+        catalog = MODULE.integration_tool_catalog()
+        self.assertEqual(
+            {item["provider"] for item in catalog},
+            {"n8n", "openrouter", "elevenlabs", "github", "supabase", "webhook"},
+        )
+        self.assertEqual(len({item["tool"] for item in catalog}), 6)
+        self.assertEqual(
+            next(item for item in catalog if item["provider"] == "webhook")["effect"],
+            "external_write",
+        )
+        self.assertTrue(all(item["effect"] == "read" for item in catalog if item["provider"] != "webhook"))
+
+    def test_integration_tools_http_route_reaches_the_verified_adapter(self):
+        status, _, payload = self.json_request(
+            "/integrations/tools",
+            "POST",
+            {"provider": "openrouter", "tool": "inspect_account", "config": {}},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["status_real"], "integration_tool_key_missing")
+        self.assertEqual(payload["event_stream"]["protocol"], "jarvis-events/1")
+
+    def test_openrouter_saved_api_executes_real_usage_tool_without_echoing_key(self):
+        captured = {}
+
+        def fake_request(url, **kwargs):
+            captured["url"] = url
+            captured.update(kwargs)
+            return {"data": {
+                "label": "placeholder-label",
+                "is_free_tier": True,
+                "limit": 12,
+                "limit_remaining": 8.5,
+                "usage": 3.5,
+                "usage_daily": 1.25,
+                "usage_monthly": 3.5,
+                "limit_reset": "monthly",
+            }}, 200
+
+        with patch.object(MODULE, "integration_json_request", side_effect=fake_request):
+            payload, status = MODULE.integration_tool_payload({
+                "provider": "openrouter",
+                "tool": "inspect_account",
+                "config": {"api_key": "test-openrouter-key"},
+            })
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "integration_tool_executed")
+        self.assertEqual(payload["result"]["limit_remaining"], 8.5)
+        self.assertEqual(captured["url"], "https://openrouter.ai/api/v1/key")
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer test-openrouter-key")
+        self.assertNotIn("test-openrouter-key", json.dumps(payload))
+        self.assertFalse(payload["credential_persisted_server_side"])
+
+    def test_n8n_elevenlabs_and_github_saved_apis_execute_read_tools(self):
+        def fake_request(url, **_kwargs):
+            if "n8n.cloud" in url:
+                return {"data": [{"id": "wf-1", "name": "Leads", "active": False, "updatedAt": "2026-08-13"}]}, 200
+            if "elevenlabs.io" in url:
+                return {"voices": [{"voice_id": "voice-1", "name": "Jarvis", "category": "generated"}]}, 200
+            if "api.github.com" in url:
+                return [{
+                    "full_name": "theo/jarvis",
+                    "private": True,
+                    "html_url": "https://github.com/theo/jarvis",
+                    "default_branch": "main",
+                    "pushed_at": "2026-08-13T18:00:00Z",
+                }], 200
+            raise AssertionError(f"URL inesperada: {url}")
+
+        cases = (
+            (
+                "n8n",
+                "list_workflows",
+                {"base_url": "https://theo.app.n8n.cloud", "api_key": "test-n8n-key"},
+                "Leads",
+            ),
+            ("elevenlabs", "list_voices", {"api_key": "test-eleven-key"}, "Jarvis"),
+            ("github", "list_repositories", {"api_key": "test-github-key"}, "theo/jarvis"),
+        )
+        with patch.object(MODULE, "integration_json_request", side_effect=fake_request) as provider:
+            for name, tool, config, expected in cases:
+                with self.subTest(provider=name):
+                    payload, status = MODULE.integration_tool_payload({
+                        "provider": name,
+                        "tool": tool,
+                        "config": config,
+                    })
+                    self.assertEqual(status, 200)
+                    self.assertEqual(payload["status_real"], "integration_tool_executed")
+                    self.assertIn(expected, json.dumps(payload["result"]))
+                    self.assertNotIn(config["api_key"], json.dumps(payload))
+        self.assertEqual(provider.call_count, 3)
+
+    def test_supabase_saved_api_reads_bounded_rows_and_redacts_sensitive_columns(self):
+        captured = {}
+
+        def fake_request(url, **kwargs):
+            captured["url"] = url
+            captured.update(kwargs)
+            return [{"id": 1, "name": "Theo", "api_key": "placeholder-value", "nested": {"password": "placeholder"}}], 200
+
+        with patch.object(MODULE, "integration_json_request", side_effect=fake_request):
+            payload, status = MODULE.integration_tool_payload({
+                "provider": "supabase",
+                "tool": "read_rows",
+                "config": {"base_url": "https://project.supabase.co", "api_key": "test-supabase-key"},
+                "parameters": {"table": "jarvis_memories", "limit": 200},
+            })
+
+        self.assertEqual(status, 200)
+        self.assertIn("limit=20", captured["url"])
+        self.assertEqual(payload["result"][0]["name"], "Theo")
+        self.assertEqual(payload["result"][0]["api_key"], "[REDACTED]")
+        self.assertEqual(payload["result"][0]["nested"]["password"], "[REDACTED]")
+        self.assertNotIn("test-supabase-key", json.dumps(payload))
+
+    def test_supabase_tool_refuses_unbounded_table_expression(self):
+        payload, status = MODULE.integration_tool_payload({
+            "provider": "supabase",
+            "tool": "read_rows",
+            "config": {"base_url": "https://project.supabase.co", "api_key": "test-key"},
+            "parameters": {"table": "users?select=password", "limit": 10},
+        })
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["status_real"], "integration_tool_invalid")
+
+    def test_webhook_tool_requires_ultron_and_explicit_confirmation(self):
+        body = {
+            "provider": "webhook",
+            "tool": "send_event",
+            "config": {"base_url": "https://hooks.example.com/jarvis", "api_key": "test-hook-key"},
+            "parameters": {"payload": {"event": "jarvis.test", "count": 1}},
+        }
+        with patch.object(MODULE, "urlopen") as provider:
+            payload, status = MODULE.integration_tool_payload(body, owner_authenticated=False)
+        self.assertEqual(status, 409)
+        self.assertEqual(payload["status_real"], "integration_tool_confirmation_required")
+        provider.assert_not_called()
+
+        class FakeResponse:
+            status = 202
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, _limit=-1):
+                return b"{}"
+
+        with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as provider:
+            payload, status = MODULE.integration_tool_payload(
+                {**body, "confirmed": True},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["result"]["delivered"])
+        self.assertEqual(payload["result"]["http_status"], 202)
+        request = provider.call_args.args[0]
+        self.assertEqual(request.full_url, "https://hooks.example.com/jarvis")
+        self.assertEqual(request.get_method(), "POST")
+        self.assertNotIn("test-hook-key", json.dumps(payload))
 
     def test_n8n_preview_is_credential_free_and_never_active(self):
         payload, status = MODULE.n8n_workflow_action_payload({
