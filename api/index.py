@@ -546,44 +546,31 @@ def integration_test_payload(body, owner_authenticated=False):
 
 
 INTEGRATION_RUNTIME_TOOLS = {
-    "n8n": {
-        "tool": "list_workflows",
-        "label": "Ler workflows",
-        "description": "Lista os workflows mais recentes sem alterar nem ativar nada.",
-        "effect": "read",
-    },
-    "openrouter": {
-        "tool": "inspect_account",
-        "label": "Ver uso da chave",
-        "description": "Consulta limite, saldo e uso da chave atualmente salva.",
-        "effect": "read",
-    },
-    "elevenlabs": {
-        "tool": "list_voices",
-        "label": "Listar vozes",
-        "description": "Lista as vozes disponíveis para uso no JARVIS.",
-        "effect": "read",
-    },
-    "github": {
-        "tool": "list_repositories",
-        "label": "Ler repositórios",
-        "description": "Lista repositórios acessíveis pela credencial, incluindo privados quando autorizados.",
-        "effect": "read",
-    },
-    "supabase": {
-        "tool": "read_rows",
-        "label": "Ler tabela",
-        "description": "Lê uma amostra limitada de uma tabela pela Data API.",
-        "effect": "read",
-        "fields": ["table", "limit"],
-    },
-    "webhook": {
-        "tool": "send_event",
-        "label": "Enviar evento",
-        "description": "Envia um JSON ao endpoint somente após confirmação explícita no modo Ultron.",
-        "effect": "external_write",
-        "fields": ["payload"],
-    },
+    "n8n": {"tools": [
+        {"tool": "list_workflows", "label": "Ler workflows", "description": "Lista workflows sem alterar nem ativar nada.", "effect": "read"},
+        {"tool": "list_executions", "label": "Ler execuções", "description": "Lista execuções recentes sem incluir os dados processados.", "effect": "read"},
+    ]},
+    "openrouter": {"tools": [
+        {"tool": "inspect_account", "label": "Ver uso da chave", "description": "Consulta limite, saldo e uso da chave atualmente salva.", "effect": "read"},
+        {"tool": "list_models", "label": "Listar modelos", "description": "Lista modelos disponíveis e suas janelas de contexto.", "effect": "read"},
+    ]},
+    "elevenlabs": {"tools": [
+        {"tool": "list_voices", "label": "Listar vozes", "description": "Lista vozes disponíveis para uso no JARVIS.", "effect": "read"},
+        {"tool": "inspect_subscription", "label": "Ver assinatura", "description": "Mostra plano, uso de caracteres e slots de voz.", "effect": "read"},
+    ]},
+    "github": {"tools": [
+        {"tool": "list_repositories", "label": "Ler repositórios", "description": "Lista repositórios acessíveis pela credencial.", "effect": "read"},
+        {"tool": "list_issues", "label": "Issues abertas", "description": "Lista issues abertas de um repositório.", "effect": "read", "fields": ["repository"]},
+        {"tool": "list_pull_requests", "label": "Pull requests", "description": "Lista PRs abertos de um repositório.", "effect": "read", "fields": ["repository"]},
+        {"tool": "list_commits", "label": "Commits recentes", "description": "Lista commits recentes de um repositório.", "effect": "read", "fields": ["repository"]},
+        {"tool": "list_deployments", "label": "Deploys recentes", "description": "Lista deployments recentes de um repositório.", "effect": "read", "fields": ["repository"]},
+    ]},
+    "supabase": {"tools": [
+        {"tool": "read_rows", "label": "Ler tabela", "description": "Lê uma amostra limitada de uma tabela pela Data API.", "effect": "read", "fields": ["table", "limit"]},
+    ]},
+    "webhook": {"tools": [
+        {"tool": "send_event", "label": "Enviar evento", "description": "Envia JSON somente após confirmação explícita no modo Ultron.", "effect": "external_write", "fields": ["payload"]},
+    ]},
 }
 
 
@@ -611,16 +598,17 @@ def integration_safe_result(value, depth=0):
 
 def integration_tool_catalog():
     return [
-        {"provider": provider, **definition}
+        {"provider": provider, **tool}
         for provider, definition in INTEGRATION_RUNTIME_TOOLS.items()
+        for tool in definition["tools"]
     ]
 
 
 def integration_tool_payload(body, owner_authenticated=False):
     """Execute one bounded provider adapter using an ephemeral browser-vault credential."""
     provider = clean_text(body.get("provider"), 40).casefold()
-    definition = INTEGRATION_RUNTIME_TOOLS.get(provider)
-    if not definition:
+    provider_definition = INTEGRATION_RUNTIME_TOOLS.get(provider)
+    if not provider_definition:
         return {
             "ok": False,
             "endpoint": "POST /integrations/tools",
@@ -630,7 +618,8 @@ def integration_tool_payload(body, owner_authenticated=False):
             "credential_persisted_server_side": False,
         }, 400
     tool = clean_text(body.get("tool"), 80).casefold()
-    if tool != definition["tool"]:
+    definition = next((item for item in provider_definition["tools"] if item["tool"] == tool), None)
+    if not definition:
         return {
             "ok": False,
             "endpoint": "POST /integrations/tools",
@@ -657,67 +646,166 @@ def integration_tool_payload(body, owner_authenticated=False):
             base = safe_integration_base_url(base_url, "n8n")
             if base.casefold().endswith("/api/v1"):
                 base = base[:-7]
-            raw, _ = integration_json_request(
-                f"{base}/api/v1/workflows?limit=12",
-                headers={"X-N8N-API-KEY": api_key},
-            )
-            rows = raw.get("data") if isinstance(raw, dict) and isinstance(raw.get("data"), list) else []
-            result = [{
-                "id": clean_text(item.get("id"), 120),
-                "name": clean_text(item.get("name"), 180),
-                "active": bool(item.get("active")),
-                "updated_at": clean_text(item.get("updatedAt"), 80),
-            } for item in rows[:12] if isinstance(item, dict)]
-            message = f"n8n respondeu com {len(result)} workflow(s). Nenhum foi alterado."
+            if tool == "list_executions":
+                raw, _ = integration_json_request(
+                    f"{base}/api/v1/executions?limit=20&includeData=false",
+                    headers={"X-N8N-API-KEY": api_key},
+                )
+                rows = raw.get("data") if isinstance(raw, dict) and isinstance(raw.get("data"), list) else []
+                result = [{
+                    "id": clean_text(item.get("id"), 120),
+                    "workflow_id": clean_text(item.get("workflowId"), 120),
+                    "status": clean_text(item.get("status") or ("finished" if item.get("finished") else "running"), 40),
+                    "mode": clean_text(item.get("mode"), 40),
+                    "started_at": clean_text(item.get("startedAt"), 80),
+                    "stopped_at": clean_text(item.get("stoppedAt"), 80),
+                } for item in rows[:20] if isinstance(item, dict)]
+                message = f"n8n respondeu com {len(result)} execução(ões), sem dados de payload."
+            else:
+                raw, _ = integration_json_request(
+                    f"{base}/api/v1/workflows?limit=12",
+                    headers={"X-N8N-API-KEY": api_key},
+                )
+                rows = raw.get("data") if isinstance(raw, dict) and isinstance(raw.get("data"), list) else []
+                result = [{
+                    "id": clean_text(item.get("id"), 120),
+                    "name": clean_text(item.get("name"), 180),
+                    "active": bool(item.get("active")),
+                    "updated_at": clean_text(item.get("updatedAt"), 80),
+                } for item in rows[:12] if isinstance(item, dict)]
+                message = f"n8n respondeu com {len(result)} workflow(s). Nenhum foi alterado."
         elif provider == "openrouter":
-            raw, _ = integration_json_request(
-                "https://openrouter.ai/api/v1/key",
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            data = raw.get("data") if isinstance(raw, dict) and isinstance(raw.get("data"), dict) else {}
-            result = {
-                "free_tier": bool(data.get("is_free_tier")),
-                "limit": data.get("limit"),
-                "limit_remaining": data.get("limit_remaining"),
-                "limit_reset": clean_text(data.get("limit_reset"), 40),
-                "usage": data.get("usage"),
-                "usage_daily": data.get("usage_daily"),
-                "usage_monthly": data.get("usage_monthly"),
-                "expires_at": clean_text(data.get("expires_at"), 80),
-            }
-            message = "OpenRouter respondeu com o uso e o limite da chave atual."
+            if tool == "list_models":
+                raw, _ = integration_json_request(
+                    "https://openrouter.ai/api/v1/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                rows = raw.get("data") if isinstance(raw, dict) and isinstance(raw.get("data"), list) else []
+                result = [{
+                    "id": clean_text(item.get("id"), 200),
+                    "name": clean_text(item.get("name"), 200),
+                    "context_length": item.get("context_length"),
+                    "created": item.get("created"),
+                } for item in rows[:30] if isinstance(item, dict)]
+                message = f"OpenRouter respondeu com {len(result)} modelo(s)."
+            else:
+                raw, _ = integration_json_request(
+                    "https://openrouter.ai/api/v1/key",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                data = raw.get("data") if isinstance(raw, dict) and isinstance(raw.get("data"), dict) else {}
+                result = {
+                    "free_tier": bool(data.get("is_free_tier")),
+                    "limit": data.get("limit"),
+                    "limit_remaining": data.get("limit_remaining"),
+                    "limit_reset": clean_text(data.get("limit_reset"), 40),
+                    "usage": data.get("usage"),
+                    "usage_daily": data.get("usage_daily"),
+                    "usage_monthly": data.get("usage_monthly"),
+                    "expires_at": clean_text(data.get("expires_at"), 80),
+                }
+                message = "OpenRouter respondeu com o uso e o limite da chave atual."
         elif provider == "elevenlabs":
-            raw, _ = integration_json_request(
-                "https://api.elevenlabs.io/v2/voices?page_size=20&sort=name&sort_direction=asc",
-                headers={"xi-api-key": api_key},
-            )
-            voices = raw.get("voices") if isinstance(raw, dict) and isinstance(raw.get("voices"), list) else []
-            result = [{
-                "voice_id": clean_text(item.get("voice_id"), 120),
-                "name": clean_text(item.get("name"), 160),
-                "category": clean_text(item.get("category"), 60),
-                "description": clean_text(item.get("description"), 240),
-            } for item in voices[:20] if isinstance(item, dict)]
-            message = f"ElevenLabs respondeu com {len(result)} voz(es) disponíveis."
+            if tool == "inspect_subscription":
+                raw, _ = integration_json_request(
+                    "https://api.elevenlabs.io/v1/user/subscription",
+                    headers={"xi-api-key": api_key},
+                )
+                result = {
+                    "tier": clean_text(raw.get("tier"), 60),
+                    "status": clean_text(raw.get("status"), 40),
+                    "character_count": raw.get("character_count"),
+                    "character_limit": raw.get("character_limit"),
+                    "voice_slots_used": raw.get("voice_slots_used"),
+                    "voice_limit": raw.get("voice_limit"),
+                    "next_reset_unix": raw.get("next_character_count_reset_unix"),
+                }
+                message = "ElevenLabs respondeu com o plano e o consumo atual."
+            else:
+                raw, _ = integration_json_request(
+                    "https://api.elevenlabs.io/v2/voices?page_size=20&sort=name&sort_direction=asc",
+                    headers={"xi-api-key": api_key},
+                )
+                voices = raw.get("voices") if isinstance(raw, dict) and isinstance(raw.get("voices"), list) else []
+                result = [{
+                    "voice_id": clean_text(item.get("voice_id"), 120),
+                    "name": clean_text(item.get("name"), 160),
+                    "category": clean_text(item.get("category"), 60),
+                    "description": clean_text(item.get("description"), 240),
+                } for item in voices[:20] if isinstance(item, dict)]
+                message = f"ElevenLabs respondeu com {len(result)} voz(es) disponíveis."
         elif provider == "github":
-            raw, _ = integration_json_request(
-                "https://api.github.com/user/repos?per_page=20&sort=updated&affiliation=owner%2Ccollaborator%2Corganization_member",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Accept": "application/vnd.github+json",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                    "User-Agent": "Theo-Jarvis",
-                },
-            )
-            rows = raw if isinstance(raw, list) else []
-            result = [{
-                "full_name": clean_text(item.get("full_name"), 200),
-                "private": bool(item.get("private")),
-                "html_url": clean_text(item.get("html_url"), 2_000),
-                "default_branch": clean_text(item.get("default_branch"), 100),
-                "pushed_at": clean_text(item.get("pushed_at"), 80),
-            } for item in rows[:20] if isinstance(item, dict)]
-            message = f"GitHub respondeu com {len(result)} repositório(s) acessíveis."
+            github_headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "Theo-Jarvis",
+            }
+            if tool == "list_repositories":
+                raw, _ = integration_json_request(
+                    "https://api.github.com/user/repos?per_page=20&sort=updated&affiliation=owner%2Ccollaborator%2Corganization_member",
+                    headers=github_headers,
+                )
+                rows = raw if isinstance(raw, list) else []
+                result = [{
+                    "full_name": clean_text(item.get("full_name"), 200),
+                    "private": bool(item.get("private")),
+                    "html_url": clean_text(item.get("html_url"), 2_000),
+                    "default_branch": clean_text(item.get("default_branch"), 100),
+                    "pushed_at": clean_text(item.get("pushed_at"), 80),
+                } for item in rows[:20] if isinstance(item, dict)]
+                message = f"GitHub respondeu com {len(result)} repositório(s) acessíveis."
+            else:
+                repository = clean_text(parameters.get("repository"), 200)
+                if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}", repository):
+                    raise ValueError("Informe o repositório no formato owner/nome.")
+                endpoint = {
+                    "list_issues": "issues?state=open&per_page=20&sort=updated",
+                    "list_pull_requests": "pulls?state=open&per_page=20&sort=updated",
+                    "list_commits": "commits?per_page=20",
+                    "list_deployments": "deployments?per_page=20",
+                }[tool]
+                raw, _ = integration_json_request(
+                    f"https://api.github.com/repos/{repository}/{endpoint}",
+                    headers=github_headers,
+                )
+                rows = raw if isinstance(raw, list) else []
+                if tool == "list_issues":
+                    rows = [item for item in rows if isinstance(item, dict) and not item.get("pull_request")]
+                    result = [{
+                        "number": item.get("number"),
+                        "title": clean_text(item.get("title"), 240),
+                        "state": clean_text(item.get("state"), 30),
+                        "author": clean_text((item.get("user") or {}).get("login"), 100),
+                        "updated_at": clean_text(item.get("updated_at"), 80),
+                        "html_url": clean_text(item.get("html_url"), 2_000),
+                    } for item in rows[:20]]
+                elif tool == "list_pull_requests":
+                    result = [{
+                        "number": item.get("number"),
+                        "title": clean_text(item.get("title"), 240),
+                        "draft": bool(item.get("draft")),
+                        "author": clean_text((item.get("user") or {}).get("login"), 100),
+                        "updated_at": clean_text(item.get("updated_at"), 80),
+                        "html_url": clean_text(item.get("html_url"), 2_000),
+                    } for item in rows[:20] if isinstance(item, dict)]
+                elif tool == "list_commits":
+                    result = [{
+                        "sha": clean_text(item.get("sha"), 80)[:12],
+                        "message": clean_text(((item.get("commit") or {}).get("message") or "").split("\n", 1)[0], 240),
+                        "author": clean_text(((item.get("author") or {}).get("login") or ((item.get("commit") or {}).get("author") or {}).get("name")), 120),
+                        "date": clean_text((((item.get("commit") or {}).get("author") or {}).get("date")), 80),
+                        "html_url": clean_text(item.get("html_url"), 2_000),
+                    } for item in rows[:20] if isinstance(item, dict)]
+                else:
+                    result = [{
+                        "id": item.get("id"),
+                        "ref": clean_text(item.get("ref"), 160),
+                        "environment": clean_text(item.get("environment"), 120),
+                        "created_at": clean_text(item.get("created_at"), 80),
+                        "statuses_url": clean_text(item.get("statuses_url"), 2_000),
+                    } for item in rows[:20] if isinstance(item, dict)]
+                message = f"GitHub respondeu com {len(result)} item(ns) de {repository}."
         elif provider == "supabase":
             base = safe_integration_base_url(base_url, "Supabase")
             table = clean_text(parameters.get("table"), 80)

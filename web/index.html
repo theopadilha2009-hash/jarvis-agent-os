@@ -13,9 +13,9 @@
 <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-apitools1">
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-n8n2">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-integrations2">
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260813-uipolish1">
-<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-n8n2">
+<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-integrations2">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
@@ -289,10 +289,15 @@
               <span><small>FERRAMENTA VERIFICADA</small><strong id="integrationToolTitle">Ler workflows</strong></span>
               <b id="integrationToolEffect" data-effect="read">SOMENTE LEITURA</b>
             </header>
+            <label class="integration-tool-selector">Operação<select id="integrationToolSelect" aria-label="Ferramenta da integração"></select></label>
             <p id="integrationToolDescription">Use a API salva para uma operação real e limitada.</p>
             <div class="integration-tool-fields" id="integrationToolFields"></div>
             <button type="button" class="integration-tool-run" id="integrationToolRunButton">Executar agora</button>
             <pre class="integration-tool-result" id="integrationToolResult" aria-live="polite">Nenhuma execução nesta sessão.</pre>
+            <section class="integration-history" aria-labelledby="integrationHistoryTitle">
+              <header><span><small>ATIVIDADE LOCAL</small><strong id="integrationHistoryTitle">Histórico das APIs</strong></span><button type="button" id="integrationHistoryClear">Limpar</button></header>
+              <div id="integrationHistoryList"><small>Nenhuma operação registrada neste dispositivo.</small></div>
+            </section>
           </section>
         </section>
 
@@ -385,8 +390,9 @@
     </div>
   </dialog>
 
-<script src="/ui/api-vault.js?v=20260813-n8n2" defer></script>
-<script src="/ui/jarvis.js?v=20260813-n8n2" defer></script>
+<script src="/ui/api-vault.js?v=20260813-integrations2" defer></script>
+<script src="/ui/integration-history.js?v=20260813-integrations2" defer></script>
+<script src="/ui/jarvis.js?v=20260813-integrations2" defer></script>
   <script type="module">
     let presenceScheduled = false;
 

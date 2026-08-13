@@ -42,7 +42,10 @@
     n8n: {
       label: "n8n",
       eyebrow: "AUTOMAÇÃO",
-      tool: { name: "list_workflows", label: "Ler workflows", description: "Lista workflows sem alterar nada.", effect: "read", fields: [] },
+      tools: [
+        { name: "list_workflows", label: "Ler workflows", description: "Lista workflows sem alterar nada.", effect: "read", fields: [] },
+        { name: "list_executions", label: "Ler execuções", description: "Lista execuções recentes sem trazer os payloads.", effect: "read", fields: [] },
+      ],
       fields: [
         { name: "base_url", label: "URL da instância", placeholder: "https://sua-instancia.app.n8n.cloud", secret: false },
         { name: "api_key", label: "API key", placeholder: "Chave criada em Settings > n8n API", secret: true },
@@ -51,25 +54,40 @@
     openrouter: {
       label: "OpenRouter",
       eyebrow: "INTELIGÊNCIA",
-      tool: { name: "inspect_account", label: "Ver uso da chave", description: "Consulta saldo e uso atual.", effect: "read", fields: [] },
+      tools: [
+        { name: "inspect_account", label: "Ver uso da chave", description: "Consulta saldo e uso atual.", effect: "read", fields: [] },
+        { name: "list_models", label: "Listar modelos", description: "Mostra modelos e janelas de contexto disponíveis.", effect: "read", fields: [] },
+      ],
       fields: [{ name: "api_key", label: "API key", placeholder: "sk-or-v1-…", secret: true }],
     },
     elevenlabs: {
       label: "ElevenLabs",
       eyebrow: "VOZ",
-      tool: { name: "list_voices", label: "Listar vozes", description: "Mostra as vozes disponíveis.", effect: "read", fields: [] },
+      tools: [
+        { name: "list_voices", label: "Listar vozes", description: "Mostra as vozes disponíveis.", effect: "read", fields: [] },
+        { name: "inspect_subscription", label: "Ver assinatura", description: "Mostra plano, caracteres e slots de voz.", effect: "read", fields: [] },
+      ],
       fields: [{ name: "api_key", label: "API key", placeholder: "Chave da ElevenLabs", secret: true }],
     },
     github: {
       label: "GitHub",
       eyebrow: "CÓDIGO",
-      tool: { name: "list_repositories", label: "Ler repositórios", description: "Lista os repositórios acessíveis.", effect: "read", fields: [] },
+      tools: [
+        { name: "list_repositories", label: "Ler repositórios", description: "Lista os repositórios acessíveis.", effect: "read", fields: [] },
+        ...["issues", "pull requests", "commits", "deploys"].map((label, index) => ({
+          name: ["list_issues", "list_pull_requests", "list_commits", "list_deployments"][index],
+          label: `Ler ${label}`,
+          description: `Lista ${label} recentes sem alterar o repositório.`,
+          effect: "read",
+          fields: [{ name: "repository", label: "Repositório", placeholder: "owner/nome", type: "text" }],
+        })),
+      ],
       fields: [{ name: "api_key", label: "Fine-grained token", placeholder: "github_pat_…", secret: true }],
     },
     supabase: {
       label: "Supabase",
       eyebrow: "DADOS",
-      tool: {
+      tools: [{
         name: "read_rows",
         label: "Ler tabela",
         description: "Lê até 20 linhas sem fazer insert, update ou delete.",
@@ -78,7 +96,7 @@
           { name: "table", label: "Tabela", placeholder: "jarvis_memories", type: "text" },
           { name: "limit", label: "Limite", placeholder: "10", type: "number", value: "10" },
         ],
-      },
+      }],
       fields: [
         { name: "base_url", label: "Project URL", placeholder: "https://projeto.supabase.co", secret: false },
         { name: "api_key", label: "Publishable / secret key", placeholder: "sb_publishable_…", secret: true },
@@ -87,13 +105,13 @@
     webhook: {
       label: "Webhook",
       eyebrow: "API PERSONALIZADA",
-      tool: {
+      tools: [{
         name: "send_event",
         label: "Enviar evento",
         description: "Envia um JSON real. Exige modo Ultron e uma confirmação explícita.",
         effect: "external_write",
         fields: [{ name: "payload", label: "Evento JSON", placeholder: '{\n  "event": "jarvis.test"\n}', type: "textarea" }],
-      },
+      }],
       fields: [
         { name: "base_url", label: "Endpoint HTTPS", placeholder: "https://api.exemplo.com/health", secret: false },
         { name: "api_key", label: "Bearer token opcional", placeholder: "Token", secret: true },
@@ -242,6 +260,14 @@
     if (state) byId("integrationConnectionState").dataset.state = state;
   }
 
+  function renderIntegrationHistory() {
+    window.JarvisIntegrationHistory?.render();
+  }
+
+  function recordIntegrationActivity(provider, action, data) {
+    window.JarvisIntegrationHistory?.record(provider, action, data);
+  }
+
   function renderIntegrationFields(config = {}) {
     const definition = API_PROVIDERS[activeIntegrationProvider];
     if (!definition) return;
@@ -267,7 +293,17 @@
 
   function renderIntegrationTool() {
     const definition = API_PROVIDERS[activeIntegrationProvider];
-    const tool = definition?.tool;
+    const tools = definition?.tools || [];
+    const selector = byId("integrationToolSelect");
+    const previous = selector.value;
+    selector.replaceChildren(...tools.map((item) => {
+      const option = document.createElement("option");
+      option.value = item.name;
+      option.textContent = item.label;
+      return option;
+    }));
+    if (tools.some((item) => item.name === previous)) selector.value = previous;
+    const tool = tools.find((item) => item.name === selector.value) || tools[0];
     if (!tool) return;
     byId("integrationToolTitle").textContent = tool.label;
     byId("integrationToolDescription").textContent = tool.description;
@@ -282,6 +318,12 @@
       return `<label>${escapeHtml(field.label)}<input data-tool-field="${field.name}" type="${field.type || "text"}" value="${value}" placeholder="${escapeHtml(field.placeholder)}"></label>`;
     }).join("");
     byId("integrationToolResult").textContent = "Nenhuma execução nesta sessão.";
+    renderIntegrationHistory();
+  }
+
+  function currentIntegrationTool() {
+    const tools = API_PROVIDERS[activeIntegrationProvider]?.tools || [];
+    return tools.find((item) => item.name === byId("integrationToolSelect")?.value) || tools[0];
   }
 
   function integrationToolParameters() {
@@ -302,7 +344,7 @@
 
   async function runActiveIntegrationTool() {
     const definition = API_PROVIDERS[activeIntegrationProvider];
-    const tool = definition?.tool;
+    const tool = currentIntegrationTool();
     if (!tool) return;
     let parameters;
     try {
@@ -339,9 +381,11 @@
         ? `${data.message || "Ferramenta concluída."}\n\n${JSON.stringify(data.result, null, 2)}`
         : data.error || "A ferramenta não confirmou a execução.";
       setIntegrationFeedback(data.message || data.error || "Ferramenta concluída.", data.ok ? "success" : "error");
+      recordIntegrationActivity(activeIntegrationProvider, tool.name, data);
     } catch {
       byId("integrationToolResult").textContent = "O núcleo não respondeu durante a execução.";
       setIntegrationFeedback("A ferramenta perdeu a conexão com o núcleo.", "error");
+      recordIntegrationActivity(activeIntegrationProvider, tool.name, { ok: false, error: "conexão com o núcleo interrompida" });
     } finally {
       button.disabled = false;
     }
@@ -423,8 +467,10 @@
         body: JSON.stringify({ provider: activeIntegrationProvider, config }),
       });
       setIntegrationFeedback(data.message || data.error || "Teste concluído.", data.ok ? "success" : "error");
+      recordIntegrationActivity(activeIntegrationProvider, "test_connection", data);
     } catch {
       setIntegrationFeedback("A conexão com o núcleo caiu durante o teste.", "error");
+      recordIntegrationActivity(activeIntegrationProvider, "test_connection", { ok: false, error: "conexão com o núcleo interrompida" });
     } finally {
       byId("integrationTestButton").disabled = false;
     }
@@ -609,8 +655,10 @@
       });
       renderN8nWorkflowResult(data);
       setIntegrationFeedback(data.message || data.error || "Operação n8n concluída.", data.ok ? "success" : "error");
+      recordIntegrationActivity("n8n", action, data);
     } catch {
       setIntegrationFeedback("A conexão com o núcleo caiu durante a operação n8n.", "error");
+      recordIntegrationActivity("n8n", action, { ok: false, error: "conexão com o núcleo interrompida" });
     } finally {
       button.disabled = false;
     }
@@ -2394,7 +2442,11 @@
   byId("integrationCopyButton")?.addEventListener("click", copyActiveIntegrationSecret);
   byId("integrationRemoveButton")?.addEventListener("click", removeActiveIntegration);
   byId("integrationRevealButton")?.addEventListener("click", toggleIntegrationSecret);
+  byId("integrationToolSelect")?.addEventListener("change", renderIntegrationTool);
   byId("integrationToolRunButton")?.addEventListener("click", runActiveIntegrationTool);
+  byId("integrationHistoryClear")?.addEventListener("click", () => {
+    window.JarvisIntegrationHistory?.clear();
+  });
   byId("n8nPreviewButton")?.addEventListener("click", () => runN8nWorkflowAction("preview"));
   byId("n8nCreateButton")?.addEventListener("click", () => runN8nWorkflowAction("create"));
   byId("n8nListButton")?.addEventListener("click", () => runN8nWorkflowAction("list"));
