@@ -346,6 +346,7 @@ def execution_power_profile(owner_authenticated=False):
         "mode": "ultron_3x" if owner_authenticated else "jarvis_1x",
         "multiplier": multiplier,
         "max_provider_attempts": 3 if owner_authenticated else 1,
+        "max_agent_tools_per_request": 3 if owner_authenticated else 1,
         "max_workflows_per_request": 3 if owner_authenticated else 1,
         "max_workflow_nodes": 18 if owner_authenticated else 6,
         "default_response_strength": "strong" if owner_authenticated else "auto",
@@ -6399,6 +6400,154 @@ def execute_agent_tool(tool_call, original_command, local_execute=False, owner_a
     return result, status
 
 
+def agent_tool_call_name(tool_call):
+    function = tool_call.get("function") if isinstance(tool_call, dict) else None
+    return clean_text(function.get("name"), 80) if isinstance(function, dict) else ""
+
+
+def execute_agent_tools(
+    tool_calls,
+    original_command,
+    *,
+    local_execute=False,
+    owner_authenticated=False,
+    max_tools=1,
+):
+    """Execute up to the persona budget while preserving evidence for every front."""
+    unique_calls = []
+    seen = set()
+    for tool_call in tool_calls if isinstance(tool_calls, list) else []:
+        if not isinstance(tool_call, dict):
+            continue
+        function = tool_call.get("function") if isinstance(tool_call.get("function"), dict) else {}
+        try:
+            arguments = json.dumps(agent_tool_arguments(tool_call), ensure_ascii=False, sort_keys=True)
+        except (ValueError, json.JSONDecodeError):
+            arguments = clean_text(function.get("arguments"), 2_000)
+        fingerprint = (agent_tool_call_name(tool_call), arguments)
+        if not fingerprint[0] or fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        unique_calls.append(tool_call)
+
+    limit = max(1, min(int(max_tools or 1), 3))
+    selected = unique_calls[:limit]
+    ignored = max(0, len(unique_calls) - len(selected))
+    if not selected:
+        return {
+            "ok": False,
+            "status_real": "agent_tools_empty",
+            "visual_state": "error",
+            "error": "O modelo não selecionou uma ferramenta válida.",
+        }, 400
+    if len(selected) == 1:
+        payload, status = execute_agent_tool(
+            selected[0],
+            original_command,
+            local_execute=local_execute,
+            owner_authenticated=owner_authenticated,
+        )
+        result = dict(payload)
+        route = result.get("agent_route") if isinstance(result.get("agent_route"), dict) else {}
+        route["additional_tool_calls_ignored"] = ignored
+        result["agent_route"] = route
+        return result, status
+
+    fronts = []
+    outputs = []
+    cards = []
+    for index, tool_call in enumerate(selected, start=1):
+        name = agent_tool_call_name(tool_call)
+        payload, status = execute_agent_tool(
+            tool_call,
+            original_command,
+            local_execute=local_execute,
+            owner_authenticated=owner_authenticated,
+        )
+        succeeded = bool(payload.get("ok", status < 400)) and status < 400
+        job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
+        run = payload.get("run") if isinstance(payload.get("run"), dict) else {}
+        queued = bool(
+            succeeded and (
+                status == 202
+                or job.get("status") in {"pending", "running"}
+                or (run and not run.get("terminal"))
+            )
+        )
+        summary = clean_text(payload.get("message") or payload.get("error") or payload.get("status_real"), 500)
+        fronts.append({
+            "index": index,
+            "tool": name,
+            "tool_call_id": clean_text(tool_call.get("id"), 120),
+            "status": "queued" if queued else "succeeded" if succeeded else "failed",
+            "http_status": status,
+            "status_real": clean_text(payload.get("status_real"), 100),
+            "provider": clean_text(payload.get("provider"), 80),
+            "summary": summary,
+        })
+        outputs.append({
+            "tool": name,
+            "ok": succeeded,
+            "output": integration_safe_result({
+                key: value for key, value in payload.items()
+                if key not in {"agent_route", "event_stream", "mission", "ui_cards"}
+            }),
+        })
+        cards.extend(response_cards(payload))
+
+    succeeded_count = sum(front["status"] == "succeeded" for front in fronts)
+    queued_count = sum(front["status"] == "queued" for front in fronts)
+    failed_count = sum(front["status"] == "failed" for front in fronts)
+    status_code = 207 if failed_count else 202 if queued_count else 200
+    result = {
+        "ok": failed_count == 0,
+        "endpoint": "POST /assistant",
+        "status_real": (
+            "ultron_orchestration_partial"
+            if failed_count
+            else "ultron_orchestration_running"
+            if queued_count
+            else "ultron_orchestration_completed"
+        ),
+        "visual_state": "error" if failed_count else "local" if queued_count else "success",
+        "provider": "ultron_orchestrator",
+        "message": (
+            f"ULTRON abriu {len(fronts)} frentes verificadas; {succeeded_count} concluída(s)"
+            f"{f' e {queued_count} em andamento' if queued_count else ''}"
+            f"{f' e {failed_count} falhou(aram)' if failed_count else ''}."
+        ),
+        "orchestration": {
+            "protocol": "ultron-orchestration/1",
+            "mode": "ultron_3x",
+            "requested": len(unique_calls),
+            "selected": len(selected),
+            "succeeded": succeeded_count,
+            "queued": queued_count,
+            "failed": failed_count,
+            "ignored": ignored,
+            "execution": "ordered_verified_adapters",
+            "fronts": fronts,
+        },
+        "tool_results": outputs,
+        "agent_route": {
+            "provider": "openrouter",
+            "tool": "ultron_orchestration",
+            "original_request": clean_text(original_command, 500),
+            "execution": "verified_adapters",
+            "additional_tool_calls_ignored": ignored,
+        },
+    }
+    result["ui_cards"] = [{
+        "id": "ultron-orchestration",
+        "type": "orchestration",
+        "status": "partial" if failed_count else "running" if queued_count else "completed",
+        "title": "Ultron · frentes verificadas",
+        "subtitle": result["message"],
+        "items": [f"{front['tool']} · {front['status']} · {front['summary']}" for front in fronts],
+    }, *cards[:5]]
+    return result, status_code
+
+
 def assistant_response(body, origin="", local_execute=False, owner_authenticated=False):
     messages = normalize_messages(body)
     if not messages:
@@ -6611,7 +6760,12 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     if tool_access:
         system["content"] += (
             "\n\nVocê possui ferramentas reais para memória, agenda e o Mac. Quando o pedido for uma ação, "
-            "prefira exatamente uma ferramenta adequada em vez de apenas explicar como fazer. A ferramenta não é "
+            + (
+                "no modo Ultron você pode selecionar até três ferramentas distintas quando o pedido tiver frentes independentes. "
+                if owner_authenticated
+                else "prefira exatamente uma ferramenta adequada em vez de apenas explicar como fazer. "
+            )
+            + "A ferramenta não é "
             "a execução: ela só solicita um adaptador verificado, cujo resultado será mostrado pelo sistema. Nunca "
             "invente sucesso, nunca crie argumentos ausentes e não use ferramenta para conversa comum."
         )
@@ -6673,7 +6827,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "tool_choice": "auto",
         })
         if agent_tools:
-            openrouter_payload["parallel_tool_calls"] = False
+            openrouter_payload["parallel_tool_calls"] = bool(
+                owner_authenticated and power_profile["max_agent_tools_per_request"] > 1
+            )
     headers = {
         "Content-Type": "application/json",
         "X-OpenRouter-Title": "Theo JARVIS",
@@ -6799,18 +6955,23 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             tool_calls = response_message.get("tool_calls") if isinstance(response_message.get("tool_calls"), list) else []
             sources = web_search_sources(response_message)
         if tool_calls and agent_tools and not tool_calling_fallback:
-            payload, status = execute_agent_tool(
-                tool_calls[0],
+            payload, status = execute_agent_tools(
+                tool_calls,
                 latest,
                 local_execute=local_execute,
                 owner_authenticated=owner_authenticated,
+                max_tools=power_profile["max_agent_tools_per_request"],
             )
             routed = dict(payload)
             route = routed.get("agent_route") if isinstance(routed.get("agent_route"), dict) else {}
             route.update({
                 "model": clean_text(result.get("model") or DEFAULT_MODEL, 200),
                 "tool_call_id": clean_text(tool_calls[0].get("id"), 120) if isinstance(tool_calls[0], dict) else "",
-                "additional_tool_calls_ignored": max(0, len(tool_calls) - 1),
+                "tool_call_ids": [
+                    clean_text(item.get("id"), 120)
+                    for item in tool_calls[:power_profile["max_agent_tools_per_request"]]
+                    if isinstance(item, dict) and clean_text(item.get("id"), 120)
+                ],
             })
             routed["agent_route"] = route
             routed["agentic"] = True
@@ -7341,9 +7502,11 @@ def execution_events(payload, started_at, status_code):
     web_search = payload.get("web_search") if isinstance(payload.get("web_search"), dict) else {}
     job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
     jobs = payload.get("jobs") if isinstance(payload.get("jobs"), list) else []
+    orchestration = payload.get("orchestration") if isinstance(payload.get("orchestration"), dict) else {}
     pending_work = payload.get("state") in {"planned", "waiting_confirmation", "running"} or bool(
         run and not run.get("terminal")
         or job.get("status") in {"pending", "running"}
+        or int(orchestration.get("queued") or 0) > 0
     )
     tool_label = ""
     tool_detail = ""
@@ -7368,6 +7531,9 @@ def execution_events(payload, started_at, status_code):
     elif provider == "supabase":
         tool_label = "Supabase"
         tool_detail = clean_text(payload.get("status_real") or "operação confirmada", 100)
+    elif provider == "ultron_orchestrator":
+        tool_label = "Ultron 3×"
+        tool_detail = f"{int(orchestration.get('selected') or 0)} frente(s) por adaptadores verificados"
 
     if tool_label:
         events.append({
