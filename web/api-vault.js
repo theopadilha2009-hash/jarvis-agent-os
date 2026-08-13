@@ -166,4 +166,15 @@
     });
     observer.observe(missionHub, { attributes: true, attributeFilter: ["hidden"] });
   }
+
+  const loadVoicePacing = () => import("/ui/voice-pacing.js?v=20260813-voice1")
+    .then((module) => {
+      window.JarvisVoicePacing = Object.freeze({
+        chunks: module.voiceChunks,
+        contract: module.voicePacingContract,
+      });
+    })
+    .catch(() => null);
+  if ("requestIdleCallback" in window) window.requestIdleCallback(loadVoicePacing, { timeout: 1200 });
+  else window.setTimeout(loadVoicePacing, 160);
 })();
