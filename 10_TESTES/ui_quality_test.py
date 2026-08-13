@@ -12,6 +12,7 @@ INDEX = WEB / "index.html"
 CSS = WEB / "jarvis.css"
 UI_REPAIR_CSS = WEB / "ui-repair.css"
 API_PANEL_CSS = WEB / "api-panel.css"
+RESPONSIVE_POLISH_CSS = WEB / "responsive-polish.css"
 LOGO = WEB / "jarvis-logo.png"
 APP_JS = WEB / "jarvis.js"
 API_VAULT_JS = WEB / "api-vault.js"
@@ -203,6 +204,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 4 * 1024)
         self.assertLess(UI_REPAIR_CSS.stat().st_size, 8 * 1024)
         self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
+        self.assertLess(RESPONSIVE_POLISH_CSS.stat().st_size, 12 * 1024)
         self.assertLess(PRESENCE_JS.stat().st_size, 64 * 1024)
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
@@ -255,7 +257,20 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
         self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
-        self.assertGreaterEqual(self.html.count("20260813-integrations2"), 5)
+        self.assertGreaterEqual(self.html.count("20260813-final1"), 6)
+
+    def test_final_responsive_guardrails_cover_real_viewports(self):
+        css = RESPONSIVE_POLISH_CSS.read_text(encoding="utf-8")
+        self.assertIn("@media (max-width: 1280px) and (min-width: 941px)", css)
+        self.assertIn("@media (max-width: 720px)", css)
+        self.assertIn("@media (max-width: 520px)", css)
+        self.assertIn("@media (max-width: 370px)", css)
+        self.assertIn("@media (max-height: 650px) and (orientation: landscape)", css)
+        self.assertIn("env(safe-area-inset-right)", css)
+        self.assertIn("prefers-contrast: more", css)
+        self.assertIn("prefers-reduced-transparency: reduce", css)
+        self.assertIn(".integration-history-row time { grid-column: 2; }", css)
+        self.assertNotIn(".avatar canvas", css)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
