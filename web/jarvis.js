@@ -962,6 +962,50 @@
     return data;
   }
 
+  async function requestCommandStream(payload, onEvent) {
+    const headers = new Headers({ "Content-Type": "application/json" });
+    const token = ownerToken();
+    if (token) headers.set("X-Jarvis-Owner-Token", token);
+    const signal = typeof window.AbortSignal?.timeout === "function"
+      ? window.AbortSignal.timeout(60000)
+      : undefined;
+    const response = await fetch("/command-stream", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal,
+    });
+    const contentType = response.headers.get("Content-Type") || "";
+    if (!contentType.includes("application/x-ndjson")) {
+      const data = await response.json().catch(() => ({ ok: false, error: "O stream respondeu em um formato inválido." }));
+      return data;
+    }
+    let result = null;
+    let buffer = "";
+    const acceptLine = (line) => {
+      if (!line.trim()) return;
+      const event = JSON.parse(line);
+      onEvent?.(event);
+      if (event.type === "stream.result") result = event.payload;
+    };
+    if (response.body?.getReader) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        lines.forEach(acceptLine);
+        if (done) break;
+      }
+    } else {
+      buffer = await response.text();
+    }
+    if (buffer.trim()) acceptLine(buffer);
+    return result || { ok: false, error: "O stream terminou antes do resultado final." };
+  }
+
   function beginSpeaking(clean) {
     session.voicePending = false;
     session.speaking = true;
@@ -1179,8 +1223,9 @@
     message.querySelector("span").textContent = "A execução continua registrada, mas o Mac não confirmou todas as etapas dentro do tempo de acompanhamento.";
   }
 
-  function showResponse(data) {
+  function showResponse(data, streamedMessage = null) {
     if (!data || data.ok === false) {
+      streamedMessage?.remove();
       const error = data?.error || data?.message || "Não consegui completar isso.";
       const failedCommand = session.currentCommand;
       session.responseState = "error";
@@ -1241,7 +1286,12 @@
       messageActions += `<button class="speak-command" type="button">Ouvir</button>`;
     }
     extra += `<div class="message-actions">${messageActions}</div>`;
-    const message = addMessage(answer, "jarvis", extra);
+    const message = streamedMessage || addMessage(answer, "jarvis", extra);
+    if (streamedMessage) {
+      message.className = "message jarvis";
+      message.innerHTML = `<span>${messageHtml(answer)}</span>${extra}`;
+      feed.scrollTop = feed.scrollHeight;
+    }
     const copyResponse = message.querySelector(".copy-response");
     if (copyResponse) copyResponse.addEventListener("click", async () => {
       try {
@@ -1387,11 +1437,28 @@
     const workingState = workingStateFor(command);
     beginRequestProgress(workingState);
     setWorking(true, workingState);
+    let streamedMessage = null;
+    let streamedText = "";
     try {
-      const data = await request("/command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, messages: session.history, input_mode: options.source || "text", attachments }),
+      const data = await requestCommandStream({
+        command,
+        messages: session.history,
+        input_mode: options.source || "text",
+        attachments,
+      }, (event) => {
+        if (event.type === "stream.phase") {
+          byId("sceneDetail").textContent = event.label || "Processando pedido";
+        }
+        if (event.type === "stream.delta") {
+          if (!streamedMessage) {
+            streamedMessage = addMessage("", "jarvis streaming");
+            streamedMessage.setAttribute("aria-live", "polite");
+            streamedMessage.setAttribute("aria-busy", "true");
+          }
+          streamedText += event.delta || "";
+          streamedMessage.querySelector("span").innerHTML = messageHtml(streamedText);
+          feed.scrollTop = feed.scrollHeight;
+        }
       });
       if (attachments.length) {
         session.attachments = [];
@@ -1399,7 +1466,8 @@
         clearAttachmentPreview();
       }
       session.lastResponseOk = data?.ok !== false;
-      showResponse(data);
+      streamedMessage?.setAttribute("aria-busy", "false");
+      showResponse(data, streamedMessage);
       const answer = data.message || data.summary;
       if (answer) {
         session.history.push({ role: "assistant", content: answer });
@@ -1407,6 +1475,7 @@
         window.setTimeout(syncConversationHistory, 0);
       }
     } catch {
+      streamedMessage?.remove();
       session.lastResponseOk = false;
       showResponse({ ok: false, error: "A conexão com o núcleo do JARVIS caiu." });
     } finally {

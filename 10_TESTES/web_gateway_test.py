@@ -114,6 +114,22 @@ class WebGatewayTest(unittest.TestCase):
 
         MODULE.handler._write_body(FakeHandler(), b"model bytes")
 
+    def test_command_stream_emits_lifecycle_deltas_and_canonical_result(self):
+        status, headers, raw = self.request(
+            "/command-stream",
+            "POST",
+            {"command": "crie um plano curto para organizar a semana"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "application/x-ndjson")
+        self.assertEqual(headers["X-Jarvis-Stream"], "jarvis-stream/1")
+        events = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line]
+        self.assertEqual(events[0]["type"], "stream.start")
+        self.assertTrue(any(event["type"] == "stream.phase" for event in events))
+        self.assertTrue(any(event["type"] == "stream.delta" for event in events))
+        self.assertEqual(events[-1]["type"], "stream.result")
+        self.assertIn("event_stream", events[-1]["payload"])
+
     def test_cockpit_and_model_asset(self):
         status, _, html = self.request("/")
         self.assertEqual(status, 200)

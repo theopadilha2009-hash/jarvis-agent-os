@@ -6293,6 +6293,24 @@ def attach_execution_events(payload, started_at, status_code, command=""):
     return result
 
 
+def progressive_text_chunks(value, target_size=44):
+    """Split a final answer into readable transport chunks without cutting words."""
+    text = str(value or "")
+    if not text:
+        return []
+    chunks = []
+    current = ""
+    for token in re.findall(r"\S+\s*", text):
+        if current and len(current) + len(token) > target_size:
+            chunks.append(current)
+            current = token
+        else:
+            current += token
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 class handler(BaseHTTPRequestHandler):
     server_version = "JarvisWeb/1.0"
 
@@ -6326,6 +6344,61 @@ class handler(BaseHTTPRequestHandler):
         self._security_headers()
         self.end_headers()
         self._write_body(body)
+
+    def _stream_event(self, event):
+        """Write one NDJSON event and report whether the client is still connected."""
+        try:
+            self.wfile.write((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
+            self.wfile.flush()
+            return True
+        except (BrokenPipeError, ConnectionResetError):
+            return False
+
+    def send_command_stream(self, body, started_at, origin, local_execute, owner_authenticated):
+        """Stream honest lifecycle events, progressive text, then the canonical payload."""
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-store, no-transform")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("X-Jarvis-Stream", "jarvis-stream/1")
+        self._security_headers()
+        self.end_headers()
+        if not self._stream_event({
+            "type": "stream.start",
+            "protocol": "jarvis-stream/1",
+            "timestamp": started_at.isoformat(),
+        }):
+            return
+        if not self._stream_event({
+            "type": "stream.phase",
+            "phase": "routing",
+            "label": "Selecionando rota e contexto",
+        }):
+            return
+        payload, status = command_payload(
+            body,
+            origin=origin,
+            local_execute=local_execute,
+            owner_authenticated=owner_authenticated,
+        )
+        command = clean_text(body.get("command") or body.get("prompt"), 8_000)
+        payload = attach_execution_events(payload, started_at, status, command)
+        if not self._stream_event({
+            "type": "stream.phase",
+            "phase": "response",
+            "label": "Transmitindo resultado",
+        }):
+            return
+        if status < 400 and payload.get("ok", True):
+            answer = payload.get("message") or payload.get("summary") or payload.get("next_action") or payload.get("status_real")
+            for sequence, chunk in enumerate(progressive_text_chunks(answer), start=1):
+                if not self._stream_event({"type": "stream.delta", "sequence": sequence, "delta": chunk}):
+                    return
+        self._stream_event({
+            "type": "stream.result",
+            "status": status,
+            "payload": payload,
+        })
 
     def read_json(self):
         try:
@@ -6589,6 +6662,14 @@ class handler(BaseHTTPRequestHandler):
                 payload, status = clear_conversation_history()
                 payload["endpoint"] = "POST /conversation-clear"
             return self.send_json(status, payload)
+        if path == "/command-stream":
+            return self.send_command_stream(
+                body,
+                started_at,
+                origin,
+                local_execute,
+                owner_authenticated,
+            )
         if path == "/command":
             payload, status = command_payload(
                 body,
