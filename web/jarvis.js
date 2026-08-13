@@ -460,10 +460,13 @@
 
   function renderN8nWorkflowResult(data) {
     const map = byId("n8nWorkflowMap");
+    const list = byId("n8nWorkflowList");
     const summary = byId("n8nWorkflowSummary");
     const clearMap = () => map?.replaceChildren();
+    const clearList = () => list?.replaceChildren();
     const renderMap = (plan, workflow) => {
       clearMap();
+      clearList();
       const stages = Array.isArray(plan?.stages)
         ? plan.stages
         : Array.isArray(workflow?.nodes)
@@ -503,7 +506,21 @@
     };
     if (!data?.ok) {
       clearMap();
+      clearList();
       summary.textContent = data?.error || "O n8n não confirmou a operação.";
+      return;
+    }
+    if (data.inspection && data.status_real === "n8n_workflow_inspected") {
+      clearMap();
+      const inspection = data.inspection;
+      summary.textContent = [
+        `INSPEÇÃO · ${inspection.name}`,
+        `${inspection.active ? "ATIVO" : "INATIVO"} · ${inspection.node_count} nós · ${inspection.trigger_nodes.length} gatilho(s)`,
+        inspection.disabled_nodes.length ? `Desativados: ${inspection.disabled_nodes.join(", ")}.` : "Nenhuma etapa desativada.",
+        inspection.external_nodes.length ? `Ações externas: ${inspection.external_nodes.join(", ")}.` : "Sem ação externa detectada.",
+        inspection.review_nodes.length ? `Revisão forte: ${inspection.review_nodes.join(", ")}.` : "Nenhum nó de código/comando detectado.",
+        "Ativação continua manual depois da revisão e do teste no n8n.",
+      ].join("\n");
       return;
     }
     if (Array.isArray(data.workflow_previews)) {
@@ -523,9 +540,34 @@
     }
     if (Array.isArray(data.workflows)) {
       clearMap();
-      summary.textContent = data.workflows.length
-        ? data.workflows.map((item) => `${item.active ? "ATIVO" : "INATIVO"} · ${item.name} · ${item.id}`).join("\n")
-        : "Nenhum workflow encontrado.";
+      clearList();
+      data.workflows.forEach((item) => {
+        const row = document.createElement("article");
+        row.className = "n8n-workflow-row";
+        const copy = document.createElement("span");
+        const name = document.createElement("strong");
+        name.textContent = item.name || "Workflow";
+        const meta = document.createElement("small");
+        meta.textContent = `${item.active ? "ATIVO" : "INATIVO"} · ${item.id || "sem id"}`;
+        copy.append(name, meta);
+        const actions = document.createElement("div");
+        if (item.id) {
+          const inspect = document.createElement("button");
+          inspect.type = "button";
+          inspect.dataset.n8nWorkflowAction = "inspect";
+          inspect.dataset.workflowId = item.id;
+          inspect.textContent = "Inspecionar";
+          const duplicate = document.createElement("button");
+          duplicate.type = "button";
+          duplicate.dataset.n8nWorkflowAction = "duplicate";
+          duplicate.dataset.workflowId = item.id;
+          duplicate.textContent = "Duplicar inativo";
+          actions.append(inspect, duplicate);
+        }
+        row.append(copy, actions);
+        list?.appendChild(row);
+      });
+      summary.textContent = data.workflows.length ? `${data.workflows.length} workflow(s). Inspecione sem executar ou duplique como inativo.` : "Nenhum workflow encontrado.";
       return;
     }
     if (data.workflow?.nodes && Array.isArray(data.workflow.nodes)) {
@@ -537,19 +579,20 @@
     summary.textContent = `${data.message || "Workflow criado."}${data.workflow?.editor_url ? `\n${data.workflow.editor_url}` : ""}`;
   }
 
-  async function runN8nWorkflowAction(action) {
+  async function runN8nWorkflowAction(action, workflowId = "") {
     const goal = byId("n8nWorkflowGoal").value.trim();
     const goals = goal.split("||").map((item) => item.trim()).filter(Boolean).slice(0, session.paired ? 3 : 1);
-    if (action !== "list" && !goal) {
+    if (["preview", "create"].includes(action) && !goal) {
       setIntegrationFeedback("Descreva o objetivo do workflow primeiro.", "error");
       byId("n8nWorkflowGoal").focus();
       return;
     }
+    if (action === "duplicate" && !window.confirm("Criar uma cópia inativa deste workflow? Nada será ativado.")) return;
     const config = await apiVault().get("n8n") || {};
-    const button = byId(action === "preview" ? "n8nPreviewButton" : action === "list" ? "n8nListButton" : "n8nCreateButton");
+    const button = byId(action === "preview" ? "n8nPreviewButton" : action === "create" ? "n8nCreateButton" : "n8nListButton");
     button.disabled = true;
     byId("n8nWorkflowMap")?.replaceChildren();
-    byId("n8nWorkflowSummary").textContent = action === "create" ? "Criando workflow inativo…" : "Consultando n8n…";
+    byId("n8nWorkflowSummary").textContent = action === "create" || action === "duplicate" ? "Criando workflow inativo…" : "Consultando n8n…";
     try {
       const data = await request("/integrations/n8n/workflows", {
         method: "POST",
@@ -558,6 +601,8 @@
           action,
           goal: goals[0] || goal,
           goals,
+          workflow_id: workflowId,
+          confirmed: action === "duplicate",
           template: byId("n8nWorkflowTemplate").value,
           config,
         }),
@@ -2353,6 +2398,18 @@
   byId("n8nPreviewButton")?.addEventListener("click", () => runN8nWorkflowAction("preview"));
   byId("n8nCreateButton")?.addEventListener("click", () => runN8nWorkflowAction("create"));
   byId("n8nListButton")?.addEventListener("click", () => runN8nWorkflowAction("list"));
+  byId("n8nTemplateGallery")?.querySelectorAll("[data-n8n-goal]").forEach((button) => {
+    button.addEventListener("click", () => {
+      byId("n8nWorkflowGoal").value = button.dataset.n8nGoal || "";
+      byId("n8nWorkflowTemplate").value = button.dataset.n8nTemplate || "auto";
+      runN8nWorkflowAction("preview");
+    });
+  });
+  byId("n8nWorkflowList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-n8n-workflow-action]");
+    if (!button) return;
+    runN8nWorkflowAction(button.dataset.n8nWorkflowAction, button.dataset.workflowId || "");
+  });
   qualityButton?.addEventListener("click", () => {
     const current = GRAPHICS_QUALITY.indexOf(graphicsQuality);
     graphicsQuality = GRAPHICS_QUALITY[(current + 1) % GRAPHICS_QUALITY.length];
