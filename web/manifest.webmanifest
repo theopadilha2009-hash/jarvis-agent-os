@@ -8,27 +8,23 @@
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "background_color": "#02070c",
-  "theme_color": "#03090f",
+  "background_color": "#08040f",
+  "theme_color": "#0b0615",
   "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Novo pedido",
+      "short_name": "Novo",
+      "url": "/?action=new",
+      "icons": [{"src": "/ui/jarvis-logo.png", "sizes": "458x368", "type": "image/png"}]
+    }
+  ],
   "icons": [
     {
-      "src": "/ui/jarvis-icon.svg?v=20260811-commanddeck",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/ui/jarvis-icon-192.png?v=20260811-commanddeck",
-      "sizes": "192x192",
+      "src": "/ui/jarvis-logo.png?v=20260813-v10-purple",
+      "sizes": "458x368",
       "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/ui/jarvis-icon-512.png?v=20260811-commanddeck",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

@@ -2829,7 +2829,7 @@ def agent_eval_command(args=None):
     _run_py_propagate("11_SCRIPTS/agent_runtime_eval.py", args or [])
 
 def web_command(args=None):
-    """./jarvis web [--host IP] [--port N] [--no-open|--check]"""
+    """./jarvis web [--host IP] [--port N] [--open|--check]"""
     try:
         _run_py_propagate("api/index.py", list(args or []))
     except KeyboardInterrupt:
@@ -3036,57 +3036,8 @@ def acceptance_command(args=None):
     _run_py_propagate("11_SCRIPTS/acceptance.py", args)
 
 def do_command(args=None):
-    args = list(args or [])
-    raw = " ".join(args).strip()
-    lowered = raw.lower()
-
-    is_report_flow = "--report" in args or any(a.startswith("--report=") for a in args)
-
-    digest_triggers = [
-        "deep research",
-        "research digest",
-        "research-digest",
-        "sources",
-        "source",
-        "fontes",
-        "referências",
-        "referencias",
-        "plano de evolução",
-        "plano de evolucao",
-        "evolução do jarvis",
-        "evolucao do jarvis",
-    ]
-
-    if raw and not is_report_flow and any(t in lowered for t in digest_triggers):
-        cleaned = []
-        skip_next = False
-
-        for a in args:
-            if skip_next:
-                skip_next = False
-                continue
-
-            if a in ["--project", "--mode"]:
-                skip_next = True
-                continue
-
-            if a.startswith("--project=") or a.startswith("--mode="):
-                continue
-
-            if a in ["--copy", "--reuse-last", "--dry-run"]:
-                continue
-
-            cleaned.append(a)
-
-        goal = " ".join(cleaned).strip() or "evolução do JARVIS usando deep research locais"
-        digest_args = ["--goal", goal]
-
-        if "--dry-run" in args:
-            digest_args.append("--dry-run")
-
-        return research_digest_command(digest_args)
-
-    return _run_py_propagate("11_SCRIPTS/worker_engine.py", args)
+    """Executa todo pedido pelo worker e pelo ActionRegistry compartilhado."""
+    return _run_py_propagate("11_SCRIPTS/worker_engine.py", list(args or []))
 
 def do_history_command(args=None):
     """./jarvis do-history [--limit N] [--route NAME] [--project ALIAS]"""
@@ -3272,7 +3223,8 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
   ./jarvis message-draft --phone NUM "oi"    abre/copia rascunho de WhatsApp
   ./jarvis message-send --phone NUM "oi"     envia pelo app Mensagens do Mac
   ./jarvis memory-save "texto"               grava na memória local versionável
-  ./jarvis web                                abre o JARVIS visual ligado ao worker local
+  ./jarvis web                                inicia o JARVIS visual sem abrir navegador
+  ./jarvis web --open                         inicia e abre o navegador explicitamente
   ./jarvis storage-scan PASTA                mostra arquivos grandes, sem apagar
   ./jarvis system-memory                     diagnostica RAM; limpa só temporários JARVIS sob pedido
   ./jarvis computer open|close "APP"         controla apps locais com evidência via Orca
@@ -3395,7 +3347,7 @@ def _help_full():
   ./jarvis message-draft --phone NUM "texto" [--open|--copy|--dry-run]  WhatsApp sem autoenvio
   ./jarvis message-send --phone NUM "texto" [--dry-run]  envio explícito pelo app Mensagens
   ./jarvis memory-save "texto" [--kind learning|decision|preference] [--dry-run]  memória local
-  ./jarvis web [--no-open|--check]  cockpit visual + OpenRouter + worker local
+  ./jarvis web [--open|--check]     cockpit visual + OpenRouter + worker local
   ./jarvis storage-scan [PASTA] [--top N] [--min-mb N]  inventário read-only de arquivos grandes
   ./jarvis system-memory [--cleanup-jarvis] [--dry-run]  RAM + limpeza restrita a temporários JARVIS
   ./jarvis computer list|inspect|open|close [APP] [--dry-run]  Computer Use local via Orca

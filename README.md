@@ -12,6 +12,36 @@ web compacto em `web/index.html` e a configuração em `vercel.json`. Ele public
 planejamento e chat opcional sem importar o backend local que escreve arquivos
 ou inicia processos.
 
+### Runtime V10
+
+- A presença visual é um busto cognitivo roxo, compacto e frontal. Olhos usam
+  vidro óptico de baixo brilho; uma rede de fluxos percorre internamente rosto,
+  pescoço e ombros. Halo, linha de varredura e triângulos externos são removidos.
+- O cockpit V10 trata a conversa como workspace principal e reduz o núcleo a
+  uma presença lateral compacta. A Central Operacional (`⌘K`) pesquisa ações
+  reais, o composer aceita múltiplas linhas e anexos também podem ser colados
+  ou arrastados. Evidências ficam na resposta, falhas podem ser tentadas de
+  novo e nenhum drawer, navegador ou helper abre sozinho.
+- Respostas chegam progressivamente por NDJSON; histórico de runs, memória,
+  fila de tarefas e arquivos reutilizáveis têm gerenciadores visuais. Pedidos
+  offline ficam numa caixa de saída explícita, tarefas em segundo plano podem
+  notificar com opt-in e a voz aceita interrupção imediata.
+- O núcleo 3D é carregado depois da interface e somente em tela/hardware
+  adequados. Em celular, economia de dados ou movimento reduzido, o cockpit usa
+  a nova logo roxa como núcleo estático; fora da tela, a renderização pausa por completo.
+  Testes estáticos protegem nomes acessíveis, diálogos, responsividade e o
+  orçamento de assets críticos.
+- `./jarvis web` apenas imprime o endereço. O navegador só abre com
+  `./jarvis web --open`.
+- Web e `./jarvis do` compartilham um registro tipado de ações, riscos,
+  confirmações e executores em `11_SCRIPTS/action_registry.py`.
+- Pedidos recebem um run persistente local com plano, eventos, resultado e
+  evidências. Ações externas e autoedição param em confirmação explícita;
+  endpoints de run permitem consultar, confirmar, cancelar e repetir.
+- “Busque na memória por …” usa SQLite local para pesquisar os Markdown
+  confirmados por conteúdo, tipo, origem e projeto. O banco é runtime
+  gitignored; os Markdown continuam sendo a fonte de verdade.
+
 O cockpit funciona como central pessoal, não como outro chatbot: `GET
 /personal-overview` reúne o estado real de conversa, memória, agenda, worker do
 Mac e atividade recente. Pedidos como “o que você consegue fazer?” e “resumo do

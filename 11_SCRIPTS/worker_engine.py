@@ -39,6 +39,8 @@ import shutil
 import subprocess
 import sys
 
+from action_registry import ACTION_REGISTRY, RunStore, action_for_intent
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKER_DIR = ROOT / "05_EXECUCAO" / "42_WORKER_RUNS"
 CURRENT_SESSION = ROOT / "05_EXECUCAO" / "36_WORK_SESSIONS" / "current.json"
@@ -48,6 +50,7 @@ ASK_UNCLEAR = ROOT / "05_EXECUCAO" / "32_ASK_LEARNING" / "UNCLEAR_REQUESTS.md"
 MISSIONS_DIR = ROOT / "05_EXECUCAO" / "21_CLAUDE_MISSIONS"
 BLUEPRINTS_DIR = ROOT / "05_EXECUCAO" / "40_BLUEPRINTS"
 PERSONAL_DIR = ROOT / "05_EXECUCAO" / "64_PERSONAL_TOOLS"
+AGENT_RUN_STORE = RunStore()
 
 # Reuse intents + secret detection from existing internal modules.
 sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
@@ -1391,6 +1394,37 @@ def main():
         print("Produção: nada alterado.")
         sys.exit(1)
 
+    registry_action = action_for_intent(intent)
+    action_name = registry_action.name if registry_action else (
+        "project_inspect" if route == ROUTE_PROJECT else
+        "web_research" if route == ROUTE_RESEARCH else
+        "planning" if route in {ROUTE_N8N, ROUTE_NO_CLAUDE, ROUTE_UNCLEAR} else
+        "assistant_chat"
+    )
+    agent_run = None
+    if not dry_run and os.environ.get("JARVIS_NO_REPORT") != "1":
+        agent_plan = [
+            {
+                "id": f"step-{index}",
+                "action": action_name,
+                "label": label,
+                "executor": "jarvis_cli",
+                "risk": (ACTION_REGISTRY.get(action_name) or ACTION_REGISTRY["assistant_chat"]).risk,
+                "command": cmd,
+                "status": "pending",
+            }
+            for index, (label, cmd, blocked_reason) in enumerate(actions, 1)
+            if not blocked_reason
+        ]
+        agent_run = AGENT_RUN_STORE.create(
+            text or "smart resume",
+            action=action_name,
+            source="cli-do",
+            state="planned",
+            plan=agent_plan,
+            metadata={"intent": intent, "route": route, "project": project or ""},
+        )
+
     if extras.get("reason"):
         print("## Smart resume reasoning")
         print(f"  {extras['reason']}")
@@ -1558,6 +1592,36 @@ def main():
                 print(f"  --copy:  {'clipboard OK (full mission)' if ok else 'pbcopy indisponível'}")
             except Exception:
                 pass
+        print("")
+
+    if agent_run:
+        failed_actions = [
+            detail for _label, _cmd, action_status, detail in actions_recorded
+            if action_status == "BLOQUEADO" or "FAIL" in detail
+        ]
+        final_state = "failed" if failed_actions else "completed"
+        evidence = []
+        if artifact_dir:
+            evidence.append({"type": "artifact", "value": str(artifact_dir.relative_to(ROOT))})
+        if prompt_file:
+            evidence.append({"type": "prompt", "value": str(prompt_file.relative_to(ROOT))})
+        agent_run = AGENT_RUN_STORE.update(
+            agent_run["id"],
+            state=final_state,
+            result={
+                "route": route,
+                "intent": intent,
+                "steps": len(actions_recorded),
+                "failed": failed_actions,
+                "next": next_cmd,
+            },
+            evidence=evidence,
+            error="; ".join(failed_actions) if failed_actions else "",
+            event_type="RUN_FAILED" if failed_actions else "RUN_COMPLETED",
+        )
+        print("## Agent run")
+        print(f"  run_id: {agent_run['id']}")
+        print(f"  state:  {agent_run['state']}")
         print("")
 
     print("## Resultado")

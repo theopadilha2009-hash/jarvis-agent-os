@@ -1,13 +1,14 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260812-alivebust2";
+const CACHE_VERSION = "jarvis-mobile-shell-20260813-v10-purple";
 const SHELL = [
   "/",
-  "/ui/manifest.webmanifest?v=20260812-reflect1",
-  "/ui/jarvis-icon.svg?v=20260811-polish1",
-  "/ui/jarvis.css?v=20260812-alivebust2",
-  "/ui/jarvis.js?v=20260812-alivebust2",
-  "/ui/strands.js?v=20260812-alivebust2",
+  "/ui/manifest.webmanifest",
+  "/ui/jarvis-logo.png",
+  "/ui/jarvis.css",
+  "/ui/jarvis.js",
+  "/ui/jarvis-3d.js",
+  "/ui/vendor/three.module.js",
 ];
 
 self.addEventListener("install", (event) => {
@@ -27,20 +28,24 @@ self.addEventListener("activate", (event) => {
 });
 
 async function networkFirst(request) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3500);
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { signal: controller.signal });
     if (response.ok) {
       const cache = await caches.open(CACHE_VERSION);
       cache.put(request, response.clone());
     }
     return response;
   } catch {
-    return (await caches.match(request)) || (await caches.match("/"));
+    return (await caches.match(request, { ignoreSearch: true })) || (await caches.match("/", { ignoreSearch: true }));
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 async function staticAsset(request) {
-  const cached = await caches.match(request);
+  const cached = await caches.match(request, { ignoreSearch: true });
   if (cached) return cached;
   try {
     const response = await fetch(request);
@@ -66,4 +71,16 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/ui/") || url.pathname.startsWith("/asset/")) {
     event.respondWith(staticAsset(request));
   }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const destination = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
+      if (existing) return existing.focus();
+      return self.clients.openWindow(destination);
+    })
+  );
 });

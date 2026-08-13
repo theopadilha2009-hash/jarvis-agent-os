@@ -20,10 +20,20 @@ JARVIS already has:
 - blueprint generation;
 - identity and modes;
 - research sources for n8n, agents and production architecture.
+- a shared typed ActionRegistry for web and CLI policy;
+- durable agent runs with confirmation, cancel and retry;
+- local SQLite memory search over confirmed Markdown;
+- a compact purple cognitive bust with optical eyes and internal neural paths;
+- progressive streamed responses and a visual run history;
+- visual managers for memory, local tasks and reusable browser files;
+- opt-in completion notifications, voice barge-in and a resilient offline outbox;
+- an adaptive PWA shell with static fallback, GPU pause and UI quality budgets.
 
-## Main problem now
+## Current focus
 
-JARVIS can classify research/foundation requests, but `./jarvis do` is still too conservative.
+Routing, run lifecycle and the cockpit now share a V10 foundation. The next
+increments should migrate remaining legacy command metadata into the shared
+registry and add external adapters one at a time, read-only first.
 
 Expected behavior:
 
