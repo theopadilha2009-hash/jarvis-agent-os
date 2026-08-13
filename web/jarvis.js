@@ -1754,6 +1754,7 @@
         text,
         previous_text: previousText,
         next_text: nextText,
+        voice_profile: window.JarvisVoiceCalibrator?.profile(),
         client_integrations: clientIntegrations,
       }),
       signal: controller.signal,
@@ -1918,6 +1919,8 @@
       if (generation === speechGeneration) currentSpeechController = null;
     }
   }
+
+  window.JarvisVoicePreview = () => speak("Certo, Theo. Estou aqui e vou cuidar disso com calma.");
 
   async function monitorDeviceCommand(jobId, message) {
     for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -2425,9 +2428,6 @@
     renderIntegrationRegistry();
     integrationsDialog.showModal();
     await selectIntegrationProvider(activeIntegrationProvider);
-  });
-  window.JarvisIntegrationHealth?.bind({
-    providers: API_PROVIDERS, vault: apiVault(), request, record: recordIntegrationActivity,
   });
   byId("closeIntegrationsDialog")?.addEventListener("click", () => integrationsDialog.close());
   integrationsDialog?.addEventListener("click", (event) => {

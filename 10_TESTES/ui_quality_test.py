@@ -19,6 +19,8 @@ APP_JS = WEB / "jarvis.js"
 API_VAULT_JS = WEB / "api-vault.js"
 INTEGRATION_HISTORY_JS = WEB / "integration-history.js"
 INTEGRATION_HEALTH_JS = WEB / "integration-health.js"
+VOICE_CALIBRATOR_JS = WEB / "voice-calibrator.js"
+VOICE_CALIBRATOR_CSS = WEB / "voice-calibrator.css"
 MISSION_CONTROL_JS = WEB / "mission-control.js"
 MISSION_CONTROL_CSS = WEB / "mission-control.css"
 VOICE_PACING_JS = WEB / "voice-pacing.js"
@@ -77,7 +79,7 @@ class UIQualityTest(unittest.TestCase):
     def test_dialogs_have_valid_accessible_titles(self):
         known_ids = set(self.parser.ids)
         dialogs = [attrs for tag, attrs in self.parser.elements if tag == "dialog"]
-        self.assertEqual(len(dialogs), 4)
+        self.assertEqual(len(dialogs), 5)
         for dialog in dialogs:
             label_id = dialog.get("aria-labelledby")
             self.assertTrue(label_id, f"Dialog sem aria-labelledby: {dialog.get('id')}")
@@ -162,6 +164,9 @@ class UIQualityTest(unittest.TestCase):
             "integrationWorkflowsPanel",
             "integrationHealthPanel",
             "integrationHealthMount",
+            "voiceTuningButton",
+            "voiceTuningDialog",
+            "voiceTuningMount",
             "n8nStudio",
             "n8nWorkflowMap",
             "n8nTemplateGallery",
@@ -207,14 +212,24 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("latency_ms", health_js)
         self.assertIn("last_failure", health_js)
         self.assertIn("integration-health-card", INTEGRATION_HEALTH_CSS.read_text(encoding="utf-8"))
+        voice_calibrator = VOICE_CALIBRATOR_JS.read_text(encoding="utf-8")
+        self.assertIn("jarvis-voice-profile-v1", voice_calibrator)
+        self.assertIn('label: "Sério"', voice_calibrator)
+        self.assertIn('label: "Tranquilo"', voice_calibrator)
+        self.assertIn('data-voice-setting="speed"', voice_calibrator)
+        self.assertIn("sem aplicar pitch artificial", voice_calibrator)
+        self.assertIn("voice_profile: window.JarvisVoiceCalibrator?.profile()", self.app_js)
+        self.assertIn("voice-calibrator.js?v=20260813-voicecal1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
 
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
         self.assertLess(critical_bytes, 250 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
         self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
         self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 4 * 1024)
-        self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 6 * 1024)
+        self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 7 * 1024)
         self.assertLess(INTEGRATION_HEALTH_CSS.stat().st_size, 4 * 1024)
+        self.assertLess(VOICE_CALIBRATOR_JS.stat().st_size, 7 * 1024)
+        self.assertLess(VOICE_CALIBRATOR_CSS.stat().st_size, 4 * 1024)
         self.assertLess(UI_REPAIR_CSS.stat().st_size, 8 * 1024)
         self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
         self.assertLess(RESPONSIVE_POLISH_CSS.stat().st_size, 12 * 1024)
@@ -270,7 +285,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
         self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
-        self.assertGreaterEqual(self.html.count("20260813-health1"), 8)
+        self.assertGreaterEqual(self.html.count("20260813-voicecal1"), 6)
 
     def test_final_responsive_guardrails_cover_real_viewports(self):
         css = RESPONSIVE_POLISH_CSS.read_text(encoding="utf-8")

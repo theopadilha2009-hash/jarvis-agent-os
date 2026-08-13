@@ -86,5 +86,12 @@ window.JarvisIntegrationHistory = (() => {
     };
   }
 
+  document.querySelector('[data-integration-tab="health"]')?.addEventListener("click", () => {
+    import("/ui/integration-health.js?v=20260813-voicecal1").catch(() => null);
+  }, { once: true });
+  document.getElementById("voiceTuningButton")?.addEventListener("click", () => {
+    import("/ui/voice-calibrator.js?v=20260813-voicecal1").catch(() => null);
+  }, { once: true });
+
   return Object.freeze({ clear, record, render, summary });
 })();

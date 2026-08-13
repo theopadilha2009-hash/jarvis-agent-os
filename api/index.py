@@ -4736,6 +4736,27 @@ def elevenlabs_voice_design(command=""):
         }, 502
 
 
+def voice_profile(body):
+    """Return bounded per-request tuning while preserving the approved default voice."""
+    raw = body.get("voice_profile") if isinstance(body, dict) else None
+    raw = raw if isinstance(raw, dict) else {}
+
+    def bounded(name, default, minimum, maximum):
+        try:
+            value = float(raw.get(name, default))
+        except (TypeError, ValueError):
+            value = default
+        return round(max(minimum, min(value, maximum)), 3)
+
+    return {
+        "stability": bounded("stability", 0.64, 0.35, 0.90),
+        "similarity_boost": bounded("similarity_boost", 0.82, 0.55, 0.95),
+        "style": 0.0,
+        "use_speaker_boost": False,
+        "speed": bounded("speed", 0.93, 0.75, 1.10),
+    }
+
+
 def elevenlabs_speech(body):
     text = clean_text(body.get("text") or body.get("message"), 2_200)
     previous_text = clean_text(body.get("previous_text"), 1_200)
@@ -4761,13 +4782,7 @@ def elevenlabs_speech(body):
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
         "seed": 7319,
         "apply_text_normalization": "auto",
-        "voice_settings": {
-            "stability": 0.64,
-            "similarity_boost": 0.82,
-            "style": 0.0,
-            "use_speaker_boost": False,
-            "speed": 0.93,
-        },
+        "voice_settings": voice_profile(body),
     }
     if previous_text:
         speech_payload["previous_text"] = previous_text

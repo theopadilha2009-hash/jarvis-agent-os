@@ -1,0 +1,24 @@
+.voice-summary { gap: 7px; }
+.voice-summary button { min-height: 30px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--cyan) 7%, transparent); color: var(--cyan-hot); cursor: pointer; font-size: 8px; }
+.voice-calibrator-dialog { width: min(560px, calc(100vw - 24px)); }
+.voice-calibrator-head > span { display: grid; gap: 3px; }
+.voice-calibrator-head small { color: var(--cyan); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
+.voice-calibrator-body { display: grid; gap: 14px; padding: 18px; }
+.voice-preset-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.voice-preset-head span { display: grid; gap: 4px; }
+.voice-preset-head small { color: var(--faint); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; }
+.voice-preset-head strong { color: #f3e8ff; font-size: 17px; }
+.voice-preset-head p { max-width: 250px; margin: 0; color: var(--muted); font-size: 9px; line-height: 1.5; text-align: right; }
+.voice-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.voice-presets button { min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.018); color: var(--muted); cursor: pointer; }
+.voice-presets button[data-active="true"] { border-color: color-mix(in srgb, var(--cyan) 50%, transparent); background: color-mix(in srgb, var(--cyan) 15%, transparent); color: #f3e8ff; }
+.voice-sliders { display: grid; gap: 13px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: rgba(0,0,0,.18); }
+.voice-sliders label { display: grid; gap: 8px; }
+.voice-sliders label > span { display: flex; justify-content: space-between; color: #e9d5ff; font-size: 9px; }
+.voice-sliders output { color: var(--cyan); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.voice-sliders input { width: 100%; accent-color: var(--cyan); }
+.voice-calibrator-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.voice-calibrator-actions button { min-height: 38px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }
+#voicePreviewButton { border-color: color-mix(in srgb, var(--cyan) 48%, transparent); background: color-mix(in srgb, var(--cyan) 12%, transparent); color: var(--cyan-hot); }
+.voice-calibrator-note { margin: 0; color: var(--faint); font-size: 8px; line-height: 1.5; }
+@media (max-width: 520px) { .voice-preset-head { display: grid; } .voice-preset-head p { max-width: none; text-align: left; } .voice-presets { grid-template-columns: repeat(2, minmax(0,1fr)); } .voice-calibrator-actions { display: grid; grid-template-columns: 1fr 1fr; } .voice-calibrator-actions button { min-height: 44px; } }
