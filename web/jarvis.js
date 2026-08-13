@@ -544,7 +544,7 @@
     const planSummary = (plan, prefix = "PREVIEW") => {
       if (!plan) return prefix;
       const setup = Array.isArray(plan.required_setup) && plan.required_setup.length
-        ? `Configurar antes de ativar: ${plan.required_setup.map((item) => item.label).join(", ")}.`
+        ? `Configurar antes de ativar: ${plan.required_setup.map((item) => `${item.label} (${item.fields?.join(", ") || "campos indicados"})`).join("; ")}.`
         : "Nenhuma credencial externa exigida neste rascunho.";
       const omitted = Array.isArray(plan.omitted_actions) && plan.omitted_actions.length
         ? ` Limite ${plan.source}: ficaram para outro fluxo: ${plan.omitted_actions.join(", ")}.`
@@ -2454,13 +2454,6 @@
   byId("n8nPreviewButton")?.addEventListener("click", () => runN8nWorkflowAction("preview"));
   byId("n8nCreateButton")?.addEventListener("click", () => runN8nWorkflowAction("create"));
   byId("n8nListButton")?.addEventListener("click", () => runN8nWorkflowAction("list"));
-  byId("n8nTemplateGallery")?.querySelectorAll("[data-n8n-goal]").forEach((button) => {
-    button.addEventListener("click", () => {
-      byId("n8nWorkflowGoal").value = button.dataset.n8nGoal || "";
-      byId("n8nWorkflowTemplate").value = button.dataset.n8nTemplate || "auto";
-      runN8nWorkflowAction("preview");
-    });
-  });
   byId("n8nWorkflowList")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-n8n-workflow-action]");
     if (!button) return;

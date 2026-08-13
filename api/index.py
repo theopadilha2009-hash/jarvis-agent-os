@@ -954,6 +954,15 @@ N8N_SMART_ACTIONS = (
         "url": "https://graph.facebook.com/vXX.X/PHONE_NUMBER_ID/messages",
     },
     {
+        "kind": "github",
+        "pattern": r"\b(?:github|pull request|issue de incidente|falha de deploy)\b",
+        "label": "Abrir incidente no GitHub",
+        "description": "Criar uma issue de incidente a partir do evento recebido.",
+        "provider": "github",
+        "setup_fields": ["owner/repositório", "token GitHub no n8n", "título e corpo da issue"],
+        "url": "https://api.github.com/repos/OWNER/REPO/issues",
+    },
+    {
         "kind": "slack",
         "pattern": r"\b(?:slack|discord|canal da equipe)\b",
         "label": "Avisar a equipe",

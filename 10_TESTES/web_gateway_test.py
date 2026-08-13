@@ -143,15 +143,15 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-voicecal1', html)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-voicecal1', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-n8npack1', html)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-n8npack1', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-voicecal1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-voicecal1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-n8npack1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-n8npack1', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', html)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-voicecal1', html)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-n8npack1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-voicecal1', html)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-n8npack1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -316,6 +316,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(headers.get_content_type(), "text/css")
         self.assertIn(b".voice-presets", voice_calibrator_css)
 
+        status, headers, n8n_template_pack = self.request("/ui/n8n-template-pack.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"whatsapp-lead", n8n_template_pack)
+        self.assertIn(b"github-incident", n8n_template_pack)
+
         status, headers, responsive_css = self.request("/ui/responsive-polish.css")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
@@ -423,17 +429,18 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-voicecal1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-n8npack1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', service_worker)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-voicecal1', service_worker)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-voicecal1', service_worker)
-        self.assertIn(b'/ui/integration-health.js?v=20260813-voicecal1', service_worker)
-        self.assertIn(b'/ui/voice-calibrator.js?v=20260813-voicecal1', service_worker)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-voicecal1', service_worker)
-        self.assertIn(b'/ui/integration-health.css?v=20260813-voicecal1', service_worker)
-        self.assertIn(b'/ui/voice-calibrator.css?v=20260813-voicecal1', service_worker)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-voicecal1', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-n8npack1', service_worker)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-n8npack1', service_worker)
+        self.assertIn(b'/ui/integration-health.js?v=20260813-n8npack1', service_worker)
+        self.assertIn(b'/ui/voice-calibrator.js?v=20260813-n8npack1', service_worker)
+        self.assertIn(b'/ui/n8n-template-pack.js?v=20260813-n8npack1', service_worker)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-n8npack1', service_worker)
+        self.assertIn(b'/ui/integration-health.css?v=20260813-n8npack1', service_worker)
+        self.assertIn(b'/ui/voice-calibrator.css?v=20260813-n8npack1', service_worker)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-n8npack1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -3612,6 +3619,24 @@ São Paulo - SP
         self.assertNotIn("active", payload["workflow"])
         self.assertEqual(payload["workflow"]["settings"]["executionOrder"], "v1")
         self.assertNotRegex(json.dumps(payload["workflow"]), r"api[_-]?key|credential")
+
+    def test_n8n_template_pack_covers_four_real_integrations(self):
+        cases = (
+            ("Receber um lead por webhook e enviar uma resposta pelo WhatsApp", "webhook", "whatsapp"),
+            ("Todo dia montar um resumo organizado e enviar por Gmail", "schedule", "gmail"),
+            ("Receber uma falha de deploy do GitHub por webhook e abrir uma issue de incidente no GitHub", "webhook", "github"),
+            ("Receber dados por webhook, validar os campos e salvar no Supabase", "webhook", "supabase"),
+        )
+        for goal, expected_trigger, expected_provider in cases:
+            with self.subTest(provider=expected_provider):
+                workflow, trigger, plan = MODULE.n8n_workflow_template(goal, "auto", False)
+                self.assertEqual(trigger, expected_trigger)
+                setup = [item for item in plan["required_setup"] if item["provider"] == expected_provider]
+                self.assertTrue(setup)
+                self.assertTrue(setup[0]["fields"])
+                external = [node for node in workflow["nodes"] if node.get("disabled")]
+                self.assertTrue(external)
+                self.assertFalse(plan["ready_to_activate"])
 
     def test_n8n_smart_forge_builds_a_connected_multi_stage_ultron_plan(self):
         payload, status = MODULE.n8n_workflow_action_payload({
