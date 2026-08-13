@@ -603,6 +603,7 @@ def integration_tool_payload(body, owner_authenticated=False):
             "status_real": "integration_tool_unknown",
             "error": "Esta API ainda não possui uma ferramenta verificada.",
             "tools": integration_tool_catalog(),
+            "credential_persisted_server_side": False,
         }, 400
     tool = clean_text(body.get("tool"), 80).casefold()
     if tool != definition["tool"]:
@@ -611,6 +612,7 @@ def integration_tool_payload(body, owner_authenticated=False):
             "endpoint": "POST /integrations/tools",
             "status_real": "integration_tool_refused",
             "error": "A ferramenta solicitada não pertence a este provedor.",
+            "credential_persisted_server_side": False,
         }, 400
     config = client_integration({"client_integrations": {provider: body.get("config") or {}}}, provider)
     api_key = config.get("api_key", "")
@@ -622,6 +624,7 @@ def integration_tool_payload(body, owner_authenticated=False):
             "endpoint": "POST /integrations/tools",
             "status_real": "integration_tool_key_missing",
             "error": "Salve a chave desta API antes de executar a ferramenta.",
+            "credential_persisted_server_side": False,
         }, 400
     try:
         result = None
