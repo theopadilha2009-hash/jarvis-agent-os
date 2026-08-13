@@ -914,7 +914,10 @@
     sendButton.disabled = value;
     voiceButton.disabled = value || !voiceSupport.input;
     attachmentButton.disabled = value;
-    sendButton.textContent = value ? (state === "forge" ? "Construindo…" : state === "memory" ? "Gravando…" : state === "research" ? "Pesquisando…" : "Pensando…") : "Enviar";
+    const busyLabel = state === "forge" ? "Construindo" : state === "memory" ? "Gravando" : state === "research" ? "Pesquisando" : "Pensando";
+    sendButton.textContent = "Enviar";
+    sendButton.toggleAttribute("aria-busy", value);
+    sendButton.setAttribute("aria-label", value ? `${busyLabel}. Aguarde.` : "Enviar pedido");
     settleState();
   }
 

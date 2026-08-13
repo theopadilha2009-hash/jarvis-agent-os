@@ -3070,15 +3070,16 @@ html[data-persona="ultron"] .integrations-button b {
 
 /* ULTRON mode — authenticated identity, red environment and controlled menace. */
 .composer {
-  grid-template-columns: 46px 38px minmax(0, 1fr) 70px auto;
+  grid-template-columns: 46px 38px minmax(112px, 1fr) 58px 74px;
 }
 
 .strength-button {
-  min-width: 70px;
+  min-width: 58px;
   display: grid;
   place-content: center;
-  gap: 1px;
-  padding: 5px 8px;
+  justify-items: center;
+  gap: 0;
+  padding: 3px 6px 4px;
   border: 1px solid rgba(192, 132, 252, 0.34);
   border-radius: 11px;
   background: linear-gradient(145deg, rgba(76, 29, 149, 0.46), rgba(32, 15, 53, 0.78));
@@ -3087,28 +3088,53 @@ html[data-persona="ultron"] .integrations-button b {
   transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
 }
 
-.strength-button span {
-  color: #bca5d2;
-  font: 650 6px ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.strength-gauge {
+  width: 31px;
+  height: 23px;
+  overflow: visible;
+  color: #e9d5ff;
 }
 
+.strength-gauge-track,
+.strength-gauge-ticks,
+.strength-gauge-needle path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.strength-gauge-track { stroke-width: 2.5; opacity: 0.76; }
+.strength-gauge-ticks { stroke-width: 1.3; opacity: 0.38; }
+.strength-gauge-needle {
+  transform: rotate(-28deg);
+  transform-origin: 16px 19px;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.strength-gauge-needle path { stroke-width: 2.7; }
+.strength-gauge-needle circle { fill: currentColor; }
+
 .strength-button b {
-  font-size: 9px;
+  margin-top: -2px;
+  color: #c4b5fd;
+  font: 700 6px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
   font-weight: 700;
+  text-transform: uppercase;
 }
 
 .strength-button[data-strength="strong"] {
   border-color: rgba(216, 180, 254, 0.54);
   background: linear-gradient(145deg, rgba(109, 40, 217, 0.68), rgba(58, 25, 91, 0.84));
 }
+.strength-button[data-strength="strong"] .strength-gauge-needle { transform: rotate(0deg); }
 
 .strength-button[data-strength="maximum"] {
   border-color: rgba(233, 213, 255, 0.7);
   background: linear-gradient(145deg, #7c3aed, #4c1d95);
   box-shadow: 0 8px 22px rgba(109, 40, 217, 0.3), inset 0 1px rgba(255, 255, 255, 0.16);
 }
+.strength-button[data-strength="maximum"] .strength-gauge-needle { transform: rotate(30deg); }
 
 .strength-button:hover,
 .strength-button:focus-visible {
@@ -3338,9 +3364,8 @@ html[data-persona="ultron"] .pulse-button {
 html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
 
 @media (max-width: 720px) {
-  .composer { grid-template-columns: 44px 44px minmax(0, 1fr) 52px 44px; }
-  .strength-button { min-width: 52px; padding-inline: 4px; }
-  .strength-button span { display: none; }
+  .composer { grid-template-columns: 44px 44px minmax(72px, 1fr) 50px 64px; }
+  .strength-button { min-width: 50px; padding-inline: 4px; }
   html[data-persona="ultron"] .conversation,
   html[data-persona="ultron"] .stage.has-conversation .conversation,
   html[data-persona="ultron"] .stage.mobile-chat-expanded .conversation {
@@ -3350,8 +3375,8 @@ html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
 }
 
 @media (max-width: 350px) {
-  .composer { grid-template-columns: 42px 42px minmax(0, 1fr) 48px 42px; }
-  .strength-button { min-width: 48px; }
+  .composer { grid-template-columns: 42px 42px minmax(52px, 1fr) 46px 44px; }
+  .strength-button { min-width: 46px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3625,7 +3650,7 @@ html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
   }
 
   .composer {
-    grid-template-columns: 46px 40px minmax(0, 1fr) auto;
+    grid-template-columns: 46px 40px minmax(150px, 1fr) 58px 76px;
     gap: 7px;
     padding: 12px;
     background: rgba(2, 4, 16, 0.76);
@@ -4034,6 +4059,10 @@ dialog {
 }
 
 .send-button {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
   border-radius: 12px;
   background: linear-gradient(135deg, #9333ea, #7c3aed 52%, #6d28d9);
   color: #fff;
