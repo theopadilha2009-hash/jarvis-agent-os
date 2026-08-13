@@ -4560,11 +4560,11 @@ def elevenlabs_speech(body):
         "seed": 7319,
         "apply_text_normalization": "auto",
         "voice_settings": {
-            "stability": 0.7,
-            "similarity_boost": 0.8,
+            "stability": 0.64,
+            "similarity_boost": 0.82,
             "style": 0.0,
             "use_speaker_boost": False,
-            "speed": 0.94,
+            "speed": 0.93,
         },
     }
     if previous_text:
