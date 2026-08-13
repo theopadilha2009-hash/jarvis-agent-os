@@ -126,6 +126,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("activeFps: 30, idleFps: 18, pixelRatio: 1", self.presence_js)
         self.assertIn("activeFps: 20, idleFps: 10, pixelRatio: 0.75", self.presence_js)
         self.assertIn("document.hidden", self.presence_js)
+        self.assertIn("if (!reducedMotion) scheduleRender(frameIntervalMs)", self.presence_js)
         self.assertNotIn("constrainedHardware", self.presence_js)
         self.assertNotIn("slowFrameWindows", self.presence_js)
 

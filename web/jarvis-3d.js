@@ -849,11 +849,11 @@ async function start() {
   });
 
   function scheduleRender(delay = frameIntervalMs) {
-    if (disposed || reducedMotion || !windowFocused || document.hidden) return;
+    if (disposed || !windowFocused || document.hidden) return;
     window.clearTimeout(animationTimerId);
     animationTimerId = window.setTimeout(() => {
       animationFrameId = requestAnimationFrame(render);
-    }, Math.max(0, delay));
+    }, reducedMotion ? 0 : Math.max(0, delay));
   }
 
   function wakeRender() {
@@ -1004,7 +1004,7 @@ async function start() {
     if (stage.dataset.renderTriangles !== String(renderer.info.render.triangles)) {
       stage.dataset.renderTriangles = String(renderer.info.render.triangles);
     }
-    scheduleRender(frameIntervalMs);
+    if (!reducedMotion) scheduleRender(frameIntervalMs);
   }
 
   render(performance.now());

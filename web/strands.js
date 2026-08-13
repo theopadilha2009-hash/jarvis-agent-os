@@ -194,7 +194,7 @@ const DEFAULT_PROPS = {
 
 /**
  * Vanilla port of React Bits <Strands /> for the JARVIS cockpit.
- * Returns a controller with setProps / setVoiceEnergy / dispose.
+ * Returns a controller with setProps / state / quality / dispose controls.
  */
 export function createStrands(mount, initialProps = {}) {
   if (!mount) return null;
