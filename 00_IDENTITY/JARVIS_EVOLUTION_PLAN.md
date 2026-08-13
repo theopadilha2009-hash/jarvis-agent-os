@@ -24,10 +24,14 @@ JARVIS already has:
 - durable agent runs with confirmation, cancel and retry;
 - local SQLite memory search over confirmed Markdown;
 - an abstract procedural cognitive core with no humanoid anatomy.
+- progressive streamed responses and a visual run history;
+- visual managers for memory, local tasks and reusable browser files;
+- opt-in completion notifications, voice barge-in and a resilient offline outbox;
+- an adaptive PWA shell with static fallback, GPU pause and UI quality budgets.
 
 ## Current focus
 
-Routing, run lifecycle and the cockpit now share a V4 foundation. The next
+Routing, run lifecycle and the cockpit now share a V10 foundation. The next
 increments should migrate remaining legacy command metadata into the shared
 registry and add external adapters one at a time, read-only first.
 

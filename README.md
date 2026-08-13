@@ -12,16 +12,25 @@ web compacto em `web/index.html` e a configuração em `vercel.json`. Ele public
 planejamento e chat opcional sem importar o backend local que escreve arquivos
 ou inicia processos.
 
-### Runtime V4
+### Runtime V10
 
 - A presença visual é um núcleo cognitivo abstrato: cristal, campo e anéis
   orbitais, sem rosto, corpo ou asset humanoide. Em repouso renderiza a 2 FPS
   e não baixa GLB.
-- O cockpit V9 trata a conversa como workspace principal e reduz o núcleo a
+- O cockpit V10 trata a conversa como workspace principal e reduz o núcleo a
   uma presença lateral compacta. A Central Operacional (`⌘K`) pesquisa ações
   reais, o composer aceita múltiplas linhas e anexos também podem ser colados
   ou arrastados. Evidências ficam na resposta, falhas podem ser tentadas de
   novo e nenhum drawer, navegador ou helper abre sozinho.
+- Respostas chegam progressivamente por NDJSON; histórico de runs, memória,
+  fila de tarefas e arquivos reutilizáveis têm gerenciadores visuais. Pedidos
+  offline ficam numa caixa de saída explícita, tarefas em segundo plano podem
+  notificar com opt-in e a voz aceita interrupção imediata.
+- O núcleo 3D é carregado depois da interface e somente em tela/hardware
+  adequados. Em celular, economia de dados ou movimento reduzido, o cockpit usa
+  um núcleo abstrato estático; fora da tela, a renderização pausa por completo.
+  Testes estáticos protegem nomes acessíveis, diálogos, responsividade e o
+  orçamento de assets críticos.
 - `./jarvis web` apenas imprime o endereço. O navegador só abre com
   `./jarvis web --open`.
 - Web e `./jarvis do` compartilham um registro tipado de ações, riscos,

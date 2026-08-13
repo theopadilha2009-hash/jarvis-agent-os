@@ -10,15 +10,16 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260812-v9">
-  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260812-v9" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260812-v9">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260812-v9">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-v10">
+  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260813-v10" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260813-v10">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260813-v10">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
 </head>
 <body>
+  <a class="skip-link" href="#commandInput">Ir direto ao pedido</a>
   <div class="app">
     <header class="topbar">
       <div class="identity">
@@ -132,9 +133,9 @@
     </main>
   </div>
 
-  <dialog id="systemDialog">
+  <dialog id="systemDialog" aria-labelledby="systemDialogTitle">
     <div class="dialog-head">
-      <b>SISTEMA JARVIS</b>
+      <b id="systemDialogTitle">SISTEMA JARVIS</b>
       <button id="closeDialog" type="button" aria-label="Fechar">×</button>
     </div>
     <div class="dialog-grid">
@@ -268,9 +269,9 @@
     </details>
   </aside>
 
-  <dialog id="tourDialog" class="tour-dialog">
+  <dialog id="tourDialog" class="tour-dialog" aria-labelledby="tourDialogTitle">
     <div class="dialog-head">
-      <b>GUIA RÁPIDO</b>
+      <b id="tourDialogTitle">GUIA RÁPIDO</b>
       <button id="closeTour" type="button" aria-label="Fechar guia">×</button>
     </div>
     <div class="tour-grid">
@@ -282,9 +283,9 @@
     <button class="tour-primary" id="tourActionButton" type="button">Ver ações disponíveis</button>
   </dialog>
 
-  <dialog id="installDialog" class="install-dialog">
+  <dialog id="installDialog" class="install-dialog" aria-labelledby="installDialogTitle">
     <div class="dialog-head">
-      <b>JARVIS NO CELULAR</b>
+      <b id="installDialogTitle">JARVIS NO CELULAR</b>
       <button id="closeInstallDialog" type="button" aria-label="Fechar instalação">×</button>
     </div>
     <div class="install-guide">
@@ -294,14 +295,31 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260812-v9" defer></script>
+  <script src="/ui/jarvis.js?v=20260813-v10" defer></script>
   <script type="module">
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260812-v9");
+    const stage = document.getElementById("stage");
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const capableViewport = window.matchMedia("(min-width: 721px)").matches;
+    const acceptsMotion = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const capableHardware = (!navigator.deviceMemory || navigator.deviceMemory >= 4)
+      && (!navigator.hardwareConcurrency || navigator.hardwareConcurrency >= 4);
+    const canLoadPresence = capableViewport && acceptsMotion && capableHardware && !connection?.saveData;
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260813-v10").catch(() => {
+      stage.classList.add("model-lite", "model-ready");
+      stage.dataset.renderProfile = "static-fallback";
+      document.getElementById("presenceValue").textContent = "Núcleo visual leve · GPU indisponível";
+    });
     const schedulePresence = () => {
+      if (!canLoadPresence) {
+        stage.classList.add("model-lite", "model-ready");
+        stage.dataset.renderProfile = "static-lite";
+        document.getElementById("presenceValue").textContent = "Núcleo visual leve · sem GPU contínua";
+        return;
+      }
       if ("requestIdleCallback" in window) {
-        window.requestIdleCallback(loadPresence, { timeout: 700 });
+        window.requestIdleCallback(loadPresence, { timeout: 1200 });
       } else {
-        window.setTimeout(loadPresence, 200);
+        window.setTimeout(loadPresence, 350);
       }
     };
     if (document.readyState === "complete") schedulePresence();

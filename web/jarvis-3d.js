@@ -466,7 +466,7 @@ async function start() {
   renderer.domElement.style.inset = "0";
   renderer.domElement.style.zIndex = "1";
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(compactViewport || constrainedHardware ? 1 : Math.min(window.devicePixelRatio || 1, 1.35));
+  renderer.setPixelRatio(compactViewport || constrainedHardware ? 1 : Math.min(window.devicePixelRatio || 1, 1.25));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.92;
@@ -596,7 +596,7 @@ async function start() {
     camera.updateProjectionMatrix();
     layoutScale = Math.min(1, Math.max(0.58, camera.aspect * 1.25));
     renderer.setSize(canvasWidth, canvasHeight, false);
-    const density = Math.min(window.devicePixelRatio || 1, 1.5);
+    const density = Math.min(window.devicePixelRatio || 1, 1.25);
     effectCanvas.width = Math.round(canvasWidth * density);
     effectCanvas.height = Math.round(canvasHeight * density);
     effectCanvas.style.width = `${canvasWidth}px`;
@@ -626,21 +626,26 @@ async function start() {
   let animationFrameId = 0;
   let animationTimerId = 0;
   let disposed = false;
+  let mountVisible = true;
+  let visibilityObserver = null;
   let lastRenderTargetFps = 0;
   let lastRenderProfile = "";
   const modeBlend = { core: 0, forge: 0, memory: 0, voice: 0 };
 
   const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "voice", "speaking", "preview", "memory", "local"]);
   function requestedTargetFps() {
+    if (document.hidden || !mountVisible) return 0;
     if (!windowFocused) return BACKGROUND_TARGET_FPS;
     return activeStates.has(visualState) ? ACTIVE_TARGET_FPS : IDLE_TARGET_FPS;
   }
 
   function updateRenderBudget() {
     const requestedFps = requestedTargetFps();
-    const targetFps = Math.max(1, Math.min(requestedFps, adaptiveMaxFps));
-    frameIntervalMs = 1000 / targetFps;
-    const profile = !windowFocused
+    const targetFps = requestedFps === 0 ? 0 : Math.max(1, Math.min(requestedFps, adaptiveMaxFps));
+    frameIntervalMs = targetFps === 0 ? 1000 : 1000 / targetFps;
+    const profile = targetFps === 0
+      ? "paused"
+      : !windowFocused
       ? `background-${targetFps}fps`
       : targetFps < requestedFps
         ? `adaptive-lite-${targetFps}fps`
@@ -667,7 +672,7 @@ async function start() {
   updateRenderBudget();
 
   function scheduleRender(delay = frameIntervalMs) {
-    if (disposed || reducedMotion) return;
+    if (disposed || reducedMotion || document.hidden || !mountVisible) return;
     window.clearTimeout(animationTimerId);
     animationTimerId = window.setTimeout(() => {
       animationFrameId = requestAnimationFrame(render);
@@ -675,19 +680,28 @@ async function start() {
   }
 
   function wakeRender() {
+    window.clearTimeout(animationTimerId);
+    cancelAnimationFrame(animationFrameId);
     previousFrameMs = 0;
+    updateRenderBudget();
     scheduleRender(0);
   }
 
   window.addEventListener("jarvis-state", wakeRender);
   document.addEventListener("visibilitychange", wakeRender);
+  if ("IntersectionObserver" in window) {
+    visibilityObserver = new IntersectionObserver((entries) => {
+      mountVisible = entries.some((entry) => entry.isIntersecting && entry.intersectionRatio > 0);
+      wakeRender();
+    }, { threshold: 0.01 });
+    visibilityObserver.observe(mount);
+  }
 
   function render(timeMs) {
     if (disposed) return;
     updateRenderBudget();
-    if (document.hidden) {
+    if (document.hidden || !mountVisible) {
       previousFrameMs = timeMs;
-      scheduleRender(1000);
       return;
     }
     const deltaSeconds = previousFrameMs ? Math.min((timeMs - previousFrameMs) / 1000, 0.1) : 0;
@@ -801,6 +815,7 @@ async function start() {
     window.removeEventListener("jarvis-state", wakeRender);
     document.removeEventListener("visibilitychange", wakeRender);
     resizeObserver.disconnect();
+    visibilityObserver?.disconnect();
     const disposedTextures = new Set();
     model.traverse((object) => {
       if (!object.isMesh) return;

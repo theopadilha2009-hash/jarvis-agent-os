@@ -69,6 +69,25 @@ summary:focus-visible {
 
 [hidden] { display: none !important; }
 
+.skip-link {
+  position: fixed;
+  z-index: 1000;
+  top: 10px;
+  left: 10px;
+  padding: 10px 14px;
+  transform: translateY(-180%);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  color: var(--ink-0);
+  background: var(--accent-hot);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: transform 140ms ease;
+}
+
+.skip-link:focus { transform: translateY(0); }
+
 .app {
   height: var(--jarvis-viewport-height, 100dvh);
   display: grid;
@@ -332,6 +351,28 @@ summary:focus-visible {
   border-radius: 16%;
   background: radial-gradient(circle, color-mix(in srgb, var(--state) 24%, transparent), transparent 52%);
   box-shadow: 0 0 70px color-mix(in srgb, var(--state) 10%, transparent);
+}
+
+.model-lite .avatar::before {
+  content: "NÚCLEO LEVE";
+  visibility: visible;
+  opacity: 0.72;
+}
+
+.model-lite .avatar::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: min(16vw, 150px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border: 1px solid color-mix(in srgb, var(--state) 32%, transparent);
+  border-radius: 22%;
+  background:
+    radial-gradient(circle at 38% 35%, color-mix(in srgb, white 18%, transparent), transparent 17%),
+    radial-gradient(circle, color-mix(in srgb, var(--state) 22%, transparent), transparent 62%);
+  box-shadow: 0 0 60px color-mix(in srgb, var(--state) 12%, transparent);
 }
 
 .avatar canvas { display: block; width: 100%; height: 100%; }
