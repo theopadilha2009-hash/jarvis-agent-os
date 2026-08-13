@@ -11,6 +11,7 @@ WEB = ROOT / "web"
 INDEX = WEB / "index.html"
 CSS = WEB / "jarvis.css"
 UI_REPAIR_CSS = WEB / "ui-repair.css"
+API_PANEL_CSS = WEB / "api-panel.css"
 LOGO_FILTER = WEB / "logo-filter.svg"
 APP_JS = WEB / "jarvis.js"
 API_VAULT_JS = WEB / "api-vault.js"
@@ -55,6 +56,7 @@ class UIQualityTest(unittest.TestCase):
         cls.html = INDEX.read_text(encoding="utf-8")
         cls.css = CSS.read_text(encoding="utf-8")
         cls.ui_repair_css = UI_REPAIR_CSS.read_text(encoding="utf-8")
+        cls.api_panel_css = API_PANEL_CSS.read_text(encoding="utf-8")
         cls.logo_filter = LOGO_FILTER.read_text(encoding="utf-8")
         cls.app_js = APP_JS.read_text(encoding="utf-8")
         cls.api_vault_js = API_VAULT_JS.read_text(encoding="utf-8")
@@ -148,6 +150,10 @@ class UIQualityTest(unittest.TestCase):
             "integrationToolFields",
             "integrationToolRunButton",
             "integrationToolResult",
+            "integrationTabs",
+            "integrationConnectionPanel",
+            "integrationToolsPanel",
+            "integrationWorkflowsPanel",
             "n8nStudio",
             "n8nWorkflowMap",
             "n8nWorkflowSummary",
@@ -162,18 +168,25 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('request("/integrations/test"', self.app_js)
         self.assertIn('request("/integrations/tools"', self.app_js)
         self.assertIn('request("/integrations/n8n/workflows"', self.app_js)
-        self.assertIn("integration-toolbox", self.css)
+        self.assertIn("integration-toolbox", self.api_panel_css)
         self.assertIn("external_write", self.app_js)
         self.assertIn('document.createElement("article")', self.app_js)
-        self.assertIn("n8n-map-node", self.css)
-        self.assertIn("n8n-map-connector", self.css)
+        self.assertIn("n8n-map-node", self.api_panel_css)
+        self.assertIn("n8n-map-connector", self.api_panel_css)
         self.assertIn("ULTRON · 3×", self.app_js)
+        self.assertIn('data-integration-tab="connection"', self.html)
+        self.assertIn('data-integration-tab="tools"', self.html)
+        self.assertIn('data-integration-tab="workflows"', self.html)
+        self.assertIn("window.JarvisIntegrationTabs", self.api_vault_js)
+        self.assertIn("ArrowRight", self.api_vault_js)
+        self.assertIn("integration-actions-sticky", self.api_panel_css)
 
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
         self.assertLess(critical_bytes, 250 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
         self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
         self.assertLess(UI_REPAIR_CSS.stat().st_size, 8 * 1024)
+        self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
         self.assertLess(PRESENCE_JS.stat().st_size, 64 * 1024)
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
@@ -220,8 +233,9 @@ class UIQualityTest(unittest.TestCase):
 
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
-        self.assertGreaterEqual(self.html.count("20260813-apitools1"), 5)
-        self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 5)
+        self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
+        self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 4)
+        self.assertGreaterEqual(self.html.count("20260813-apiux1"), 4)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)

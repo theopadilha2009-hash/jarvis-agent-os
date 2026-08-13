@@ -155,6 +155,47 @@
   Object.freeze(vault);
   window.JarvisApiVault = vault;
 
+  const integrationTabs = [...document.querySelectorAll("[data-integration-tab]")];
+  const integrationPanels = [...document.querySelectorAll("[data-integration-panel]")];
+  let activeIntegrationTab = "connection";
+
+  function selectIntegrationTab(requested, focus = false) {
+    const workflowTab = integrationTabs.find((tab) => tab.dataset.integrationTab === "workflows");
+    const name = requested === "workflows" && workflowTab?.hidden ? "connection" : requested;
+    if (!integrationTabs.some((tab) => tab.dataset.integrationTab === name)) return;
+    activeIntegrationTab = name;
+    integrationTabs.forEach((tab) => {
+      const selected = tab.dataset.integrationTab === name;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      if (selected && focus) tab.focus();
+    });
+    integrationPanels.forEach((panel) => { panel.hidden = panel.dataset.integrationPanel !== name; });
+    document.querySelector(".integration-editor")?.scrollTo({ top: 0, behavior: focus ? "smooth" : "auto" });
+  }
+
+  integrationTabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => selectIntegrationTab(tab.dataset.integrationTab));
+    tab.addEventListener("keydown", (event) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault();
+      const visible = integrationTabs.filter((item) => !item.hidden);
+      const current = visible.indexOf(tab);
+      const direction = event.key === "ArrowRight" ? 1 : -1;
+      selectIntegrationTab(visible[(current + direction + visible.length) % visible.length].dataset.integrationTab, true);
+    });
+  });
+
+  window.JarvisIntegrationTabs = Object.freeze({
+    select: selectIntegrationTab,
+    provider(provider) {
+      const workflowTab = integrationTabs.find((tab) => tab.dataset.integrationTab === "workflows");
+      if (workflowTab) workflowTab.hidden = provider !== "n8n";
+      selectIntegrationTab(activeIntegrationTab);
+    },
+  });
+  selectIntegrationTab(activeIntegrationTab);
+
   const missionHub = document.getElementById("actionHub");
   const loadMissionControl = () => import("/ui/mission-control.js?v=20260813-missions1").catch(() => null);
   document.getElementById("actionHubButton")?.addEventListener("click", loadMissionControl, { once: true });
