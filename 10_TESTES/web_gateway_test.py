@@ -142,10 +142,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-space2', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-space2', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-space2', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-space2', html)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human3', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-human3', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-human3', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-human3', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -307,6 +307,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"visitor-mesh-derived-dissolution", visual_js)
         self.assertNotIn(b"TubeGeometry", visual_js)
         self.assertIn(b"visitor-real-eye", visual_js)
+        self.assertIn(b"makeIrisTexture", visual_js)
+        self.assertIn(b"jarvisPoseHead", visual_js)
         self.assertIn(b"male_head_topology.obj", visual_js)
         self.assertNotIn(b"TetrahedronGeometry", visual_js)
         self.assertNotIn(b"new THREE.CircleGeometry(0.06, 3)", visual_js)
@@ -360,8 +362,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-space2", service_worker)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-space2', service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-human3", service_worker)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human3', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -2793,6 +2795,35 @@ São Paulo - SP
         self.assertNotIn("Reformule", message)
         self.assertNotIn("instruções internas", message)
         self.assertIn("Preservei seu pedido", message)
+
+    def test_casual_reply_strips_provider_meta_preface_and_keeps_final_quote(self):
+        clean, leaked = MODULE.sanitize_model_output(
+            'User said "oi". So respond with something like "Oi, Theo. Tudo bem."'
+        )
+        self.assertTrue(leaked)
+        self.assertEqual(clean, "Oi, Theo. Tudo bem.")
+
+    def test_casual_assistant_never_delivers_provider_meta_preface(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": 'User said "oi". So respond with something like "Oi, Theo. Tudo bem."'}}],
+                }).encode("utf-8")
+
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "urlopen", return_value=FakeResponse()
+        ):
+            payload, status = MODULE.assistant_response({"command": "oi"})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["message"], "Oi, Theo. Tudo bem.")
+        self.assertTrue(payload["meta_leak_recovered"])
 
     def test_secret_like_prompt_is_refused(self):
         fake = "sk-" + "or-" + "v1-" + ("x" * 20)

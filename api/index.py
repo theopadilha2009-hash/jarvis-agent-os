@@ -4823,8 +4823,8 @@ def concise_assistant_content(value, detailed=False):
 
 
 MODEL_META_LINE = re.compile(
-    r"(?i)(?:^|\b)(?:we need to respond|we should respond|the user (?:said|says|asks)|"
-    r"they ask(?:ed)?|respond as jarvis|answer in portuguese|under \d+ words|"
+    r"(?i)(?:^|\b)(?:we need to respond|we should respond|(?:the\s+)?user (?:said|says|asks)|"
+    r"they ask(?:ed)?|so (?:respond|answer)|respond (?:as|with)|something like|answer in portuguese|under \d+ words|"
     r"no intro|no filler|internal (?:reasoning|instructions)|system prompt)\b"
 )
 
@@ -4841,6 +4841,11 @@ def sanitize_model_output(value):
     for line in content.splitlines():
         if MODEL_META_LINE.search(line):
             leaked = True
+            quoted = re.findall(r'["“]([^"”\n]{2,600})["”]', line)
+            if len(quoted) >= 2 or (quoted and re.search(r"\b(?:respond|answer)\b", line, re.I)):
+                candidate = clean_text(quoted[-1], 600)
+                if candidate and not MODEL_META_LINE.search(candidate):
+                    kept.append(candidate)
             continue
         kept.append(line)
     content = "\n".join(kept).strip()
