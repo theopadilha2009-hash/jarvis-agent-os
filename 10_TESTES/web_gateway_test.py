@@ -142,11 +142,11 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-composer1', html)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-composer1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-composer1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-composer1', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-composer1', html)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-smartforge1', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-smartforge1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-smartforge1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-smartforge1', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-smartforge1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -373,9 +373,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-composer1", service_worker)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-composer1', service_worker)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-composer1', service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-smartforge1", service_worker)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-smartforge1', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-smartforge1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -3093,6 +3093,73 @@ São Paulo - SP
         self.assertEqual(payload["workflow"]["settings"]["executionOrder"], "v1")
         self.assertNotRegex(json.dumps(payload["workflow"]), r"api[_-]?key|credential")
 
+    def test_n8n_smart_forge_builds_a_connected_multi_stage_ultron_plan(self):
+        payload, status = MODULE.n8n_workflow_action_payload({
+            "action": "preview",
+            "goal": "todo dia buscar leads no Supabase, se tiver novos resumir com OpenAI e avisar no WhatsApp",
+            "template": "auto",
+        }, owner_authenticated=True)
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["template"], "schedule")
+        workflow = payload["workflow"]
+        plan = payload["plan"]
+        self.assertEqual(plan["protocol"], "jarvis-n8n-plan/1")
+        self.assertEqual(plan["planner"], "bounded_natural_language")
+        self.assertGreaterEqual(len(workflow["nodes"]), 8)
+        self.assertLessEqual(len(workflow["nodes"]), 18)
+        self.assertEqual(plan["node_count"], len(workflow["nodes"]))
+        self.assertFalse(plan["ready_to_activate"])
+        self.assertTrue(plan["safety"]["credential_nodes_disabled"])
+
+        node_types = {node["type"] for node in workflow["nodes"]}
+        self.assertIn("n8n-nodes-base.scheduleTrigger", node_types)
+        self.assertIn("n8n-nodes-base.if", node_types)
+        self.assertIn("n8n-nodes-base.httpRequest", node_types)
+        external_nodes = [node for node in workflow["nodes"] if node["type"] == "n8n-nodes-base.httpRequest"]
+        self.assertEqual(len(external_nodes), 3)
+        self.assertTrue(all(node.get("disabled") is True for node in external_nodes))
+        self.assertEqual(
+            {item["provider"] for item in plan["required_setup"]},
+            {"supabase", "openrouter", "whatsapp"},
+        )
+
+        node_names = {node["name"] for node in workflow["nodes"]}
+        for source, outputs in workflow["connections"].items():
+            self.assertIn(source, node_names)
+            for branch in outputs["main"]:
+                for connection in branch:
+                    self.assertIn(connection["node"], node_names)
+        serialized = json.dumps(workflow).casefold()
+        self.assertNotIn("credentials", serialized)
+        self.assertNotIn("api_key", serialized)
+        self.assertNotIn("sk-or-", serialized)
+
+    def test_n8n_smart_forge_respects_jarvis_six_node_budget(self):
+        payload, status = MODULE.n8n_workflow_action_payload({
+            "action": "preview",
+            "goal": "se chegar um lead salve no Supabase, analise com OpenAI, envie Gmail, WhatsApp e Slack",
+            "template": "webhook",
+        }, owner_authenticated=False)
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["plan"]["source"], "JARVIS")
+        self.assertLessEqual(payload["plan"]["node_count"], 6)
+        self.assertEqual(payload["plan"]["node_count"], len(payload["workflow"]["nodes"]))
+        self.assertTrue(payload["plan"]["omitted_actions"])
+        self.assertEqual(payload["power_profile"]["max_workflow_nodes"], 6)
+
+    def test_n8n_smart_forge_refuses_a_secret_inside_the_goal(self):
+        fake_secret = "".join(("sk", "-or-v1-", "placeholder" * 3))
+        payload, status = MODULE.n8n_workflow_action_payload({
+            "action": "preview",
+            "goal": f"use esta chave {fake_secret} para chamar a API",
+        }, owner_authenticated=True)
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["status_real"], "n8n_workflow_goal_refused")
+        self.assertNotIn("sk-or-v1", json.dumps(payload))
+
     def test_n8n_create_uses_official_api_and_keeps_workflow_inactive(self):
         captured = {}
 
@@ -3115,6 +3182,7 @@ São Paulo - SP
         self.assertEqual(captured["url"], "https://theo.app.n8n.cloud/api/v1/workflows")
         self.assertEqual(captured["method"], "POST")
         self.assertEqual(captured["headers"]["X-N8N-API-KEY"], "n8n-secret")
+        self.assertEqual(set(captured["body"]), {"name", "nodes", "connections", "settings"})
         self.assertNotIn("active", captured["body"])
         self.assertNotIn("n8n-secret", json.dumps(payload))
 

@@ -349,34 +349,82 @@
   }
 
   function renderN8nWorkflowResult(data) {
-    const target = byId("n8nWorkflowPreview");
+    const map = byId("n8nWorkflowMap");
+    const summary = byId("n8nWorkflowSummary");
+    const clearMap = () => map?.replaceChildren();
+    const renderMap = (plan, workflow) => {
+      clearMap();
+      const stages = Array.isArray(plan?.stages)
+        ? plan.stages
+        : Array.isArray(workflow?.nodes)
+          ? workflow.nodes.map((node) => ({ label: node.name, kind: "node", description: node.type, status: node.disabled ? "needs_setup" : "ready" }))
+          : [];
+      stages.forEach((stage, index) => {
+        const node = document.createElement("article");
+        node.className = "n8n-map-node";
+        node.dataset.status = stage.status || "ready";
+        const order = document.createElement("small");
+        order.textContent = String(index + 1).padStart(2, "0");
+        const name = document.createElement("strong");
+        name.textContent = stage.label || "Etapa";
+        const description = document.createElement("span");
+        description.textContent = stage.description || stage.kind || "etapa do workflow";
+        const state = document.createElement("em");
+        state.textContent = stage.requires_setup || stage.disabled ? "configurar" : stage.status === "review" ? "revisar" : "pronto";
+        node.append(order, name, description, state);
+        map?.appendChild(node);
+        if (index < stages.length - 1) {
+          const connector = document.createElement("i");
+          connector.className = "n8n-map-connector";
+          connector.setAttribute("aria-hidden", "true");
+          map?.appendChild(connector);
+        }
+      });
+    };
+    const planSummary = (plan, prefix = "PREVIEW") => {
+      if (!plan) return prefix;
+      const setup = Array.isArray(plan.required_setup) && plan.required_setup.length
+        ? `Configurar antes de ativar: ${plan.required_setup.map((item) => item.label).join(", ")}.`
+        : "Nenhuma credencial externa exigida neste rascunho.";
+      const omitted = Array.isArray(plan.omitted_actions) && plan.omitted_actions.length
+        ? ` Limite ${plan.source}: ficaram para outro fluxo: ${plan.omitted_actions.join(", ")}.`
+        : "";
+      return `${prefix} · ${plan.node_count} nós · gatilho ${plan.trigger}.\n${setup}${omitted}\nAtivação bloqueada até revisão e teste manual.`;
+    };
     if (!data?.ok) {
-      target.textContent = data?.error || "O n8n não confirmou a operação.";
+      clearMap();
+      summary.textContent = data?.error || "O n8n não confirmou a operação.";
       return;
     }
     if (Array.isArray(data.workflow_previews)) {
-      target.textContent = data.workflow_previews.map((item, index) => (
-        `${index + 1}. ${item.name}\n${item.nodes.length} nós · template ${item.template} · PREVIEW`
+      const primary = data.workflow_previews[0];
+      renderMap(primary?.plan, primary);
+      summary.textContent = data.workflow_previews.map((item, index) => (
+        `${index + 1}. ${item.name}\n${planSummary(item.plan)}`
       )).join("\n\n");
       return;
     }
     if (data.provider === "n8n" && data.status_real?.includes("created_inactive") && Array.isArray(data.workflows)) {
-      target.textContent = data.workflows.map((item, index) => (
-        `${index + 1}. INATIVO · ${item.name}${item.editor_url ? `\n${item.editor_url}` : ""}`
+      renderMap(data.workflow?.plan || data.plan, data.workflow);
+      summary.textContent = data.workflows.map((item, index) => (
+        `${index + 1}. INATIVO · ${item.name}${item.editor_url ? `\n${item.editor_url}` : ""}\n${planSummary(item.plan, "CRIADO")}`
       )).join("\n\n");
       return;
     }
     if (Array.isArray(data.workflows)) {
-      target.textContent = data.workflows.length
+      clearMap();
+      summary.textContent = data.workflows.length
         ? data.workflows.map((item) => `${item.active ? "ATIVO" : "INATIVO"} · ${item.name} · ${item.id}`).join("\n")
         : "Nenhum workflow encontrado.";
       return;
     }
     if (data.workflow?.nodes && Array.isArray(data.workflow.nodes)) {
-      target.textContent = `${data.workflow.name}\n${data.workflow.nodes.length} nós · template ${data.template}\nPREVIEW · nada enviado ao n8n`;
+      renderMap(data.plan, data.workflow);
+      summary.textContent = `${data.workflow.name}\n${planSummary(data.plan)}\nNada foi enviado ao n8n.`;
       return;
     }
-    target.textContent = `${data.message || "Workflow criado."}${data.workflow?.editor_url ? `\n${data.workflow.editor_url}` : ""}`;
+    clearMap();
+    summary.textContent = `${data.message || "Workflow criado."}${data.workflow?.editor_url ? `\n${data.workflow.editor_url}` : ""}`;
   }
 
   async function runN8nWorkflowAction(action) {
@@ -390,7 +438,8 @@
     const config = await apiVault().get("n8n") || {};
     const button = byId(action === "preview" ? "n8nPreviewButton" : action === "list" ? "n8nListButton" : "n8nCreateButton");
     button.disabled = true;
-    byId("n8nWorkflowPreview").textContent = action === "create" ? "Criando workflow inativo…" : "Consultando n8n…";
+    byId("n8nWorkflowMap")?.replaceChildren();
+    byId("n8nWorkflowSummary").textContent = action === "create" ? "Criando workflow inativo…" : "Consultando n8n…";
     try {
       const data = await request("/integrations/n8n/workflows", {
         method: "POST",

@@ -10,10 +10,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-<link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-composer1">
-<link rel="icon" href="/ui/jarvis-logo.png?v=20260813-composer1" type="image/png">
-<link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-composer1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-composer1">
+<link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-smartforge1">
+<link rel="icon" href="/ui/jarvis-logo.png?v=20260813-smartforge1" type="image/png">
+<link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-smartforge1">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-smartforge1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
@@ -24,7 +24,7 @@
     <header class="topbar">
       <div class="identity">
         <span class="identity-mark" aria-hidden="true">
-<img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-composer1" alt="">
+<img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-smartforge1" alt="">
         </span>
         <span class="identity-name"><b id="identityAssistantName">JARVIS</b><small>para Theo</small></span>
       </div>
@@ -286,7 +286,10 @@
             <button type="button" id="n8nListButton">Meus workflows</button>
           </div>
           <small class="n8n-power-hint">No Ultron, separe até 3 workflows com <b>||</b>. Ex.: captar lead || avisar no Slack || salvar no banco.</small>
-          <div class="n8n-workflow-preview" id="n8nWorkflowPreview">Descreva um fluxo. O JARVIS monta 1×; no modo Ultron o orçamento operacional sobe para 3×.</div>
+          <div class="n8n-workflow-preview" id="n8nWorkflowPreview">
+            <div class="n8n-workflow-map" id="n8nWorkflowMap" aria-label="Mapa visual do workflow"></div>
+            <div class="n8n-workflow-summary" id="n8nWorkflowSummary">Descreva um fluxo. O JARVIS monta 1×; no modo Ultron o orçamento operacional sobe para 3×.</div>
+          </div>
         </section>
       </section>
     </div>
@@ -340,8 +343,8 @@
     </div>
   </dialog>
 
-<script src="/ui/api-vault.js?v=20260813-composer1" defer></script>
-<script src="/ui/jarvis.js?v=20260813-composer1" defer></script>
+<script src="/ui/api-vault.js?v=20260813-smartforge1" defer></script>
+<script src="/ui/jarvis.js?v=20260813-smartforge1" defer></script>
   <script type="module">
     let presenceScheduled = false;
 
@@ -357,9 +360,9 @@
 
     const loadPresence = async () => {
       const [auroraModule, strandsModule] = await Promise.all([
-import("/ui/aurora.js?v=20260813-composer1"),
-import("/ui/strands.js?v=20260813-composer1"),
-import("/ui/jarvis-3d.js?v=20260813-composer1"),
+import("/ui/aurora.js?v=20260813-smartforge1"),
+import("/ui/strands.js?v=20260813-smartforge1"),
+import("/ui/jarvis-3d.js?v=20260813-smartforge1"),
       ]);
       const initialPalette = paletteForPersona();
       const aurora = auroraModule.createAurora(document.getElementById("auroraVisual"), {

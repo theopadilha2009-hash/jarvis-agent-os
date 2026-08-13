@@ -521,18 +521,68 @@ def integration_test_payload(body, owner_authenticated=False):
         }, 400
 
 
+N8N_SMART_ACTIONS = (
+    {
+        "kind": "supabase",
+        "pattern": r"\b(?:supabase|banco de dados|database|salvar no banco|gravar no banco)\b",
+        "label": "Gravar no Supabase",
+        "description": "Persistir os dados tratados em uma tabela.",
+        "provider": "supabase",
+        "setup_fields": ["URL do projeto", "tabela", "credencial Supabase no n8n"],
+        "url": "https://PROJECT.supabase.co/rest/v1/TABLE",
+    },
+    {
+        "kind": "ai",
+        "pattern": r"\b(?:openai|openrouter|chatgpt|intelig[eê]ncia artificial|resumir|classificar|analisar com ia)\b",
+        "label": "Processar com IA",
+        "description": "Enviar o conteúdo para classificação ou síntese por IA.",
+        "provider": "openrouter",
+        "setup_fields": ["modelo", "credencial do provedor no n8n", "prompt final"],
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+    },
+    {
+        "kind": "gmail",
+        "pattern": r"\b(?:gmail|e-?mail|correio eletr[oô]nico)\b",
+        "label": "Enviar e-mail",
+        "description": "Preparar uma mensagem pelo Gmail com o resultado do fluxo.",
+        "provider": "gmail",
+        "setup_fields": ["conta Gmail no n8n", "destinatário", "assunto"],
+    },
+    {
+        "kind": "whatsapp",
+        "pattern": r"\b(?:whatsapp|wpp|zap)\b",
+        "label": "Enviar WhatsApp",
+        "description": "Enviar uma mensagem pela API oficial do WhatsApp Cloud.",
+        "provider": "whatsapp",
+        "setup_fields": ["Phone Number ID", "destinatário", "credencial WhatsApp no n8n"],
+        "url": "https://graph.facebook.com/vXX.X/PHONE_NUMBER_ID/messages",
+    },
+    {
+        "kind": "slack",
+        "pattern": r"\b(?:slack|discord|canal da equipe)\b",
+        "label": "Avisar a equipe",
+        "description": "Publicar o resultado em um canal de comunicação.",
+        "provider": "slack",
+        "setup_fields": ["canal", "credencial Slack ou webhook no n8n"],
+        "url": "https://slack.com/api/chat.postMessage",
+    },
+)
+
+
 def n8n_workflow_template(goal, template="auto", owner_authenticated=False):
-    """Build a small credential-free workflow accepted by n8n's public API."""
+    """Build a bounded multi-stage draft from natural language without embedding credentials."""
     clean_goal = clean_text(goal, 1_000) or "Automação criada pelo JARVIS"
+    if has_secret_like_text(clean_goal):
+        raise ValueError("O objetivo parece conter uma credencial. Remova o segredo antes de montar o workflow.")
     requested = clean_text(template, 40).casefold()
     if requested not in {"auto", "manual", "webhook", "schedule"}:
         requested = "auto"
     if requested == "auto":
         requested = (
-            "webhook"
-            if re.search(r"\b(?:webhook|lead|formul[aá]rio|receb(?:e|er)|entrada|whatsapp)\b", clean_goal, re.I)
-            else "schedule"
-            if re.search(r"\b(?:todo dia|di[aá]ri[oa]|agenda|hor[aá]ri[oa]|schedule|cron|semanal)\b", clean_goal, re.I)
+            "schedule"
+            if re.search(r"\b(?:todo dia|di[aá]ri[oa]|agenda|hor[aá]ri[oa]|schedule|cron|semanal|todo m[eê]s)\b", clean_goal, re.I)
+            else "webhook"
+            if re.search(r"\b(?:webhook|formul[aá]rio|receb(?:e|er)|entrada|quando chegar|novo lead)\b", clean_goal, re.I)
             else "manual"
         )
     slug = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", clean_goal).encode("ascii", "ignore").decode().lower()).strip("-")[:48]
@@ -540,8 +590,31 @@ def n8n_workflow_template(goal, template="auto", owner_authenticated=False):
     digest = hashlib.sha256(f"{requested}:{clean_goal}".encode("utf-8")).hexdigest()
 
     def node_id(index):
-        raw = digest[index * 8:(index + 1) * 8]
-        return f"jarvis-{raw or index}"
+        raw = hashlib.sha256(f"{digest}:{index}".encode("utf-8")).hexdigest()[:12]
+        return f"jarvis-{raw}"
+
+    def set_node(name, assignments, index):
+        return {
+            "id": node_id(index),
+            "name": name,
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [0, 0],
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": node_id(100 + index * 10 + assignment_index),
+                            "name": field,
+                            "value": value,
+                            "type": field_type,
+                        }
+                        for assignment_index, (field, value, field_type) in enumerate(assignments)
+                    ]
+                },
+                "options": {},
+            },
+        }
 
     source = "ULTRON" if owner_authenticated else "JARVIS"
     if requested == "webhook":
@@ -551,7 +624,7 @@ def n8n_workflow_template(goal, template="auto", owner_authenticated=False):
             "name": trigger_name,
             "type": "n8n-nodes-base.webhook",
             "typeVersion": 2,
-            "position": [-320, 0],
+            "position": [0, 0],
             "parameters": {
                 "httpMethod": "POST",
                 "path": f"jarvis-{slug}",
@@ -566,7 +639,7 @@ def n8n_workflow_template(goal, template="auto", owner_authenticated=False):
             "name": trigger_name,
             "type": "n8n-nodes-base.scheduleTrigger",
             "typeVersion": 1.2,
-            "position": [-320, 0],
+            "position": [0, 0],
             "parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 24}]}},
         }
     else:
@@ -576,38 +649,230 @@ def n8n_workflow_template(goal, template="auto", owner_authenticated=False):
             "name": trigger_name,
             "type": "n8n-nodes-base.manualTrigger",
             "typeVersion": 1,
-            "position": [-320, 0],
+            "position": [0, 0],
             "parameters": {},
         }
-    prepare_name = "Preparar contexto"
-    prepare = {
-        "id": node_id(1),
-        "name": prepare_name,
-        "type": "n8n-nodes-base.set",
-        "typeVersion": 3.4,
-        "position": [-40, 0],
-        "parameters": {
-            "assignments": {
-                "assignments": [
-                    {"id": node_id(2), "name": "jarvis_source", "value": source, "type": "string"},
-                    {"id": node_id(3), "name": "objective", "value": clean_goal, "type": "string"},
-                    {"id": node_id(4), "name": "status", "value": "draft_inactive", "type": "string"},
-                ]
+    nodes = [trigger]
+    stages = [{
+        "id": trigger["id"],
+        "label": trigger_name,
+        "kind": "trigger",
+        "description": {
+            "webhook": "Inicia quando dados chegam por uma URL do n8n.",
+            "schedule": "Inicia automaticamente no intervalo configurado.",
+            "manual": "Inicia apenas quando você executar o workflow.",
+        }[requested],
+        "status": "ready",
+        "requires_setup": False,
+    }]
+
+    prepare = set_node("Preparar contexto", [
+        ("jarvis_source", source, "string"),
+        ("objective", clean_goal, "string"),
+        ("status", "draft_inactive", "string"),
+    ], 1)
+    nodes.append(prepare)
+    stages.append({
+        "id": prepare["id"],
+        "label": prepare["name"],
+        "kind": "prepare",
+        "description": "Registra objetivo, origem e estado seguro do rascunho.",
+        "status": "ready",
+        "requires_setup": False,
+    })
+
+    normalize = set_node("Normalizar dados", [
+        ("processed_at", "={{ $now.toISO() }}", "string"),
+        ("should_continue", True, "boolean"),
+    ], 2)
+    nodes.append(normalize)
+    stages.append({
+        "id": normalize["id"],
+        "label": normalize["name"],
+        "kind": "transform",
+        "description": "Padroniza o conteúdo e prepara o controle do fluxo.",
+        "status": "ready",
+        "requires_setup": False,
+    })
+
+    has_condition = bool(re.search(
+        r"\b(?:se |caso |somente se|apenas se|quando tiver|maior que|menor que|condi[cç][aã]o)",
+        clean_goal,
+        re.I,
+    ))
+    if has_condition:
+        condition = {
+            "id": node_id(3),
+            "name": "Validar condição",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [0, 0],
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": True,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2,
+                    },
+                    "conditions": [{
+                        "id": node_id(130),
+                        "leftValue": "={{ Boolean($json.should_continue ?? true) }}",
+                        "rightValue": "",
+                        "operator": {"type": "boolean", "operation": "true", "singleValue": True},
+                    }],
+                    "combinator": "and",
+                },
+                "options": {},
             },
-            "options": {},
-        },
-    }
+        }
+        nodes.append(condition)
+        stages.append({
+            "id": condition["id"],
+            "label": condition["name"],
+            "kind": "condition",
+            "description": "Só permite seguir quando a condição configurada for verdadeira.",
+            "status": "review",
+            "requires_setup": False,
+        })
+
+    matched_actions = [
+        action for action in N8N_SMART_ACTIONS
+        if re.search(action["pattern"], clean_goal, re.I)
+    ]
+    if not matched_actions and re.search(r"\b(?:api|endpoint|enviar para (?:um )?webhook|chamar webhook)\b", clean_goal, re.I):
+        matched_actions = [{
+            "kind": "http",
+            "label": "Chamar API externa",
+            "description": "Enviar os dados tratados para um endpoint HTTPS.",
+            "provider": "http",
+            "setup_fields": ["URL HTTPS", "autenticação no n8n", "corpo da requisição"],
+            "url": "https://api.example.com/endpoint",
+        }]
+
+    max_nodes = execution_power_profile(owner_authenticated)["max_workflow_nodes"]
+    action_capacity = max(0, max_nodes - len(nodes) - 1)
+    included_actions = matched_actions[:action_capacity]
+    omitted_actions = matched_actions[action_capacity:]
+    required_setup = []
+    for action_index, action in enumerate(included_actions, start=len(nodes)):
+        if action["kind"] == "gmail":
+            action_node = {
+                "id": node_id(action_index),
+                "name": action["label"],
+                "type": "n8n-nodes-base.gmail",
+                "typeVersion": 2.1,
+                "position": [0, 0],
+                "disabled": True,
+                "notes": "Etapa desativada até Theo configurar conta, destinatário e revisar a mensagem.",
+                "parameters": {
+                    "resource": "message",
+                    "operation": "send",
+                    "sendTo": "DESTINATARIO@EXEMPLO.COM",
+                    "subject": f"Automação {source}: {clean_text(clean_goal, 70)}",
+                    "message": "={{ JSON.stringify($json) }}",
+                    "options": {},
+                },
+            }
+        else:
+            action_node = {
+                "id": node_id(action_index),
+                "name": action["label"],
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [0, 0],
+                "disabled": True,
+                "notes": "Etapa desativada até Theo configurar autenticação, revisar o endpoint e testar manualmente.",
+                "parameters": {
+                    "method": "POST",
+                    "url": action.get("url") or "https://api.example.com/endpoint",
+                    "sendBody": True,
+                    "specifyBody": "json",
+                    "jsonBody": "={{ JSON.stringify($json) }}",
+                    "options": {},
+                },
+            }
+        nodes.append(action_node)
+        stages.append({
+            "id": action_node["id"],
+            "label": action_node["name"],
+            "kind": action["kind"],
+            "description": action["description"],
+            "status": "needs_setup",
+            "requires_setup": True,
+            "provider": action["provider"],
+            "disabled": True,
+        })
+        required_setup.append({
+            "provider": action["provider"],
+            "label": action["label"],
+            "fields": list(action["setup_fields"]),
+            "node_disabled": True,
+        })
+
+    finalize = set_node("Finalizar rascunho", [
+        ("workflow_status", "ready_for_manual_review", "string"),
+        ("activation_allowed", False, "boolean"),
+    ], 90)
+    nodes.append(finalize)
+    stages.append({
+        "id": finalize["id"],
+        "label": finalize["name"],
+        "kind": "finish",
+        "description": "Marca o fluxo como pronto para revisão, nunca para ativação automática.",
+        "status": "ready",
+        "requires_setup": False,
+    })
+
+    for node_index, node in enumerate(nodes):
+        node["position"] = [-560 + node_index * 280, 0]
+
+    connections = {}
+    final_name = finalize["name"]
+    for node_index, node in enumerate(nodes[:-1]):
+        next_name = nodes[node_index + 1]["name"]
+        if node["type"] == "n8n-nodes-base.if":
+            connections[node["name"]] = {
+                "main": [
+                    [{"node": next_name, "type": "main", "index": 0}],
+                    [{"node": final_name, "type": "main", "index": 0}],
+                ]
+            }
+        else:
+            connections[node["name"]] = {
+                "main": [[{"node": next_name, "type": "main", "index": 0}]]
+            }
+
     name = clean_text(re.sub(r"\s+", " ", clean_goal), 120)
     if not re.search(r"\b(?:jarvis|ultron)\b", name, re.I):
         name = f"{source} · {name}"
-    return {
+    workflow = {
         "name": name,
-        "nodes": [trigger, prepare],
-        "connections": {
-            trigger_name: {"main": [[{"node": prepare_name, "type": "main", "index": 0}]]}
-        },
+        "nodes": nodes,
+        "connections": connections,
         "settings": {"executionOrder": "v1"},
-    }, requested
+    }
+    plan = {
+        "protocol": "jarvis-n8n-plan/1",
+        "planner": "bounded_natural_language",
+        "objective": clean_goal,
+        "source": source,
+        "trigger": requested,
+        "stages": stages,
+        "node_count": len(nodes),
+        "max_nodes": max_nodes,
+        "required_setup": required_setup,
+        "omitted_actions": [action["label"] for action in omitted_actions],
+        "ready_to_create": True,
+        "ready_to_activate": False,
+        "activation_gate": "manual_review_and_test_required",
+        "safety": {
+            "workflow_created_inactive": True,
+            "credential_nodes_disabled": True,
+            "credentials_embedded": False,
+        },
+    }
+    return workflow, requested, plan
 
 
 def n8n_workflow_action_payload(body, owner_authenticated=False):
@@ -616,11 +881,14 @@ def n8n_workflow_action_payload(body, owner_authenticated=False):
         return {"ok": False, "error": "Ação n8n inválida."}, 400
     power = execution_power_profile(owner_authenticated)
     goals = n8n_requested_goals(body, power["max_workflows_per_request"])
-    workflow_specs = [
-        n8n_workflow_template(goal, body.get("template"), owner_authenticated)
-        for goal in goals
-    ]
-    workflow, template = workflow_specs[0]
+    try:
+        workflow_specs = [
+            n8n_workflow_template(goal, body.get("template"), owner_authenticated)
+            for goal in goals
+        ]
+    except ValueError as error:
+        return {"ok": False, "status_real": "n8n_workflow_goal_refused", "error": str(error)}, 400
+    workflow, template, plan = workflow_specs[0]
     if action == "preview":
         payload = {
             "ok": True,
@@ -633,14 +901,15 @@ def n8n_workflow_action_payload(body, owner_authenticated=False):
             ),
             "template": template,
             "workflow": workflow,
+            "plan": plan,
             "active": False,
             "power_profile": power,
             "credential_persisted_server_side": False,
         }
         if len(workflow_specs) > 1:
             payload["workflow_previews"] = [
-                {**item, "template": item_template, "active": False}
-                for item, item_template in workflow_specs
+                {**item, "template": item_template, "plan": item_plan, "active": False}
+                for item, item_template, item_plan in workflow_specs
             ]
         return payload, 200
     config = client_integration({"client_integrations": {"n8n": body.get("config") or {}}}, "n8n")
@@ -680,7 +949,7 @@ def n8n_workflow_action_payload(body, owner_authenticated=False):
                 "credential_persisted_server_side": False,
             }, 200
         created_workflows = []
-        for workflow, template in workflow_specs:
+        for workflow, template, plan in workflow_specs:
             try:
                 result, _ = integration_json_request(
                     f"{base}/api/v1/workflows",
@@ -746,6 +1015,7 @@ def n8n_workflow_action_payload(body, owner_authenticated=False):
                 "active": False,
                 "nodes": len(workflow["nodes"]),
                 "template": template,
+                "plan": plan,
                 "editor_url": f"{base}/workflow/{quote(workflow_id)}" if workflow_id else base,
             })
         primary_workflow = created_workflows[0]
@@ -766,6 +1036,7 @@ def n8n_workflow_action_payload(body, owner_authenticated=False):
             ),
             "workflow": primary_workflow,
             "workflows": created_workflows,
+            "plan": primary_workflow["plan"],
             "power_profile": power,
             "credential_persisted_server_side": False,
         }, 201
