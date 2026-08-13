@@ -13,10 +13,12 @@ CSS = WEB / "jarvis.css"
 UI_REPAIR_CSS = WEB / "ui-repair.css"
 API_PANEL_CSS = WEB / "api-panel.css"
 RESPONSIVE_POLISH_CSS = WEB / "responsive-polish.css"
+INTEGRATION_HEALTH_CSS = WEB / "integration-health.css"
 LOGO = WEB / "jarvis-logo.png"
 APP_JS = WEB / "jarvis.js"
 API_VAULT_JS = WEB / "api-vault.js"
 INTEGRATION_HISTORY_JS = WEB / "integration-history.js"
+INTEGRATION_HEALTH_JS = WEB / "integration-health.js"
 MISSION_CONTROL_JS = WEB / "mission-control.js"
 MISSION_CONTROL_CSS = WEB / "mission-control.css"
 VOICE_PACING_JS = WEB / "voice-pacing.js"
@@ -158,6 +160,8 @@ class UIQualityTest(unittest.TestCase):
             "integrationConnectionPanel",
             "integrationToolsPanel",
             "integrationWorkflowsPanel",
+            "integrationHealthPanel",
+            "integrationHealthMount",
             "n8nStudio",
             "n8nWorkflowMap",
             "n8nTemplateGallery",
@@ -189,6 +193,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('data-integration-tab="connection"', self.html)
         self.assertIn('data-integration-tab="tools"', self.html)
         self.assertIn('data-integration-tab="workflows"', self.html)
+        self.assertIn('data-integration-tab="health"', self.html)
         self.assertIn("window.JarvisIntegrationTabs", self.api_vault_js)
         self.assertIn("ArrowRight", self.api_vault_js)
         self.assertIn("integration-actions-sticky", self.api_panel_css)
@@ -196,12 +201,20 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("recordIntegrationActivity", self.app_js)
         self.assertIn("jarvis-integration-history-v1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
         self.assertIn("integration-history-row", self.api_panel_css)
+        health_js = INTEGRATION_HEALTH_JS.read_text(encoding="utf-8")
+        self.assertIn("integrationHealthRefresh", health_js)
+        self.assertIn("quotaLabel", health_js)
+        self.assertIn("latency_ms", health_js)
+        self.assertIn("last_failure", health_js)
+        self.assertIn("integration-health-card", INTEGRATION_HEALTH_CSS.read_text(encoding="utf-8"))
 
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
         self.assertLess(critical_bytes, 250 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
         self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
         self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 4 * 1024)
+        self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 6 * 1024)
+        self.assertLess(INTEGRATION_HEALTH_CSS.stat().st_size, 4 * 1024)
         self.assertLess(UI_REPAIR_CSS.stat().st_size, 8 * 1024)
         self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
         self.assertLess(RESPONSIVE_POLISH_CSS.stat().st_size, 12 * 1024)
@@ -257,7 +270,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
         self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
-        self.assertGreaterEqual(self.html.count("20260813-final1"), 6)
+        self.assertGreaterEqual(self.html.count("20260813-health1"), 8)
 
     def test_final_responsive_guardrails_cover_real_viewports(self):
         css = RESPONSIVE_POLISH_CSS.read_text(encoding="utf-8")

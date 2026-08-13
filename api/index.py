@@ -469,6 +469,7 @@ def integration_test_payload(body, owner_authenticated=False):
     if not api_key and provider != "webhook":
         return {"ok": False, "status_real": "integration_key_missing", "error": "Cole a chave antes de testar."}, 400
     try:
+        health = {}
         if provider == "n8n":
             base = safe_integration_base_url(base_url, "n8n")
             result, _ = integration_json_request(
@@ -477,6 +478,7 @@ def integration_test_payload(body, owner_authenticated=False):
             )
             count = len(result.get("data") or []) if isinstance(result, dict) else 0
             detail = f"n8n conectado · {count} workflow(s) lido(s) no teste"
+            health = {"resource_count": count, "resource_label": "workflows no teste"}
         elif provider == "openrouter":
             result, _ = integration_json_request(
                 "https://openrouter.ai/api/v1/key",
@@ -484,12 +486,30 @@ def integration_test_payload(body, owner_authenticated=False):
             )
             metadata = result.get("data") if isinstance(result, dict) else {}
             detail = f"OpenRouter conectado · {clean_text(metadata.get('label') or 'chave válida', 100)}"
+            health = {
+                "quota_remaining": metadata.get("limit_remaining"),
+                "quota_limit": metadata.get("limit"),
+                "quota_unit": "créditos",
+                "usage": metadata.get("usage"),
+            }
         elif provider == "elevenlabs":
             result, _ = integration_json_request(
                 "https://api.elevenlabs.io/v1/user/subscription",
                 headers={"xi-api-key": api_key},
             )
             detail = f"ElevenLabs conectado · plano {clean_text(result.get('tier') or 'ativo', 60)}"
+            health = {
+                "quota_remaining": (
+                    result.get("character_limit") - result.get("character_count")
+                    if isinstance(result.get("character_limit"), (int, float))
+                    and isinstance(result.get("character_count"), (int, float))
+                    else None
+                ),
+                "quota_limit": result.get("character_limit"),
+                "quota_unit": "caracteres",
+                "usage": result.get("character_count"),
+                "tier": clean_text(result.get("tier"), 60),
+            }
         elif provider == "github":
             result, _ = integration_json_request(
                 "https://api.github.com/user",
@@ -514,6 +534,7 @@ def integration_test_payload(body, owner_authenticated=False):
             "status_real": "client_integration_verified",
             "provider": provider,
             "message": detail,
+            "health": integration_safe_result(health),
             "credential_persisted_server_side": False,
         }, 200
     except HTTPError as error:

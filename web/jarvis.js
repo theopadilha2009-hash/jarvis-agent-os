@@ -249,6 +249,7 @@
     });
     if (byId("integrationsCount")) byId("integrationsCount").textContent = String(configured.length);
     renderApiPower();
+    window.dispatchEvent(new Event("jarvis-integration-registry"));
     return configured;
   }
 
@@ -2424,6 +2425,9 @@
     renderIntegrationRegistry();
     integrationsDialog.showModal();
     await selectIntegrationProvider(activeIntegrationProvider);
+  });
+  window.JarvisIntegrationHealth?.bind({
+    providers: API_PROVIDERS, vault: apiVault(), request, record: recordIntegrationActivity,
   });
   byId("closeIntegrationsDialog")?.addEventListener("click", () => integrationsDialog.close());
   integrationsDialog?.addEventListener("click", (event) => {

@@ -49,15 +49,42 @@ window.JarvisIntegrationHistory = (() => {
     const message = String(data?.message || data?.error || (data?.ok ? "concluída" : "falhou"))
       .replace(/(?:sk-[A-Za-z0-9_-]+|github_pat_[A-Za-z0-9_]+|Bearer\s+\S+)/gi, "[protegido]")
       .slice(0, 160);
-    const history = [{ provider, action, ok: Boolean(data?.ok), message, at: new Date().toISOString() }, ...rows()].slice(0, MAX_ROWS);
+    const latency = Number(data?.latency_ms);
+    const quota = String(data?.quota || "").slice(0, 100);
+    const history = [{
+      provider,
+      action,
+      ok: Boolean(data?.ok),
+      message,
+      at: new Date().toISOString(),
+      ...(Number.isFinite(latency) ? { latency_ms: Math.max(0, Math.min(latency, 120_000)) } : {}),
+      ...(quota ? { quota } : {}),
+    }, ...rows()].slice(0, MAX_ROWS);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(history)); } catch { /* histórico opcional */ }
     render();
+    window.dispatchEvent(new Event("jarvis-integration-activity"));
   }
 
   function clear() {
     try { localStorage.removeItem(STORAGE_KEY); } catch { /* histórico opcional */ }
     render();
+    window.dispatchEvent(new Event("jarvis-integration-activity"));
   }
 
-  return Object.freeze({ clear, record, render });
+  function summary(provider) {
+    const providerRows = rows().filter((row) => row.provider === provider);
+    const latest = providerRows[0] || {};
+    const measured = providerRows.find((row) => Number.isFinite(Number(row.latency_ms))) || {};
+    const metered = providerRows.find((row) => row.quota) || {};
+    const failure = providerRows.find((row) => row.ok === false);
+    return {
+      ok: latest.ok,
+      at: latest.at || "",
+      latency_ms: measured.latency_ms,
+      quota: metered.quota || "",
+      last_failure: failure?.message || "",
+    };
+  }
+
+  return Object.freeze({ clear, record, render, summary });
 })();
