@@ -947,6 +947,24 @@ class WebGatewayTest(unittest.TestCase):
         persist.assert_called_once()
         self.assertEqual(persist.call_args.args[0], "created_voice_456")
 
+    def test_original_voice_ignores_abandoned_library_migration(self):
+        migrated = [{"value": {
+            "voice_id": "library_voice_that_sounded_wrong",
+            "name": "Tentativa pt-BR",
+            "provider": "elevenlabs_voice_library",
+        }}]
+        with patch.dict(MODULE._ACTIVE_VOICE_CACHE, {
+            "voice_id": "",
+            "name": "",
+            "source": "",
+            "expires_at": 0.0,
+        }, clear=True), patch.object(
+            MODULE, "supabase_configured", return_value=True
+        ), patch.object(MODULE, "supabase_request", return_value=migrated):
+            active = MODULE.active_voice_setting(force=True)
+        self.assertEqual(active["voice_id"], MODULE.DEFAULT_ELEVENLABS_VOICE_ID)
+        self.assertEqual(active["source"], "environment")
+
     def test_device_command_status_uses_persisted_result(self):
         class FakeSupabaseResponse:
             def __enter__(self):

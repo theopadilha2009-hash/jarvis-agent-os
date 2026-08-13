@@ -1002,7 +1002,11 @@ def active_voice_setting(force=False):
             )
             value = rows[0].get("value") if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
             voice_id = clean_text(value.get("voice_id"), 100) if isinstance(value, dict) else ""
-            if re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
+            abandoned_library_voice = (
+                isinstance(value, dict)
+                and clean_text(value.get("provider"), 80) == "elevenlabs_voice_library"
+            )
+            if re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id) and not abandoned_library_voice:
                 fallback = {
                     "voice_id": voice_id,
                     "name": clean_text(value.get("name") or "JARVIS Theo", 120),
