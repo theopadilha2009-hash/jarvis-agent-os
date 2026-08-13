@@ -1536,7 +1536,7 @@ class WebGatewayTest(unittest.TestCase):
 
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False):
             with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
-                payload, status = MODULE.assistant_response(
+                payload, status = MODULE.command_payload(
                     {"command": "resolva isto", "strength": "maximum"},
                     owner_authenticated=True,
                 )
