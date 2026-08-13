@@ -3101,6 +3101,7 @@ São Paulo - SP
         self.assertEqual(status, 400)
         self.assertEqual(payload["status_real"], "integration_tool_key_missing")
         self.assertEqual(payload["event_stream"]["protocol"], "jarvis-events/1")
+        self.assertFalse(payload["credential_persisted_server_side"])
 
     def test_openrouter_saved_api_executes_real_usage_tool_without_echoing_key(self):
         captured = {}
