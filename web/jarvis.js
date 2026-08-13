@@ -71,6 +71,13 @@
     workingStartedAt: 0,
     lastResponseOk: true,
     filePreviewing: false,
+    notifications: (() => {
+      try {
+        return localStorage.getItem("jarvis-notifications-enabled") === "1";
+      } catch {
+        return false;
+      }
+    })(),
   };
   let currentAudio = null;
   let currentAudioUrl = "";
@@ -85,6 +92,7 @@
   let viewportCeiling = Math.round(window.visualViewport?.height || window.innerHeight);
   let viewportWidth = window.innerWidth;
   const memoryManager = { nodes: [], writable: false, provider: "" };
+  const notifiedRuns = new Set();
 
   function ownerToken() {
     try {
@@ -311,6 +319,72 @@
     window.addEventListener("load", () => {
       navigator.serviceWorker.register("/jarvis-sw.js", { scope: "/" }).catch(() => null);
     }, { once: true });
+  }
+
+  function renderNotificationState() {
+    const button = byId("notificationButton");
+    if (!button) return;
+    const supported = "Notification" in window;
+    if (!supported) {
+      button.disabled = true;
+      button.textContent = "Notificações indisponíveis";
+      return;
+    }
+    if (Notification.permission === "denied") {
+      session.notifications = false;
+      button.disabled = true;
+      button.textContent = "Notificações bloqueadas";
+      button.setAttribute("aria-pressed", "false");
+      return;
+    }
+    const active = session.notifications && Notification.permission === "granted";
+    button.disabled = false;
+    button.textContent = active ? "Notificações ligadas" : "Ativar notificações";
+    button.setAttribute("aria-pressed", String(active));
+  }
+
+  async function toggleNotifications() {
+    if (!("Notification" in window)) return;
+    if (session.notifications && Notification.permission === "granted") {
+      session.notifications = false;
+    } else {
+      const permission = Notification.permission === "granted"
+        ? "granted"
+        : await Notification.requestPermission();
+      session.notifications = permission === "granted";
+    }
+    try {
+      localStorage.setItem("jarvis-notifications-enabled", session.notifications ? "1" : "0");
+    } catch {
+      // Permission still works for the current tab when storage is unavailable.
+    }
+    renderNotificationState();
+  }
+
+  async function notifyBackgroundCompletion(id, title, body) {
+    const notificationId = String(id || "jarvis-completion");
+    if (!document.hidden || !session.notifications || !("Notification" in window) || Notification.permission !== "granted" || notifiedRuns.has(notificationId)) return false;
+    notifiedRuns.add(notificationId);
+    const options = {
+      body: speechText(body).slice(0, 180),
+      tag: notificationId,
+      renotify: false,
+      icon: "/ui/jarvis-icon-192.png",
+      badge: "/ui/jarvis-icon-192.png",
+      data: { url: "/" },
+    };
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration?.();
+      if (registration) await registration.showNotification(title, options);
+      else {
+        const notification = new Notification(title, options);
+        notification.onclick = () => window.focus();
+      }
+      return true;
+    } catch {
+      notifiedRuns.delete(notificationId);
+      return false;
+    }
   }
 
   function searchableActionText(value) {
@@ -1458,6 +1532,7 @@
         refreshActionHistory();
         refreshPersonalOverview();
         settleState();
+        notifyBackgroundCompletion(`job-${jobId}`, data.job.status === "succeeded" ? "JARVIS concluiu a ação" : "A ação do JARVIS precisa de atenção", text);
         return;
       }
       message.querySelector("span").textContent = data.message;
@@ -1496,6 +1571,7 @@
         refreshPersonalOverview();
         settleState();
         if (data.run.status === "succeeded") speak(data.message);
+        notifyBackgroundCompletion(`run-${data.run.id || ids.join("-")}`, data.run.status === "succeeded" ? "JARVIS concluiu a sequência" : "A sequência do JARVIS terminou com alerta", data.message);
         return;
       }
       session.responseState = "forge";
@@ -1749,6 +1825,9 @@
       session.lastResponseOk = data?.ok !== false;
       streamedMessage?.setAttribute("aria-busy", "false");
       showResponse(data, streamedMessage);
+      if (Number(data?.event_stream?.elapsed_ms) >= 10000) {
+        notifyBackgroundCompletion(data.event_stream.run_id, data.ok === false ? "JARVIS encontrou um problema" : "JARVIS terminou", data.message || data.error || data.summary || "Resultado disponível.");
+      }
       const answer = data.message || data.summary;
       if (answer) {
         session.history.push({ role: "assistant", content: answer });
@@ -1824,6 +1903,7 @@
   }
 
   async function boot() {
+    renderNotificationState();
     try {
       const status = await request("/status");
       byId("connectionDot").classList.toggle("online", Boolean(status.ok));
@@ -2126,6 +2206,7 @@
     await deleteWorkspaceFile();
     renderFileWorkspace();
   });
+  byId("notificationButton")?.addEventListener("click", toggleNotifications);
   byId("refreshRunHistory")?.addEventListener("click", refreshActionHistory);
   byId("runHistoryFilter")?.addEventListener("change", refreshActionHistory);
   dialog.addEventListener("click", (event) => {
