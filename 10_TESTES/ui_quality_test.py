@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 INDEX = WEB / "index.html"
 CSS = WEB / "jarvis.css"
+UI_REPAIR_CSS = WEB / "ui-repair.css"
 APP_JS = WEB / "jarvis.js"
 API_VAULT_JS = WEB / "api-vault.js"
 MISSION_CONTROL_JS = WEB / "mission-control.js"
@@ -52,6 +53,7 @@ class UIQualityTest(unittest.TestCase):
     def setUpClass(cls):
         cls.html = INDEX.read_text(encoding="utf-8")
         cls.css = CSS.read_text(encoding="utf-8")
+        cls.ui_repair_css = UI_REPAIR_CSS.read_text(encoding="utf-8")
         cls.app_js = APP_JS.read_text(encoding="utf-8")
         cls.api_vault_js = API_VAULT_JS.read_text(encoding="utf-8")
         cls.mission_control_js = MISSION_CONTROL_JS.read_text(encoding="utf-8")
@@ -119,10 +121,15 @@ class UIQualityTest(unittest.TestCase):
             self.assertIn(selector, self.css)
         self.assertIn("min-height: 44px", self.css)
 
-    def test_composer_keeps_five_controls_inline_with_gauge_strength(self):
+    def test_composer_uses_one_whatsapp_style_voice_or_send_action(self):
         self.assertIn('class="strength-gauge"', self.html)
         self.assertIn('class="strength-gauge-needle"', self.html)
-        self.assertIn("minmax(150px, 1fr) 58px 76px", self.css)
+        self.assertIn("grid-template-columns: 40px minmax(0, 1fr) 58px 46px", self.ui_repair_css)
+        self.assertIn('.composer[data-has-payload="false"] .send-button', self.ui_repair_css)
+        self.assertIn('.composer[data-has-payload="true"] .voice-button', self.ui_repair_css)
+        self.assertIn('content: "➤"', self.ui_repair_css)
+        self.assertIn("function syncComposerAction()", self.app_js)
+        self.assertIn('input.addEventListener("input", syncComposerAction)', self.app_js)
         self.assertNotIn("grid-template-columns: 46px 40px minmax(0, 1fr) auto;", self.css)
         self.assertIn('sendButton.textContent = "Enviar";', self.app_js)
         self.assertIn('sendButton.toggleAttribute("aria-busy", value)', self.app_js)
@@ -164,6 +171,7 @@ class UIQualityTest(unittest.TestCase):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
         self.assertLess(critical_bytes, 250 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
         self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
+        self.assertLess(UI_REPAIR_CSS.stat().st_size, 8 * 1024)
         self.assertLess(PRESENCE_JS.stat().st_size, 64 * 1024)
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
@@ -210,7 +218,8 @@ class UIQualityTest(unittest.TestCase):
 
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
-        self.assertGreaterEqual(self.html.count("20260813-apitools1"), 10)
+        self.assertGreaterEqual(self.html.count("20260813-apitools1"), 5)
+        self.assertGreaterEqual(self.html.count("20260813-uifix1"), 5)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
@@ -269,10 +278,22 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('strength: session.strength', self.app_js)
         self.assertIn('"jarvis-response-strength"', self.app_js)
         self.assertIn("scheduleUltronLaughter", self.app_js)
+        self.assertIn("4 - field.childElementCount", self.app_js)
+        self.assertIn("18 + Math.random() * 16", self.app_js)
+        self.assertIn('html[data-persona="ultron"] .message-context', self.ui_repair_css)
+        self.assertIn('html[data-persona="ultron"] .message-actions .speak-command', self.ui_repair_css)
+        self.assertIn('html[data-persona="ultron"] .composer input', self.ui_repair_css)
+        self.assertIn('html[data-persona="ultron"] .scene-modes > span', self.ui_repair_css)
+        self.assertIn(".scene-modes > button > span", self.ui_repair_css)
         self.assertIn("const OWNER_RED = 0xef3340", self.presence_js)
         self.assertIn("ultron-red-identity-v1", self.presence_js)
         self.assertNotIn("modo master", self.html.casefold())
         self.assertNotIn("modo master", self.app_js.casefold())
+
+    def test_identity_logo_blends_without_dark_square(self):
+        self.assertIn("mix-blend-mode: screen", self.ui_repair_css)
+        self.assertIn("border-color: transparent", self.ui_repair_css)
+        self.assertIn("background: transparent", self.ui_repair_css)
 
 
 if __name__ == "__main__":
