@@ -143,15 +143,15 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-health1', html)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-health1', html)
-        self.assertIn(b'/ui/integration-health.js?v=20260813-health1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-health1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-health1', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-voicecal1', html)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-voicecal1', html)
+        self.assertNotIn(b'/ui/integration-health.js?v=', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-voicecal1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-voicecal1', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', html)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-health1', html)
-        self.assertIn(b'/ui/integration-health.css?v=20260813-health1', html)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-health1', html)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-voicecal1', html)
+        self.assertNotIn(b'/ui/integration-health.css?v=', html)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-voicecal1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -306,6 +306,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b"integrationHealthRefresh", health_js)
 
+        status, headers, voice_calibrator_js = self.request("/ui/voice-calibrator.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"jarvis-voice-profile-v1", voice_calibrator_js)
+
+        status, headers, voice_calibrator_css = self.request("/ui/voice-calibrator.css")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/css")
+        self.assertIn(b".voice-presets", voice_calibrator_css)
+
         status, headers, responsive_css = self.request("/ui/responsive-polish.css")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
@@ -413,15 +423,17 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-health1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-voicecal1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', service_worker)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-health1', service_worker)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-health1', service_worker)
-        self.assertIn(b'/ui/integration-health.js?v=20260813-health1', service_worker)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-health1', service_worker)
-        self.assertIn(b'/ui/integration-health.css?v=20260813-health1', service_worker)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-health1', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-voicecal1', service_worker)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-voicecal1', service_worker)
+        self.assertIn(b'/ui/integration-health.js?v=20260813-voicecal1', service_worker)
+        self.assertIn(b'/ui/voice-calibrator.js?v=20260813-voicecal1', service_worker)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-voicecal1', service_worker)
+        self.assertIn(b'/ui/integration-health.css?v=20260813-voicecal1', service_worker)
+        self.assertIn(b'/ui/voice-calibrator.css?v=20260813-voicecal1', service_worker)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-voicecal1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -2984,6 +2996,22 @@ São Paulo - SP
             payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
         self.assertEqual(status, 503)
         self.assertEqual(payload["fallback"], "text_only")
+
+    def test_voice_calibrator_is_bounded_and_keeps_non_exaggerated_style(self):
+        profile = MODULE.voice_profile({
+            "voice_profile": {
+                "stability": 12,
+                "similarity_boost": -3,
+                "speed": 8,
+                "style": 1,
+                "use_speaker_boost": True,
+            }
+        })
+        self.assertEqual(profile["stability"], 0.9)
+        self.assertEqual(profile["similarity_boost"], 0.55)
+        self.assertEqual(profile["speed"], 1.1)
+        self.assertEqual(profile["style"], 0.0)
+        self.assertFalse(profile["use_speaker_boost"])
 
     def test_elevenlabs_quota_error_is_reported_honestly(self):
         provider_error = HTTPError("https://api.elevenlabs.io", 402, "payment required", {}, None)

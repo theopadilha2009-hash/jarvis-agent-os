@@ -13,11 +13,10 @@
 <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-apitools1">
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-health1">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260813-voicecal1">
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260813-uipolish1">
-<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-health1">
-<link rel="stylesheet" href="/ui/integration-health.css?v=20260813-health1">
-<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260813-health1">
+<link rel="stylesheet" href="/ui/api-panel.css?v=20260813-voicecal1">
+<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260813-voicecal1">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
@@ -212,7 +211,7 @@
       <section><span>Serviço</span><strong id="serviceValue">—</strong></section>
       <section><span>Inteligência</span><strong id="aiValue">—</strong></section>
       <section><span>Modelo</span><strong id="modelValue">—</strong></section>
-      <section><span>Voz</span><strong id="voiceValue">detectando</strong></section>
+      <section class="voice-summary"><span>Voz</span><strong id="voiceValue">detectando</strong><button id="voiceTuningButton" type="button">Ajustar voz</button></section>
       <section class="dialog-wide"><span>Acesso atual</span><strong id="accessValue">verificando</strong></section>
       <section class="dialog-wide pairing-panel">
         <span>Conexão privada</span>
@@ -240,6 +239,10 @@
         <div class="history-list" id="actionHistory"><small>Nenhuma ação carregada.</small></div>
       </section>
     </div>
+  </dialog>
+
+  <dialog id="voiceTuningDialog" class="voice-calibrator-dialog" aria-labelledby="voiceTuningMount">
+    <div id="voiceTuningMount"></div>
   </dialog>
 
   <dialog id="integrationsDialog" class="integrations-dialog" aria-labelledby="integrationsDialogTitle">
@@ -397,10 +400,9 @@
     </div>
   </dialog>
 
-<script src="/ui/api-vault.js?v=20260813-health1" defer></script>
-<script src="/ui/integration-history.js?v=20260813-health1" defer></script>
-<script src="/ui/integration-health.js?v=20260813-health1" defer></script>
-<script src="/ui/jarvis.js?v=20260813-health1" defer></script>
+<script src="/ui/api-vault.js?v=20260813-voicecal1" defer></script>
+<script src="/ui/integration-history.js?v=20260813-voicecal1" defer></script>
+<script src="/ui/jarvis.js?v=20260813-voicecal1" defer></script>
   <script type="module">
     let presenceScheduled = false;
 

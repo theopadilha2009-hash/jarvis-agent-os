@@ -7,6 +7,14 @@ window.JarvisIntegrationHealth = (() => {
     : Number.isFinite(Number(value)) ? Number(value) : null;
   let runtime = null;
 
+  if (!document.querySelector('link[data-jarvis-integration-health]')) {
+    const stylesheet = document.createElement("link");
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "/ui/integration-health.css?v=20260813-voicecal1";
+    stylesheet.dataset.jarvisIntegrationHealth = "true";
+    document.head.appendChild(stylesheet);
+  }
+
   function quotaLabel(health = {}) {
     const remaining = number(health.quota_remaining);
     const limit = number(health.quota_limit);
@@ -112,10 +120,20 @@ window.JarvisIntegrationHealth = (() => {
     render(runtime.providers, configured);
   }
 
-  function bind(config) {
+  function bind() {
     runtime = {
-      ...config,
-      providers: Object.entries(config.providers).map(([id, value]) => ({ id, label: value.label })),
+      providers: [...document.querySelectorAll("[data-provider]")].map((item) => ({
+        id: item.dataset.provider,
+        label: item.querySelector("b")?.textContent || item.dataset.provider,
+      })),
+      vault: window.JarvisApiVault,
+      record: (provider, action, data) => window.JarvisIntegrationHistory?.record(provider, action, data),
+      request: async (path, options) => {
+        const response = await fetch(path, { ...options, signal: AbortSignal.timeout?.(20_000) });
+        const data = await response.json().catch(() => ({ ok: false, error: "resposta inválida" }));
+        if (!response.ok && data.ok !== false) data.ok = false;
+        return data;
+      },
     };
     mount();
     byId("integrationHealthRefresh")?.addEventListener("click", refresh);
@@ -124,5 +142,6 @@ window.JarvisIntegrationHealth = (() => {
     rerender();
   }
 
-  return Object.freeze({ bind, quotaLabel, render, refresh });
+  bind();
+  return Object.freeze({ quotaLabel, render, refresh });
 })();
