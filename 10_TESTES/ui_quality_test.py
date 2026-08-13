@@ -191,6 +191,10 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("next_text: nextText", self.app_js)
         self.assertLess(VOICE_PACING_JS.stat().st_size, 6 * 1024)
 
+    def test_selective_memory_receipt_stays_inside_real_details(self):
+        self.assertIn("data.memory_selection?.selected", self.app_js)
+        self.assertIn("memórias relevantes", self.app_js)
+
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('import("/ui/jarvis-3d.js?v=20260813-apitools1")', self.html)
         self.assertIn("requestIdleCallback", self.html)

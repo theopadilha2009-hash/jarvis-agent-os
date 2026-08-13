@@ -373,7 +373,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-voice1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-memory1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-apitools1', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-apitools1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
@@ -1436,6 +1436,81 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(ranked[0]["id"], 4)
         self.assertIn(3, [row["id"] for row in ranked])
         self.assertEqual(ranked[0]["layer"], "project")
+
+    def test_selective_memory_filters_unrelated_daily_expired_and_sensitive_rows(self):
+        rows = [
+            {"id": 1, "kind": "decision", "content": "o deploy do JARVIS usa a Vercel", "metadata": {"layer": "project"}},
+            {"id": 2, "kind": "learning", "content": "reunião amanhã às nove", "metadata": {"layer": "daily"}},
+            {"id": 3, "kind": "preference", "content": "Theo prefere música baixa", "metadata": {"layer": "owner"}},
+            {"id": 4, "kind": "learning", "content": "chave sk-or-v1-" + "a" * 64, "metadata": {"layer": "project"}},
+            {"id": 5, "kind": "decision", "content": "deploy antigo na Vercel", "metadata": {"layer": "project", "expires_at": "2020-01-01T00:00:00Z"}},
+            {"id": 6, "kind": "preference", "content": "responder sempre em português", "metadata": {"layer": "owner", "scope": "global"}},
+        ]
+        selected, receipt = MODULE.memory_selection_context(rows, "explique o deploy na Vercel", 5)
+        self.assertEqual([row["id"] for row in selected], [1, 6])
+        self.assertEqual(receipt["protocol"], MODULE.MEMORY_SELECTION_PROTOCOL)
+        self.assertEqual(receipt["considered"], 6)
+        self.assertEqual(receipt["selected"], 2)
+        self.assertEqual(receipt["sent_to_model"], 0)
+        self.assertEqual(receipt["excluded"], 4)
+        self.assertEqual(receipt["exclusion_reasons"]["daily_scope"], 1)
+        self.assertEqual(receipt["exclusion_reasons"]["unrelated"], 1)
+        self.assertEqual(receipt["exclusion_reasons"]["sensitive"], 1)
+        self.assertEqual(receipt["exclusion_reasons"]["expired"], 1)
+        self.assertFalse(receipt["auto_saved"])
+        self.assertFalse(receipt["private_values_returned"])
+        serialized = json.dumps(receipt, ensure_ascii=False)
+        self.assertNotIn("deploy do JARVIS", serialized)
+        self.assertNotIn("sk-or-v1", serialized)
+
+    def test_selective_memory_keeps_newest_subject_and_owner_identity(self):
+        rows = [
+            {"id": 7, "kind": "preference", "content": "Theo prefere interface roxa limpa", "metadata": {"layer": "owner", "subject": "interface-color"}},
+            {"id": 8, "kind": "preference", "content": "Theo prefere interface azul", "metadata": {"layer": "owner", "subject": "interface-color"}},
+            {"id": 9, "kind": "preference", "content": "Theo gosta de respostas calmas", "metadata": {"layer": "owner"}},
+        ]
+        selected, receipt = MODULE.memory_selection_context(rows, "qual é minha preferência de interface?", 5)
+        self.assertIn(7, [row["id"] for row in selected])
+        self.assertNotIn(8, [row["id"] for row in selected])
+        self.assertIn(9, [row["id"] for row in selected])
+        self.assertEqual(receipt["exclusion_reasons"]["superseded"], 1)
+
+    def test_assistant_sends_only_selected_memory_and_returns_content_free_receipt(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "O padrão é publicar o JARVIS na Vercel."}}],
+                }).encode("utf-8")
+
+        rows = [
+            {"id": 1, "kind": "decision", "content": "deploy do projeto JARVIS na Vercel", "metadata": {"layer": "project"}},
+            {"id": 2, "kind": "preference", "content": "Theo prefere música baixa", "metadata": {"layer": "owner"}},
+        ]
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "supabase_configured", return_value=True
+        ), patch.object(MODULE, "assistant_memory_rows", return_value=(rows, True)), patch.object(
+            MODULE, "urlopen", return_value=FakeResponse()
+        ) as provider:
+            payload, status = MODULE.assistant_response(
+                {"command": "explique o padrão de deploy na Vercel"}, owner_authenticated=True
+            )
+        self.assertEqual(status, 200)
+        sent = json.loads(provider.call_args.args[0].data.decode("utf-8"))
+        system = sent["messages"][0]["content"]
+        self.assertIn("deploy do projeto JARVIS na Vercel", system)
+        self.assertNotIn("Theo prefere música baixa", system)
+        self.assertEqual(payload["memory_context_count"], 1)
+        self.assertEqual(payload["memory_selection"]["selected"], 1)
+        self.assertEqual(payload["memory_selection"]["sent_to_model"], 1)
+        self.assertTrue(payload["memory_context_cache_hit"])
+        self.assertNotIn("deploy do projeto", json.dumps(payload["memory_selection"], ensure_ascii=False))
 
     def test_memory_layer_classification(self):
         self.assertEqual(MODULE.memory_layer("prefiro respostas curtas", "preference"), "owner")

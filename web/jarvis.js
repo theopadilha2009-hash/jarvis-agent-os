@@ -1409,6 +1409,8 @@
   function renderMessageContext(data) {
     let details = "";
     const badges = [];
+    const selectedMemories = Number(data.memory_selection?.selected) || 0;
+    if (selectedMemories) badges.push(`${selectedMemories} memórias relevantes`);
     if (data.mission?.protocol === "jarvis-mission/2") {
       const completed = data.mission.steps?.filter((step) => step.status === "succeeded").length || 0;
       const total = data.mission.steps?.length || 0;
