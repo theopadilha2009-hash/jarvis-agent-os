@@ -3018,11 +3018,84 @@ dialog::backdrop {
 }
 .n8n-power-hint b { color: var(--cyan-hot); }
 .n8n-workflow-preview {
-  max-height: 155px;
+  display: grid;
+  gap: 10px;
+  max-height: 290px;
   padding: 11px;
   overflow: auto;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.25);
+}
+
+.n8n-workflow-map {
+  display: flex;
+  align-items: stretch;
+  min-height: 84px;
+  overflow-x: auto;
+  padding: 2px 1px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--cyan) 34%, transparent) transparent;
+}
+
+.n8n-map-node {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  flex: 0 0 142px;
+  min-height: 76px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 24%, transparent);
+  border-radius: 10px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--cyan) 9%, transparent), rgba(4, 2, 10, 0.52));
+}
+
+.n8n-map-node small {
+  color: var(--cyan);
+  font: 7px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.12em;
+}
+.n8n-map-node strong { color: #f3e8ff; font-size: 9px; line-height: 1.25; }
+.n8n-map-node span { color: var(--muted); font-size: 7px; line-height: 1.35; }
+.n8n-map-node em {
+  align-self: end;
+  width: max-content;
+  margin-top: 2px;
+  color: #d8b4fe;
+  font: normal 6px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.n8n-map-node[data-status="needs_setup"] { border-color: color-mix(in srgb, #f59e0b 42%, transparent); }
+.n8n-map-node[data-status="needs_setup"] em { color: #fcd34d; }
+.n8n-map-node[data-status="review"] em { color: #c4b5fd; }
+
+.n8n-map-connector {
+  position: relative;
+  flex: 0 0 26px;
+}
+.n8n-map-connector::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  left: 4px;
+  height: 1px;
+  background: color-mix(in srgb, var(--cyan) 42%, transparent);
+}
+.n8n-map-connector::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 3px);
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-top: 1px solid var(--cyan);
+  border-right: 1px solid var(--cyan);
+  transform: rotate(45deg);
+}
+
+.n8n-workflow-summary {
   color: var(--muted);
   font: 9px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
   white-space: pre-wrap;

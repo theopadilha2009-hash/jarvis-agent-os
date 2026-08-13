@@ -130,6 +130,8 @@ class UIQualityTest(unittest.TestCase):
             "integrationTestButton",
             "integrationRemoveButton",
             "n8nStudio",
+            "n8nWorkflowMap",
+            "n8nWorkflowSummary",
             "n8nPreviewButton",
             "n8nCreateButton",
         ):
@@ -140,6 +142,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("client_integrations: clientIntegrations", self.app_js)
         self.assertIn('request("/integrations/test"', self.app_js)
         self.assertIn('request("/integrations/n8n/workflows"', self.app_js)
+        self.assertIn('document.createElement("article")', self.app_js)
+        self.assertIn("n8n-map-node", self.css)
+        self.assertIn("n8n-map-connector", self.css)
         self.assertIn("ULTRON · 3×", self.app_js)
 
     def test_startup_assets_stay_within_budget(self):
@@ -150,7 +155,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-composer1")', self.html)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-smartforge1")', self.html)
         self.assertIn("requestIdleCallback", self.html)
         self.assertIn("activeFps: 45", self.presence_js)
         self.assertIn("idleFps: 24", self.presence_js)
@@ -164,7 +169,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
-        self.assertGreaterEqual(self.html.count("20260813-composer1"), 10)
+        self.assertGreaterEqual(self.html.count("20260813-smartforge1"), 10)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
