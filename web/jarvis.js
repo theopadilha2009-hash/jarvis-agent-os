@@ -650,7 +650,7 @@
     return `${clean.slice(0, limit).replace(/\s+\S*$/, "").trim()}…`;
   }
 
-  function speechChunks(value, maxLength = 260) {
+  function speechChunks(value, maxLength = 900) {
     const clean = speechText(value);
     if (!clean) return [];
     const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
