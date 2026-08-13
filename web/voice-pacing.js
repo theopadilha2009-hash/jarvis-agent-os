@@ -1,9 +1,9 @@
 "use strict";
 
-const FIRST_MIN = 48;
-const FIRST_TARGET = 190;
-const FOLLOWING_TARGET = 330;
-const MAX_CHUNKS = 3;
+const FIRST_MIN = 42;
+const FIRST_TARGET = 128;
+const FOLLOWING_TARGET = 300;
+const MAX_CHUNKS = 4;
 
 function naturalCut(text, target, minimum = 60) {
   if (text.length <= target) return text.length;
@@ -74,7 +74,7 @@ export function voiceChunks(value) {
 }
 
 export const voicePacingContract = Object.freeze({
-  protocol: "jarvis-voice-pacing/1",
+  protocol: "jarvis-voice-pacing/2",
   firstTarget: FIRST_TARGET,
   followingTarget: FOLLOWING_TARGET,
   maxChunks: MAX_CHUNKS,

@@ -111,6 +111,7 @@
     workingState: "thinking",
     elevenlabs: false,
     voiceError: "",
+    voiceFirstAudioMs: 0,
     muted: (() => {
       try {
         return localStorage.getItem("jarvis-voice-muted") === "1";
@@ -1671,7 +1672,7 @@
     return response.blob();
   }
 
-  function playSpeechChunk(blob, text, generation) {
+  function playSpeechChunk(blob, text, generation, onPlay = null) {
     return new Promise((resolve, reject) => {
       if (generation !== speechGeneration) return resolve(false);
       const audioUrl = URL.createObjectURL(blob);
@@ -1729,6 +1730,7 @@
       currentAudio = audio;
       audio.onplay = () => {
         voiceAudioContext?.resume?.().catch(() => {});
+        onPlay?.();
         if (generation === speechGeneration) beginSpeaking(text);
       };
       audio.onended = () => finish(true);
@@ -1770,6 +1772,7 @@
     const generation = speechGeneration;
     if (!session.elevenlabs) return false;
     session.voicePending = true;
+    const voiceRequestedAt = performance.now();
     byId("spokenCaption").textContent = "Preparando voz…";
     settleState();
     let played = false;
@@ -1789,7 +1792,10 @@
             chunks[index + 2] || "",
           ).then((blob) => ({ blob })).catch((error) => ({ error }))
           : null;
-        const chunkPlayed = await playSpeechChunk(result.blob, chunks[index], generation);
+        const chunkPlayed = await playSpeechChunk(result.blob, chunks[index], generation, index === 0 ? () => {
+          session.voiceFirstAudioMs = Math.max(1, Math.round(performance.now() - voiceRequestedAt));
+          byId("voiceValue").textContent = `ElevenLabs · voz em ${session.voiceFirstAudioMs} ms`;
+        } : null);
         if (generation !== speechGeneration) return false;
         played = played || chunkPlayed;
       }
@@ -2083,8 +2089,8 @@
         }),
       });
       const minimumReflectionMs = data.mode === "memory" || data.intent === "memory_view_close"
-        ? 180
-        : ["research", "planning"].includes(workingState) ? 2800 : 1400;
+        ? 100
+        : ["research", "planning"].includes(workingState) ? 600 : 280;
       const remainingReflectionMs = minimumReflectionMs - (performance.now() - reflectionStartedAt);
       if (remainingReflectionMs > 0) {
         byId("conversationState").textContent = "revisando resposta";

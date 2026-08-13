@@ -208,7 +208,7 @@
     observer.observe(missionHub, { attributes: true, attributeFilter: ["hidden"] });
   }
 
-  const loadVoicePacing = () => import("/ui/voice-pacing.js?v=20260813-voice1")
+  const loadVoicePacing = () => import("/ui/voice-pacing.js?v=20260813-voice2")
     .then((module) => {
       window.JarvisVoicePacing = Object.freeze({
         chunks: module.voiceChunks,

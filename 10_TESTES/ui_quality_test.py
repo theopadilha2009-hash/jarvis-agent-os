@@ -202,15 +202,19 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(MISSION_CONTROL_CSS.stat().st_size, 8 * 1024)
 
     def test_living_voice_preserves_voice_and_prefetches_natural_lead(self):
-        self.assertIn('import("/ui/voice-pacing.js?v=20260813-voice1")', self.api_vault_js)
+        self.assertIn('import("/ui/voice-pacing.js?v=20260813-voice2")', self.api_vault_js)
         self.assertIn("requestIdleCallback", self.api_vault_js)
-        self.assertIn("jarvis-voice-pacing/1", self.voice_pacing_js)
-        self.assertIn("FIRST_TARGET = 190", self.voice_pacing_js)
+        self.assertIn("jarvis-voice-pacing/2", self.voice_pacing_js)
+        self.assertIn("FIRST_TARGET = 128", self.voice_pacing_js)
+        self.assertIn("MAX_CHUNKS = 4", self.voice_pacing_js)
         self.assertIn("naturalCut", self.voice_pacing_js)
         self.assertIn("window.JarvisVoicePacing?.chunks", self.app_js)
         self.assertIn("prepared = index + 1 < chunks.length", self.app_js)
         self.assertIn("previous_text: previousText", self.app_js)
         self.assertIn("next_text: nextText", self.app_js)
+        self.assertIn("voiceFirstAudioMs", self.app_js)
+        self.assertIn('`ElevenLabs · voz em ${session.voiceFirstAudioMs} ms`', self.app_js)
+        self.assertIn('? 100\n        : ["research", "planning"].includes(workingState) ? 600 : 280', self.app_js)
         self.assertLess(VOICE_PACING_JS.stat().st_size, 6 * 1024)
 
     def test_selective_memory_receipt_stays_inside_real_details(self):
@@ -234,7 +238,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
         self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
-        self.assertGreaterEqual(self.html.count("20260813-ultron2"), 4)
+        self.assertGreaterEqual(self.html.count("20260813-voice2"), 4)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
