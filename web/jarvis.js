@@ -26,8 +26,11 @@
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const MAX_VISIBLE_MESSAGES = 24;
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const speechSynth = window.speechSynthesis;
+  const SpeechUtterance = window.SpeechSynthesisUtterance;
   const voiceSupport = {
     input: Boolean(Recognition),
+    output: Boolean(speechSynth && SpeechUtterance),
   };
 
   const session = {
@@ -84,6 +87,8 @@
   }
   let currentAudio = null;
   let currentAudioUrl = "";
+  let currentUtterance = null;
+  let browserVoiceMeterFrame = 0;
   let currentSpeechController = null;
   let speechGeneration = 0;
   let voiceFailureNotified = false;
@@ -151,7 +156,7 @@
   const CAPABILITIES = [
     "Conversar com OpenRouter sem expor instruções internas",
     "Pesquisar a web ao vivo e mostrar fontes clicáveis",
-    "Ouvir pelo microfone e falar com ElevenLabs",
+    "Ouvir pelo microfone e falar em português do Brasil",
     "Abrir e fechar aplicativos pelo worker do Mac",
     "Encadear até seis ações no Mac e interromper as seguintes se uma falhar",
     "Tirar print, abrir o gravador e analisar arquivos",
@@ -502,7 +507,7 @@
         ? "transmitindo resposta"
         : session.voiceError
           ? session.voiceError
-        : voiceSupport.input || session.elevenlabs
+        : voiceSupport.input || voiceSupport.output || session.elevenlabs
           ? "link disponível"
           : "indisponível neste navegador";
     const voiceLabel = voiceButton?.querySelector("b");
@@ -1084,12 +1089,91 @@
     session.voicePending = false;
     currentSpeechController?.abort();
     currentSpeechController = null;
+    window.cancelAnimationFrame(browserVoiceMeterFrame);
+    browserVoiceMeterFrame = 0;
+    currentUtterance = null;
+    speechSynth?.cancel();
     currentAudio?.__jarvisFinish?.(false);
     currentAudio?.pause();
     currentAudio = null;
     if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
     currentAudioUrl = "";
     if (session.speaking) finishSpeaking();
+  }
+
+  function nativeBrowserVoice() {
+    if (!voiceSupport.output) return null;
+    const voices = speechSynth.getVoices().filter((voice) => (
+      String(voice.lang || "").toLowerCase().replace("_", "-") === "pt-br"
+    ));
+    const score = (voice) => {
+      const name = String(voice.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      let value = voice.localService ? 30 : 8;
+      if (/reed/.test(name)) value += 100;
+      if (/felipe|antonio|thiago|tiago|marcelo|ricardo|paulo|daniel/.test(name)) value += 80;
+      if (/eddy/.test(name)) value += 55;
+      if (/premium|enhanced|melhorada|natural/.test(name)) value += 45;
+      if (/google/.test(name)) value += 18;
+      if (/grandma|grandpa|rocko|flo|sandy|shelley/.test(name)) value -= 80;
+      return value;
+    };
+    return voices.sort((left, right) => score(right) - score(left))[0] || null;
+  }
+
+  function waitForNativeBrowserVoice(timeout = 280) {
+    const immediate = nativeBrowserVoice();
+    if (immediate || !voiceSupport.output) return Promise.resolve(immediate);
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        speechSynth.removeEventListener?.("voiceschanged", finish);
+        resolve(nativeBrowserVoice());
+      };
+      speechSynth.addEventListener?.("voiceschanged", finish, { once: true });
+      window.setTimeout(finish, timeout);
+    });
+  }
+
+  function playNativeBrowserSpeech(text, voice, generation) {
+    return new Promise((resolve) => {
+      if (generation !== speechGeneration || !voice || !voiceSupport.output) return resolve(false);
+      const utterance = new SpeechUtterance(speechText(text));
+      utterance.voice = voice;
+      utterance.lang = "pt-BR";
+      utterance.rate = 0.92;
+      utterance.pitch = 0.88;
+      utterance.volume = 1;
+      let settled = false;
+      const finish = (played) => {
+        if (settled) return;
+        settled = true;
+        window.cancelAnimationFrame(browserVoiceMeterFrame);
+        browserVoiceMeterFrame = 0;
+        if (currentUtterance === utterance) currentUtterance = null;
+        resolve(played);
+      };
+      const meter = (time) => {
+        if (generation !== speechGeneration || currentUtterance !== utterance || !session.speaking) return;
+        const pulse = 0.3 + (0.5 + 0.5 * Math.sin(time * 0.015)) * 0.4;
+        voiceLevel += (pulse - voiceLevel) * 0.3;
+        window.dispatchEvent(new CustomEvent("jarvis-voice-level", { detail: { level: voiceLevel } }));
+        browserVoiceMeterFrame = window.requestAnimationFrame(meter);
+      };
+      utterance.onstart = () => {
+        if (generation !== speechGeneration) return;
+        beginSpeaking(text);
+        byId("voiceValue").textContent = `Voz nativa pt-BR · ${voice.name}`;
+        byId("voiceLink").textContent = "voz local em português";
+        browserVoiceMeterFrame = window.requestAnimationFrame(meter);
+      };
+      utterance.onend = () => finish(true);
+      utterance.onerror = () => finish(false);
+      currentUtterance = utterance;
+      speechSynth.cancel();
+      speechSynth.speak(utterance);
+    });
   }
 
   async function fetchSpeechChunk(text, generation, previousText = "", nextText = "") {
@@ -1196,7 +1280,7 @@
     byId("voiceValue").textContent = status;
     byId("voiceLink").textContent = status.toLowerCase();
     byId("integrationValue").textContent = `IA · ${status}`;
-    byId("integrationHint").textContent = "A conversa continua em texto; a saída humana aguarda cota válida da ElevenLabs.";
+    byId("integrationHint").textContent = "A conversa continua em texto; a voz nativa pt-BR e a ElevenLabs não ficaram disponíveis.";
     if (!voiceFailureNotified) {
       voiceFailureNotified = true;
       addMessage(`Áudio não reproduzido: ${status}. A resposta em texto continua funcionando.`, "voice-status");
@@ -1210,12 +1294,25 @@
     stopSpeechOutput();
     if (session.muted) return false;
     const generation = speechGeneration;
-    if (!session.elevenlabs) return false;
     session.voicePending = true;
     byId("spokenCaption").textContent = "Preparando voz…";
     settleState();
     let played = false;
     try {
+      const nativeVoice = await waitForNativeBrowserVoice();
+      if (generation !== speechGeneration) return false;
+      if (nativeVoice) {
+        played = await playNativeBrowserSpeech(speechText(text), nativeVoice, generation);
+        if (generation !== speechGeneration) return false;
+        if (played) {
+          session.voiceError = "";
+          voiceFailureNotified = false;
+          finishSpeaking();
+          return true;
+        }
+        if (session.speaking) finishSpeaking();
+      }
+      if (!session.elevenlabs) return false;
       let prepared = fetchSpeechChunk(chunks[0], generation, "", chunks[1] || "")
         .then((blob) => ({ blob }))
         .catch((error) => ({ error }));
@@ -1636,14 +1733,16 @@
       session.deviceBridge = Boolean(status.device_bridge?.configured);
       session.elevenlabs = Boolean(status.voice?.configured);
       session.voiceError = "";
-      byId("voiceValue").textContent = session.elevenlabs
-        ? `ElevenLabs${voiceSupport.input ? " + microfone" : ""}`
-        : voiceSupport.input
-          ? "microfone ativo · saída aguarda ElevenLabs"
-          : "ElevenLabs aguarda chave";
+      byId("voiceValue").textContent = voiceSupport.output
+        ? `Voz nativa pt-BR${voiceSupport.input ? " + microfone" : ""}`
+        : session.elevenlabs
+          ? `ElevenLabs${voiceSupport.input ? " + microfone" : ""}`
+          : voiceSupport.input
+            ? "microfone ativo · saída de voz indisponível"
+            : "voz indisponível neste navegador";
       const ready = [
         status.ai?.configured ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
-        status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
+        voiceSupport.output ? "voz nativa pt-BR" : status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
         status.automations?.n8n?.configured ? "n8n" : "",
         session.paired && status.device_bridge?.configured ? "Mac pareado" : "",
         status.runtime === "local_web_preview" ? "worker local" : "",

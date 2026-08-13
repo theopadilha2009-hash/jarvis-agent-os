@@ -1,15 +1,15 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260813-human6";
+const CACHE_VERSION = "jarvis-mobile-shell-20260813-human7";
 const SHELL = [
   "/",
-  "/ui/manifest.webmanifest?v=20260813-human6",
-  "/ui/jarvis-logo.png?v=20260813-human6",
-  "/ui/jarvis.css?v=20260813-human6",
-  "/ui/jarvis.js?v=20260813-human6",
-  "/ui/jarvis-3d.js?v=20260813-human6",
-  "/ui/aurora.js?v=20260813-human6",
-  "/ui/strands.js?v=20260813-human6",
+  "/ui/manifest.webmanifest?v=20260813-human7",
+  "/ui/jarvis-logo.png?v=20260813-human7",
+  "/ui/jarvis.css?v=20260813-human7",
+  "/ui/jarvis.js?v=20260813-human7",
+  "/ui/jarvis-3d.js?v=20260813-human7",
+  "/ui/aurora.js?v=20260813-human7",
+  "/ui/strands.js?v=20260813-human7",
   "/ui/vendor/ogl/jarvis.js",
   "/ui/vendor/three.module.js",
 ];

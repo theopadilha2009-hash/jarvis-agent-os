@@ -2869,7 +2869,7 @@ def status_payload(owner_authenticated=False):
             "profile": active_voice.get("profile"),
             "source": active_voice.get("source"),
             "model": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
-            "fallback": "text_only",
+            "fallback": "browser_native_ptbr",
         },
         "automations": {
             "n8n": {"configured": n8n_ready, "agenda": n8n_ready},
@@ -3482,7 +3482,7 @@ def elevenlabs_speech(body):
             "ok": False,
             "status_real": "elevenlabs_key_required",
             "error": "ElevenLabs ainda não está configurado.",
-            "fallback": "text_only",
+            "fallback": "browser_native_ptbr",
         }, 503
     current_voice = active_voice_setting()
     try:
@@ -3515,7 +3515,7 @@ def elevenlabs_speech(body):
     }
     try:
         last_error = None
-        retryable_voice_codes = {402, 403, 404, 422}
+        retryable_voice_codes = {403, 404, 422}
         for index, voice in enumerate(voice_candidates):
             voice_id = clean_text(voice.get("voice_id"), 100)
             if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
@@ -3564,30 +3564,30 @@ def elevenlabs_speech(body):
                 "ok": False,
                 "error": "ElevenLabs sem créditos disponíveis (HTTP 402).",
                 "error_code": "elevenlabs_quota",
-                "fallback": "text_only",
+                "fallback": "browser_native_ptbr",
             }, 502
         if error.code in {401, 403}:
             return {
                 "ok": False,
                 "error": "A chave ou a voz da ElevenLabs não foi autorizada.",
                 "error_code": "elevenlabs_authorization",
-                "fallback": "text_only",
+                "fallback": "browser_native_ptbr",
             }, 502
         if error.code == 429:
             return {
                 "ok": False,
                 "error": "O limite temporário da ElevenLabs foi atingido.",
                 "error_code": "elevenlabs_rate_limit",
-                "fallback": "text_only",
+                "fallback": "browser_native_ptbr",
             }, 502
         return {
             "ok": False,
             "error": f"ElevenLabs recusou a voz (HTTP {error.code}).",
             "error_code": "elevenlabs_provider_error",
-            "fallback": "text_only",
+            "fallback": "browser_native_ptbr",
         }, 502
     except (URLError, TimeoutError, ValueError):
-        return {"ok": False, "error": "ElevenLabs não respondeu com áudio válido.", "fallback": "text_only"}, 504
+        return {"ok": False, "error": "ElevenLabs não respondeu com áudio válido.", "fallback": "browser_native_ptbr"}, 504
 
 
 def normalize_messages(body):
