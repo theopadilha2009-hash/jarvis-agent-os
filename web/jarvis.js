@@ -1189,30 +1189,10 @@
     return `${clean.slice(0, limit).replace(/\s+\S*$/, "").trim()}…`;
   }
 
-  function speechChunks(value, maxLength = 900) {
+  function speechChunks(value) {
     const clean = speechText(value);
     if (!clean) return [];
-    const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
-    const pieces = [];
-    sentences.forEach((sentence) => {
-      let remaining = sentence.trim();
-      while (remaining.length > maxLength) {
-        const windowText = remaining.slice(0, maxLength + 1);
-        const comma = Math.max(windowText.lastIndexOf(", "), windowText.lastIndexOf("; "), windowText.lastIndexOf(": "));
-        const space = windowText.lastIndexOf(" ");
-        const cut = comma > maxLength * 0.55 ? comma + 1 : space > 0 ? space : maxLength;
-        pieces.push(remaining.slice(0, cut).trim());
-        remaining = remaining.slice(cut).trim();
-      }
-      if (remaining) pieces.push(remaining);
-    });
-    const chunks = [];
-    pieces.forEach((piece) => {
-      const previous = chunks.at(-1);
-      if (previous && `${previous} ${piece}`.length <= maxLength) chunks[chunks.length - 1] = `${previous} ${piece}`;
-      else chunks.push(piece);
-    });
-    return chunks.filter(Boolean).slice(0, 3);
+    return window.JarvisVoicePacing?.chunks?.(clean) || [clean];
   }
 
   function messageHtml(value) {

@@ -14,6 +14,7 @@ APP_JS = WEB / "jarvis.js"
 API_VAULT_JS = WEB / "api-vault.js"
 MISSION_CONTROL_JS = WEB / "mission-control.js"
 MISSION_CONTROL_CSS = WEB / "mission-control.css"
+VOICE_PACING_JS = WEB / "voice-pacing.js"
 PRESENCE_JS = WEB / "jarvis-3d.js"
 STRANDS_JS = WEB / "strands.js"
 AURORA_JS = WEB / "aurora.js"
@@ -55,6 +56,7 @@ class UIQualityTest(unittest.TestCase):
         cls.api_vault_js = API_VAULT_JS.read_text(encoding="utf-8")
         cls.mission_control_js = MISSION_CONTROL_JS.read_text(encoding="utf-8")
         cls.mission_control_css = MISSION_CONTROL_CSS.read_text(encoding="utf-8")
+        cls.voice_pacing_js = VOICE_PACING_JS.read_text(encoding="utf-8")
         cls.presence_js = PRESENCE_JS.read_text(encoding="utf-8")
         cls.parser = CockpitParser()
         cls.parser.feed(cls.html)
@@ -176,6 +178,18 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("prefers-reduced-motion", self.mission_control_css)
         self.assertLess(MISSION_CONTROL_JS.stat().st_size, 16 * 1024)
         self.assertLess(MISSION_CONTROL_CSS.stat().st_size, 8 * 1024)
+
+    def test_living_voice_preserves_voice_and_prefetches_natural_lead(self):
+        self.assertIn('import("/ui/voice-pacing.js?v=20260813-voice1")', self.api_vault_js)
+        self.assertIn("requestIdleCallback", self.api_vault_js)
+        self.assertIn("jarvis-voice-pacing/1", self.voice_pacing_js)
+        self.assertIn("FIRST_TARGET = 190", self.voice_pacing_js)
+        self.assertIn("naturalCut", self.voice_pacing_js)
+        self.assertIn("window.JarvisVoicePacing?.chunks", self.app_js)
+        self.assertIn("prepared = index + 1 < chunks.length", self.app_js)
+        self.assertIn("previous_text: previousText", self.app_js)
+        self.assertIn("next_text: nextText", self.app_js)
+        self.assertLess(VOICE_PACING_JS.stat().st_size, 6 * 1024)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('import("/ui/jarvis-3d.js?v=20260813-apitools1")', self.html)
