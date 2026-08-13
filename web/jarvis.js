@@ -568,17 +568,20 @@
   function spawnUltronLaugh() {
     const field = byId("ultronLaughter");
     if (!field || !session.paired || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    if (field.childElementCount >= 2) return;
-    const laugh = document.createElement("span");
-    const variants = ["HA", "HAHA", "HA HA", "HAHAHA"];
-    laugh.textContent = variants[Math.floor(Math.random() * variants.length)];
-    laugh.style.setProperty("--laugh-x", `${12 + Math.random() * 72}%`);
-    laugh.style.setProperty("--laugh-y", `${10 + Math.random() * 68}%`);
-    laugh.style.setProperty("--laugh-tilt", `${-14 + Math.random() * 28}deg`);
-    laugh.style.setProperty("--laugh-size", `${10 + Math.random() * 8}px`);
-    laugh.style.setProperty("--laugh-duration", `${5.5 + Math.random() * 2.5}s`);
-    field.appendChild(laugh);
-    laugh.addEventListener("animationend", () => laugh.remove(), { once: true });
+    const available = Math.max(0, 4 - field.childElementCount);
+    const amount = Math.min(available, Math.random() > 0.58 ? 2 : 1);
+    const variants = ["HA HA", "HAHA", "HA HA HA", "HAHAHA"];
+    for (let index = 0; index < amount; index += 1) {
+      const laugh = document.createElement("span");
+      laugh.textContent = variants[Math.floor(Math.random() * variants.length)];
+      laugh.style.setProperty("--laugh-x", `${8 + Math.random() * 84}%`);
+      laugh.style.setProperty("--laugh-y", `${8 + Math.random() * 74}%`);
+      laugh.style.setProperty("--laugh-tilt", `${-12 + Math.random() * 24}deg`);
+      laugh.style.setProperty("--laugh-size", `${18 + Math.random() * 16}px`);
+      laugh.style.setProperty("--laugh-duration", `${6.5 + Math.random() * 3}s`);
+      field.appendChild(laugh);
+      laugh.addEventListener("animationend", () => laugh.remove(), { once: true });
+    }
   }
 
   function scheduleUltronLaughter(initial = false) {
@@ -591,7 +594,7 @@
     laughterTimer = window.setTimeout(() => {
       spawnUltronLaugh();
       scheduleUltronLaughter(false);
-    }, initial ? 3200 : 9000 + Math.random() * 9000);
+    }, initial ? 1800 : 6000 + Math.random() * 5000);
   }
 
   function applyIdentityMode() {
@@ -1061,6 +1064,17 @@
     setVisualState(session.responseState || "idle");
   }
 
+  function syncComposerAction() {
+    const form = byId("commandForm");
+    if (!form) return;
+    const hasPayload = !!(input.value.trim() || session.attachments.length);
+    form.dataset.hasPayload = String(hasPayload);
+    sendButton.tabIndex = hasPayload ? 0 : -1;
+    voiceButton.tabIndex = hasPayload ? -1 : 0;
+    sendButton.setAttribute("aria-hidden", !hasPayload);
+    voiceButton.setAttribute("aria-hidden", hasPayload);
+  }
+
   function setWorking(value, state = "thinking") {
     session.working = value;
     if (value) session.workingState = state;
@@ -1071,6 +1085,7 @@
     sendButton.textContent = "Enviar";
     sendButton.toggleAttribute("aria-busy", value);
     sendButton.setAttribute("aria-label", value ? `${busyLabel}. Aguarde.` : "Enviar pedido");
+    syncComposerAction();
     settleState();
   }
 
@@ -1241,6 +1256,7 @@
         else clearAttachmentPreview();
       });
     });
+    syncComposerAction();
   }
 
   function attachmentKind(item) {
@@ -2021,6 +2037,7 @@
     const fileLabel = attachments.length ? `<small class="message-attachments">${attachments.map((item) => escapeHtml(item.name)).join(" · ")}</small>` : "";
     addMessage(command, options.source === "voice" ? "user voice" : "user", fileLabel);
     input.value = "";
+    syncComposerAction();
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-24);
     setRequest(command);
@@ -2096,6 +2113,7 @@
       const rows = Array.from(event.results);
       const transcript = rows.map((row) => row[0].transcript).join(" ").trim();
       input.value = transcript;
+      syncComposerAction();
       byId("spokenCaption").textContent = transcript || "Estou ouvindo…";
       if (!submitted && rows.at(-1)?.isFinal && transcript) {
         submitted = true;
@@ -2244,6 +2262,7 @@
     if (mobileLayout.matches) setMobileChatExpanded(true);
     window.setTimeout(syncMobileViewport, 80);
   });
+  input.addEventListener("input", syncComposerAction);
   input.addEventListener("blur", () => window.setTimeout(syncMobileViewport, 80));
   attachmentButton.addEventListener("click", () => attachmentInput.click());
   attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
@@ -2261,8 +2280,9 @@
       }],
     });
     input.value = currentPulse.command || "";
+    syncComposerAction();
     input.focus();
-    try { localStorage.setItem("jarvis-last-pulse", currentPulse.id); } catch { /* session-only dismissal */ }
+    try { localStorage.setItem("jarvis-last-pulse", currentPulse.id); } catch {}
     currentPulse = null;
     pulseButton.hidden = true;
   });
@@ -2440,6 +2460,7 @@
   }, { once: true });
 
   renderMuteState();
+  syncComposerAction();
   applyIdentityMode();
   renderStarterActions();
   renderInstallAvailability();
