@@ -118,7 +118,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-human3")', self.html)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-human4")', self.html)
         self.assertIn("requestIdleCallback", self.html)
         self.assertIn("activeFps: 45", self.presence_js)
         self.assertIn("idleFps: 24", self.presence_js)
@@ -132,18 +132,21 @@ class UIQualityTest(unittest.TestCase):
 
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
-        self.assertGreaterEqual(self.html.count("20260813-human3"), 9)
+        self.assertGreaterEqual(self.html.count("20260813-human4"), 9)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
         self.assertIn("--cyan: #a855f7", self.css)
         self.assertIn("visitor-purple-volume", self.presence_js)
-        self.assertIn("visitor-real-eye-", self.presence_js)
+        self.assertNotIn("visitor-real-eye-", self.presence_js)
         self.assertIn("visitor-animated-surface-topology", self.presence_js)
         self.assertIn("visitor-mesh-derived-dissolution", self.presence_js)
         self.assertNotIn("TubeGeometry", self.presence_js)
         self.assertIn("jarvisPoseHead", self.presence_js)
-        self.assertIn("makeIrisTexture", self.presence_js)
+        self.assertNotIn("makeIrisTexture", self.presence_js)
+        self.assertIn("* 5.4", self.presence_js)
+        self.assertIn("--ink: #130824", self.css)
+        self.assertIn("opacity: 0.86", self.css)
         self.assertIn('window.addEventListener("jarvis-voice-level", onVoiceLevel)', self.presence_js)
         self.assertIn("jarvis-humanoid.glb", self.presence_js)
         self.assertIn("ownerModel.visible = isOwner", self.presence_js)

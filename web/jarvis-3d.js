@@ -127,42 +127,7 @@ function installVisitorHeadPose(material) {
   return look;
 }
 
-function makeIrisTexture(seed = 0) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
-  const context = canvas.getContext("2d");
-  const center = 64;
-  const gradient = context.createRadialGradient(center, center, 5, center, center, 60);
-  gradient.addColorStop(0, "#08030f");
-  gradient.addColorStop(0.2, "#2e1065");
-  gradient.addColorStop(0.55, "#7c3aed");
-  gradient.addColorStop(0.82, "#4c1d95");
-  gradient.addColorStop(1, "#130720");
-  context.fillStyle = gradient;
-  context.beginPath();
-  context.arc(center, center, 61, 0, Math.PI * 2);
-  context.fill();
-  for (let index = 0; index < 72; index += 1) {
-    const angle = index / 72 * Math.PI * 2 + seed * 0.037;
-    const inner = 17 + ((index * 17 + seed * 11) % 10);
-    const outer = 48 + ((index * 29 + seed * 7) % 12);
-    context.strokeStyle = index % 4 === 0 ? "rgba(233,213,255,.5)" : "rgba(168,85,247,.34)";
-    context.lineWidth = index % 5 === 0 ? 1.4 : 0.7;
-    context.beginPath();
-    context.moveTo(center + Math.cos(angle) * inner, center + Math.sin(angle) * inner);
-    context.lineTo(center + Math.cos(angle + Math.sin(index) * 0.018) * outer, center + Math.sin(angle + Math.sin(index) * 0.018) * outer);
-    context.stroke();
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.needsUpdate = true;
-  return texture;
-}
-
 function makeVisitorLife(topologyGeometry) {
-  const group = new THREE.Group();
-  group.name = "visitor-life-details";
   const surface = new THREE.Group();
   surface.name = "visitor-topology-surface";
 
@@ -262,70 +227,6 @@ function makeVisitorLife(topologyGeometry) {
   dissolve.renderOrder = 3;
   surface.add(topology, dissolve);
 
-  group.position.set(0, -0.31, 0);
-
-  const eyes = [-0.145, 0.145].map((x, index) => {
-    const eye = new THREE.Group();
-    eye.name = `visitor-real-eye-${index + 1}`;
-    eye.position.set(x, 0.49, 0.505);
-
-    const sclera = new THREE.Mesh(
-      new THREE.SphereGeometry(0.052, 24, 16),
-      new THREE.MeshStandardMaterial({
-        color: 0x75677f,
-        emissive: 0x0c0612,
-        emissiveIntensity: 0.02,
-        roughness: 0.76,
-        transparent: true,
-        opacity: 0.78,
-        depthWrite: false,
-      }),
-    );
-    sclera.scale.set(1, 0.39, 0.31);
-    sclera.renderOrder = 3;
-    eye.add(sclera);
-
-    const limbalRing = new THREE.Mesh(
-      new THREE.CircleGeometry(0.021, 36),
-      new THREE.MeshBasicMaterial({ color: 0x160724, transparent: true, opacity: 0.94, depthTest: false }),
-    );
-    limbalRing.position.z = 0.0187;
-    limbalRing.scale.y = 0.84;
-    limbalRing.renderOrder = 4;
-    eye.add(limbalRing);
-
-    const iris = new THREE.Mesh(
-      new THREE.CircleGeometry(0.0188, 36),
-      new THREE.MeshBasicMaterial({ map: makeIrisTexture(index + 1), transparent: true, opacity: 0.96, depthTest: false }),
-    );
-    iris.position.z = 0.0195;
-    iris.scale.y = 0.84;
-    iris.renderOrder = 5;
-    eye.add(iris);
-
-    const pupil = new THREE.Mesh(
-      new THREE.CircleGeometry(0.0078, 28),
-      new THREE.MeshBasicMaterial({ color: 0x050208, transparent: true, opacity: 0.98, depthTest: false }),
-    );
-    pupil.position.z = 0.0205;
-    pupil.scale.y = 0.84;
-    pupil.renderOrder = 6;
-    eye.add(pupil);
-
-    const catchlight = new THREE.Mesh(
-      new THREE.CircleGeometry(0.0023, 12),
-      new THREE.MeshBasicMaterial({ color: 0xf3e8ff, transparent: true, opacity: 0.72, depthTest: false }),
-    );
-    catchlight.position.set(-0.005, 0.005, 0.0215);
-    catchlight.renderOrder = 7;
-    eye.add(catchlight);
-
-    eye.userData.phase = index * Math.PI;
-    eye.userData.iris = iris;
-    group.add(eye);
-    return eye;
-  });
-
   function update(time, speakingEnergy = 0, headYaw = 0, headPitch = 0, headRoll = 0) {
     const voiceNod = Math.sin(time * 5.4) * speakingEnergy * 0.012;
     topologyMaterial.uniforms.uHeadLook.value.set(headYaw, headPitch + voiceNod, headRoll);
@@ -335,15 +236,9 @@ function makeVisitorLife(topologyGeometry) {
     dissolveMaterial.uniforms.uTime.value = time;
     dissolveMaterial.uniforms.uEnergy.value = speakingEnergy;
     dissolveMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio || 1, 1.5);
-    const blink = Math.pow(Math.max(0, Math.sin(time * 0.54 - 0.42)), 32);
-    group.rotation.set(headPitch + voiceNod, headYaw, headRoll);
-    eyes.forEach((eye) => {
-      eye.scale.y = 1 - blink * 0.92;
-      eye.userData.iris.material.opacity = 0.84 + Math.sin(time * 0.9 + eye.userData.phase) * 0.06 + speakingEnergy * 0.08;
-    });
   }
 
-  return { group, surface, topology, dissolve, eyes, update };
+  return { surface, topology, dissolve, update };
 }
 
 let visualState = stage.dataset.state || "idle";
@@ -729,8 +624,8 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const [visitorModel, topologyGeometry] = await Promise.all([
-    loadObjHead("/asset/models/male_head.obj?v=20260813-human3"),
-    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-human3"),
+    loadObjHead("/asset/models/male_head.obj?v=20260813-human4"),
+    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-human4"),
   ]);
   const visitorHeadLook = installVisitorHeadPose(visitorModel.material);
   let ownerModel = new THREE.Group();
@@ -753,7 +648,6 @@ async function start() {
   normalizeModel(visitorModel, -Math.PI / 2, 0, 0, 1.5);
   const visitorLife = makeVisitorLife(topologyGeometry);
   normalizeModel(visitorLife.surface, -Math.PI / 2, 0, 0, 1.5);
-  root.add(visitorLife.group);
 
   const glowMaterials = new Set();
   function prepareOwnerModel(model) {
@@ -967,7 +861,6 @@ async function start() {
   function syncAccessModel() {
     const ownerAccess = stage.dataset.access === "owner";
     visitorModel.visible = !ownerAccess;
-    visitorLife.group.visible = !ownerAccess;
     visitorLife.surface.visible = !ownerAccess;
     if (ownerAccess) {
       presenceValue.textContent = "Busto master carregando";
@@ -1045,7 +938,6 @@ async function start() {
     });
     const isOwner = stage.dataset.access === "owner";
     visitorModel.visible = !isOwner;
-    visitorLife.group.visible = !isOwner;
     visitorLife.surface.visible = !isOwner;
     ownerModel.visible = isOwner;
     ambient.color.setHex(isOwner ? 0x291044 : 0x2b174d);
@@ -1065,7 +957,7 @@ async function start() {
     });
     if (ownerMixer) ownerMixer.update(deltaSeconds);
 
-    const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.45);
+    const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 5.4);
     currentX += (pointerX * 0.15 - currentX) * orientationEase;
     currentY += (pointerY * 0.08 - currentY) * orientationEase;
     currentZ += (-pointerX * 0.025 - currentZ) * orientationEase;
@@ -1130,7 +1022,7 @@ async function start() {
     accessObserver.disconnect();
     ownerMixer?.stopAllAction();
     const disposedTextures = new Set();
-    [visitorModel, visitorLife.group, visitorLife.surface, ownerModel].forEach((model) => {
+    [visitorModel, visitorLife.surface, ownerModel].forEach((model) => {
       model.traverse((object) => {
         if (!(object.isMesh || object.isLineSegments || object.isPoints)) return;
         object.geometry?.dispose();

@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
-  <meta name="theme-color" content="#090414">
+  <meta name="theme-color" content="#130824">
   <meta name="description" content="JARVIS, central pessoal de memória, automação e controle do Mac de Theo.">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-human3">
-  <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-human3" type="image/png">
-  <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-human3">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260813-human3">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-human4">
+  <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-human4" type="image/png">
+  <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-human4">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260813-human4">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
@@ -24,7 +24,7 @@
     <header class="topbar">
       <div class="identity">
         <span class="identity-mark" aria-hidden="true">
-          <img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-human3" alt="">
+          <img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-human4" alt="">
         </span>
         <span class="identity-name"><b>JARVIS</b><small>para Theo</small></span>
       </div>
@@ -276,15 +276,15 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260813-human3" defer></script>
+  <script src="/ui/jarvis.js?v=20260813-human4" defer></script>
   <script type="module">
     let presenceScheduled = false;
 
     const loadPresence = async () => {
       const [auroraModule, strandsModule] = await Promise.all([
-        import("/ui/aurora.js?v=20260813-human3"),
-        import("/ui/strands.js?v=20260813-human3"),
-        import("/ui/jarvis-3d.js?v=20260813-human3"),
+        import("/ui/aurora.js?v=20260813-human4"),
+        import("/ui/strands.js?v=20260813-human4"),
+        import("/ui/jarvis-3d.js?v=20260813-human4"),
       ]);
       auroraModule.createAurora(document.getElementById("auroraVisual"), {
         colorStops: ["#2E1065", "#7C3AED", "#A855F7"],
