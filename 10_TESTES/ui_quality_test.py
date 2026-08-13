@@ -118,7 +118,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-human6")', self.html)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-clarity1")', self.html)
         self.assertIn("requestIdleCallback", self.html)
         self.assertIn("activeFps: 45", self.presence_js)
         self.assertIn("idleFps: 24", self.presence_js)
@@ -132,7 +132,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
-        self.assertGreaterEqual(self.html.count("20260813-human6"), 9)
+        self.assertGreaterEqual(self.html.count("20260813-clarity1"), 9)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
@@ -165,6 +165,17 @@ class UIQualityTest(unittest.TestCase):
         for legacy_accent in ("#2563eb", "#60a5fa", "#49c7dc", "#71ddeb", "#9beeff"):
             self.assertNotIn(legacy_accent, self.css.lower())
         self.assertNotIn("TetrahedronGeometry", self.presence_js)
+
+    def test_clarity_pass_has_luminous_surfaces_and_tactile_controls(self):
+        self.assertIn("Clarity pass", self.css)
+        self.assertIn("linear-gradient(135deg, #9333ea", self.css)
+        self.assertIn(".message.voice-status", self.css)
+        self.assertIn("border-left: 2px solid #c084fc", self.css)
+        self.assertIn(".message-actions .speak-command", self.css)
+        self.assertIn("border-radius: 8px", self.css)
+        self.assertIn(".shimmer-label", self.css)
+        self.assertIn("background: transparent", self.css)
+        self.assertIn("grid-template-rows: 34px 16px", self.css)
 
 
 if __name__ == "__main__":
