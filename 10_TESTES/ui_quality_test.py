@@ -116,7 +116,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
     def test_3d_is_lazy_adaptive_and_fully_pauses(self):
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-v10")', self.html)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-v10-purple")', self.html)
         self.assertIn("canLoadPresence", self.html)
         self.assertIn("connection?.saveData", self.html)
         self.assertIn("requestIdleCallback", self.html)
@@ -128,7 +128,19 @@ class UIQualityTest(unittest.TestCase):
 
     def test_all_shell_assets_share_v10_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
-        self.assertGreaterEqual(self.html.count("20260813-v10"), 6)
+        self.assertGreaterEqual(self.html.count("20260813-v10-purple"), 7)
+
+    def test_purple_brand_and_bust_contract(self):
+        self.assertIn("jarvis-logo.png", self.html)
+        self.assertIn("--accent: #a78bfa", self.css)
+        self.assertIn("--presence-width: clamp(232px, 19vw, 292px)", self.css)
+        self.assertNotIn("rgba(130, 221, 230", self.css)
+        self.assertIn("jarvis-purple-cognitive-bust", self.presence_js)
+        self.assertIn("jarvis-real-eye-glass", self.presence_js)
+        self.assertIn("internal-neural-network", self.presence_js)
+        self.assertIn("halo|radiator", self.presence_js)
+        self.assertIn("sketchfab_plane|particles", self.presence_js)
+        self.assertNotIn("TetrahedronGeometry", self.presence_js)
 
 
 if __name__ == "__main__":

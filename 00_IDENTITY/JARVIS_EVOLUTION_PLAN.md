@@ -23,7 +23,7 @@ JARVIS already has:
 - a shared typed ActionRegistry for web and CLI policy;
 - durable agent runs with confirmation, cancel and retry;
 - local SQLite memory search over confirmed Markdown;
-- an abstract procedural cognitive core with no humanoid anatomy.
+- a compact purple cognitive bust with optical eyes and internal neural paths;
 - progressive streamed responses and a visual run history;
 - visual managers for memory, local tasks and reusable browser files;
 - opt-in completion notifications, voice barge-in and a resilient offline outbox;

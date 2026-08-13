@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
-  <meta name="theme-color" content="#03090f">
+  <meta name="theme-color" content="#0b0615">
   <meta name="description" content="JARVIS, central pessoal de memória, automação e controle do Mac de Theo.">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="JARVIS">
   <title>JARVIS · Theo</title>
-  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-v10">
-  <link rel="icon" href="/ui/jarvis-icon.svg?v=20260813-v10" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/ui/jarvis-icon-180.png?v=20260813-v10">
-  <link rel="stylesheet" href="/ui/jarvis.css?v=20260813-v10">
+  <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-v10-purple">
+  <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-v10-purple" type="image/png">
+  <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-v10-purple">
+  <link rel="stylesheet" href="/ui/jarvis.css?v=20260813-v10-purple">
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/"}}
   </script>
@@ -24,12 +24,7 @@
     <header class="topbar">
       <div class="identity">
         <span class="identity-mark" aria-hidden="true">
-          <svg viewBox="0 0 40 40">
-            <circle class="mark-orbit" cx="20" cy="20" r="16"></circle>
-            <path class="mark-arc" d="M8.7 13.5A13.2 13.2 0 0 1 31 11M33.2 16a13.2 13.2 0 0 1-8.5 16.4M17 33A13.2 13.2 0 0 1 6.8 18"></path>
-            <path class="mark-j" d="M24.8 10.8v12.1c0 4-2.2 6.2-6.1 6.2-3.2 0-5.3-1.7-5.8-4.7"></path>
-            <circle class="mark-core" cx="24.8" cy="10.8" r="2.4"></circle>
-          </svg>
+          <img src="/ui/jarvis-logo.png?v=20260813-v10-purple" alt="">
         </span>
         <span class="identity-name"><b>JARVIS</b><small>AI WORKER · THEO</small></span>
       </div>
@@ -45,6 +40,7 @@
 
     <main class="stage" id="stage" data-state="idle">
       <section class="presence" aria-label="Núcleo visual do JARVIS">
+        <img class="presence-brand" src="/ui/jarvis-logo.png?v=20260813-v10-purple" alt="" aria-hidden="true">
         <div class="grid-plane" aria-hidden="true"></div>
         <div class="environment-depth" aria-hidden="true">
           <i class="depth-horizon"></i>
@@ -295,7 +291,7 @@
     </div>
   </dialog>
 
-  <script src="/ui/jarvis.js?v=20260813-v10" defer></script>
+  <script src="/ui/jarvis.js?v=20260813-v10-purple" defer></script>
   <script type="module">
     const stage = document.getElementById("stage");
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
@@ -304,7 +300,7 @@
     const capableHardware = (!navigator.deviceMemory || navigator.deviceMemory >= 4)
       && (!navigator.hardwareConcurrency || navigator.hardwareConcurrency >= 4);
     const canLoadPresence = capableViewport && acceptsMotion && capableHardware && !connection?.saveData;
-    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260813-v10").catch(() => {
+    const loadPresence = () => import("/ui/jarvis-3d.js?v=20260813-v10-purple").catch(() => {
       stage.classList.add("model-lite", "model-ready");
       stage.dataset.renderProfile = "static-fallback";
       document.getElementById("presenceValue").textContent = "Núcleo visual leve · GPU indisponível";

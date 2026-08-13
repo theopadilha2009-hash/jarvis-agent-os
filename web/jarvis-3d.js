@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const mount = document.getElementById("avatar3d");
 const stage = document.getElementById("stage");
@@ -14,18 +15,18 @@ const EFFECT_TARGET_FPS = 10;
 const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
 
 const COLORS = {
-  idle: 0x46e6ff,
-  listening: 0x22d3ee,
-  thinking: 0x67e8f9,
-  research: 0x38bdf8,
-  planning: 0x38bdf8,
-  forge: 0xf5b957,
-  speaking: 0x67e8f9,
-  response: 0x67e8f9,
-  memory: 0x5eead4,
-  preview: 0x67e8f9,
-  local: 0xf5b957,
-  success: 0x6ee7b7,
+  idle: 0xa78bfa,
+  listening: 0x8b5cf6,
+  thinking: 0xc4b5fd,
+  research: 0xa78bfa,
+  planning: 0xa78bfa,
+  forge: 0xd8b4fe,
+  speaking: 0xc4b5fd,
+  response: 0xc4b5fd,
+  memory: 0xc084fc,
+  preview: 0xc4b5fd,
+  local: 0xd8b4fe,
+  success: 0xc4b5fd,
   error: 0xfb7185,
   offline: 0x475569,
 };
@@ -88,15 +89,15 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
   const aura = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, span * 0.42);
-  aura.addColorStop(0, "rgba(94,234,212,.14)");
-  aura.addColorStop(0.5, "rgba(56,189,248,.055)");
-  aura.addColorStop(1, "rgba(14,116,144,0)");
+  aura.addColorStop(0, "rgba(192,132,252,.14)");
+  aura.addColorStop(0.5, "rgba(167,139,250,.055)");
+  aura.addColorStop(1, "rgba(91,33,182,0)");
   ctx.fillStyle = aura;
   ctx.fillRect(0, 0, width, height);
 
   ctx.lineWidth = 1;
   for (let ring = 1; ring <= 4; ring += 1) {
-    ctx.strokeStyle = `rgba(94,234,212,${0.16 - ring * 0.022})`;
+    ctx.strokeStyle = `rgba(192,132,252,${0.16 - ring * 0.022})`;
     ctx.setLineDash(ring % 2 ? [3, 8] : []);
     ctx.beginPath();
     ctx.ellipse(centerX, centerY, span * ring * 0.082, span * ring * 0.061, time * 0.025 * (ring % 2 ? 1 : -1), 0, Math.PI * 2);
@@ -111,20 +112,20 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
     const radius = span * (0.075 + lane * 0.052);
     const x = centerX + Math.cos(angle) * radius;
     const y = centerY + Math.sin(angle) * radius * 0.76;
-    ctx.strokeStyle = "rgba(94,234,212,.12)";
+    ctx.strokeStyle = "rgba(192,132,252,.12)";
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(x, y);
     ctx.stroke();
-    ctx.fillStyle = index % 3 ? "rgba(94,234,212,.9)" : "rgba(125,211,252,.95)";
-    ctx.shadowColor = "#5eead4";
+    ctx.fillStyle = index % 3 ? "rgba(192,132,252,.9)" : "rgba(196,181,253,.95)";
+    ctx.shadowColor = "#c084fc";
     ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.arc(x, y, 2 + (index % 3) * 0.7, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
     if (index < 10) {
-      ctx.fillStyle = "rgba(204,251,241,.66)";
+      ctx.fillStyle = "rgba(237,233,254,.66)";
       ctx.textAlign = x < centerX ? "right" : "left";
       ctx.fillText(label, x + (x < centerX ? -7 : 7), y + 3);
     }
@@ -133,32 +134,32 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
   const writeProgress = (time * 0.24) % 1;
   const writeX = centerX - span * (0.38 - writeProgress * 0.38);
   const writeY = centerY + Math.sin(writeProgress * Math.PI) * -span * 0.055;
-  ctx.strokeStyle = "rgba(125,211,252,.26)";
+  ctx.strokeStyle = "rgba(196,181,253,.26)";
   ctx.beginPath();
   ctx.moveTo(centerX - span * 0.38, centerY);
   ctx.quadraticCurveTo(centerX - span * 0.18, centerY - span * 0.11, centerX, centerY);
   ctx.stroke();
-  ctx.fillStyle = `rgba(207,250,254,${0.25 + writeProgress * 0.65})`;
-  ctx.shadowColor = "#67e8f9";
+  ctx.fillStyle = `rgba(245,243,255,${0.25 + writeProgress * 0.65})`;
+  ctx.shadowColor = "#c4b5fd";
   ctx.shadowBlur = 18;
   ctx.fillRect(writeX - 7, writeY - 4, 14, 8);
   ctx.shadowBlur = 0;
 
-  ctx.fillStyle = "rgba(94,234,212,.95)";
-  ctx.shadowColor = "#5eead4";
+  ctx.fillStyle = "rgba(192,132,252,.95)";
+  ctx.shadowColor = "#c084fc";
   ctx.shadowBlur = 28;
   ctx.beginPath();
   ctx.arc(centerX, centerY, 7 + Math.sin(time * 2) * 1.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.fillStyle = "rgba(220,252,248,.92)";
+  ctx.fillStyle = "rgba(245,243,255,.92)";
   ctx.textAlign = "center";
   ctx.font = "700 18px ui-sans-serif, system-ui";
   ctx.fillText(String(labels.length), centerX, centerY - 18);
   ctx.font = "8px ui-monospace, Menlo, monospace";
   ctx.fillText("MEMÓRIA · REGISTRO CONFIRMADO", centerX, centerY + 26);
   ctx.textAlign = "right";
-  ctx.fillStyle = "rgba(153,246,228,.45)";
+  ctx.fillStyle = "rgba(216,180,254,.45)";
   ctx.fillText("CONTEXTO · ÍNDICE PERSISTENTE", width - 24, height - 28);
   ctx.restore();
 }
@@ -178,15 +179,15 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
   const aura = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, span * 0.42);
-  aura.addColorStop(0, `rgba(245,185,87,${0.13 + assembly * 0.08})`);
-  aura.addColorStop(0.48, "rgba(34,211,238,.045)");
-  aura.addColorStop(1, "rgba(8,145,178,0)");
+  aura.addColorStop(0, `rgba(192,132,252,${0.13 + assembly * 0.08})`);
+  aura.addColorStop(0.48, "rgba(139,92,246,.045)");
+  aura.addColorStop(1, "rgba(109,40,217,0)");
   ctx.fillStyle = aura;
   ctx.fillRect(0, 0, width, height);
 
   for (let ring = 1; ring <= 3; ring += 1) {
     const radius = ring * span * 0.09;
-    ctx.strokeStyle = ring === 2 ? "rgba(245,185,87,.2)" : "rgba(103,232,249,.12)";
+    ctx.strokeStyle = ring === 2 ? "rgba(192,132,252,.2)" : "rgba(196,181,253,.12)";
     ctx.lineWidth = ring === 2 ? 1.4 : 1;
     ctx.beginPath();
     for (let side = 0; side <= 8; side += 1) {
@@ -205,7 +206,7 @@ function drawForge(ctx, width, height, time, opacity = 1) {
     const angle = component.angle + time * (index % 2 ? -0.08 : 0.08);
     const x = centerX + Math.cos(angle) * distance;
     const y = centerY + Math.sin(angle) * distance * 0.78;
-    ctx.strokeStyle = index % 3 ? "rgba(103,232,249,.11)" : "rgba(245,185,87,.18)";
+    ctx.strokeStyle = index % 3 ? "rgba(196,181,253,.11)" : "rgba(192,132,252,.18)";
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(x, y);
@@ -213,8 +214,8 @@ function drawForge(ctx, width, height, time, opacity = 1) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(component.phase + time * (0.18 + index % 3 * 0.04));
-    ctx.strokeStyle = index % 3 ? `rgba(165,243,252,${0.34 + assembly * 0.38})` : `rgba(253,230,138,${0.4 + assembly * 0.4})`;
-    ctx.fillStyle = index % 3 ? "rgba(8,145,178,.12)" : "rgba(245,158,11,.13)";
+    ctx.strokeStyle = index % 3 ? `rgba(221,214,254,${0.34 + assembly * 0.38})` : `rgba(233,213,255,${0.4 + assembly * 0.4})`;
+    ctx.fillStyle = index % 3 ? "rgba(109,40,217,.12)" : "rgba(126,34,206,.13)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.roundRect(-component.size, -component.size * 0.55, component.size * 2, component.size * 1.1, 2);
@@ -225,9 +226,9 @@ function drawForge(ctx, width, height, time, opacity = 1) {
 
   const coreRadius = 12 + assembly * 14;
   const glow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius * 2.4);
-  glow.addColorStop(0, `rgba(255,251,235,${0.7 + assembly * 0.24})`);
-  glow.addColorStop(0.42, `rgba(245,185,87,${0.24 + assembly * 0.18})`);
-  glow.addColorStop(1, "rgba(34,211,238,0)");
+  glow.addColorStop(0, `rgba(250,245,255,${0.7 + assembly * 0.24})`);
+  glow.addColorStop(0.42, `rgba(192,132,252,${0.24 + assembly * 0.18})`);
+  glow.addColorStop(1, "rgba(139,92,246,0)");
   ctx.fillStyle = glow;
   ctx.beginPath();
   ctx.arc(centerX, centerY, coreRadius * 2.4, 0, Math.PI * 2);
@@ -236,9 +237,9 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   ctx.beginPath();
   ctx.arc(centerX, centerY, coreRadius * 0.35, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "rgba(103,232,249,.5)";
+  ctx.strokeStyle = "rgba(196,181,253,.5)";
   ctx.strokeRect(centerX - span * 0.105, centerY - span * 0.06, span * 0.21, span * 0.12);
-  ctx.fillStyle = "rgba(254,243,199,.75)";
+  ctx.fillStyle = "rgba(243,232,255,.75)";
   ctx.font = "700 9px ui-monospace, Menlo, monospace";
   ctx.textAlign = "center";
   ctx.fillText("FORJA · CONSTRUÇÃO EM CURSO", centerX, centerY + span * 0.28);
@@ -246,7 +247,7 @@ function drawForge(ctx, width, height, time, opacity = 1) {
     const angle = -Math.PI * 0.8 + index * Math.PI * 0.53;
     const x = centerX + Math.cos(angle) * span * 0.27;
     const y = centerY + Math.sin(angle) * span * 0.25;
-    ctx.fillStyle = index <= Math.floor(assembly * 4) ? "rgba(254,243,199,.72)" : "rgba(165,243,252,.38)";
+    ctx.fillStyle = index <= Math.floor(assembly * 4) ? "rgba(243,232,255,.72)" : "rgba(221,214,254,.38)";
     ctx.fillText(label, x, y);
   });
   ctx.restore();
@@ -263,9 +264,9 @@ function drawVoiceWaves(ctx, width, height, time, opacity = 1) {
     const fade = Math.sin(progress * Math.PI) * Math.max(0, Math.min(1, opacity));
     const radiusX = span * (0.2 + progress * 0.13);
     const radiusY = span * (0.14 + progress * 0.085);
-    ctx.strokeStyle = `rgba(103,232,249,${fade * 0.1})`;
+    ctx.strokeStyle = `rgba(196,181,253,${fade * 0.1})`;
     ctx.lineWidth = 0.8 + fade * 0.45;
-    ctx.shadowColor = "rgba(34,211,238,.28)";
+    ctx.shadowColor = "rgba(139,92,246,.28)";
     ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, Math.PI * 0.14, Math.PI * 0.86);
@@ -277,182 +278,172 @@ function drawVoiceWaves(ctx, width, height, time, opacity = 1) {
   ctx.restore();
 }
 
-function makeCoreEntity(scene) {
+function createInternalNetwork(parent) {
   const group = new THREE.Group();
-  group.position.set(0.94, 0.02, -1.05);
-  group.scale.setScalar(0.58);
-  group.visible = false;
-  scene.add(group);
+  group.name = "internal-neural-network";
+  group.position.z = 0.13;
+  parent.add(group);
 
-  const obsidianMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x071b22,
-    roughness: 0.16,
-    transmission: 0.34,
-    thickness: 1.2,
-    ior: 1.46,
-    clearcoat: 0.9,
-    emissive: 0x063746,
-    emissiveIntensity: 0.32,
+  const pathMaterial = new THREE.MeshBasicMaterial({
+    color: 0xb99cff,
     transparent: true,
-    opacity: 0,
-    flatShading: true,
+    opacity: 0.34,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
   });
-  const coreGeometry = new THREE.IcosahedronGeometry(0.84, 1);
-  const core = new THREE.Mesh(coreGeometry, obsidianMaterial);
+  const pulseMaterial = new THREE.MeshBasicMaterial({
+    color: 0xf1e9ff,
+    transparent: true,
+    opacity: 0.86,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const coreMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x7c3aed,
+    roughness: 0.12,
+    clearcoat: 1,
+    emissive: 0x6d28d9,
+    emissiveIntensity: 1.2,
+    transparent: true,
+    opacity: 0.78,
+  });
+
+  const routes = [
+    [[0, -0.96, -0.08], [0.02, -0.54, 0.02], [-0.03, -0.1, 0.12], [0, 0.34, 0.16], [0, 0.82, 0.08]],
+    [[0, -0.62, 0.02], [-0.32, -0.7, 0.06], [-0.7, -0.79, -0.02], [-0.98, -0.72, -0.11]],
+    [[0, -0.62, 0.02], [0.32, -0.7, 0.06], [0.7, -0.79, -0.02], [0.98, -0.72, -0.11]],
+    [[-0.02, -0.13, 0.12], [-0.28, 0.04, 0.19], [-0.39, 0.33, 0.2], [-0.48, 0.58, 0.08]],
+    [[0.02, -0.13, 0.12], [0.28, 0.04, 0.19], [0.39, 0.33, 0.2], [0.48, 0.58, 0.08]],
+    [[0, 0.28, 0.16], [-0.17, 0.42, 0.28], [-0.31, 0.39, 0.31]],
+    [[0, 0.28, 0.16], [0.17, 0.42, 0.28], [0.31, 0.39, 0.31]],
+    [[0, 0.58, 0.13], [-0.2, 0.71, 0.14], [-0.31, 0.84, 0.04]],
+    [[0, 0.58, 0.13], [0.2, 0.71, 0.14], [0.31, 0.84, 0.04]],
+  ];
+
+  const curves = routes.map((route, index) => {
+    const curve = new THREE.CatmullRomCurve3(route.map((point) => new THREE.Vector3(...point)));
+    const tube = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, 22, index === 0 ? 0.012 : 0.007, 5, false),
+      pathMaterial,
+    );
+    tube.name = `internal-path-${index + 1}`;
+    group.add(tube);
+    return curve;
+  });
+
+  const pulseGeometry = new THREE.SphereGeometry(0.022, 10, 8);
+  const pulses = curves.map((curve, index) => {
+    const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial);
+    pulse.userData = { curve, offset: index / curves.length, speed: 0.045 + index % 3 * 0.012 };
+    group.add(pulse);
+    return pulse;
+  });
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.085, 18, 12), coreMaterial);
+  core.name = "internal-heart-core";
+  core.position.set(0, -0.48, 0.04);
   group.add(core);
 
-  const soulMaterial = new THREE.MeshBasicMaterial({
-    color: 0x67e8f9,
-    transparent: true,
-    opacity: 0,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const soul = new THREE.Mesh(new THREE.IcosahedronGeometry(0.38, 0), soulMaterial);
-  group.add(soul);
-
-  const wireMaterial = new THREE.MeshBasicMaterial({
-    color: 0x38bdf8,
-    wireframe: true,
-    transparent: true,
-    opacity: 0,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const containment = new THREE.Mesh(new THREE.IcosahedronGeometry(1.28, 1), wireMaterial);
-  group.add(containment);
-
-  const shardMaterial = new THREE.MeshBasicMaterial({
-    color: 0x67e8f9,
-    transparent: true,
-    opacity: 0,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const shardCount = reducedMotion ? 6 : 10;
-  const shards = Array.from({ length: shardCount }, (_, index) => {
-    const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.1 + index % 3 * 0.025), shardMaterial);
-    const y = 1 - index / Math.max(1, shardCount - 1) * 2;
-    const radius = Math.sqrt(Math.max(0, 1 - y * y));
-    const angle = index * 2.399963;
-    shard.userData.direction = new THREE.Vector3(Math.cos(angle) * radius, y * 0.76, Math.sin(angle) * radius);
-    group.add(shard);
-    return shard;
-  });
-
-  let alpha = 0;
-  function update(time, visibility, deltaSeconds = 0) {
-    const transitionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
-    alpha += (Math.max(0, Math.min(1, visibility)) - alpha) * transitionEase;
-    group.visible = alpha > 0.01;
-    if (!group.visible) return;
-    const pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
-    obsidianMaterial.opacity = alpha * 0.58;
-    obsidianMaterial.emissiveIntensity = alpha * (0.28 + pulse * 0.2);
-    soulMaterial.opacity = alpha * (0.44 + pulse * 0.28);
-    wireMaterial.opacity = alpha * (0.08 + pulse * 0.045);
-    shardMaterial.opacity = alpha * (0.2 + pulse * 0.16);
-    core.rotation.y += deltaSeconds * 0.1;
-    core.rotation.x += deltaSeconds * 0.035;
-    soul.rotation.y -= deltaSeconds * 0.15;
-    containment.rotation.y -= deltaSeconds * 0.065;
-    containment.rotation.z += deltaSeconds * 0.025;
-    shards.forEach((shard, index) => {
-      const distance = 1.36 + pulse * 0.12 + index % 4 * 0.045;
-      shard.position.copy(shard.userData.direction).multiplyScalar(distance);
-      shard.rotation.x += deltaSeconds * (0.1 + index % 3 * 0.018);
-      shard.rotation.y -= deltaSeconds * 0.085;
-    });
-    group.rotation.y = Math.sin(time * 0.34) * 0.12;
-    group.position.y = 0.02 + Math.sin(time * 0.8) * 0.035;
-  }
-
-  return { group, update };
+  return {
+    group,
+    setColor(color) {
+      pathMaterial.color.copy(color).lerp(new THREE.Color(0xe9d5ff), 0.28);
+      coreMaterial.emissive.copy(color);
+    },
+    update(time, intensity = 1) {
+      const pulse = 0.5 + 0.5 * Math.sin(time * 1.8);
+      pathMaterial.opacity = 0.2 + intensity * 0.22 + pulse * 0.06;
+      pulseMaterial.opacity = 0.58 + intensity * 0.28;
+      coreMaterial.emissiveIntensity = 0.9 + intensity * 0.8 + pulse * 0.35;
+      core.scale.setScalar(0.92 + pulse * 0.16);
+      pulses.forEach((signal) => {
+        const progress = (time * signal.userData.speed + signal.userData.offset) % 1;
+        signal.position.copy(signal.userData.curve.getPointAt(progress));
+      });
+    },
+    dispose() {
+      group.traverse((object) => object.geometry?.dispose());
+      pathMaterial.dispose();
+      pulseMaterial.dispose();
+      coreMaterial.dispose();
+    },
+  };
 }
 
-function installCyanRemap(material) {
-  if (!material || material.userData.jarvisCyanRemap) return;
-  material.userData.jarvisCyanRemap = true;
-  const previousCompile = material.onBeforeCompile;
-  material.onBeforeCompile = (shader, renderer) => {
-    if (previousCompile) previousCompile(shader, renderer);
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "#include <opaque_fragment>",
-      `
-        float jarvisRedLead = outgoingLight.r - max(outgoingLight.g, outgoingLight.b);
-        float jarvisRedMask = smoothstep(0.035, 0.28, jarvisRedLead)
-          * smoothstep(0.08, 0.34, outgoingLight.r);
-        float jarvisMagentaLead = min(outgoingLight.r, outgoingLight.b) - outgoingLight.g;
-        float jarvisMagentaMask = smoothstep(0.02, 0.2, jarvisMagentaLead)
-          * smoothstep(0.1, 0.38, max(outgoingLight.r, outgoingLight.b));
-        float jarvisAccentMask = max(jarvisRedMask, jarvisMagentaMask);
-        float jarvisEnergy = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
-        vec3 jarvisCyan = vec3(jarvisEnergy * 0.05, jarvisEnergy * 0.92, jarvisEnergy * 1.28);
-        outgoingLight = mix(outgoingLight, jarvisCyan, jarvisAccentMask * 0.96);
-        #include <opaque_fragment>
-      `,
-    );
-  };
-  material.customProgramCacheKey = () => "jarvis-cyan-remap-v2";
-  material.needsUpdate = true;
-}
-
-function makeCognitiveCore(frameMaterial, glassMaterial, accentMaterial, modelWireMaterial) {
-  const model = new THREE.Group();
-  model.name = "jarvis-cognitive-core";
-
-  const add = (name, geometry, material, position = [0, 0, 0], rotation = [0, 0, 0]) => {
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = name;
-    mesh.position.set(...position);
-    mesh.rotation.set(...rotation);
-    model.add(mesh);
-    return mesh;
-  };
-
-  // The runtime identity is deliberately abstract: crystal, field and orbital
-  // mechanics only. No anatomical silhouette or character-like features.
-  const crystal = add("core-crystal", new THREE.IcosahedronGeometry(0.5, 3), glassMaterial);
-  const light = add("core-light", new THREE.IcosahedronGeometry(0.24, 2), accentMaterial);
-  const cage = add("core-cage", new THREE.IcosahedronGeometry(0.64, 1), modelWireMaterial);
-  const halo = add("primary-halo", new THREE.TorusGeometry(0.88, 0.025, 10, 96), frameMaterial);
-  const orbitA = add("orbit-a", new THREE.TorusGeometry(1.08, 0.012, 8, 96), accentMaterial, [0, 0, 0], [0.88, 0.18, 0.16]);
-  const orbitB = add("orbit-b", new THREE.TorusGeometry(1.08, 0.012, 8, 96), accentMaterial, [0, 0, 0], [-0.7, -0.28, 0.44]);
-
-  const arcMaterial = accentMaterial.clone();
-  arcMaterial.opacity = 0.62;
-  const arcs = [0.12, 2.18, 4.3].map((start, index) => add(
-    `signal-arc-${index + 1}`,
-    new THREE.RingGeometry(1.22, 1.25, 72, 1, start, 0.88),
-    arcMaterial,
-  ));
-
-  const fins = [];
-  for (let index = 0; index < 8; index += 1) {
-    const angle = index * Math.PI / 4;
-    const fin = add(
-      `field-segment-${index + 1}`,
-      new THREE.BoxGeometry(0.25, 0.045, 0.06),
-      frameMaterial,
-      [Math.cos(angle) * 0.76, Math.sin(angle) * 0.76, 0],
-      [0, 0, angle + Math.PI / 2],
-    );
-    fins.push(fin);
-  }
-
-  const nodes = [];
-  [0.38, 2.48, 4.58].forEach((angle, index) => {
-    nodes.push(add(
-      `orbit-node-${index + 1}`,
-      new THREE.OctahedronGeometry(0.055, 1),
-      accentMaterial,
-      [Math.cos(angle) * 1.09, Math.sin(angle) * 1.09, 0.04],
-    ));
+async function loadCognitiveBust(root) {
+  const gltf = await new GLTFLoader().loadAsync("/asset/models/jarvis-humanoid.glb?v=20260813-purple-bust");
+  const model = gltf.scene || gltf.scenes[0];
+  const shellMaterial = new THREE.MeshPhysicalMaterial({
+    name: "jarvis-purple-shell",
+    color: 0x5b21b6,
+    metalness: 0.16,
+    roughness: 0.28,
+    clearcoat: 0.82,
+    clearcoatRoughness: 0.18,
+    transmission: 0.12,
+    thickness: 0.5,
+    emissive: 0x2e1065,
+    emissiveIntensity: 0.32,
+    transparent: true,
+    opacity: 0.84,
+    side: THREE.DoubleSide,
+  });
+  const headMaterial = shellMaterial.clone();
+  headMaterial.name = "jarvis-purple-face";
+  headMaterial.color.setHex(0x6d28d9);
+  headMaterial.roughness = 0.34;
+  headMaterial.opacity = 0.88;
+  const eyeMaterial = new THREE.MeshPhysicalMaterial({
+    name: "jarvis-real-eye-glass",
+    color: 0xf5f3ff,
+    metalness: 0,
+    roughness: 0.035,
+    clearcoat: 1,
+    clearcoatRoughness: 0.01,
+    transmission: 0.08,
+    emissive: 0x8b5cf6,
+    emissiveIntensity: 0.16,
   });
 
-  model.userData = { crystal, light, cage, halo, orbitA, orbitB, arcs, fins, nodes };
-  model.scale.setScalar(1.02);
-  return model;
+  const decorations = [];
+  model.traverse((object) => {
+    if (/halo|radiator/i.test(object.name || "")) {
+      object.scale.setScalar(0.0001);
+      object.userData.jarvisDecorationRemoved = true;
+    }
+    if (!object.isMesh) return;
+    const hierarchy = [];
+    let cursor = object;
+    while (cursor && hierarchy.length < 5) {
+      hierarchy.push(cursor.name || "");
+      cursor = cursor.parent;
+    }
+    const identity = hierarchy.join(" ");
+    const originalMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    const materialNames = originalMaterials.map((material) => material?.name || "").join(" ");
+    if (/sketchfab_plane|particles/i.test(`${identity} ${materialNames}`)) {
+      decorations.push(object);
+      return;
+    }
+    object.frustumCulled = true;
+    object.castShadow = false;
+    object.receiveShadow = false;
+    if (/glow|eye/i.test(`${identity} ${materialNames}`)) object.material = eyeMaterial;
+    else if (/head/i.test(materialNames)) object.material = headMaterial;
+    else object.material = shellMaterial;
+  });
+  decorations.forEach((object) => object.removeFromParent());
+
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const scale = 2.08 / (Math.max(size.x, size.y, size.z) || 1);
+  model.scale.setScalar(scale);
+  model.position.set(-center.x * scale, -center.y * scale - 0.08, -center.z * scale);
+  model.name = "jarvis-purple-cognitive-bust";
+  root.add(model);
+
+  const neural = createInternalNetwork(root);
+  return { model, neural, shellMaterials: [shellMaterial, headMaterial], eyeMaterial, gltf };
 }
 
 async function start() {
@@ -478,79 +469,42 @@ async function start() {
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   camera.position.set(0, 0.02, 5.1);
 
-  scene.add(new THREE.AmbientLight(0x071723, 0.75));
-  const key = new THREE.DirectionalLight(0x67e8f9, 2.3);
+  scene.add(new THREE.AmbientLight(0x160b2b, 1.12));
+  const key = new THREE.DirectionalLight(0xd8b4fe, 2.65);
   key.position.set(2.6, 3.4, 4.2);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x60a5fa, 1.85);
+  const rim = new THREE.DirectionalLight(0x7c3aed, 2.15);
   rim.position.set(-3, 1.3, -2);
   scene.add(rim);
+  const eyeCatchlight = new THREE.PointLight(0xf5f3ff, 4.2, 5, 1.8);
+  eyeCatchlight.position.set(0.16, 0.55, 2.7);
+  scene.add(eyeCatchlight);
   const root = new THREE.Group();
   scene.add(root);
 
-  const frameMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x102732,
-    metalness: 0.86,
-    roughness: 0.18,
-    clearcoat: 0.9,
-    clearcoatRoughness: 0.12,
-    emissive: 0x073b49,
-    emissiveIntensity: 0.28,
-    transparent: true,
-    opacity: 0.94,
-    side: THREE.DoubleSide,
-  });
-  const glassMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x153d4a,
-    metalness: 0.12,
-    roughness: 0.08,
-    clearcoat: 1,
-    clearcoatRoughness: 0.04,
-    transmission: 0.16,
-    thickness: 0.8,
-    emissive: 0x08748a,
-    emissiveIntensity: 0.5,
-    transparent: true,
-    opacity: 0.82,
-    side: THREE.DoubleSide,
-  });
-  const accentMaterial = new THREE.MeshBasicMaterial({
-    color: 0xb6f7ff,
-    transparent: true,
-    opacity: 0.94,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const modelWireMaterial = new THREE.MeshBasicMaterial({
-    color: COLORS.idle,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.085,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  installCyanRemap(frameMaterial);
-  const model = makeCognitiveCore(frameMaterial, glassMaterial, accentMaterial, modelWireMaterial);
-  root.add(model);
-  stage.dataset.modelAsset = "procedural-cognitive-core";
+  const bust = await loadCognitiveBust(root);
+  const model = bust.model;
+  stage.dataset.modelAsset = "jarvis-purple-cognitive-bust";
   stage.dataset.modelAnimations = "0";
   stage.dataset.modelAnimationSeconds = "0";
-  stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "cognitive-core";
+  stage.dataset.removedDecorations = "scan-line,halo,radiators,floating-triangles";
+  stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "purple-neural-bust";
 
-  const particleCount = compactViewport || constrainedHardware ? 24 : 42;
+  const particleCount = compactViewport || constrainedHardware ? 12 : 22;
   const particlePositions = new Float32Array(particleCount * 3);
   for (let index = 0; index < particleCount; index += 1) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = 1.5 + Math.random() * 1.8;
-    particlePositions[index * 3] = Math.cos(angle) * radius;
-    particlePositions[index * 3 + 1] = (Math.random() - 0.5) * 3.5;
-    particlePositions[index * 3 + 2] = Math.sin(angle) * radius - 0.3;
+    const height = (Math.random() - 0.5) * 1.7;
+    const width = height < -0.45 ? 0.95 : 0.48;
+    particlePositions[index * 3] = (Math.random() - 0.5) * width * 2;
+    particlePositions[index * 3 + 1] = height;
+    particlePositions[index * 3 + 2] = (Math.random() - 0.5) * 0.28 + 0.04;
   }
   const particleGeometry = new THREE.BufferGeometry();
   particleGeometry.setAttribute("position", new THREE.BufferAttribute(particlePositions, 3));
-  const particleMaterial = new THREE.PointsMaterial({ color: COLORS.idle, size: 0.025, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false });
+  const particleMaterial = new THREE.PointsMaterial({ color: COLORS.idle, size: 0.018, transparent: true, opacity: 0.24, blending: THREE.AdditiveBlending, depthWrite: false });
   const particles = new THREE.Points(particleGeometry, particleMaterial);
-  scene.add(particles);
+  particles.name = "internal-neural-points";
+  root.add(particles);
 
   let memoryLabels = ["DECISIONS", "LEARNINGS", "PROJECTS", "CONTEXT", "TASKS", "ACTIONS", "THEO"];
   let memoryLabelsLoaded = false;
@@ -610,7 +564,7 @@ async function start() {
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
   stage.classList.remove("gpu-error");
-  presenceValue.textContent = "Núcleo cognitivo abstrato · Forja · Memória";
+  presenceValue.textContent = "Busto cognitivo · rede neural interna · olhos ópticos";
 
   let previousFrameMs = 0;
   let effectVisible = false;
@@ -739,25 +693,16 @@ async function start() {
     const colorEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
     currentColor.lerp(targetColor, colorEase);
     particleMaterial.color.copy(currentColor);
-    modelWireMaterial.color.copy(currentColor);
-    accentMaterial.color.copy(currentColor).lerp(whiteColor, 0.32);
-    frameMaterial.emissive.copy(currentColor).multiplyScalar(0.18);
-    glassMaterial.emissive.copy(currentColor).multiplyScalar(0.5);
-    frameMaterial.emissiveIntensity = isWorking ? 0.42 : visualState === "speaking" ? 0.38 : 0.28;
-    glassMaterial.emissiveIntensity = isWorking ? 0.68 : visualState === "speaking" ? 0.74 : 0.5;
-    modelWireMaterial.opacity = isWorking ? 0.105 : visualState === "speaking" ? 0.1 : 0.075;
+    bust.shellMaterials.forEach((material, index) => {
+      material.emissive.copy(currentColor).multiplyScalar(index ? 0.2 : 0.14);
+      material.emissiveIntensity = isWorking ? 0.5 : visualState === "speaking" ? 0.46 : 0.32;
+    });
+    bust.eyeMaterial.emissive.copy(currentColor).lerp(whiteColor, 0.36);
+    bust.eyeMaterial.emissiveIntensity = visualState === "speaking" ? 0.34 : isWorking ? 0.26 : 0.16;
+    bust.neural.setColor(currentColor);
 
     const motion = activeStates.has(visualState) ? 1 : 0.24;
-    model.userData.crystal.rotation.x += deltaSeconds * 0.09 * motion;
-    model.userData.crystal.rotation.y -= deltaSeconds * 0.13 * motion;
-    model.userData.cage.rotation.x -= deltaSeconds * 0.045 * motion;
-    model.userData.cage.rotation.y += deltaSeconds * 0.065 * motion;
-    model.userData.halo.rotation.z += deltaSeconds * 0.035 * motion;
-    model.userData.orbitA.rotation.z += deltaSeconds * 0.075 * motion;
-    model.userData.orbitB.rotation.z -= deltaSeconds * 0.06 * motion;
-    model.userData.arcs.forEach((arc, index) => {
-      arc.rotation.z += deltaSeconds * (index % 2 ? -0.052 : 0.044) * motion;
-    });
+    bust.neural.update(time, isWorking || visualState === "speaking" ? 1 : 0.45 * motion);
 
     const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.45);
     currentX += (pointerX * 0.12 - currentX) * orientationEase;
@@ -777,14 +722,11 @@ async function start() {
     root.rotation.y = currentX + facingYaw + Math.sin(time * 0.22) * 0.012;
     root.rotation.x = currentY + Math.sin(time * 0.28) * 0.002 * activePresence;
     const speakingPulse = visualState === "speaking" ? (Math.sin(time * 2.4) + 1) * 0.08 : 0;
-    const corePulse = 1 + Math.sin(time * (isWorking ? 2.2 : 1.05)) * (isWorking ? 0.055 : 0.025);
-    model.userData.light.scale.setScalar(corePulse + speakingPulse * 0.45);
-    model.userData.crystal.scale.setScalar(1 + speakingPulse * 0.12);
     const targetScale = layoutScale * (1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035);
     currentScale += (targetScale - currentScale) * (1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8));
     root.scale.setScalar(currentScale);
     particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
-    particles.rotation.y += deltaSeconds * (isWorking ? 0.038 : 0.018);
+    particles.rotation.y = Math.sin(time * 0.18) * 0.025;
 
     const effectFrameDue = timeMs - effectLastFrameMs >= 1000 / EFFECT_TARGET_FPS;
     const effectBlend = Math.max(modeBlend.memory, modeBlend.forge, modeBlend.voice);
@@ -816,6 +758,7 @@ async function start() {
     document.removeEventListener("visibilitychange", wakeRender);
     resizeObserver.disconnect();
     visibilityObserver?.disconnect();
+    bust.neural.dispose();
     const disposedTextures = new Set();
     model.traverse((object) => {
       if (!object.isMesh) return;
