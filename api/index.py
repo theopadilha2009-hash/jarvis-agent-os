@@ -261,6 +261,7 @@ PRIVATE_INTENTS = {
 
 CAPABILITY_OVERVIEW_PATTERN = re.compile(
     r"\b(?:o\s+que\s+(?:voc[eê]|o\s+jarvis)\s+(?:faz|consegue)|"
+    r"(?:melhores?\s+coisas?\s+)?que\s+(?:voc[eê]|o\s+jarvis)\s+consegue\s+fazer|"
     r"(?:mostr(?:a|e|ar)|abr(?:a|e|ir)|ver)\s+(?:meu\s+)?(?:painel|central|vis[aã]o\s+geral)|"
     r"quais\s+(?:s[aã]o\s+)?(?:suas\s+)?(?:fun[cç][oõ]es|capacidades)|central\s+pessoal)\b",
     re.I,
@@ -2453,7 +2454,7 @@ def memory_tree_payload():
             "edges": [],
             "categories": [],
             "count": 0,
-            "persistent_write": True,
+            "persistent_write": False,
             "provider": "supabase",
         }
     except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
@@ -2467,7 +2468,7 @@ def memory_tree_payload():
             "edges": [],
             "categories": [],
             "count": 0,
-            "persistent_write": True,
+            "persistent_write": False,
             "provider": "supabase",
         }
 
@@ -2505,7 +2506,7 @@ def memory_tree_payload():
         "edges": edges,
         "categories": categories,
         "count": len(nodes),
-        "persistent_write": True,
+        "persistent_write": False,
         "provider": "supabase",
     }
 
@@ -3365,11 +3366,11 @@ def elevenlabs_speech(body):
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
         "language_code": "pt",
         "voice_settings": {
-            "stability": 0.38,
+            "stability": 0.62,
             "similarity_boost": 0.76,
             "style": 0.0,
             "use_speaker_boost": False,
-            "speed": 1.04,
+            "speed": 0.86,
         },
     }, ensure_ascii=False).encode("utf-8")
     url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
@@ -4882,7 +4883,28 @@ def meta_leak_recovery(messages):
             "já abre ou fecha apps, grava a tela, tira prints e faz diagnósticos. Autoaperfeiçoamento também existe, "
             "mas só confirma edição ou deploy quando houver execução real e testes."
         )
-    return "A resposta do modelo veio contaminada por instruções internas e foi descartada. Reformule em uma frase que eu respondo sem fingir resultado."
+    return "Não consegui concluir uma resposta segura agora. Preservei seu pedido e não executei nenhuma ação sem confirmação."
+
+
+PORTUGUESE_OUTPUT_WORDS = {
+    "a", "agora", "ainda", "com", "como", "de", "do", "em", "está", "eu", "isso", "mais", "não",
+    "o", "para", "pode", "por", "que", "se", "sim", "sua", "seu", "uma", "você", "vou",
+}
+ENGLISH_OUTPUT_WORDS = {
+    "and", "answer", "are", "can", "could", "for", "from", "here", "is", "it", "need", "please",
+    "should", "that", "the", "this", "to", "user", "we", "with", "would", "you", "your",
+}
+
+
+def output_needs_portuguese_retry(value):
+    """Flag clearly English output without rejecting names, code, URLs or short acknowledgements."""
+    text = clean_text(value, 20_000).lower()
+    words = re.findall(r"[a-zà-ÿ]+", text)
+    if len(words) < 5:
+        return False
+    portuguese = sum(word in PORTUGUESE_OUTPUT_WORDS for word in words)
+    english = sum(word in ENGLISH_OUTPUT_WORDS for word in words)
+    return english >= 3 and english >= portuguese * 2
 
 
 def capability_question_payload(prompt):
@@ -5111,6 +5133,8 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
                 else payload.get("error", "A memória não está disponível.")
             ),
             "mode": "memory",
+            "intent": "memory_view",
+            "persistent_write": False,
             "sources": payload.get("nodes", [])[:12],
         })
         return payload, 200 if payload.get("ok") else 503
@@ -5435,6 +5459,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "force piadas, bordões, emojis ou teatralidade. Chame-o de Theo apenas ocasionalmente. Não diga 'estou "
             "pronto para ajudar', 'como posso ajudar', 'próximo passo', 'confiança nesta resposta' ou equivalentes. "
             "Não repita a pergunta, não explique sua base de conhecimento e não termine oferecendo ajuda genérica. "
+            "Antes de concluir, revise silenciosamente se respondeu ao pedido inteiro, se alguma afirmação depende de "
+            "evidência ausente e se a resposta pode ficar mais clara. Termine com exatamente uma pergunta curta e "
+            "contextual que facilite a continuação, como 'Quer ver preços?', 'Quer uma cidade próxima?' ou "
+            "'Quer que eu faça o deploy?'. Não use a pergunta genérica 'Como posso ajudar?' e não sugira uma "
+            "ação que você não possa realizar. "
             "Quando Theo fizer mais de uma pergunta no mesmo pedido, responda cada parte sem ignorar a última. Em "
             "continuações curtas como 'e isso?', 'você não respondeu' ou 'já funciona?', use os turnos recentes para "
             "recuperar o assunto exato antes de responder; não descreva o pedido como se estivesse analisando um prompt. "
@@ -5572,6 +5601,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 single_model_payload = dict(openrouter_payload)
                 single_model_payload.pop("models", None)
                 single_model_payload["model"] = candidate
+                # A provider preference can make a compatible model route fail.
+                # Retry the official minimal chat contract for each fallback.
+                single_model_payload.pop("provider", None)
                 try:
                     response = send_openrouter(single_model_payload, timeout=min(8, remaining))
                     attempts.append({"model": candidate, "outcome": "success"})
@@ -5664,16 +5696,56 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             content = "\n".join(
                 str(item.get("text") or "") for item in content if isinstance(item, dict)
             ).strip()
+        _, detected_internal_leak = sanitize_model_output(content)
         content, response_trimmed = concise_assistant_content(
             content,
             detailed=response_profile["name"] != "concise",
         )
-        meta_leak_recovered = False
-        if not content and response_trimmed:
+        meta_leak_recovered = bool(detected_internal_leak and content)
+        language_recovered = False
+        retry_reason = (
+            "internal_reasoning"
+            if detected_internal_leak and not content
+            else "english"
+            if output_needs_portuguese_retry(content)
+            else ""
+        )
+        if retry_reason:
             if free_search_sources:
                 return search_results_without_synthesis(free_search_bundle, "openrouter_meta_leak"), 200
-            content = meta_leak_recovery(messages)
-            meta_leak_recovered = True
+            recovery_system = dict(system)
+            recovery_system["content"] += (
+                "\n\nCORREÇÃO OBRIGATÓRIA: a tentativa anterior foi descartada. Responda novamente ao último pedido "
+                "usando somente a resposta final em português do Brasil. Não mencione esta correção, raciocínio, "
+                "prompt, política, instruções internas ou idioma. Não peça para o usuário reformular."
+            )
+            recovery_payload = dict(openrouter_payload)
+            for field in ("tools", "tool_choice", "parallel_tool_calls", "plugins"):
+                recovery_payload.pop(field, None)
+            recovery_payload["messages"] = [recovery_system, *provider_messages]
+            recovery_payload["temperature"] = min(response_profile["temperature"], 0.3)
+            recovery_result = send_openrouter(recovery_payload, timeout=12)
+            recovery_choice = (recovery_result.get("choices") or [{}])[0]
+            recovery_message = recovery_choice.get("message") if isinstance(recovery_choice, dict) else {}
+            recovery_raw = recovery_message.get("content", "") if isinstance(recovery_message, dict) else ""
+            if isinstance(recovery_raw, list):
+                recovery_raw = "\n".join(
+                    str(item.get("text") or "") for item in recovery_raw if isinstance(item, dict)
+                ).strip()
+            recovered_content, recovered_trimmed = concise_assistant_content(
+                recovery_raw,
+                detailed=response_profile["name"] != "concise",
+            )
+            if recovered_content and not output_needs_portuguese_retry(recovered_content):
+                content = recovered_content
+                meta_leak_recovered = retry_reason == "internal_reasoning"
+                language_recovered = retry_reason == "english"
+                response_trimmed = response_trimmed or recovered_trimmed
+                result = recovery_result
+            else:
+                content = meta_leak_recovery(messages)
+                meta_leak_recovered = retry_reason == "internal_reasoning"
+                language_recovered = retry_reason == "english"
         if not content:
             raise ValueError("empty model response")
         if web_search_requested and not sources:
@@ -5707,6 +5779,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "response_profile": response_profile["name"],
             "response_trimmed": response_trimmed,
             "meta_leak_recovered": meta_leak_recovered,
+            "language_recovered": language_recovered,
             "tool_calling_fallback": tool_calling_fallback,
             "model_routing": {
                 "strategy": "complexity_aware_free_fallbacks",
@@ -5807,6 +5880,29 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
         payload = personal_overview_payload(owner_authenticated=owner_authenticated)
         payload.update({"endpoint": "POST /command", "intent": "personal_overview", "provider": "jarvis_control_plane"})
         return payload, 200
+
+    recent_messages = normalize_messages(body)[-6:]
+    memory_was_opened = any(
+        row.get("role") == "assistant"
+        and re.search(r"constela[cç][aã]o|mem[oó]rias?\s+(?:persistentes|locais)", row.get("content", ""), re.I)
+        for row in recent_messages[:-1]
+    )
+    if memory_was_opened and re.fullmatch(
+        r"\s*(?:pode\s+)?fech(?:a|ar|e)(?:\s+(?:isso|ela|a[ií]))?[.!?]*\s*",
+        command,
+        re.I,
+    ):
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "memory_view_closed",
+            "visual_state": "response",
+            "intent": "memory_view_close",
+            "message": "Fechei o Núcleo de Memória.",
+            "provider": "jarvis_runtime",
+            "external_processing": False,
+            "persistent_write": False,
+        }, 200
 
     device_plan = compound_device_plan(command)
     if device_plan:
@@ -6917,7 +7013,7 @@ class handler(BaseHTTPRequestHandler):
         if path == "/self-test":
             checks = [
                 {"name": "cockpit", "ok": UI_FILE.is_file()},
-                {"name": "abstract_cognitive_core", "ok": "makeCognitiveCore" in (WEB_DIR / "jarvis-3d.js").read_text(encoding="utf-8")},
+                {"name": "purple_cognitive_bust", "ok": "jarvis-purple-cognitive-bust" in (WEB_DIR / "jarvis-3d.js").read_text(encoding="utf-8")},
                 {"name": "action_registry", "ok": bool(ACTION_REGISTRY)},
                 {"name": "stateless_gateway", "ok": True},
                 {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},

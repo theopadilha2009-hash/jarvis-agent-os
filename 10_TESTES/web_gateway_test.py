@@ -625,6 +625,19 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["intent"], "personal_overview")
         overview.assert_called_once_with(owner_authenticated=True)
 
+    def test_best_capabilities_phrase_stays_on_control_plane(self):
+        expected = {"ok": True, "message": "Central operacional.", "private": False}
+        with patch.object(MODULE, "personal_overview_payload", return_value=expected) as overview, patch.object(
+            MODULE, "urlopen"
+        ) as openrouter:
+            payload, status = MODULE.assistant_response({
+                "command": "me diga em poucas frases as melhores coisas que você consegue fazer"
+            })
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "jarvis_control_plane")
+        overview.assert_called_once_with(owner_authenticated=False)
+        openrouter.assert_not_called()
+
     def test_daily_brief_uses_private_control_plane(self):
         overview = {
             "ok": True,
@@ -1355,7 +1368,7 @@ class WebGatewayTest(unittest.TestCase):
                 payload = MODULE.memory_tree_payload()
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["provider"], "supabase")
-        self.assertTrue(payload["persistent_write"])
+        self.assertFalse(payload["persistent_write"])
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["nodes"][0]["label"], "o busto fica na frente")
         self.assertEqual(payload["nodes"][0]["layer"], "discussion")
@@ -2012,6 +2025,7 @@ São Paulo - SP
         self.assertEqual(status, 200)
         self.assertIn("models", requests[0])
         self.assertNotIn("models", requests[1])
+        self.assertNotIn("provider", requests[1])
         self.assertEqual(requests[1]["model"], "nvidia/nemotron-3-ultra-550b-a55b:free")
         self.assertTrue(payload["model_routing"]["compatibility_fallback"])
         self.assertEqual(payload["model_routing"]["compatibility_attempts"], [{
@@ -2055,6 +2069,7 @@ São Paulo - SP
 
         self.assertEqual(status, 200)
         self.assertEqual(requests[1]["model"], "nvidia/nemotron-3-nano-30b-a3b:free")
+        self.assertNotIn("provider", requests[1])
         self.assertEqual(requests[2]["model"], "openai/gpt-oss-20b:free")
         self.assertEqual(payload["model_routing"]["selected"], "openai/gpt-oss-20b:free")
         self.assertEqual(payload["model_routing"]["compatibility_attempts"], [{
@@ -2574,9 +2589,9 @@ São Paulo - SP
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
         self.assertEqual(sent_payload["language_code"], "pt")
         self.assertEqual(sent_payload["model_id"], "eleven_flash_v2_5")
-        self.assertEqual(sent_payload["voice_settings"]["stability"], 0.38)
+        self.assertEqual(sent_payload["voice_settings"]["stability"], 0.62)
         self.assertFalse(sent_payload["voice_settings"]["use_speaker_boost"])
-        self.assertEqual(sent_payload["voice_settings"]["speed"], 1.04)
+        self.assertEqual(sent_payload["voice_settings"]["speed"], 0.86)
 
     def test_missing_elevenlabs_key_stays_text_only(self):
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):
@@ -2758,7 +2773,43 @@ São Paulo - SP
         )
         self.assertEqual(status, 200)
         self.assertEqual(payload["mode"], "memory")
+        self.assertEqual(payload["intent"], "memory_view")
+        self.assertFalse(payload["persistent_write"])
         self.assertEqual(payload["visual_state"], "memory")
+
+    def test_contextual_close_exits_memory_view_without_model_or_write(self):
+        status, _, payload = self.json_request(
+            "/command",
+            "POST",
+            {
+                "command": "pode fechar",
+                "messages": [
+                    {"role": "user", "content": "mostra o núcleo de memória"},
+                    {"role": "assistant", "content": "Abri sua constelação com 2 memórias persistentes."},
+                    {"role": "user", "content": "pode fechar"},
+                ],
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status_real"], "memory_view_closed")
+        self.assertEqual(payload["provider"], "jarvis_runtime")
+        self.assertFalse(payload["external_processing"])
+        self.assertFalse(payload["persistent_write"])
+
+    def test_output_language_guard_retries_clear_english_but_accepts_portuguese(self):
+        self.assertTrue(MODULE.output_needs_portuguese_retry(
+            "This is the answer and you should use it with your current project."
+        ))
+        self.assertFalse(MODULE.output_needs_portuguese_retry(
+            "Esta é a resposta e você pode usar isso no seu projeto agora."
+        ))
+        self.assertFalse(MODULE.output_needs_portuguese_retry("Deploy concluído."))
+
+    def test_meta_leak_fallback_never_blames_user_or_requests_rephrasing(self):
+        message = MODULE.meta_leak_recovery([{"role": "user", "content": "faça isso"}])
+        self.assertNotIn("Reformule", message)
+        self.assertNotIn("instruções internas", message)
+        self.assertIn("Preservei seu pedido", message)
 
     def test_secret_like_prompt_is_refused(self):
         fake = "sk-" + "or-" + "v1-" + ("x" * 20)
