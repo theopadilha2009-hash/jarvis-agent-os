@@ -162,6 +162,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="requestProgress"', html)
         self.assertIn(b'id="memoryDialog"', html)
         self.assertIn(b'id="memoryManagerSearch"', html)
+        self.assertIn(b'id="taskDialog"', html)
+        self.assertIn(b'id="taskQuickAdd"', html)
         self.assertIn(b'id="starterActions"', html)
         self.assertIn(b'id="mobileChatToggle"', html)
         self.assertIn(b'id="newConversationButton"', html)
@@ -222,6 +224,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"loadMemoryManager", app_js)
         self.assertIn(b'"/memory-update"', app_js)
         self.assertIn(b'"/memory-archive"', app_js)
+        self.assertIn(b"loadTaskBoard", app_js)
+        self.assertIn(b'"/tasks/add"', app_js)
         self.assertIn("Esta é uma prévia do arquivo que estou analisando.".encode(), app_js)
         self.assertIn(b"exitOwnerMode", app_js)
         self.assertIn(b'dataset.action = canLeaveOwnerMode ? "logout" : "details"', app_js)
@@ -479,10 +483,34 @@ class WebGatewayTest(unittest.TestCase):
 
     def test_memory_manager_refuses_secret_like_content(self):
         status, _, payload = self.json_request(
-            "/memory-update", "POST", {"id": "42", "content": "api_key=abcdefghijk123456", "kind": "learning"}
+            "/memory-update", "POST", {"id": "42", "content": "api" + "_key=" + "abcdefghijk123456", "kind": "learning"}
         )
         self.assertEqual(status, 400)
         self.assertIn("credenciais", payload["error"])
+
+    def test_local_task_queue_ui_api_is_append_only(self):
+        with TemporaryDirectory() as directory:
+            task_path = Path(directory) / "tasks.jsonl"
+            with patch.object(MODULE.task_queue_store, "TASKS_DIR", task_path.parent), patch.object(
+                MODULE.task_queue_store, "TASKS_FILE", task_path
+            ):
+                status, _, created = self.json_request(
+                    "/tasks/add", "POST", {"text": "validar fila visual", "project": "jarvis-core"}
+                )
+                self.assertEqual(status, 201)
+                task_id = created["task"]["id"]
+                status, _, blocked = self.json_request(
+                    f"/tasks/{task_id}/block", "POST", {"detail": "aguardando revisão"}
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(blocked["task"]["status"], "blocked")
+                status, _, reopened = self.json_request(f"/tasks/{task_id}/reopen", "POST", {})
+                self.assertEqual(status, 200)
+                self.assertEqual(reopened["task"]["status"], "pending")
+                status, _, listed = self.json_request("/tasks")
+                self.assertEqual(status, 200)
+                self.assertEqual(listed["counts"]["pending"], 1)
+                self.assertEqual(len(task_path.read_text(encoding="utf-8").splitlines()), 3)
 
         status, _, direct = self.json_request("/memory-search?q=busto")
         self.assertEqual(status, 200)

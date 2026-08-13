@@ -51,6 +51,7 @@ from action_registry import (  # noqa: E402
     run_summary_payload,
 )
 from memory_index import MemoryIndex  # noqa: E402
+import task_queue as task_queue_store  # noqa: E402
 
 AGENT_RUNS = RunStore()
 LOCAL_MEMORY_INDEX = MemoryIndex()
@@ -6645,6 +6646,18 @@ class handler(BaseHTTPRequestHandler):
                 "status_real": "local_memory_search",
                 **search,
             })
+        if path == "/tasks":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /tasks"
+                return self.send_json(status, payload)
+            if os.environ.get("VERCEL"):
+                return self.send_json(409, {"ok": False, "error": "A fila Agent OS é local; abra o runtime local para gerenciá-la."})
+            try:
+                payload = task_queue_store.task_list_payload((query.get("limit") or ["100"])[0])
+            except (OSError, ValueError):
+                return self.send_json(503, {"ok": False, "error": "A fila local não pôde ser lida."})
+            return self.send_json(200, {"ok": True, "endpoint": "GET /tasks", "status_real": "local_task_queue_read", **payload})
         if path == "/conversation-history":
             if owner_pairing_required() and not owner_authenticated:
                 payload, status = pairing_required_payload()
@@ -6772,6 +6785,31 @@ class handler(BaseHTTPRequestHandler):
             else:
                 payload, status = supabase_memory_archive(body)
             return self.send_json(status, payload)
+        if path == "/tasks/add" or path.startswith("/tasks/"):
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = f"POST {path}"
+                return self.send_json(status, payload)
+            if os.environ.get("VERCEL"):
+                return self.send_json(409, {"ok": False, "error": "A fila Agent OS é local; nenhuma tarefa foi alterada."})
+            try:
+                if path == "/tasks/add":
+                    task = task_queue_store.task_add_payload(body.get("text"), body.get("project"), "jarvis-web")
+                    status_real = "local_task_created"
+                    status = 201
+                else:
+                    suffix = path.removeprefix("/tasks/").split("/")
+                    if len(suffix) != 2 or suffix[1] not in {"done", "block", "reopen"}:
+                        return self.send_json(404, {"ok": False, "error": "Operação de tarefa não encontrada."})
+                    next_state = {"done": "done", "block": "blocked", "reopen": "pending"}[suffix[1]]
+                    task = task_queue_store.task_transition_payload(suffix[0], next_state, body.get("detail"))
+                    status_real = f"local_task_{next_state}"
+                    status = 200
+                return self.send_json(status, {"ok": True, "endpoint": f"POST {path}", "status_real": status_real, "task": task})
+            except LookupError as error:
+                return self.send_json(404, {"ok": False, "error": str(error)})
+            except (OSError, ValueError) as error:
+                return self.send_json(400, {"ok": False, "error": str(error)})
         if path == "/command-stream":
             return self.send_command_stream(
                 body,

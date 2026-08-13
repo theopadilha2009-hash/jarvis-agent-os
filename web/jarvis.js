@@ -17,6 +17,7 @@
   const dialog = byId("systemDialog");
   const tourDialog = byId("tourDialog");
   const memoryDialog = byId("memoryDialog");
+  const taskDialog = byId("taskDialog");
   const actionHub = byId("actionHub");
   const actionHubBackdrop = byId("actionHubBackdrop");
   const actionHubButton = byId("actionHubButton");
@@ -1026,6 +1027,51 @@
     renderMemoryManager();
   }
 
+  function renderTaskBoard(tasks, counts = {}) {
+    const labels = { pending: "PENDENTES", blocked: "BLOQUEADAS", done: "CONCLUÍDAS" };
+    byId("taskSummary").textContent = `${Number(counts.pending) || 0} pendentes · ${Number(counts.blocked) || 0} bloqueadas · ${Number(counts.done) || 0} concluídas · append-only local`;
+    byId("taskBoard").innerHTML = Object.entries(labels).map(([status, label]) => {
+      const rows = tasks.filter((item) => item.status === status);
+      const cards = rows.map((item) => {
+        const actions = status === "pending"
+          ? '<button data-task-action="done">Concluir</button><button data-task-action="block">Bloquear</button>'
+          : status === "blocked"
+            ? '<button data-task-action="reopen">Reabrir</button><button data-task-action="done">Concluir</button>'
+            : '<button data-task-action="reopen">Reabrir</button>';
+        return `<article class="task-card" data-task-id="${escapeHtml(item.id)}"><p>${escapeHtml(item.text)}</p><small>${escapeHtml(item.project || "sem projeto")} · ${escapeHtml(item.updated_at || "sem data")}${item.reason ? ` · ${escapeHtml(item.reason)}` : ""}</small><footer>${actions}</footer></article>`;
+      }).join("") || '<small>Nenhuma tarefa aqui.</small>';
+      return `<section class="task-column"><header><b>${label}</b><span>${rows.length}</span></header>${cards}</section>`;
+    }).join("");
+    byId("taskBoard").querySelectorAll("[data-task-action]").forEach((button) => button.addEventListener("click", async () => {
+      const card = button.closest(".task-card");
+      const action = button.dataset.taskAction;
+      let detail = "";
+      if (action === "block") {
+        detail = window.prompt("Qual é o motivo do bloqueio?")?.trim() || "";
+        if (!detail) return;
+      }
+      button.disabled = true;
+      const data = await request(`/tasks/${encodeURIComponent(card.dataset.taskId)}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ detail }),
+      });
+      if (data.ok === false) byId("taskSummary").textContent = data.error || "Mudança não confirmada.";
+      else loadTaskBoard();
+    }));
+  }
+
+  async function loadTaskBoard() {
+    byId("taskSummary").textContent = "Sincronizando fila local…";
+    const data = await request("/tasks?limit=300");
+    if (data.ok === false) {
+      byId("taskSummary").textContent = data.error || "Fila indisponível.";
+      byId("taskBoard").innerHTML = "";
+      return;
+    }
+    renderTaskBoard(data.tasks || [], data.counts || {});
+  }
+
   async function refreshPulse() {
     if (document.hidden) return;
     try {
@@ -1923,6 +1969,31 @@
   });
   byId("memoryManagerSearch")?.addEventListener("input", renderMemoryManager);
   byId("memoryManagerKind")?.addEventListener("change", renderMemoryManager);
+  byId("taskQueueButton")?.addEventListener("click", () => {
+    dialog.close();
+    taskDialog.showModal();
+    loadTaskBoard();
+  });
+  byId("closeTaskDialog")?.addEventListener("click", () => taskDialog.close());
+  taskDialog?.addEventListener("click", (event) => {
+    if (event.target === taskDialog) taskDialog.close();
+  });
+  byId("taskQuickAdd")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = byId("taskQuickText").value.trim();
+    if (!text) return;
+    const data = await request("/tasks/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, project: byId("taskQuickProject").value.trim() }),
+    });
+    if (data.ok === false) {
+      byId("taskSummary").textContent = data.error || "Tarefa não criada.";
+      return;
+    }
+    byId("taskQuickText").value = "";
+    loadTaskBoard();
+  });
   byId("refreshRunHistory")?.addEventListener("click", refreshActionHistory);
   byId("runHistoryFilter")?.addEventListener("change", refreshActionHistory);
   dialog.addEventListener("click", (event) => {

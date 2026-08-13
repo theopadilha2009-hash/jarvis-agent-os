@@ -25,12 +25,15 @@ Hard rules:
 from pathlib import Path
 from datetime import datetime
 import json
+import os
 import re
 import sys
+from threading import RLock
 
 ROOT = Path(__file__).resolve().parents[1]
 TASKS_DIR = ROOT / "05_EXECUCAO" / "34_TASKS"
 TASKS_FILE = TASKS_DIR / "tasks.jsonl"
+_TASK_LOCK = RLock()
 
 try:
     sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
@@ -64,9 +67,12 @@ def _ensure_file():
 
 
 def _append_event(event: dict):
-    _ensure_file()
-    with TASKS_FILE.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    with _TASK_LOCK:
+        _ensure_file()
+        with TASKS_FILE.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
 
 
 def _read_events():
@@ -110,7 +116,92 @@ def _rebuild_state():
         elif et == "blocked":
             state[tid]["status"] = "blocked"
             state[tid]["reason"] = ev.get("reason", "")
+        elif et == "reopened":
+            state[tid]["status"] = "pending"
+            state[tid].pop("reason", None)
     return state
+
+
+def task_list_payload(limit=100):
+    """Return compact rebuilt state for local API/UI consumers."""
+    safe_limit = max(1, min(int(limit or 100), 300))
+    tasks = []
+    for item in _rebuild_state().values():
+        events = item.get("events") or []
+        latest = events[-1] if events else {}
+        tasks.append({
+            "id": item.get("id"),
+            "text": str(item.get("text") or "")[:2_000],
+            "status": item.get("status") or "pending",
+            "project": str(item.get("project") or "")[:100],
+            "intent": str(item.get("intent") or "")[:100],
+            "source": str(item.get("source") or "manual")[:40],
+            "reason": str(item.get("reason") or "")[:500],
+            "created_at": item.get("ts"),
+            "updated_at": latest.get("ts") or item.get("ts"),
+            "event_count": len(events),
+        })
+    tasks.sort(key=lambda item: str(item.get("updated_at") or ""), reverse=True)
+    tasks = tasks[:safe_limit]
+    return {
+        "tasks": tasks,
+        "count": len(tasks),
+        "counts": {
+            status: sum(item.get("status") == status for item in tasks)
+            for status in ("pending", "blocked", "done")
+        },
+        "storage": "append_only_jsonl",
+    }
+
+
+def task_add_payload(text, project="", source="web"):
+    safe_text = str(text or "").strip()[:2_000]
+    safe_project = re.sub(r"[^a-z0-9_.-]+", "-", str(project or "").strip().lower())[:100].strip("-")
+    if len(safe_text) < 3:
+        raise ValueError("A tarefa precisa ter ao menos três caracteres.")
+    if _looks_secret_like(safe_text):
+        raise ValueError("A tarefa parece conter um segredo e não foi gravada.")
+    task_id = _gen_id(safe_text)
+    event = {
+        "id": task_id,
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "type": "created",
+        "text": safe_text,
+        "status": "pending",
+        "source": str(source or "web")[:40],
+    }
+    if safe_project:
+        event["project"] = safe_project
+    _append_event(event)
+    return next(item for item in task_list_payload(limit=300)["tasks"] if item["id"] == task_id)
+
+
+def task_transition_payload(task_id, status, detail=""):
+    safe_id = str(task_id or "").strip()
+    if not re.fullmatch(r"t-[A-Za-z0-9-]{8,120}", safe_id):
+        raise ValueError("Identificador de tarefa inválido.")
+    state = _rebuild_state()
+    current = state.get(safe_id)
+    if not current:
+        raise LookupError("Tarefa não encontrada.")
+    event_types = {"done": "done", "blocked": "blocked", "pending": "reopened"}
+    event_type = event_types.get(status)
+    if not event_type:
+        raise ValueError("Estado de tarefa inválido.")
+    if current.get("status") == status:
+        return next(item for item in task_list_payload()["tasks"] if item["id"] == safe_id)
+    safe_detail = str(detail or "").strip()[:500]
+    if event_type == "blocked" and len(safe_detail) < 3:
+        raise ValueError("Informe o motivo do bloqueio.")
+    if safe_detail and _looks_secret_like(safe_detail):
+        raise ValueError("O detalhe parece conter um segredo e não foi gravado.")
+    event = {"id": safe_id, "ts": datetime.now().isoformat(timespec="seconds"), "type": event_type}
+    if event_type == "blocked":
+        event["reason"] = safe_detail
+    elif event_type == "done" and safe_detail:
+        event["note"] = safe_detail
+    _append_event(event)
+    return next(item for item in task_list_payload()["tasks"] if item["id"] == safe_id)
 
 
 def _parse_common(argv):

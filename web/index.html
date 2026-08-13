@@ -143,6 +143,7 @@
           <button id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Voz ligada</span><span class="mobile-label">Voz</span></button>
           <button id="tourButton" type="button">Guia rápido</button>
           <button id="memoryManagerButton" type="button">Gerenciar memória</button>
+          <button id="taskQueueButton" type="button">Fila de tarefas</button>
           <button id="installButton" type="button" hidden>Instalar aplicativo</button>
         </div>
       </section>
@@ -202,6 +203,20 @@
     </div>
     <div class="memory-manager-status" id="memoryManagerStatus" aria-live="polite">Carregando índice…</div>
     <div class="memory-manager-list" id="memoryManagerList"></div>
+  </dialog>
+
+  <dialog id="taskDialog" class="task-dialog" aria-labelledby="taskDialogTitle">
+    <div class="dialog-head">
+      <b id="taskDialogTitle">FILA DE TAREFAS</b>
+      <button id="closeTaskDialog" type="button" aria-label="Fechar tarefas">×</button>
+    </div>
+    <form class="task-quick-add" id="taskQuickAdd">
+      <input id="taskQuickText" maxlength="2000" autocomplete="off" placeholder="Nova tarefa local…" aria-label="Texto da nova tarefa" required>
+      <input id="taskQuickProject" maxlength="100" autocomplete="off" placeholder="Projeto (opcional)" aria-label="Projeto da tarefa">
+      <button type="submit">Adicionar</button>
+    </form>
+    <div class="task-summary" id="taskSummary" aria-live="polite">Carregando fila…</div>
+    <div class="task-board" id="taskBoard"></div>
   </dialog>
 
   <button class="action-hub-backdrop" id="actionHubBackdrop" type="button" hidden tabindex="-1" aria-label="Fechar central operacional"></button>

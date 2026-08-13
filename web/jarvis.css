@@ -1070,6 +1070,21 @@ dialog::backdrop { background: rgba(0, 3, 4, 0.8); backdrop-filter: blur(9px); }
 .memory-editor textarea { min-height: 110px; resize: vertical; padding: 9px; border: 1px solid var(--line); border-radius: 9px; background: rgba(0, 0, 0, 0.24); color: #c8dade; font: 11px/1.5 inherit; }
 .memory-editor select { min-height: 34px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: #0b1114; color: #a9c1c6; }
 .memory-empty { grid-column: 1 / -1; padding: 28px; color: #6f8b91; text-align: center; }
+.task-dialog { width: min(820px, calc(100% - 28px)); }
+.task-quick-add { display: grid; grid-template-columns: minmax(0, 1fr) 160px auto; gap: 8px; padding: 13px 14px; border-bottom: 1px solid var(--line); }
+.task-quick-add input,
+.task-quick-add button { min-width: 0; min-height: 40px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px; background: rgba(0, 0, 0, 0.22); color: #bad0d4; }
+.task-quick-add button { cursor: pointer; color: #a7e6cc; }
+.task-summary { padding: 10px 14px 0; color: #6f8b91; font: 9px ui-monospace, monospace; }
+.task-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; padding: 12px 14px 16px; }
+.task-column { min-width: 0; display: grid; align-content: start; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255, 255, 255, 0.01); }
+.task-column > header { display: flex; justify-content: space-between; color: #79969c; font: 8px ui-monospace, monospace; letter-spacing: 0.1em; }
+.task-card { display: grid; gap: 7px; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.045); border-radius: 10px; background: rgba(0, 0, 0, 0.18); }
+.task-card p { margin: 0; color: #afc4c8; font-size: 10px; line-height: 1.5; }
+.task-card small { color: #58737a; font-size: 8px; }
+.task-card footer { display: flex; flex-wrap: wrap; gap: 5px; }
+.task-card button { min-height: 30px; padding: 4px 7px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: #91cbd1; font-size: 8px; cursor: pointer; }
+.task-card button[data-task-action="block"] { color: #d8aa75; }
 .tour-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px; }
 .tour-grid section { padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
 .tour-grid i { color: var(--accent); font: normal 8px ui-monospace, monospace; }
@@ -1176,6 +1191,8 @@ dialog::backdrop { background: rgba(0, 3, 4, 0.8); backdrop-filter: blur(9px); }
   .tour-grid,
   .memory-manager-list { grid-template-columns: 1fr; }
   .memory-tools { grid-template-columns: 1fr; }
+  .task-quick-add,
+  .task-board { grid-template-columns: 1fr; }
   .dialog-wide { grid-column: auto; }
   .admin-login,
   .pairing-controls { grid-template-columns: 1fr; }
