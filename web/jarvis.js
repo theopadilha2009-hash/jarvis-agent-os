@@ -198,6 +198,7 @@
       + `</div>`
     );
     stage.classList.remove("has-conversation");
+    stage.classList.remove("spatial-result");
     setMobileChatExpanded(false);
     renderStarterActions();
   }
@@ -624,12 +625,13 @@
       .replace(/`([^`]+)`/g, "$1")
       .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1")
       .replace(/[*_#>|~]/g, " ")
+      .replace(/(?:…|\.{3,})/g, ".")
       .replace(/\s+/g, " ")
       .trim();
     if (clean.length <= 520) return clean;
     const excerpt = clean.slice(0, 520);
     const naturalEnd = Math.max(excerpt.lastIndexOf(". "), excerpt.lastIndexOf("! "), excerpt.lastIndexOf("? "));
-    return `${excerpt.slice(0, naturalEnd > 280 ? naturalEnd + 1 : 520).trim()}…`;
+    return `${excerpt.slice(0, naturalEnd > 280 ? naturalEnd + 1 : 520).trim().replace(/[,:;\s]+$/, "")}.`;
   }
 
   function compactCaption(value, fallback = "Estou aqui.") {
@@ -671,12 +673,6 @@
       if (previous && `${previous} ${piece}`.length <= maxLength) chunks[chunks.length - 1] = `${previous} ${piece}`;
       else chunks.push(piece);
     });
-    if (chunks.length > 1 && chunks[0].length > 165) {
-      const first = chunks[0];
-      const windowText = first.slice(0, 166);
-      const cut = Math.max(windowText.lastIndexOf(". "), windowText.lastIndexOf(", "), windowText.lastIndexOf(" "));
-      if (cut > 90) chunks.splice(0, 1, first.slice(0, cut + 1).trim(), first.slice(cut + 1).trim());
-    }
     return chunks.filter(Boolean).slice(0, 3);
   }
 
@@ -1096,13 +1092,17 @@
     if (session.speaking) finishSpeaking();
   }
 
-  async function fetchSpeechChunk(text, generation) {
+  async function fetchSpeechChunk(text, generation, previousText = "", nextText = "") {
     const controller = new AbortController();
     currentSpeechController = controller;
     const response = await fetch("/speech", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({
+        text,
+        previous_text: previousText,
+        next_text: nextText,
+      }),
       signal: controller.signal,
     });
     if (generation !== speechGeneration) throw new DOMException("Speech stopped", "AbortError");
@@ -1216,7 +1216,7 @@
     settleState();
     let played = false;
     try {
-      let prepared = fetchSpeechChunk(chunks[0], generation)
+      let prepared = fetchSpeechChunk(chunks[0], generation, "", chunks[1] || "")
         .then((blob) => ({ blob }))
         .catch((error) => ({ error }));
       for (let index = 0; index < chunks.length; index += 1) {
@@ -1224,7 +1224,12 @@
         if (result.error) throw result.error;
         if (generation !== speechGeneration) return false;
         prepared = index + 1 < chunks.length
-          ? fetchSpeechChunk(chunks[index + 1], generation).then((blob) => ({ blob })).catch((error) => ({ error }))
+          ? fetchSpeechChunk(
+            chunks[index + 1],
+            generation,
+            chunks[index],
+            chunks[index + 2] || "",
+          ).then((blob) => ({ blob })).catch((error) => ({ error }))
           : null;
         const chunkPlayed = await playSpeechChunk(result.blob, chunks[index], generation);
         if (generation !== speechGeneration) return false;
@@ -1334,6 +1339,7 @@
 
   function showResponse(data) {
     if (!data || data.ok === false) {
+      stage.classList.remove("spatial-result");
       const error = data?.error || data?.message || "Não consegui completar isso.";
       session.responseState = "error";
       byId("sceneEyebrow").textContent = "ATENÇÃO";
@@ -1352,6 +1358,7 @@
 
     session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
+    stage.classList.add("spatial-result");
     session.mission = data.mission || null;
     const answer = data.message || data.summary || data.next_action || data.status_real || "Pronto.";
     byId("sceneEyebrow").textContent = data.job?.id || data.executed_locally ? "AÇÃO CONFIRMADA" : "RESULTADO";
@@ -1483,6 +1490,7 @@
     const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
     session.responseState = "";
+    stage.classList.remove("spatial-result");
     session.memoryViewing = false;
     session.currentCommand = command;
     const fileLabel = attachments.length ? `<small class="message-attachments">${attachments.map((item) => escapeHtml(item.name)).join(" · ")}</small>` : "";
