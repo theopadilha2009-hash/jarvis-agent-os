@@ -1,0 +1,236 @@
+/* Final responsive and accessibility guardrails. The approved presence remains untouched. */
+:root { color-scheme: dark; }
+
+.identity,
+.connection,
+.conversation-head > span,
+.conversation-head-actions,
+.integration-editor,
+.integration-tab-panel,
+.integration-toolbox,
+.n8n-studio { min-width: 0; }
+
+button,
+input,
+select,
+textarea,
+summary { -webkit-tap-highlight-color: transparent; }
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--cyan) 82%, white);
+  outline-offset: 2px;
+}
+
+button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.connection {
+  min-width: 0;
+  max-width: calc(100vw - 180px);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+.connection::-webkit-scrollbar { display: none; }
+
+.message,
+.message-card,
+.ui-card,
+.integration-feedback,
+.integration-tool-result,
+.integration-history-row small,
+.n8n-workflow-summary,
+.n8n-workflow-row small,
+.action-hub-overview,
+.action-hub-last b { overflow-wrap: anywhere; }
+
+.conversation-feed,
+.integration-editor,
+.integration-provider-list,
+.integration-tool-result,
+.n8n-workflow-preview,
+.action-hub {
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--cyan) 34%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.conversation,
+.integrations-dialog,
+.action-hub,
+dialog {
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.46), inset 0 1px rgba(255, 255, 255, 0.045);
+}
+
+.conversation-head,
+.composer,
+.integration-editor-header,
+.integration-actions-sticky { backdrop-filter: blur(20px) saturate(120%); }
+
+.composer input::placeholder,
+.integration-fields input::placeholder,
+.integration-tool-fields input::placeholder,
+.integration-tool-fields textarea::placeholder,
+.n8n-studio textarea::placeholder { color: color-mix(in srgb, var(--muted) 76%, transparent); opacity: 1; }
+
+.integration-tool-selector select:focus-visible,
+.integration-fields input:focus-visible,
+.integration-tool-fields input:focus-visible,
+.integration-tool-fields textarea:focus-visible,
+.n8n-studio input:focus-visible,
+.n8n-studio textarea:focus-visible,
+.n8n-studio select:focus-visible {
+  border-color: color-mix(in srgb, var(--cyan) 68%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 12%, transparent);
+}
+
+.integration-tool-result:empty::before,
+.n8n-workflow-list:empty::before {
+  content: "Nenhum resultado nesta sessão.";
+  color: var(--faint);
+}
+
+@media (max-width: 1280px) and (min-width: 941px) {
+  .topbar { padding-inline: 18px; }
+  .connection { gap: 7px; }
+  .quiet-button { margin-left: 2px; padding-inline: 10px; }
+  #connectionText,
+  #tourButton { display: none; }
+  .scene-objective { left: 22px; width: min(280px, 25vw); }
+  .scene-modes { right: 16px; width: 118px; }
+  .hud-rail { display: none; }
+  .spoken-caption { width: min(500px, 48vw); }
+}
+
+@media (max-width: 940px) {
+  .topbar { padding-inline: 14px; }
+  .identity { flex: 0 0 auto; }
+  .connection { max-width: calc(100vw - 130px); justify-content: flex-end; }
+  #connectionText,
+  #tourButton { display: none; }
+  .conversation { max-width: 820px; }
+  .conversation-head { border-bottom-color: color-mix(in srgb, var(--cyan) 13%, transparent); }
+}
+
+@media (max-width: 720px) {
+  .topbar { gap: 8px; padding-right: max(8px, env(safe-area-inset-right)); }
+  .connection { max-width: calc(100vw - 104px); gap: 5px; }
+  .quality-button { display: none; }
+  .quiet-button { flex: 0 0 auto; }
+  .conversation {
+    max-width: none;
+    border-color: color-mix(in srgb, var(--cyan) 19%, transparent);
+    background: linear-gradient(180deg, rgba(12, 5, 22, 0.94), rgba(4, 3, 12, 0.98));
+  }
+  .conversation-head { flex: 0 0 auto; }
+  .conversation-feed { min-height: 0; }
+  .composer { flex: 0 0 auto; }
+  .message { line-height: 1.55; }
+  .message-actions button { min-height: 38px; }
+
+  .integrations-dialog[open] {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: calc(var(--jarvis-viewport-height, 100dvh) - 12px);
+  }
+  .integrations-layout { min-height: 0; overflow: auto; }
+  .integration-provider-list {
+    position: sticky;
+    z-index: 5;
+    top: 0;
+    grid-template-columns: repeat(6, minmax(112px, 1fr));
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: rgba(9, 4, 17, 0.98);
+    scrollbar-width: none;
+  }
+  .integration-provider-list::-webkit-scrollbar { display: none; }
+  .integration-provider-list button { min-height: 48px; }
+  .integration-editor { overflow: visible; }
+  .integration-editor-header { top: 0; }
+  .integration-tabs button { min-height: 42px; letter-spacing: 0.035em; }
+  .integration-toolbox,
+  .n8n-studio { padding: 13px; border-radius: 13px; }
+  .integration-tool-result { max-height: 180px; }
+  .integration-history-row { grid-template-columns: 7px minmax(0, 1fr); }
+  .integration-history-row time { grid-column: 2; }
+  .n8n-workflow-preview { max-height: none; }
+  .n8n-workflow-row { grid-template-columns: 1fr; }
+  .n8n-workflow-row > div { flex-wrap: wrap; }
+  .n8n-workflow-row button { min-height: 38px; }
+}
+
+@media (max-width: 520px) {
+  .identity-name small { display: none; }
+  .connection { max-width: calc(100vw - 76px); }
+  .connection-dot { display: none; }
+  #muteButton { padding-inline: 7px; }
+  #actionHubButton { font-size: 0; }
+  #actionHubButton::before { content: "MISSÕES"; font-size: 7px; }
+  .conversation-head-actions { gap: 5px; }
+  .new-conversation-button { padding-inline: 9px; }
+  .starter-actions { grid-template-columns: 1fr; }
+  .n8n-template-gallery { grid-template-columns: 1fr; }
+  .integration-actions,
+  .integration-secret-actions,
+  .n8n-studio-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .integration-actions button,
+  .integration-secret-actions button,
+  .n8n-studio-actions button,
+  .integration-tool-run { width: 100%; }
+  .integration-actions .integration-danger:last-child { grid-column: 1 / -1; }
+  .integration-history > header strong { font-size: 9px; }
+  .api-power-badge { margin-right: 0; }
+}
+
+@media (max-width: 370px) {
+  #muteButton { display: none; }
+  .connection { max-width: calc(100vw - 70px); }
+  .integrations-head > span:first-child b { font-size: 10px; }
+  .api-power-badge { display: none; }
+  .integration-editor { padding-inline: 11px; }
+  .integration-editor-header { margin-inline: -11px; padding-inline: 11px; }
+  .integration-actions-sticky { margin-inline: -11px; padding-inline: 11px; }
+}
+
+@media (max-height: 650px) and (orientation: landscape) {
+  .app { grid-template-rows: 50px minmax(0, 1fr); }
+  .topbar { min-height: 50px; }
+  .identity-mark { width: 30px; height: 30px; flex-basis: 30px; }
+  .scene-objective,
+  .scene-modes,
+  .scene-telemetry,
+  .hud-rail { display: none; }
+  .avatar { inset: -18% 4% 30%; }
+  .spoken-caption { bottom: 166px; }
+  .conversation { bottom: 8px; height: 150px; }
+  .stage.has-conversation .conversation { height: min(72%, 330px); }
+  .conversation-head { min-height: 34px; }
+  .composer { padding-block: 6px; }
+  .request-progress { display: none; }
+}
+
+@media (prefers-contrast: more), (forced-colors: active) {
+  .conversation,
+  .integrations-dialog,
+  .action-hub,
+  .message.user,
+  .integration-toolbox,
+  .n8n-studio { border-width: 2px; }
+  .quiet-button,
+  .integration-tabs button,
+  .message-actions button { color: CanvasText; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .topbar,
+  .conversation,
+  .action-hub,
+  dialog,
+  .integration-editor-header,
+  .integration-actions-sticky { backdrop-filter: none; }
+}
