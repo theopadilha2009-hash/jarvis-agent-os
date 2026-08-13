@@ -61,7 +61,7 @@ ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 ELEVENLABS_VOICE_DESIGN_URL = "https://api.elevenlabs.io/v1/text-to-voice/design"
 ELEVENLABS_VOICE_CREATE_URL = "https://api.elevenlabs.io/v1/text-to-voice"
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
-DEFAULT_ELEVENLABS_MODEL = "eleven_flash_v2_5"
+DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
 MAX_BODY_BYTES = 4_000_000
 MAX_PROMPT_CHARS = 8_000
 MAX_ATTACHMENT_BYTES = 2_500_000
@@ -312,6 +312,16 @@ ASSET_TYPES = {
     ".webp": "image/webp",
 }
 
+
+def openrouter_api_keys():
+    """Return configured OpenRouter keys in failover order without exposing them."""
+    keys = []
+    for name in ("OPENROUTER_API_KEY", "OPENROUTER_FALLBACK_API_KEY"):
+        value = str(os.environ.get(name) or "").strip()
+        if value and value not in keys:
+            keys.append(value)
+    return keys
+
 BASE_WEB_CAPABILITIES = [
     {
         "name": "cockpit_web",
@@ -320,7 +330,7 @@ BASE_WEB_CAPABILITIES = [
     },
     {
         "name": "assistant_chat",
-        "status": "configured" if bool(os.environ.get("OPENROUTER_API_KEY")) else "needs_environment",
+        "status": "configured" if bool(openrouter_api_keys()) else "needs_environment",
         "what": "Conversa via OpenRouter usando o roteador de modelos gratuitos.",
     },
     {
@@ -892,7 +902,7 @@ def agent_mission_contract(prompt, payload=None):
 def web_capabilities():
     rows = [dict(row) for row in BASE_WEB_CAPABILITIES]
     configured = {
-        "assistant_chat": bool(os.environ.get("OPENROUTER_API_KEY")),
+        "assistant_chat": bool(openrouter_api_keys()),
         "live_web_search": True,
         "assistant_voice": bool(os.environ.get("ELEVENLABS_API_KEY")),
         "n8n_agenda": bool(os.environ.get("N8N_WEBHOOK_URL")),
@@ -2599,7 +2609,7 @@ def personal_overview_payload(owner_authenticated=False):
     actions = personal_action_catalog(True, worker_online)
     ready_count = sum(bool(row.get("available")) for row in actions)
     domains = [
-        {"id": "brain", "label": "Conversa", "status": "online" if os.environ.get("OPENROUTER_API_KEY") else "offline", "detail": "OpenRouter + pesquisa com fontes"},
+        {"id": "brain", "label": "Conversa", "status": "online" if openrouter_api_keys() else "offline", "detail": "OpenRouter + pesquisa com fontes"},
         {"id": "memory", "label": "Memória", "status": "online" if memory.get("ok") else "degraded", "detail": f"{memory_count} registro(s) persistente(s)"},
         {"id": "agenda", "label": "Agenda", "status": "online" if agenda.get("ok") else "degraded", "detail": f"{len(agenda_rows)} item(ns) pendente(s)"},
         {"id": "mac", "label": "Mac", "status": "online" if worker_online else "offline", "detail": clean_text(worker.get("message") or "sem heartbeat", 140)},
@@ -2663,7 +2673,7 @@ def daily_brief_payload(owner_authenticated=False):
 
 
 def status_payload(owner_authenticated=False):
-    ai_ready = bool(os.environ.get("OPENROUTER_API_KEY"))
+    ai_ready = bool(openrouter_api_keys())
     elevenlabs_ready = bool(os.environ.get("ELEVENLABS_API_KEY"))
     n8n_ready = bool(os.environ.get("N8N_WEBHOOK_URL"))
     active_voice = active_voice_setting()
@@ -3347,9 +3357,11 @@ def elevenlabs_voice_design(command=""):
 
 def elevenlabs_speech(body):
     text = clean_text(body.get("text") or body.get("message"), 2_200)
+    previous_text = clean_text(body.get("previous_text"), 1_200)
+    next_text = clean_text(body.get("next_text"), 1_200)
     if not text:
         return {"ok": False, "error": "Texto vazio para síntese de voz."}, 400
-    if has_secret_like_text(text):
+    if any(has_secret_like_text(item) for item in (text, previous_text, next_text)):
         return {"ok": False, "error": "Não envio credenciais para síntese de voz."}, 400
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     if not api_key:
@@ -3362,18 +3374,24 @@ def elevenlabs_speech(body):
     voice_id = clean_text(active_voice_setting().get("voice_id"), 100)
     if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
         return {"ok": False, "error": "Voice ID inválido."}, 500
-    payload = json.dumps({
+    speech_payload = {
         "text": text,
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
-        "language_code": "pt",
+        "seed": 7319,
+        "apply_text_normalization": "auto",
         "voice_settings": {
-            "stability": 0.62,
-            "similarity_boost": 0.76,
+            "stability": 0.7,
+            "similarity_boost": 0.8,
             "style": 0.0,
             "use_speaker_boost": False,
-            "speed": 0.86,
+            "speed": 0.94,
         },
-    }, ensure_ascii=False).encode("utf-8")
+    }
+    if previous_text:
+        speech_payload["previous_text"] = previous_text
+    if next_text:
+        speech_payload["next_text"] = next_text
+    payload = json.dumps(speech_payload, ensure_ascii=False).encode("utf-8")
     url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
     headers = {
         "xi-api-key": api_key,
@@ -5444,8 +5462,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         # free text model to restate the same arithmetic.
         return search_results_without_synthesis(free_search_bundle), 200
 
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
+    api_keys = openrouter_api_keys()
+    if not api_keys:
         if free_search_sources:
             return search_results_without_synthesis(free_search_bundle, "openrouter_not_configured"), 200
         payload, status = planning_payload("/assistant", {"goal": latest})
@@ -5481,8 +5499,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "executado ações no computador "
             "ou em serviços externos sem evidência real. Nunca peça, repita ou exponha credenciais. Quando algo "
             "exigir o Mac, diga claramente que o worker local deve executar."
-            " A interface usa ElevenLabs para falar. Escreva frases fáceis de pronunciar, com ritmo humano e sem "
-            "blocos enormes. Nunca diga que não possui voz ou que só existe em texto. Se Theo pedir para ouvir "
+            " A interface usa ElevenLabs para falar. Escreva frases declarativas, curtas e fáceis de pronunciar, "
+            "com pontuação limpa e cadência serena. Evite reticências, excesso de vírgulas, abreviações obscuras e "
+            "blocos enormes: a voz deve soar precisa, calma e discretamente espirituosa, nunca apressada ou hesitante. "
+            "Nunca diga que não possui voz ou que só existe em texto. Se Theo pedir para ouvir "
             "você, responda com uma frase curta e natural; a interface cuida da infraestrutura e das falhas reais."
             " Exemplo de tom: pergunta simples recebe 'Está funcionando. A parte lenta é a voz; já estou reduzindo o "
             "tempo dela.' Pedido impossível recebe 'Da Vercel eu não alcanço seu Mac; deixei a ação pronta para o "
@@ -5581,7 +5601,6 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         if agent_tools:
             openrouter_payload["parallel_tool_calls"] = False
     headers = {
-        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "X-OpenRouter-Title": "Theo JARVIS",
     }
@@ -5589,11 +5608,35 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         headers["HTTP-Referer"] = origin[:200]
 
     try:
+        openrouter_key_failover = False
+
         def send_openrouter(payload, timeout=14):
+            nonlocal openrouter_key_failover
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-            req = Request(OPENROUTER_URL, data=request_body, headers=headers, method="POST")
-            with urlopen(req, timeout=timeout) as response:
-                return json.loads(response.read().decode("utf-8"))
+            last_error = None
+            key_retryable_codes = {401, 402, 403, 408, 409, 429, 500, 502, 503, 504}
+            for index, api_key in enumerate(api_keys):
+                request_headers = dict(headers)
+                request_headers["Authorization"] = f"Bearer {api_key}"
+                req = Request(OPENROUTER_URL, data=request_body, headers=request_headers, method="POST")
+                try:
+                    with urlopen(req, timeout=timeout) as response:
+                        return json.loads(response.read().decode("utf-8"))
+                except HTTPError as error:
+                    last_error = error
+                    if index + 1 < len(api_keys) and error.code in key_retryable_codes:
+                        openrouter_key_failover = True
+                        continue
+                    raise
+                except (URLError, TimeoutError) as error:
+                    last_error = error
+                    if index + 1 < len(api_keys):
+                        openrouter_key_failover = True
+                        continue
+                    raise
+            if last_error is not None:
+                raise last_error
+            raise TimeoutError("OpenRouter key failover exhausted")
 
         def send_compatible_model_fallbacks():
             attempts = []
@@ -5787,6 +5830,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "meta_leak_recovered": meta_leak_recovered,
             "language_recovered": language_recovered,
             "tool_calling_fallback": tool_calling_fallback,
+            "openrouter_key_failover": openrouter_key_failover,
             "model_routing": {
                 "strategy": "complexity_aware_free_fallbacks",
                 "quality_tier": response_profile["routing"],
@@ -7022,7 +7066,7 @@ class handler(BaseHTTPRequestHandler):
                 {"name": "purple_cognitive_bust", "ok": "visitor-animated-surface-topology" in (WEB_DIR / "jarvis-3d.js").read_text(encoding="utf-8")},
                 {"name": "action_registry", "ok": bool(ACTION_REGISTRY)},
                 {"name": "stateless_gateway", "ok": True},
-                {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},
+                {"name": "assistant_configured", "ok": bool(openrouter_api_keys()), "required": False},
                 {"name": "live_web_search_configured", "ok": True, "required": False},
                 {"name": "elevenlabs_configured", "ok": bool(os.environ.get("ELEVENLABS_API_KEY")), "required": False},
                 {"name": "supabase_memory_configured", "ok": supabase_configured(), "required": False},

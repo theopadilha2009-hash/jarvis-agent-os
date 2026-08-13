@@ -142,10 +142,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human4', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-human4', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-human4', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-human4', html)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human5', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-human5', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-human5', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260813-human5', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
         self.assertIn(b'id="stateBeacon"', html)
@@ -236,6 +236,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"readAsDataURL", app_js)
         self.assertIn(b"speechChunks", app_js)
         self.assertIn(b"fetchSpeechChunk", app_js)
+        self.assertIn(b"previous_text: previousText", app_js)
+        self.assertIn(b"next_text: nextText", app_js)
+        self.assertIn(b'stage.classList.add("spatial-result")', app_js)
+        self.assertNotIn(b"chunks[0].length > 165", app_js)
         self.assertIn(b"playSpeechChunk", app_js)
         self.assertIn(b"__jarvisFinish", app_js)
         self.assertIn(b"renderMessageContext", app_js)
@@ -329,6 +333,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'GPU 3D desativada', visual_js)
         self.assertIn(b"frameIntervalMs", visual_js)
         self.assertIn(b"orientationEase", visual_js)
+        self.assertIn(b'contains("spatial-result") && canvasWidth > 900', visual_js)
+        self.assertIn(b"const targetPositionX = spatialResult ? -1.35 : modeTargetX", visual_js)
+        self.assertIn(b"const inwardGaze = spatialResult * 0.11", visual_js)
         self.assertIn(b"document.hidden", visual_js)
         self.assertIn(b"scheduleRender", visual_js)
         self.assertIn(b'"research"', visual_js)
@@ -362,8 +369,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-human4", service_worker)
-        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human4', service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-human5", service_worker)
+        self.assertIn(b'/ui/jarvis-logo.png?v=20260813-human5', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -1453,7 +1460,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["visual_state"], "error")
 
     def test_unconfigured_ai_uses_deterministic_plan(self):
-        with patch.dict(os.environ, {"OPENROUTER_API_KEY": ""}, clear=False):
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "", "OPENROUTER_FALLBACK_API_KEY": ""}, clear=False):
             status, _, payload = self.json_request(
                 "/command", "POST", {"command": "planeje minha semana"}
             )
@@ -1494,6 +1501,55 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("sem sermão", system_prompt)
         self.assertIn("nunca diga que não possui voz", system_prompt.casefold())
         self.assertEqual(payload["response_profile"], "concise")
+
+    def test_openrouter_uses_fallback_key_when_primary_is_not_configured(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Fallback conectado."}}],
+                }).encode("utf-8")
+
+        env = {"OPENROUTER_API_KEY": "", "OPENROUTER_FALLBACK_API_KEY": "fallback-test-key"}
+        with patch.dict(os.environ, env, clear=False), patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+            payload, status = MODULE.assistant_response({"command": "converse comigo"})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["message"], "Fallback conectado.")
+        self.assertEqual(request.call_args.args[0].headers["Authorization"], "Bearer fallback-test-key")
+        self.assertFalse(payload["openrouter_key_failover"])
+
+    def test_openrouter_retries_with_fallback_key_after_primary_rate_limit(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "openrouter/free",
+                    "choices": [{"message": {"content": "Continuidade confirmada."}}],
+                }).encode("utf-8")
+
+        rate_limit = HTTPError("https://openrouter.ai", 429, "rate limited", {}, None)
+        env = {"OPENROUTER_API_KEY": "primary-test-key", "OPENROUTER_FALLBACK_API_KEY": "fallback-test-key"}
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "urlopen", side_effect=[rate_limit, FakeResponse()]
+        ) as request:
+            payload, status = MODULE.assistant_response({"command": "converse comigo"})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["message"], "Continuidade confirmada.")
+        self.assertTrue(payload["openrouter_key_failover"])
+        self.assertEqual(request.call_count, 2)
+        self.assertEqual(request.call_args_list[0].args[0].headers["Authorization"], "Bearer primary-test-key")
+        self.assertEqual(request.call_args_list[1].args[0].headers["Authorization"], "Bearer fallback-test-key")
 
     def test_live_web_search_uses_openrouter_server_tool_and_returns_sources(self):
         class FakeResponse:
@@ -2565,18 +2621,26 @@ São Paulo - SP
 
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key"}, clear=False):
             with patch.object(MODULE, "urlopen", return_value=FakeAudioResponse()) as request:
-                audio, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
+                audio, status = MODULE.elevenlabs_speech({
+                    "text": "Olá, Theo.",
+                    "previous_text": "O diagnóstico terminou.",
+                    "next_text": "Vou continuar daqui.",
+                })
         self.assertEqual(status, 200)
         self.assertTrue(audio.startswith(b"ID3"))
         sent_request = request.call_args.args[0]
         self.assertEqual(sent_request.headers["Xi-api-key"], "private-test-key")
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
-        self.assertEqual(sent_payload["language_code"], "pt")
-        self.assertEqual(sent_payload["model_id"], "eleven_flash_v2_5")
-        self.assertEqual(sent_payload["voice_settings"]["stability"], 0.62)
-        self.assertEqual(sent_payload["voice_settings"]["similarity_boost"], 0.76)
+        self.assertNotIn("language_code", sent_payload)
+        self.assertEqual(sent_payload["model_id"], "eleven_multilingual_v2")
+        self.assertEqual(sent_payload["seed"], 7319)
+        self.assertEqual(sent_payload["apply_text_normalization"], "auto")
+        self.assertEqual(sent_payload["previous_text"], "O diagnóstico terminou.")
+        self.assertEqual(sent_payload["next_text"], "Vou continuar daqui.")
+        self.assertEqual(sent_payload["voice_settings"]["stability"], 0.7)
+        self.assertEqual(sent_payload["voice_settings"]["similarity_boost"], 0.8)
         self.assertFalse(sent_payload["voice_settings"]["use_speaker_boost"])
-        self.assertEqual(sent_payload["voice_settings"]["speed"], 0.86)
+        self.assertEqual(sent_payload["voice_settings"]["speed"], 0.94)
 
     def test_missing_elevenlabs_key_stays_text_only(self):
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):

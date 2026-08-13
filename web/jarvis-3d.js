@@ -624,8 +624,8 @@ async function start() {
   const root = new THREE.Group();
   scene.add(root);
   const [visitorModel, topologyGeometry] = await Promise.all([
-    loadObjHead("/asset/models/male_head.obj?v=20260813-human4"),
-    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-human4"),
+    loadObjHead("/asset/models/male_head.obj?v=20260813-human5"),
+    loadObjGeometry("/asset/models/male_head_topology.obj?v=20260813-human5"),
   ]);
   const visitorHeadLook = installVisitorHeadPose(visitorModel.material);
   let ownerModel = new THREE.Group();
@@ -957,7 +957,7 @@ async function start() {
     });
     if (ownerMixer) ownerMixer.update(deltaSeconds);
 
-    const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 5.4);
+    const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 9.2);
     currentX += (pointerX * 0.15 - currentX) * orientationEase;
     currentY += (pointerY * 0.08 - currentY) * orientationEase;
     currentZ += (-pointerX * 0.025 - currentZ) * orientationEase;
@@ -968,7 +968,9 @@ async function start() {
     camera.position.x += (cameraTargetX - camera.position.x) * cameraEase;
     camera.position.z += (cameraTargetZ - camera.position.z) * cameraEase;
     camera.lookAt(0, -0.01, 0);
-    const targetPositionX = -modeBlend.memory * 0.34 - modeBlend.forge * 0.3 - modeBlend.core * 0.18;
+    const spatialResult = stage.classList.contains("spatial-result") && canvasWidth > 900 ? 1 : 0;
+    const modeTargetX = -modeBlend.memory * 0.34 - modeBlend.forge * 0.3 - modeBlend.core * 0.18;
+    const targetPositionX = spatialResult ? -1.35 : modeTargetX;
     const positionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.35);
     root.position.x += (targetPositionX - root.position.x) * positionEase;
     root.position.y = -0.07 + Math.sin(time * 0.28) * 0.006;
@@ -978,12 +980,13 @@ async function start() {
     root.rotation.z = 0;
     const liveSpeakingEnergy = visualState === "speaking" ? voiceEnergy : 0;
     const voiceNod = Math.sin(time * 5.4) * liveSpeakingEnergy * 0.012;
-    visitorHeadLook.value.set(currentX, currentY + voiceNod, currentZ);
+    const inwardGaze = spatialResult * 0.11;
+    visitorHeadLook.value.set(currentX + inwardGaze, currentY + voiceNod, currentZ);
     const speakingPulse = liveSpeakingEnergy * 0.055;
     const targetScale = 1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035;
     currentScale += (targetScale - currentScale) * (1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8));
     root.scale.setScalar(currentScale);
-    visitorLife.update(time, liveSpeakingEnergy, currentX, currentY, currentZ);
+    visitorLife.update(time, liveSpeakingEnergy, currentX + inwardGaze, currentY, currentZ);
     particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
     particles.rotation.y += deltaSeconds * (isWorking ? 0.022 : 0.008);
     coreEntity.update(time, modeBlend.core, deltaSeconds);
