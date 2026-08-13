@@ -45,7 +45,11 @@ Storage: `05_EXECUCAO/63_DECISIONS/decisions.jsonl` (gitignored, JSONL append-on
 ## Utilidades pessoais locais
 
 - `./jarvis agent-eval [--json]` — executa 50 pedidos representativos contra o mesmo contrato de roteamento usado pelo gateway (conversa, pesquisa, Mac, sequências e memória). Não chama OpenRouter, ElevenLabs, Supabase ou o worker; `JARVIS_NO_REPORT=1` mantém preview e a execução normal grava somente `07_RELATORIOS/02_TECNICOS/ULTIMO_AGENT_RUNTIME_EVAL.md` (gitignored).
-- `./jarvis web [--no-open|--check]` — inicia o cockpit visual, abre o navegador e conecta conversa/voz ao worker local; usa OpenRouter quando `OPENROUTER_API_KEY` estiver disponível no processo.
+- `./jarvis web [--open|--check]` — inicia o cockpit visual sem abrir navegador ou helper; `--open` é a única abertura explícita. Conecta conversa/voz ao worker local e usa OpenRouter quando configurado.
+- O cockpit V9 usa a conversa como workspace dominante, mantém o núcleo em uma coluna compacta e leva preferências para Sistema. `⌘K` pesquisa o catálogo real, anexos aceitam seletor/colar/arrastar, falhas têm retry manual e a central nunca abre automaticamente.
+- O cockpit e `./jarvis do` compartilham `11_SCRIPTS/action_registry.py`: risco, confirmação, executor e intenções são declarados uma vez.
+- Todo `POST /command` válido recebe `run_id`, `state`, `plan`, `events`, `result` e `evidence`; ações externas/autoedição aguardam confirmação em `/runs/{id}/confirm`, e runs podem ser consultados, cancelados ou repetidos.
+- `GET /memory-search?q=...` e pedidos como “busque na memória por …” usam um índice SQLite local em runtime; Markdown continua sendo a fonte de verdade.
 - `./jarvis assistant-doctor` — verifica se o macOS oferece captura, conversão, voz, abertura e clipboard.
 - `./jarvis screen-capture [--interactive] [--output PATH] [--dry-run]` — captura somente quando chamado; o padrão salva em `05_EXECUCAO/64_PERSONAL_TOOLS/screenshots/`.
 - `./jarvis screen-record [--dry-run]` — abre o painel nativo do macOS para gravar uma área ou a tela inteira; a confirmação continua visível no Mac.

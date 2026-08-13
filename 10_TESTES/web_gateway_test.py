@@ -16,6 +16,7 @@ import threading
 import time
 import unittest
 from unittest.mock import patch
+from tempfile import TemporaryDirectory
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,14 @@ class WebGatewayTest(unittest.TestCase):
         cls.previous_supabase_url = os.environ.pop("SUPABASE_URL", None)
         cls.previous_supabase_key = os.environ.pop("SUPABASE_SERVICE_ROLE_KEY", None)
         cls.previous_owner_token = os.environ.pop("JARVIS_OWNER_TOKEN", None)
+        cls.runtime_temp = TemporaryDirectory()
+        runtime_root = Path(cls.runtime_temp.name)
+        cls.previous_agent_runs = MODULE.AGENT_RUNS
+        cls.previous_memory_index = MODULE.LOCAL_MEMORY_INDEX
+        cls.previous_agent_run_dir = os.environ.get("JARVIS_AGENT_RUN_DIR")
+        os.environ["JARVIS_AGENT_RUN_DIR"] = str(runtime_root / "runs")
+        MODULE.AGENT_RUNS = MODULE.RunStore(runtime_root / "runs")
+        MODULE.LOCAL_MEMORY_INDEX = MODULE.MemoryIndex(runtime_root / "memory.sqlite3")
         os.environ["JARVIS_WEB_LOCAL_EXEC"] = "0"
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), MODULE.handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
@@ -52,6 +61,13 @@ class WebGatewayTest(unittest.TestCase):
             os.environ["SUPABASE_SERVICE_ROLE_KEY"] = cls.previous_supabase_key
         if cls.previous_owner_token is not None:
             os.environ["JARVIS_OWNER_TOKEN"] = cls.previous_owner_token
+        MODULE.AGENT_RUNS = cls.previous_agent_runs
+        MODULE.LOCAL_MEMORY_INDEX = cls.previous_memory_index
+        if cls.previous_agent_run_dir is None:
+            os.environ.pop("JARVIS_AGENT_RUN_DIR", None)
+        else:
+            os.environ["JARVIS_AGENT_RUN_DIR"] = cls.previous_agent_run_dir
+        cls.runtime_temp.cleanup()
 
     def request(self, path, method="GET", payload=None):
         body = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -82,6 +98,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("public_chat", payload["access"])
         self.assertEqual(payload["agent_runtime"]["execution"], "verified_adapters")
         self.assertFalse(payload["agent_runtime"]["arbitrary_shell"])
+        self.assertTrue(payload["memory"]["configured"])
+        self.assertTrue(payload["memory"]["persistent"])
+        self.assertEqual(payload["memory"]["index"], "sqlite_runtime_over_markdown")
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["X-Frame-Options"], "DENY")
 
@@ -100,18 +119,17 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"JARVIS", html)
         self.assertIn(b'id="voiceButton"', html)
+        self.assertIn(b'<textarea id="commandInput"', html)
         self.assertIn(b'<svg aria-hidden="true" viewBox="0 0 24 24">', html)
         self.assertIn(b'id="muteButton"', html)
         self.assertIn(b'id="avatar3d"', html)
-        self.assertIn(b'id="liveSurface"', html)
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="mark-j"', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260812-space2', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260812-space2', html)
-        self.assertIn(b'/ui/manifest.webmanifest?v=20260812-space2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260812-v9', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260812-v9', html)
+        self.assertIn(b'/ui/manifest.webmanifest?v=20260812-v9', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
-        self.assertIn(b'id="stateBeacon"', html)
         self.assertIn(b'id="accessMode"', html)
         self.assertIn(b'id="filePreview"', html)
         self.assertIn(b'id="leaveOwnerMode"', html)
@@ -119,6 +137,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="attachmentInput"', html)
         self.assertIn(b'id="attachmentTray"', html)
         self.assertIn(b'id="actionHub"', html)
+        self.assertIn(b'id="actionHubBackdrop"', html)
+        self.assertIn(b'id="actionHubSearch"', html)
+        self.assertIn(b'id="dropOverlay"', html)
+        self.assertIn(b'role="dialog" aria-modal="true"', html)
         self.assertIn(b'id="tourDialog"', html)
         self.assertIn(b'id="adminLoginButton"', html)
         self.assertIn(b'id="requestProgress"', html)
@@ -129,15 +151,17 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="installDialog"', html)
         self.assertIn(b'id="actionHubOverview"', html)
         self.assertIn(b'id="sceneObjective"', html)
-        self.assertIn(b'id="sceneCommandButton"', html)
-        self.assertIn(b'id="sceneRender"', html)
         self.assertIn(b'id="hubMemoryValue"', html)
         self.assertIn(b'id="hubAgendaValue"', html)
-        self.assertIn("Peça. Eu executo.".encode(), html)
+        self.assertIn("Central operacional".encode(), html)
+        self.assertIn("O que vamos fazer?".encode(), html)
         self.assertIn(b'/ui/vendor/three.module.js', html)
         self.assertIn(b"requestIdleCallback", html)
         self.assertNotIn(b"fallback-core", html)
         self.assertNotIn(b'unpkg.com', html)
+        self.assertNotIn(b'class="hud-rail', html)
+        self.assertNotIn(b'class="scene-modes', html)
+        self.assertNotIn(b'id="stateBeacon"', html)
 
         status, headers, app_js = self.request("/ui/jarvis.js")
         self.assertEqual(status, 200)
@@ -150,8 +174,6 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"monitorDeviceCommand", app_js)
         self.assertIn(b"monitorDeviceRun", app_js)
         self.assertIn(b"/device-run?ids=", app_js)
-        self.assertIn(b"agendaDate", app_js)
-        self.assertIn(b"revealLatest", app_js)
         self.assertIn(b"refreshPersonalOverview", app_js)
         self.assertIn(b'"/personal-overview"', app_js)
         self.assertIn(b"saveOwnerToken", app_js)
@@ -167,9 +189,17 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"window.AbortSignal", app_js)
         self.assertIn(b"setMobileChatExpanded", app_js)
         self.assertIn(b"syncMobileViewport", app_js)
+        self.assertIn(b"resizeComposerInput", app_js)
+        self.assertIn(b'event.key !== "Enter" || event.shiftKey', app_js)
         self.assertIn(b"beforeinstallprompt", app_js)
         self.assertIn(b'navigator.serviceWorker.register("/jarvis-sw.js"', app_js)
         self.assertIn(b"updateActionHub", app_js)
+        self.assertIn(b"actionHubBackdrop", app_js)
+        self.assertIn(b"searchableActionText", app_js)
+        self.assertIn(b"supportedAttachment", app_js)
+        self.assertIn(b'addEventListener("dragenter"', app_js)
+        self.assertIn(b'addEventListener("paste"', app_js)
+        self.assertIn(b"retry-command", app_js)
         self.assertIn(b"showAttachmentPreview", app_js)
         self.assertIn("Esta é uma prévia do arquivo que estou analisando.".encode(), app_js)
         self.assertIn(b"exitOwnerMode", app_js)
@@ -181,12 +211,14 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"currentSpeechController?.abort()", app_js)
         self.assertIn(b"compactCaption", app_js)
         self.assertIn(b"session.voicePending", app_js)
-        self.assertIn(b'data.provider === "openrouter"', app_js)
+        self.assertIn(b"OpenRouter conectado", app_js)
         self.assertIn(b"renderEventStream", app_js)
         self.assertIn(b"refreshWorkerStatus", app_js)
         self.assertIn(b"verificando o Mac em segundo plano", app_js)
         self.assertIn(b'protocol !== "jarvis-events/1"', app_js)
         self.assertIn(b"renderUICards", app_js)
+        self.assertIn(b"confirm-agent-run", app_js)
+        self.assertIn(b"cancel-agent-run", app_js)
         self.assertIn(b'class="ui-card"', app_js)
         self.assertIn(b"refreshPulse", app_js)
         self.assertIn(b"10 * 60 * 1000", app_js)
@@ -204,7 +236,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"renderSourceLinks", app_js)
         self.assertIn(b'class="source-links"', app_js)
         self.assertIn(b"web ao vivo", app_js)
-        self.assertIn(b' research: ["PESQUISA"', app_js)
+        self.assertIn(b'research: ["consultando fontes reais", "PESQUISA"', app_js)
         self.assertIn("Pesquisando…".encode("utf-8"), app_js)
         self.assertIn(b"source?.snippet", app_js)
         self.assertIn(b"feature_evidence", app_js)
@@ -212,14 +244,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'class="message-card"', app_js)
         self.assertIn(b"workingStateFor", app_js)
         self.assertIn(b"responseVisualState", app_js)
-        self.assertIn(b'forge: ["FORJA"', app_js)
-        self.assertIn(b"data-scene-mode", html)
+        self.assertIn(b'forge: ["construindo e verificando", "EXECU', app_js)
         self.assertIn(b"compactHudText", app_js)
+        self.assertNotIn(b"renderLiveCanvas", app_js)
+        self.assertNotIn(b'byId("sceneMac")', app_js)
 
         status, headers, app_css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
         self.assertIn(b".conversation-head", app_css)
+        self.assertIn(b".composer textarea", app_css)
         self.assertIn(b".message-actions", app_css)
         self.assertIn(b".new-conversation-button", app_css)
         self.assertIn(b".action-hub", app_css)
@@ -233,14 +267,18 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"touch-action: manipulation", app_css)
         self.assertIn(b"-webkit-line-clamp: 2", app_css)
         self.assertIn(b'.stage.has-conversation .conversation', app_css)
-        self.assertIn(b'.stage[data-state="thinking"] .hud-right', app_css)
+        self.assertIn(b"--presence-width", app_css)
+        self.assertIn(b"grid-template-columns: repeat(3", app_css)
+        self.assertIn(b".action-hub-backdrop", app_css)
+        self.assertIn(b".action-hub-search", app_css)
+        self.assertIn(b".drop-overlay", app_css)
         self.assertIn(b".source-links", app_css)
         self.assertIn(b".message-link", app_css)
         self.assertIn(b".source-links a em", app_css)
-        self.assertIn(b".compact-surface {\n  display: none", app_css)
-        self.assertIn(b"Command Deck V2", app_css)
-        self.assertIn(b"Experience V3", app_css)
-        self.assertIn(b".scene-modes", app_css)
+        self.assertNotIn(b"Command Deck V2", app_css)
+        self.assertNotIn(b"Experience V3", app_css)
+        self.assertNotIn(b".hud-rail", app_css)
+        self.assertNotIn(b".scene-modes", app_css)
         self.assertIn(b'error?.name === "AbortError"', app_js)
         self.assertNotIn(b"speechSynthesis", app_js)
 
@@ -257,15 +295,17 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"modeBlend", visual_js)
         self.assertIn(b'["thinking", "planning", "research"].includes(state)', visual_js)
         self.assertNotIn(b"rgba(192,107,255", visual_js)
-        self.assertIn(b"AnimationMixer", visual_js)
-        self.assertIn(b"20260812-facing1", visual_js)
-        self.assertIn(b"01_avatar_boneco_humanoid.glb", visual_js)
-        self.assertIn(b"jarvisSuppressedEffect", visual_js)
+        self.assertIn(b"makeCognitiveCore", visual_js)
+        self.assertIn(b"procedural-cognitive-core", visual_js)
+        self.assertIn(b"core-crystal", visual_js)
+        self.assertIn(b"primary-halo", visual_js)
+        self.assertNotIn(b"CapsuleGeometry", visual_js)
+        self.assertNotIn(b"GLTFLoader", visual_js)
+        self.assertNotIn(b"01_avatar_boneco_humanoid.glb", visual_js)
         self.assertIn(b"facingYaw", visual_js)
-        self.assertIn(b"FRONTAL_PITCH_RADIANS", visual_js)
-        self.assertIn(b"MODEL_DISPLAY_SIZE", visual_js)
-        self.assertIn(b"eyeSocketMaterial", visual_js)
-        self.assertIn(b"irisMaterial", visual_js)
+        self.assertIn(b"frameMaterial", visual_js)
+        self.assertIn(b"glassMaterial", visual_js)
+        self.assertIn(b"accentMaterial", visual_js)
         self.assertIn(b"installCyanRemap", visual_js)
         self.assertIn(b"jarvisRedMask", visual_js)
         self.assertIn(b"BASE_FRAME_INTERVAL_MS", visual_js)
@@ -275,9 +315,11 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"EFFECT_TARGET_FPS", visual_js)
         self.assertIn(b"slowFrameWindows", visual_js)
         self.assertIn(b'renderer.setPixelRatio(compactViewport', visual_js)
-        self.assertIn(b'sceneRender', visual_js)
+        self.assertNotIn(b'sceneRender', visual_js)
         self.assertIn(b'GPU 3D desativada', visual_js)
         self.assertIn(b"frameIntervalMs", visual_js)
+        self.assertIn(b"layoutScale", visual_js)
+        self.assertIn(b"const targetPositionX = 0", visual_js)
         self.assertIn(b"document.hidden", visual_js)
         self.assertIn(b"scheduleRender", visual_js)
         self.assertIn(b'"research"', visual_js)
@@ -304,7 +346,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertEqual(headers["Cache-Control"], "no-cache")
-        self.assertIn(b"jarvis-mobile-shell-20260812-space2", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260812-v9", service_worker)
         self.assertIn(b"request.mode === \"navigate\"", service_worker)
 
         for icon in ("jarvis-icon-180.png", "jarvis-icon-192.png", "jarvis-icon-512.png"):
@@ -316,7 +358,7 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
-        self.assertIn(b".hud-rail", css)
+        self.assertNotIn(b".hud-rail", css)
         self.assertIn(b".message.user.voice", css)
         self.assertIn(b".file-preview", css)
         self.assertIn(b".environment-depth::before", css)
@@ -351,6 +393,56 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(stream["events"][0]["type"], "RUN_STARTED")
         self.assertEqual(stream["events"][-1]["type"], "RUN_FINISHED")
         self.assertGreaterEqual(stream["elapsed_ms"], 0)
+
+    def test_agent_run_can_be_read_confirmed_canceled_and_retried(self):
+        status, _, waiting = self.json_request(
+            "/command", "POST", {"command": "mande mensagem para 5511999999999 dizendo teste"}
+        )
+        self.assertEqual(status, 202)
+        self.assertEqual(waiting["state"], "waiting_confirmation")
+        self.assertTrue(waiting["needs_confirmation"])
+        run_id = waiting["run_id"]
+
+        status, _, loaded = self.json_request(f"/runs/{run_id}")
+        self.assertEqual(status, 200)
+        self.assertEqual(loaded["run_id"], run_id)
+
+        status, _, confirmed = self.json_request(f"/runs/{run_id}/confirm", "POST", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(confirmed["state"], "completed")
+        self.assertTrue(confirmed["requires_local_worker"])
+
+        _, _, second = self.json_request(
+            "/command", "POST", {"command": "mande mensagem para 5511999999999 dizendo cancelar"}
+        )
+        status, _, canceled = self.json_request(f"/runs/{second['run_id']}/cancel", "POST", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(canceled["state"], "canceled")
+        status, _, retried = self.json_request(f"/runs/{second['run_id']}/retry", "POST", {})
+        self.assertEqual(status, 202)
+        self.assertEqual(retried["state"], "waiting_confirmation")
+        self.assertNotEqual(retried["run_id"], second["run_id"])
+
+    def test_memory_search_uses_local_index(self):
+        status, _, payload = self.json_request(
+            "/command", "POST", {"command": "busque na memória por busto"}
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "sqlite_local_index")
+        self.assertEqual(payload["state"], "completed")
+        self.assertTrue(any("busto" in row["snippet"].casefold() for row in payload["memory_results"]))
+
+        status, _, direct = self.json_request("/memory-search?q=busto")
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(direct["count"], 1)
+
+    def test_capabilities_expose_shared_action_registry(self):
+        status, _, payload = self.json_request("/capabilities")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["action_registry"]["protocol"], "jarvis-actions/1")
+        names = {row["name"] for row in payload["action_registry"]["actions"]}
+        self.assertIn("message_send", names)
+        self.assertIn("memory_search", names)
 
     def test_failed_command_has_terminal_error_event(self):
         status, _, payload = self.json_request("/command", "POST", {"command": ""})
@@ -403,6 +495,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(payload["summary"]["worker_online"])
         self.assertEqual(payload["summary"]["latest_action"], "open_application · succeeded")
         self.assertTrue(next(row for row in payload["actions"] if row["id"] == "spotify")["available"])
+        action_ids = {row["id"] for row in payload["actions"]}
+        self.assertTrue({"task", "screen-record", "system", "plan"}.issubset(action_ids))
+        self.assertEqual(next(row for row in payload["actions"] if row["id"] == "task")["interaction"], "draft")
 
     def test_capability_question_uses_control_plane_without_model(self):
         expected = {
@@ -634,7 +729,22 @@ class WebGatewayTest(unittest.TestCase):
                 )
         self.assertEqual(status, 202)
         self.assertEqual(payload["intent"], "self_edit")
-        enqueue.assert_called_once_with("melhore seus próprios scripts de diagnóstico", "self_edit")
+        self.assertEqual(payload["state"], "waiting_confirmation")
+        self.assertTrue(payload["needs_confirmation"])
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "supabase_device_enqueue", return_value=({
+                "ok": True,
+                "intent": "self_edit",
+                "status_real": "device_command_queued",
+                "job": {"id": 701, "status": "pending"},
+            }, 202),
+        ) as confirmed_enqueue:
+            confirmed, confirmed_status = MODULE.execute_saved_run(
+                MODULE.AGENT_RUNS.get(payload["run_id"]), owner_authenticated=True
+            )
+        self.assertEqual(confirmed_status, 202)
+        self.assertEqual(confirmed["state"], "running")
+        confirmed_enqueue.assert_called_once_with("melhore seus próprios scripts de diagnóstico", "self_edit")
 
     def test_create_in_jarvis_and_deploy_routes_to_self_edit_worker(self):
         env = {
@@ -658,7 +768,8 @@ class WebGatewayTest(unittest.TestCase):
             )
         self.assertEqual(status, 202)
         self.assertEqual(payload["intent"], "self_edit")
-        enqueue.assert_called_once_with(command, "self_edit")
+        self.assertEqual(payload["state"], "waiting_confirmation")
+        enqueue.assert_not_called()
 
     def test_voice_design_requires_pairing_and_routes_to_real_provider(self):
         env = {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}
@@ -678,8 +789,13 @@ class WebGatewayTest(unittest.TestCase):
                 payload, status = MODULE.command_payload(
                     {"command": command}, owner_authenticated=True
                 )
-        self.assertEqual(status, 201)
-        self.assertEqual(payload["status_real"], "elevenlabs_voice_created")
+                self.assertEqual(status, 202)
+                self.assertEqual(payload["state"], "waiting_confirmation")
+                confirmed, confirmed_status = MODULE.execute_saved_run(
+                    MODULE.AGENT_RUNS.get(payload["run_id"]), owner_authenticated=True
+                )
+        self.assertEqual(confirmed_status, 201)
+        self.assertEqual(confirmed["status_real"], "elevenlabs_voice_created")
         design.assert_called_once_with(command)
 
     def test_voice_design_creates_and_persists_returned_voice_id(self):
@@ -906,14 +1022,20 @@ class WebGatewayTest(unittest.TestCase):
                     )
                     for intent, command in commands.items()
                 }
+                message_record = MODULE.AGENT_RUNS.get(results["message_send"][0]["run_id"])
+                message_result, message_status = MODULE.execute_saved_run(
+                    message_record, owner_authenticated=True
+                )
         for intent, (payload, status) in results.items():
             self.assertEqual(status, 202)
             self.assertEqual(payload["intent"], intent)
-            self.assertEqual(payload["status_real"], "device_command_queued")
+            expected_status = "waiting_confirmation" if intent == "message_send" else "device_command_queued"
+            self.assertEqual(payload["status_real"], expected_status)
         self.assertEqual(results["storage_scan"][0]["job"]["target"], "Downloads")
         self.assertEqual(results["screen_record"][0]["job"]["target"], "Gravador do macOS")
         self.assertEqual(results["github_overview"][0]["job"]["target"], "GitHub do Theo")
-        self.assertEqual(results["message_send"][0]["job"]["target"], "…9999")
+        self.assertEqual(message_status, 202)
+        self.assertEqual(message_result["job"]["target"], "…9999")
         message_request = request.call_args_list[-1].args[0]
         stored = json.loads(message_request.data.decode("utf-8"))
         self.assertEqual(stored["target"], "5511999999999")
@@ -970,9 +1092,14 @@ class WebGatewayTest(unittest.TestCase):
             {"command": "mandar mensagem para 5511999999999 dizendo teste local"},
             local_execute=False,
         )
-        self.assertEqual(status, 200)
+        self.assertEqual(status, 202)
         self.assertEqual(payload["intent"], "message_send")
-        self.assertTrue(payload["requires_local_worker"])
+        self.assertTrue(payload["needs_confirmation"])
+        confirmed, confirmed_status = MODULE.execute_saved_run(
+            MODULE.AGENT_RUNS.get(payload["run_id"]), local_execute=False
+        )
+        self.assertEqual(confirmed_status, 200)
+        self.assertTrue(confirmed["requires_local_worker"])
 
     def test_slow_mac_routes_to_real_memory_diagnostic(self):
         payload, status = MODULE.command_payload(
@@ -2444,11 +2571,15 @@ São Paulo - SP
                 {"command": "manda mensagem para Arthur dizendo estou chegando"},
                 owner_authenticated=True,
             )
+            confirmed, confirmed_status = MODULE.execute_saved_run(
+                MODULE.AGENT_RUNS.get(payload["run_id"]), owner_authenticated=True
+            )
         self.assertEqual(status, 202)
-        self.assertEqual(payload["job"]["target"], "…9999")
+        self.assertEqual(confirmed_status, 202)
+        self.assertEqual(confirmed["job"]["target"], "…9999")
         queued = request.call_args_list[1].kwargs["body"]
         self.assertEqual(queued["target"], "5511999999999")
-        self.assertNotIn("5511999999999", json.dumps(payload))
+        self.assertNotIn("5511999999999", json.dumps(confirmed))
 
     def test_contact_save_masks_phone_in_public_payload(self):
         saved = [{"id": 3, "alias": "arthur", "display_name": "Arthur", "phone": "5511999999999"}]

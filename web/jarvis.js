@@ -13,10 +13,13 @@
   const attachmentInput = byId("attachmentInput");
   const attachmentTray = byId("attachmentTray");
   const filePreview = byId("filePreview");
+  const conversation = document.querySelector(".conversation");
   const dialog = byId("systemDialog");
   const tourDialog = byId("tourDialog");
   const actionHub = byId("actionHub");
+  const actionHubBackdrop = byId("actionHubBackdrop");
   const actionHubButton = byId("actionHubButton");
+  const actionHubSearch = byId("actionHubSearch");
   const mobileChatToggle = byId("mobileChatToggle");
   const newConversationButton = byId("newConversationButton");
   const installButton = byId("installButton");
@@ -24,6 +27,10 @@
   const mobileLayout = window.matchMedia("(max-width: 720px)");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const MAX_VISIBLE_MESSAGES = 24;
+  const ALLOWED_ATTACHMENT_TYPES = new Set([
+    "image/jpeg", "image/png", "image/webp", "application/pdf",
+    "text/plain", "text/markdown", "text/csv", "application/json",
+  ]);
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
     input: Boolean(Recognition),
@@ -100,11 +107,9 @@
     session.responseState = "";
     session.attachments = [];
     byId("conversationMemoryValue").textContent = "sessão local";
-    byId("contextCount").textContent = "0 turnos";
     setActionHub(false);
     renderAttachmentTray();
     clearAttachmentPreview();
-    renderLiveCanvas({});
     renderWelcomeState("Modo visitante ativo. A memória privada e o Mac continuam protegidos.");
     await boot();
     if (!session.paired && dialog.open) dialog.close();
@@ -119,7 +124,11 @@
     { id: "computer", label: "Diagnosticar o Mac", description: "Memória e processos", command: "meu computador está travando, analise a memória", executor: "mac", keywords: /mac|computador|trav|ram/i },
     { id: "memory", label: "Abrir memória", description: "Persistente ou local", command: "mostre minhas memórias", executor: "memory", keywords: /mem[oó]ria|lembr/i },
     { id: "agenda", label: "Ver agenda", description: "Tarefas e lembretes", command: "mostre minha agenda", executor: "agenda", keywords: /agenda|tarefa|lembrete/i },
+    { id: "task", label: "Criar tarefa", description: "Adicionar tarefa com data", command: "crie uma tarefa para amanhã: revisar minhas prioridades", executor: "agenda", interaction: "draft", keywords: /cri(?:ar|e).*tarefa|agenda|amanh[aã]|prioridade/i },
     { id: "github", label: "Inspecionar GitHub", description: "Conta autenticada no Mac", command: "mostre meus repositórios do GitHub", executor: "mac", keywords: /github|repo|c[oó]digo|pull/i },
+    { id: "screen-record", label: "Gravar minha tela", description: "Gravador nativo do Mac", command: "grave a tela do meu Mac", executor: "mac", keywords: /grav(?:ar|e)|v[ií]deo|tela/i },
+    { id: "system", label: "Verificar sistema", description: "JARVIS, integrações e Mac", command: "verifique o estado do JARVIS e do meu Mac", executor: "jarvis", keywords: /sistema|status|estado|integra[cç][aã]o|mac/i },
+    { id: "plan", label: "Criar plano executável", description: "Etapas, riscos e próximo passo", command: "crie um plano curto e executável para a minha próxima prioridade", executor: "jarvis", keywords: /plano|planej|prioridade|etapa/i },
     { id: "research", label: "Pesquisar com fontes", description: "Web e READMEs reais", command: "pesquise projetos públicos de assistente pessoal no GitHub e compare as funções comprovadas", executor: "web", keywords: /pesquis|busc|github|internet/i },
   ];
 
@@ -138,14 +147,14 @@
 
   const STARTER_ACTIONS = {
     guest: [
-      ["Pesquisar agora", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
-      ["O que você faz?", "me diga em poucas frases as melhores coisas que você consegue fazer"],
-      ["Testar sua voz", "fale uma frase curta para mim"],
+      ["Pesquisar com fontes", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
+      ["Conhecer o JARVIS", "me mostre objetivamente o que você consegue fazer e quais ações exigem confirmação"],
+      ["Criar um plano", "crie um plano curto e executável para a minha próxima ideia"],
     ],
     owner: [
-      ["Resumo do meu dia", "me dê um resumo operacional do meu dia"],
-      ["Analisar meu Mac", "meu computador está travando, analise a memória"],
-      ["Abrir Spotify", "abra o Spotify"],
+      ["Começar meu dia", "me dê um resumo operacional do meu dia e o próximo foco"],
+      ["Buscar na memória", "busque na memória por decisões e aprendizados recentes"],
+      ["Investigar com fontes", "pesquise com fontes atuais algo importante para meus projetos"],
     ],
   };
 
@@ -163,11 +172,11 @@
 
   function renderWelcomeState(note = "") {
     const defaultHint = session.paired
-      ? "Escreva ou fale naturalmente."
-      : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
+      ? "Peça o resultado. Eu planejo, confirmo riscos e mostro a evidência."
+      : "Conversa e pesquisa estão disponíveis. Memória e Mac exigem acesso do Theo.";
     feed.innerHTML = (
       `<div class="welcome" id="welcomeMessage">`
-      + `<strong>Estou aqui.</strong>`
+      + `<strong>${session.paired ? "Pronto, Theo." : "Como posso ajudar?"}</strong>`
       + `<span id="welcomeHint">${escapeHtml(note || defaultHint)}</span>`
       + `<div class="starter-actions" id="starterActions" aria-label="Sugestões para começar"></div>`
       + `</div>`
@@ -209,13 +218,9 @@
     clearAttachmentPreview();
     actionHubButton.classList.remove("has-context");
     byId("conversationMemoryValue").textContent = session.paired ? "0 turnos" : "sessão local";
-    byId("contextCount").textContent = "0 turnos";
-    byId("requestTitle").textContent = "Pronto para você";
-    byId("requestText").textContent = "Fale naturalmente. O JARVIS escolhe as ferramentas por trás.";
-    byId("sceneEyebrow").textContent = "SISTEMA ONLINE";
-    byId("sceneMission").textContent = "Aguardando comando";
-    byId("sceneDetail").textContent = "Núcleo pronto para conversar ou agir.";
-    renderLiveCanvas({});
+    byId("sceneEyebrow").textContent = "PRONTO";
+    byId("sceneMission").textContent = "O que vamos fazer?";
+    byId("sceneDetail").textContent = "Conversa, pesquisa, memória e execução em um só lugar.";
     renderWelcomeState(note);
     settleState();
     if (newConversationButton) {
@@ -226,12 +231,20 @@
   }
 
   function setActionHub(open) {
+    const wasOpen = !actionHub.hidden;
     actionHub.hidden = !open;
+    actionHubBackdrop.hidden = !open;
+    document.body.classList.toggle("action-hub-open", open);
     actionHubButton.setAttribute("aria-expanded", String(open));
     if (open) {
       actionHubButton.classList.remove("has-context");
+      actionHubSearch.value = "";
+      updateActionHub(session.currentCommand);
       refreshPersonalOverview();
       if (mobileLayout.matches) input.blur();
+      window.setTimeout(() => actionHubSearch.focus(), 30);
+    } else if (wasOpen) {
+      actionHubButton.focus();
     }
   }
 
@@ -252,12 +265,17 @@
     }
     viewportCeiling = Math.max(viewportCeiling, height);
     document.documentElement.style.setProperty("--jarvis-viewport-height", `${height}px`);
-    input.placeholder = mobileLayout.matches ? "Fale ou escreva…" : "Escreva ou fale comigo…";
+    input.placeholder = mobileLayout.matches ? "O que você quer fazer?" : "Descreva o resultado que você quer…";
     const composerFocused = document.activeElement === input || byId("commandForm")?.contains(document.activeElement);
     const keyboardOpen = mobileLayout.matches && composerFocused && viewportCeiling - height > 120;
     stage.classList.toggle("mobile-keyboard-open", keyboardOpen);
     if (keyboardOpen) setMobileChatExpanded(true);
     if (!mobileLayout.matches) setMobileChatExpanded(false);
+  }
+
+  function resizeComposerInput() {
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 144)}px`;
   }
 
   function standaloneMode() {
@@ -288,6 +306,14 @@
     }, { once: true });
   }
 
+  function searchableActionText(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
   function updateActionHub(command = session.currentCommand, data = {}) {
     if (Array.isArray(data.actions) || Array.isArray(data.domains)) session.overview = data;
     const context = `${command || ""} ${data.intent || ""}`;
@@ -297,14 +323,27 @@
           keywords: ACTION_CATALOG.find((fallback) => fallback.id === item.id)?.keywords || /$^/,
         }))
       : ACTION_CATALOG;
-    const ranked = [...source].sort((left, right) => Number(right.keywords.test(context)) - Number(left.keywords.test(context)));
+    const query = searchableActionText(actionHubSearch?.value);
+    const terms = query.split(/\s+/).filter(Boolean);
+    const ranked = source
+      .map((item) => {
+        const haystack = searchableActionText([item.id, item.label, item.description, item.reason, item.executor, item.command].join(" "));
+        if (terms.some((term) => !haystack.includes(term))) return null;
+        const label = searchableActionText(item.label);
+        const queryScore = !query ? 0 : label === query ? 6 : label.startsWith(query) ? 4 : label.includes(query) ? 3 : 1;
+        const contextScore = item.keywords.test(context) ? 2 : 0;
+        return { item, score: queryScore + contextScore };
+      })
+      .filter(Boolean)
+      .sort((left, right) => right.score - left.score)
+      .map((row) => row.item);
     const grid = byId("actionHubGrid");
-    grid.innerHTML = ranked.map((item, index) => (
-      `<button type="button" data-hub-command="${escapeHtml(item.command)}" class="${index < 2 ? "recommended" : ""}" ${item.available === false ? "data-locked=\"true\"" : ""}>`
-      + `<i>${escapeHtml(index < 2 ? "SUGESTÃO" : item.executor || "AÇÃO")}</i>`
+    grid.innerHTML = ranked.length ? ranked.map((item, index) => (
+      `<button type="button" data-hub-command="${escapeHtml(item.command)}" data-hub-interaction="${escapeHtml(item.interaction || "send")}" class="${index < 2 ? "recommended" : ""}" ${item.available === false ? "data-locked=\"true\"" : ""}>`
+      + `<i>${escapeHtml(query && index === 0 ? "MELHOR" : index < 2 ? "SUGESTÃO" : item.executor || "AÇÃO")}</i>`
       + `<span>${escapeHtml(item.label)}<small>${escapeHtml(item.description || item.reason || "")}</small></span>`
-      + `<b>${item.available === false ? "•" : "→"}</b></button>`
-    )).join("");
+      + `<b>${item.available === false ? "•" : item.interaction === "draft" ? "✎" : "→"}</b></button>`
+    )).join("") : `<p class="action-hub-empty">Nenhuma ação corresponde a “${escapeHtml(actionHubSearch.value)}”. Tente buscar por memória, tela, agenda, GitHub ou pesquisa.</p>`;
     grid.querySelectorAll("[data-hub-command]").forEach((button) => {
       button.addEventListener("click", () => {
         if (button.dataset.locked === "true") {
@@ -315,6 +354,13 @@
         }
         const nextCommand = button.dataset.hubCommand || "";
         setActionHub(false);
+        if (button.dataset.hubInteraction === "draft") {
+          input.value = nextCommand;
+          resizeComposerInput();
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+          return;
+        }
         sendCommand(nextCommand);
       });
     });
@@ -324,6 +370,7 @@
     byId("capabilityList").innerHTML = (domainCapabilities.length ? domainCapabilities : CAPABILITIES)
       .map((item) => `<li>${escapeHtml(item)}</li>`).join("");
     byId("hubWorkerValue").textContent = session.deviceOnline ? "conectado" : session.deviceBridge ? "offline" : "não configurado";
+    if (query) byId("hubReadyValue").textContent = `${ranked.length} encontrado${ranked.length === 1 ? "" : "s"}`;
     byId("actionHubHint").textContent = data.job?.id
       ? "A ação foi enviada ao Mac. Aqui ficam os próximos comandos úteis."
       : data.agentic || data.executed_locally
@@ -341,7 +388,7 @@
       || (Array.isArray(data.ui_cards) && data.ui_cards.length)
     );
     actionHubButton.classList.toggle("has-context", hasContext && actionHub.hidden);
-    if (data.job?.id || data.agentic || data.executed_locally) setActionHub(true);
+    // A central nunca se abre sozinha; o resultado apenas sinaliza contexto no botão.
   }
 
   async function refreshPersonalOverview() {
@@ -385,7 +432,6 @@
         byId("conversationMemoryValue").textContent = data.persistent
           ? `${Math.ceil(session.history.length / 2)} turnos no Supabase`
           : "sessão local";
-        byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
       }
     } catch {
       byId("conversationMemoryValue").textContent = "sincronização indisponível";
@@ -406,73 +452,31 @@
     }
   }
 
-  const stateLabels = {
-    idle: ["PRESENÇA", "aguardando você"],
-    listening: ["ESCUTA", "ouvindo sua voz"],
-    thinking: ["NÚCLEO", "raciocinando com o contexto"],
-    research: ["PESQUISA", "consultando fontes reais"],
-    voice: ["VOZ", "preparando uma resposta natural"],
-    planning: ["NÚCLEO", "organizando possibilidades"],
-    forge: ["FORJA", "construindo e verificando"],
-    speaking: ["RESPOSTA", "falando com você"],
-    preview: ["ARQUIVO", "abrindo uma prévia com calma"],
-    response: ["RESPOSTA", "resultado disponível"],
-    memory: ["MEMÓRIA", "gravando conhecimento confirmado"],
-    local: ["FORJA", "executando pelo worker local"],
-    success: ["CONCLUÍDO", "ação finalizada"],
-    error: ["ATENÇÃO", "a ação encontrou um problema"],
-    offline: ["OFFLINE", "runtime indisponível"],
-  };
-
   const statePresentation = {
-    idle: ["●", "PRESENÇA", "JARVIS", "ambiente em espera"],
-    listening: ["◌", "ESCUTA", "CANAL ABERTO", "captando sua voz"],
-    thinking: ["◉", "NÚCLEO", "RACIOCÍNIO", "conectando contexto"],
-    research: ["⌕", "PESQUISA", "FONTES AO VIVO", "coletando evidências"],
-    planning: ["◉", "NÚCLEO", "PLANEJAMENTO", "organizando possibilidades"],
-    forge: ["◆", "FORJA", "CONSTRUÇÃO", "montando e verificando"],
-    local: ["◆", "FORJA", "EXECUÇÃO", "worker local em atividade"],
-    memory: ["◇", "MEMÓRIA", "ARQUIVO", "gravando contexto confirmado"],
-    speaking: ["≈", "VOZ", "TRANSMISSÃO", "falando com você"],
-    preview: ["▤", "ARQUIVO", "PRÉVIA", "preparando o material para análise"],
-    voice: ["≈", "VOZ", "SÍNTESE", "preparando áudio"],
-    response: ["✓", "RESULTADO", "CONCLUÍDO", "resposta disponível"],
-    success: ["✓", "RESULTADO", "CONCLUÍDO", "ação confirmada"],
-    error: ["!", "SISTEMA", "ATENÇÃO", "algo precisa ser revisto"],
-    offline: ["×", "SISTEMA", "OFFLINE", "runtime indisponível"],
+    idle: ["aguardando você", "PRONTO", "ambiente em espera"],
+    listening: ["ouvindo sua voz", "ESCUTA", "captando sua voz"],
+    thinking: ["raciocinando com o contexto", "NÚCLEO", "conectando contexto"],
+    research: ["consultando fontes reais", "PESQUISA", "coletando evidências"],
+    planning: ["organizando possibilidades", "PLANO", "estruturando a execução"],
+    forge: ["construindo e verificando", "EXECUÇÃO", "montando e verificando"],
+    local: ["executando pelo worker local", "MAC", "worker local em atividade"],
+    memory: ["gravando conhecimento confirmado", "MEMÓRIA", "registrando contexto confirmado"],
+    speaking: ["falando com você", "VOZ", "transmitindo a resposta"],
+    preview: ["abrindo prévia", "ARQUIVO", "preparando o material para análise"],
+    voice: ["preparando áudio", "VOZ", "gerando uma resposta natural"],
+    response: ["resultado disponível", "CONCLUÍDO", "resposta disponível no canal principal"],
+    success: ["ação finalizada", "CONCLUÍDO", "resultado e evidência confirmados"],
+    error: ["ação interrompida", "ATENÇÃO", "algo precisa ser revisto"],
+    offline: ["runtime indisponível", "OFFLINE", "verifique a conexão do serviço"],
   };
 
   function setVisualState(state) {
     const normalized = state || "idle";
-    const [mode, label] = stateLabels[normalized] || stateLabels.idle;
+    const [label, phase, description] = statePresentation[normalized] || statePresentation.idle;
     stage.dataset.state = normalized;
-    byId("modeLabel").textContent = mode;
-    byId("stateLabel").textContent = label;
     byId("conversationState").textContent = label;
-    const [symbol, phase, name, description] = statePresentation[normalized] || statePresentation.idle;
-    byId("stateSymbol").textContent = symbol;
-    byId("statePhase").textContent = phase;
-    byId("stateName").textContent = name;
-    byId("stateDescription").textContent = description;
-    const activeMode = ["thinking", "planning", "research"].includes(normalized)
-      ? "core"
-      : ["forge", "local"].includes(normalized)
-        ? "forge"
-        : normalized === "memory" ? "memory" : "";
-    document.querySelectorAll("[data-scene-mode]").forEach((item) => {
-      item.classList.toggle("active", item.dataset.sceneMode === activeMode);
-    });
     byId("sceneEyebrow").textContent = phase;
     byId("sceneDetail").textContent = description;
-    byId("voiceLink").textContent = normalized === "listening"
-      ? "recebendo voz"
-      : normalized === "speaking"
-        ? "transmitindo resposta"
-        : session.voiceError
-          ? session.voiceError
-        : voiceSupport.input || session.elevenlabs
-          ? "link disponível"
-          : "indisponível neste navegador";
     const voiceLabel = voiceButton?.querySelector("b");
     const interrupting = session.speaking || session.voicePending;
     voiceButton?.classList.toggle("speaking", interrupting);
@@ -554,6 +558,8 @@
 
   function responseVisualState(data) {
     const state = data?.visual_state || (data?.executed_locally ? "success" : "response");
+    if (data?.state === "waiting_confirmation") return "planning";
+    if (data?.state === "running") return "forge";
     if (data?.run && ["pending", "running"].includes(data.run.status)) return "forge";
     if (state === "local" || (data?.job && ["pending", "running"].includes(data.job.status))) return "forge";
     if (state === "planning") return "response";
@@ -652,13 +658,10 @@
   }
 
   function setRequest(command) {
-    byId("requestTitle").textContent = "Executando pedido";
-    byId("requestText").textContent = command;
     byId("spokenCaption").textContent = compactCaption(command, "Entendi. Deixe comigo.");
     byId("sceneEyebrow").textContent = "MISSÃO ATIVA";
     byId("sceneMission").textContent = compactHudText(command, "Executando pedido");
     byId("sceneDetail").textContent = "Selecionando a melhor rota e acompanhando o resultado real.";
-    byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
   }
 
   function renderAttachmentTray() {
@@ -743,10 +746,19 @@
     });
   }
 
+  function supportedAttachment(file) {
+    if (ALLOWED_ATTACHMENT_TYPES.has(String(file?.type || "").toLowerCase())) return true;
+    return /\.(?:jpe?g|png|webp|pdf|txt|md|csv|json)$/i.test(String(file?.name || ""));
+  }
+
   async function addAttachments(files) {
     const selected = Array.from(files || []);
     const added = [];
     for (const file of selected) {
+      if (!supportedAttachment(file)) {
+        addMessage(`${file.name || "Este arquivo"} não é compatível. Use imagem, PDF, texto, Markdown, CSV ou JSON.`, "error");
+        continue;
+      }
       if (session.attachments.length >= 2) {
         addMessage("Posso analisar até dois anexos por mensagem.", "error");
         break;
@@ -772,26 +784,6 @@
     attachmentInput.value = "";
     renderAttachmentTray();
     if (added.length) showAttachmentPreview(session.attachments);
-  }
-
-  function canvasRows(items) {
-    return items.slice(0, 6).map((item, index) => {
-      const text = typeof item === "string" ? item : item.action || item.step || item.name || item.path || "item";
-      return `<div class="canvas-row"><i>${index + 1}</i><span>${escapeHtml(text)}</span></div>`;
-    }).join("");
-  }
-
-  function agendaDate(value) {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    return new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
   }
 
   function renderEventStream(stream) {
@@ -849,18 +841,25 @@
       details += `<section class="message-card mission-card"><strong>Missão</strong><p>${escapeHtml(data.mission.objective || "")}</p>${total ? `<ul>${data.mission.steps.map((step) => `<li data-status="${escapeHtml(step.status || "pending")}">${escapeHtml(step.label || step.id)}</li>`).join("")}</ul>` : ""}</section>`;
     }
     if (Array.isArray(data.sources) && data.sources.length) badges.push(`${data.sources.length} fontes`);
-    details += renderSourceLinks(data.sources, true);
+    details += renderSourceLinks(data.sources);
     if (Array.isArray(data.ui_cards) && data.ui_cards.length) {
       badges.push(`${data.ui_cards.length} resultado${data.ui_cards.length === 1 ? "" : "s"}`);
-      details += data.ui_cards.slice(0, 2).map((card) => {
-        const items = Array.isArray(card.items) ? card.items.slice(0, 6) : [];
-        return `<section class="message-card"><strong>${escapeHtml(card.title || "Resultado")}</strong>${card.status ? `<small>${escapeHtml(card.status)}</small>` : ""}${card.subtitle ? `<p>${escapeHtml(card.subtitle)}</p>` : ""}${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}</section>`;
-      }).join("");
+      details += renderUICards(data.ui_cards);
+    }
+    if (data.memory_candidate || data.memory_suggestion) {
+      const candidate = data.memory_candidate || { content: data.memory_suggestion };
+      badges.push("memória sugerida");
+      details += `<section class="message-card"><strong>Memória sugerida</strong><small>ainda não salva</small><p>${escapeHtml(candidate.content || data.memory_suggestion)}</p>${candidate.reason ? `<p>${escapeHtml(candidate.reason)}</p>` : ""}</section>`;
+    }
+    const jobs = Array.isArray(data.jobs) ? data.jobs : data.job?.id ? [data.job] : [];
+    if (jobs.length) {
+      badges.push(`${jobs.length} ${jobs.length === 1 ? "ação" : "ações"}`);
+      details += `<section class="message-card execution-card"><strong>Execução no Mac</strong><small>${escapeHtml(data.run?.status || jobs[0]?.status || "pending")}</small><ul>${jobs.slice(0, 6).map((job) => `<li data-status="${escapeHtml(job.status || "pending")}">${escapeHtml(job.action || "ação")}${job.target ? ` · ${escapeHtml(job.target)}` : ""}</li>`).join("")}</ul>${jobs.find((job) => job?.artifact_url)?.artifact_url ? `<a class="artifact-link" href="${escapeHtml(jobs.find((job) => job?.artifact_url).artifact_url)}" target="_blank" rel="noopener noreferrer"><img class="artifact-preview" src="${escapeHtml(jobs.find((job) => job?.artifact_url).artifact_url)}" alt="Evidência criada pelo worker do Mac"></a>` : ""}</section>`;
     }
     const stream = data.event_stream;
     if (stream?.protocol === "jarvis-events/1" && Array.isArray(stream.events)) {
       badges.push(`${Number(stream.elapsed_ms) || 0} ms`);
-      details += `<section class="message-events"><strong>Execução real</strong>${stream.events.slice(-5).map((event) => `<div><i data-status="${escapeHtml(event.status || "unknown")}"></i><span>${escapeHtml(event.label || event.type)}</span></div>`).join("")}</section>`;
+      details += renderEventStream(stream);
     }
     if (!details) return "";
     const summary = badges.length ? badges.slice(0, 3).join(" · ") : "ver evidências";
@@ -874,63 +873,13 @@
       mission: data.mission,
       sources: data.sources || [],
       event_stream: data.event_stream,
+      memory_candidate: data.memory_candidate,
+      memory_suggestion: data.memory_suggestion,
+      jobs: data.jobs,
+      job: data.job,
+      run: data.run,
     });
     if (context) message.insertAdjacentHTML("beforeend", context);
-  }
-
-  function renderLiveCanvas(data) {
-    const empty = byId("canvasEmpty");
-    const content = byId("canvasContent");
-    let html = "";
-    if (data.mission?.protocol === "jarvis-mission/2") {
-      const evidence = data.mission.evidence || {};
-      html += `<div class="canvas-mission"><div class="canvas-run-head"><b>MISSÃO · ${escapeHtml(data.mission.route || "núcleo")}</b><span>${escapeHtml(evidence.confidence || "pending")}</span></div><strong>${escapeHtml(data.mission.objective || "")}</strong>${(data.mission.steps || []).map((step, index) => `<div class="canvas-row" data-status="${escapeHtml(step.status || "pending")}"><i>${index + 1}</i><span>${escapeHtml(step.label || step.id)}<small>${escapeHtml(step.executor || "brain")}</small></span></div>`).join("")}</div>`;
-    }
-    html += renderSourceLinks(data.sources) + renderUICards(data.ui_cards) + renderEventStream(data.event_stream);
-    if (data.memory_candidate || data.memory_suggestion) {
-      const candidate = data.memory_candidate || { content: data.memory_suggestion };
-      html += `<div class="canvas-row"><i>◇</i><span>Memória sugerida<small>${escapeHtml(candidate.kind || "learning")} · ainda não salva</small></span></div><div class="canvas-result">${escapeHtml(candidate.content || data.memory_suggestion)}${candidate.reason ? `<small>${escapeHtml(candidate.reason)}</small>` : ""}</div>`;
-    }
-    else if (Array.isArray(data.jobs) && data.jobs.length > 1) {
-      const completed = Number(data.run?.completed) || 0;
-      html += `<div class="canvas-run-head"><b>EXECUÇÃO NO MAC</b><span>${completed}/${data.jobs.length} confirmadas</span></div>`;
-      html += data.jobs.slice(0, 6).map((job, index) => {
-        const target = job.target ? ` · ${job.target}` : "";
-        return `<div class="canvas-row" data-status="${escapeHtml(job.status || "pending")}"><i>${index + 1}</i><span>${escapeHtml(job.action || "ação")}${escapeHtml(target)}<small>${escapeHtml(job.status || "pending")}</small></span></div>`;
-      }).join("");
-      const artifact = data.jobs.find((job) => job?.artifact_url);
-      if (artifact) {
-        html += `<a class="artifact-link" href="${escapeHtml(artifact.artifact_url)}" target="_blank" rel="noopener noreferrer"><img class="artifact-preview" src="${escapeHtml(artifact.artifact_url)}" alt="Evidência criada durante a execução no Mac"></a>`;
-      }
-    }
-    else if (data.job?.id) {
-      const target = data.job.target ? ` · ${data.job.target}` : "";
-      html += `<div class="canvas-row"><i>↗</i><span>Ação ${escapeHtml(data.job.id)} · ${escapeHtml(data.job.status || "pending")}${escapeHtml(target)}</span></div>`;
-      if (data.job.artifact_url) {
-        html += `<a class="artifact-link" href="${escapeHtml(data.job.artifact_url)}" target="_blank" rel="noopener noreferrer"><img class="artifact-preview" src="${escapeHtml(data.job.artifact_url)}" alt="Captura privada criada pelo worker do Mac"></a>`;
-      }
-      if (data.job.result) html += `<div class="canvas-result">${escapeHtml(data.job.result).slice(0, 1800)}</div>`;
-    }
-    else if (Array.isArray(data.agenda) && data.agenda.length) {
-      html += data.agenda.slice(0, 8).map((item) => {
-        const scheduled = agendaDate(item.scheduled_for);
-        const label = scheduled ? `${item.title || "item da agenda"} · ${scheduled}` : item.title || "item da agenda";
-        return `<div class="canvas-row"><i>${escapeHtml(item.id || "·")}</i><span>${escapeHtml(label)}</span></div>`;
-      }).join("");
-    }
-    else if (Array.isArray(data.contacts) && data.contacts.length) {
-      html += data.contacts.slice(0, 8).map((item, index) => (
-        `<div class="canvas-row"><i>${index + 1}</i><span>${escapeHtml(item.display_name || item.alias)} · ${escapeHtml(item.phone || "")}</span></div>`
-      )).join("");
-    }
-    else if (Array.isArray(data.steps) && data.steps.length) html += canvasRows(data.steps);
-    else if (Array.isArray(data.sources) && data.sources.length && !data.web_search?.used) html += canvasRows(data.sources);
-    else if (data.result) html += `<div class="canvas-result">${escapeHtml(data.result).slice(0, 1800)}</div>`;
-    else if (data.local_command) html += `<div class="canvas-row"><i>→</i><span>Worker local preparado</span></div><div class="canvas-result">${escapeHtml(data.local_command)}</div>`;
-    else if (data.provider === "openrouter") html += `<div class="canvas-row"><i>✓</i><span>Resposta pronta para você</span></div>`;
-    else if (data.message && !html) html = `<div class="canvas-result">${escapeHtml(data.message).slice(0, 320)}</div>`;
-    content.innerHTML = html;
-    empty.hidden = Boolean(html);
   }
 
   function renderActionHistory(items) {
@@ -942,19 +891,18 @@
     }
     target.innerHTML = items.slice(0, 8).map((item) => {
       const suffix = item.target ? ` · ${escapeHtml(item.target)}` : "";
-      return `<div class="history-row" data-status="${escapeHtml(item.status || "unknown")}"><i></i><span><b>${escapeHtml(item.action || "ação")}</b>${suffix}<small>${escapeHtml(item.status || "unknown")}</small></span></div>`;
+      const evidence = item.artifact_url
+        ? `<a href="${escapeHtml(item.artifact_url)}" target="_blank" rel="noopener noreferrer">Ver evidência</a>`
+        : "";
+      return `<div class="history-row" data-status="${escapeHtml(item.status || "unknown")}"><i></i><span><b>${escapeHtml(item.action || "ação")}</b>${suffix}<small>${escapeHtml(item.status || "unknown")}</small>${evidence}</span></div>`;
     }).join("");
   }
 
-  async function refreshActionHistory(options = {}) {
+  async function refreshActionHistory() {
     if (!session.paired || !session.deviceBridge) return renderActionHistory([]);
     try {
       const data = await request("/device-history?limit=8");
       renderActionHistory(data.history || []);
-      if (options.revealLatest) {
-        const artifact = (data.history || []).find((item) => item.artifact_url);
-        if (artifact) renderLiveCanvas({ job: artifact });
-      }
     } catch {
       renderActionHistory([]);
     }
@@ -986,13 +934,11 @@
         ? `Mac conectado · ${worker.hostname || "worker local"}`
         : "Mac offline · abra ou instale o worker local";
       byId("hubWorkerValue").textContent = worker.online ? "conectado" : "offline";
-      byId("sceneMac").textContent = worker.online ? "Mac conectado" : "Mac offline";
-      await refreshActionHistory({ revealLatest: true });
+      await refreshActionHistory();
     } catch {
       session.deviceOnline = false;
       target.textContent = "Mac offline · verificação indisponível";
       byId("hubWorkerValue").textContent = "offline";
-      byId("sceneMac").textContent = "Mac offline";
     }
   }
 
@@ -1102,9 +1048,6 @@
     session.voiceError = status;
     if (terminal) session.elevenlabs = false;
     byId("voiceValue").textContent = status;
-    byId("voiceLink").textContent = status.toLowerCase();
-    byId("integrationValue").textContent = `IA · ${status}`;
-    byId("integrationHint").textContent = "A conversa continua em texto; a saída humana aguarda cota válida da ElevenLabs.";
     if (!voiceFailureNotified) {
       voiceFailureNotified = true;
       addMessage(`Áudio não reproduzido: ${status}. A resposta em texto continua funcionando.`, "voice-status");
@@ -1179,7 +1122,6 @@
       if (!data.mission && session.mission) {
         data.mission = { ...session.mission, steps: session.mission.steps.map((step, index) => ({ ...step, status: index < 2 ? data.job.status : data.job.status === "succeeded" ? "succeeded" : "pending" })) };
       }
-      renderLiveCanvas(data);
       refreshMessageExecutionContext(message, data);
       byId("activityValue").textContent = `${data.message} · ação ${jobId}`;
       if (["succeeded", "failed", "canceled"].includes(data.job.status)) {
@@ -1188,7 +1130,6 @@
         message.classList.toggle("error", data.job.status === "failed");
         message.querySelector(".cancel-job")?.remove();
         session.responseState = data.visual_state || (data.job.status === "succeeded" ? "success" : "error");
-        byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : data.job.status === "canceled" ? "Ação cancelada" : "Ação falhou";
         refreshActionHistory();
         refreshPersonalOverview();
         settleState();
@@ -1217,7 +1158,6 @@
       if (!data.mission && session.mission) {
         data.mission = { ...session.mission, steps: session.mission.steps.map((step, index) => ({ ...step, status: data.jobs[index]?.status || step.status })) };
       }
-      renderLiveCanvas(data);
       refreshMessageExecutionContext(message, data);
       byId("activityValue").textContent = data.message;
       message.querySelector("span").textContent = data.message;
@@ -1227,7 +1167,6 @@
         message.classList.toggle("error", data.run.status === "failed");
         message.querySelector(".cancel-run")?.remove();
         session.responseState = data.visual_state || (data.run.status === "succeeded" ? "success" : "error");
-        byId("requestTitle").textContent = data.run.status === "succeeded" ? "Execução concluída" : data.run.status === "canceled" ? "Execução cancelada" : "Execução interrompida";
         refreshActionHistory();
         refreshPersonalOverview();
         settleState();
@@ -1243,12 +1182,20 @@
   function showResponse(data) {
     if (!data || data.ok === false) {
       const error = data?.error || data?.message || "Não consegui completar isso.";
+      const failedCommand = session.currentCommand;
       session.responseState = "error";
       byId("sceneEyebrow").textContent = "ATENÇÃO";
       byId("sceneMission").textContent = compactHudText(error, "Execução interrompida");
       byId("sceneDetail").textContent = "O erro foi preservado sem inventar um resultado.";
-      addMessage(error, "error");
-      renderLiveCanvas({ message: error });
+      const retryHtml = failedCommand && !data?.pairing_required
+        ? `<div class="message-actions"><button class="retry-command" type="button">Tentar novamente</button></div>`
+        : "";
+      const errorMessage = addMessage(error, "error", retryHtml);
+      errorMessage.querySelector(".retry-command")?.addEventListener("click", (event) => {
+        event.currentTarget.disabled = true;
+        event.currentTarget.textContent = "Tentando…";
+        sendCommand(failedCommand, { includeAttachments: session.attachments.length > 0 });
+      });
       settleState();
       speak(error);
       if (data?.pairing_required) {
@@ -1278,6 +1225,10 @@
       messageActions += `<button class="copy-command" type="button">Copiar comando</button>`;
       extra += `<details><summary>ver comando local</summary><code>${escapeHtml(data.local_command)}</code></details>`;
     }
+    if (data.needs_confirmation && data.run_id) {
+      messageActions += `<button class="confirm-agent-run" type="button">Confirmar ação</button>`;
+      messageActions += `<button class="cancel-agent-run" type="button">Cancelar</button>`;
+    }
     if (data.result) {
       extra += `<details><summary>ver resultado completo</summary><code>${escapeHtml(data.result)}</code></details>`;
     }
@@ -1305,6 +1256,43 @@
     if (copy) copy.addEventListener("click", async () => {
       await navigator.clipboard.writeText(data.local_command);
       copy.textContent = "Copiado";
+    });
+    const confirmAgentRun = message.querySelector(".confirm-agent-run");
+    if (confirmAgentRun) confirmAgentRun.addEventListener("click", async () => {
+      confirmAgentRun.disabled = true;
+      confirmAgentRun.textContent = "Executando…";
+      message.querySelector(".cancel-agent-run")?.setAttribute("disabled", "");
+      try {
+        const confirmed = await request(`/runs/${encodeURIComponent(data.run_id)}/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        message.querySelector(".message-actions")?.remove();
+        showResponse(confirmed);
+      } catch {
+        confirmAgentRun.disabled = false;
+        confirmAgentRun.textContent = "Tentar confirmar novamente";
+        message.querySelector(".cancel-agent-run")?.removeAttribute("disabled");
+      }
+    });
+    const cancelAgentRun = message.querySelector(".cancel-agent-run");
+    if (cancelAgentRun) cancelAgentRun.addEventListener("click", async () => {
+      cancelAgentRun.disabled = true;
+      cancelAgentRun.textContent = "Cancelando…";
+      try {
+        const canceled = await request(`/runs/${encodeURIComponent(data.run_id)}/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        message.querySelector("span").textContent = canceled.message || "Ação cancelada.";
+        message.querySelector(".message-actions")?.remove();
+        refreshMessageExecutionContext(message, canceled);
+      } catch {
+        cancelAgentRun.disabled = false;
+        cancelAgentRun.textContent = "Tentar cancelar novamente";
+      }
     });
     const memory = message.querySelector(".memory-command");
     if (memory) memory.addEventListener("click", () => {
@@ -1344,7 +1332,7 @@
         session.canceledJobs.add(String(data.job.id));
         message.querySelector("span").textContent = canceled.message || "Ação cancelada.";
         cancelJob.remove();
-        renderLiveCanvas(canceled);
+        refreshMessageExecutionContext(message, canceled);
         refreshActionHistory();
       } catch (error) {
         cancelJob.disabled = false;
@@ -1368,8 +1356,6 @@
       refreshActionHistory();
     });
     byId("activityValue").textContent = data.executed_locally ? `Executado localmente · ${data.intent || "ação"}` : answer;
-    byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.jobs?.length > 1 ? "Execução enviada ao Mac" : data.job?.id ? "Ação enviada ao Mac" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
-    renderLiveCanvas(data);
     updateActionHub(session.currentCommand, data);
     if (Array.isArray(data.jobs) && data.jobs.length > 1 && !data.run?.terminal) {
       monitorDeviceRun(data.jobs.map((job) => job.id), message);
@@ -1394,6 +1380,7 @@
     const fileLabel = attachments.length ? `<small class="message-attachments">${attachments.map((item) => escapeHtml(item.name)).join(" · ")}</small>` : "";
     addMessage(command, options.source === "voice" ? "user voice" : "user", fileLabel);
     input.value = "";
+    resizeComposerInput();
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-24);
     setRequest(command);
@@ -1451,6 +1438,7 @@
       const rows = Array.from(event.results);
       const transcript = rows.map((row) => row[0].transcript).join(" ").trim();
       input.value = transcript;
+      resizeComposerInput();
       byId("spokenCaption").textContent = transcript || "Estou ouvindo…";
       if (!submitted && rows.at(-1)?.isFinal && transcript) {
         submitted = true;
@@ -1497,9 +1485,6 @@
       byId("aiValue").textContent = status.ai?.configured
         ? `OpenRouter conectado${status.web_search?.configured ? " · web ao vivo" : ""}${toolCount ? ` · ${toolCount} ferramentas` : ""}`
         : "OpenRouter não configurado";
-      byId("sceneBrain").textContent = status.ai?.configured
-        ? status.ai?.deep_model ? "IA adaptativa online" : "IA online"
-        : "IA offline";
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
       byId("accessMode").textContent = session.paired ? "Theo · modo master" : "modo visitante";
@@ -1517,8 +1502,8 @@
       const welcomeHint = byId("welcomeHint");
       if (welcomeHint) {
         welcomeHint.textContent = session.paired
-          ? "Escreva ou fale naturalmente."
-          : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
+          ? "Peça o resultado. Eu planejo, confirmo riscos e mostro a evidência."
+          : "Conversa e pesquisa estão disponíveis. Memória e Mac exigem acesso do Theo.";
       }
       renderStarterActions();
       session.deviceBridge = Boolean(status.device_bridge?.configured);
@@ -1529,22 +1514,6 @@
         : voiceSupport.input
           ? "microfone ativo · saída aguarda ElevenLabs"
           : "ElevenLabs aguarda chave";
-      const ready = [
-        status.ai?.configured ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
-        status.voice?.configured ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
-        status.automations?.n8n?.configured ? "n8n" : "",
-        session.paired && status.device_bridge?.configured ? "Mac pareado" : "",
-        status.runtime === "local_web_preview" ? "worker local" : "",
-      ].filter(Boolean);
-      byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
-      byId("integrationHint").textContent = !status.web_search?.configured
-        ? "Pesquisa ao vivo aguarda o OpenRouter; as demais integrações continuam independentes."
-        : status.automations?.n8n?.configured
-        ? "Pesquisa ao vivo e roteamento contextual ativos; agenda e tarefas estão conectadas ao n8n."
-        : status.automations?.agenda?.provider === "supabase"
-          ? "Pesquisa ao vivo ativa; memória e agenda ficam no Supabase e ações usam o worker local."
-          : "Pesquisa ao vivo ativa; persistência aguarda Supabase ou n8n e o Mac usa o worker local.";
-      byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
       const tokenInput = byId("ownerTokenInput");
       tokenInput.value = ownerToken();
       byId("adminUsername").closest(".admin-login").hidden = session.paired;
@@ -1565,9 +1534,6 @@
         workerValue.textContent = session.paired
           ? "Ponte remota ainda não configurada"
           : "Navegador não pareado";
-        byId("sceneMac").textContent = status.runtime === "local_web_preview"
-          ? "Mac local"
-          : session.paired ? "Mac não pareado" : "Mac privado";
       }
       setVisualState(status.ok ? "idle" : "offline");
       updateActionHub();
@@ -1592,13 +1558,44 @@
     if (mobileLayout.matches) setMobileChatExpanded(true);
     window.setTimeout(syncMobileViewport, 80);
   });
+  input.addEventListener("input", resizeComposerInput);
+  input.addEventListener("paste", (event) => {
+    const files = Array.from(event.clipboardData?.files || []);
+    if (!files.length) return;
+    event.preventDefault();
+    addAttachments(files);
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    byId("commandForm").requestSubmit();
+  });
   input.addEventListener("blur", () => window.setTimeout(syncMobileViewport, 80));
   attachmentButton.addEventListener("click", () => attachmentInput.click());
   attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
+  conversation.addEventListener("dragenter", (event) => {
+    if (!Array.from(event.dataTransfer?.types || []).includes("Files")) return;
+    event.preventDefault();
+    conversation.classList.add("is-dragging");
+  });
+  conversation.addEventListener("dragover", (event) => {
+    if (!Array.from(event.dataTransfer?.types || []).includes("Files")) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  });
+  conversation.addEventListener("dragleave", (event) => {
+    if (!conversation.contains(event.relatedTarget)) conversation.classList.remove("is-dragging");
+  });
+  conversation.addEventListener("drop", (event) => {
+    const files = Array.from(event.dataTransfer?.files || []);
+    conversation.classList.remove("is-dragging");
+    if (!files.length) return;
+    event.preventDefault();
+    addAttachments(files);
+  });
   pulseButton.addEventListener("click", () => {
     if (!currentPulse) return;
-    addMessage(currentPulse.message, "jarvis");
-    renderLiveCanvas({
+    const pulseData = {
       ui_cards: [{
         id: currentPulse.id,
         type: "agenda",
@@ -1607,8 +1604,10 @@
         subtitle: "Sugestão; nenhuma ação executada",
         items: [currentPulse.message],
       }],
-    });
+    };
+    addMessage(currentPulse.message, "jarvis", renderMessageContext(pulseData));
     input.value = currentPulse.command || "";
+    resizeComposerInput();
     input.focus();
     try { localStorage.setItem("jarvis-last-pulse", currentPulse.id); } catch { /* session-only dismissal */ }
     currentPulse = null;
@@ -1678,8 +1677,22 @@
   byId("clearOwnerToken").addEventListener("click", () => exitOwnerMode(byId("clearOwnerToken")));
   byId("leaveOwnerMode").addEventListener("click", () => exitOwnerMode(byId("leaveOwnerMode")));
   actionHubButton.addEventListener("click", () => setActionHub(actionHub.hidden));
+  actionHubBackdrop.addEventListener("click", () => setActionHub(false));
+  actionHubSearch.addEventListener("input", () => updateActionHub(session.currentCommand));
+  actionHubSearch.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown") return;
+    event.preventDefault();
+    actionHub.querySelector("button[data-hub-command]")?.focus();
+  });
+  actionHub.addEventListener("keydown", (event) => {
+    if (!event.target.matches("button[data-hub-command]") || !["ArrowDown", "ArrowUp"].includes(event.key)) return;
+    const actions = Array.from(actionHub.querySelectorAll("button[data-hub-command]"));
+    const index = actions.indexOf(event.target);
+    event.preventDefault();
+    if (event.key === "ArrowUp" && index <= 0) actionHubSearch.focus();
+    else actions[Math.max(0, Math.min(actions.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))]?.focus();
+  });
   newConversationButton?.addEventListener("click", startNewConversation);
-  byId("sceneCommandButton")?.addEventListener("click", () => setActionHub(true));
   mobileChatToggle?.addEventListener("click", () => {
     setMobileChatExpanded(mobileChatToggle.getAttribute("aria-expanded") !== "true");
   });
@@ -1689,7 +1702,10 @@
     if (event.target === installDialog) installDialog.close();
   });
   byId("closeActionHub").addEventListener("click", () => setActionHub(false));
-  byId("tourButton").addEventListener("click", () => tourDialog.showModal());
+  byId("tourButton").addEventListener("click", () => {
+    if (dialog.open) dialog.close();
+    tourDialog.showModal();
+  });
   byId("closeTour").addEventListener("click", () => tourDialog.close());
   byId("tourActionButton").addEventListener("click", () => {
     tourDialog.close();
@@ -1716,7 +1732,27 @@
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
       setActionHub(actionHub.hidden);
-      if (!actionHub.hidden) actionHub.querySelector("button[data-hub-command]")?.focus();
+      if (!actionHub.hidden) actionHubSearch.focus();
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
+      event.preventDefault();
+      if (!actionHub.hidden) setActionHub(false);
+      startNewConversation();
+      return;
+    }
+    if (event.key === "Tab" && !actionHub.hidden) {
+      const controls = Array.from(actionHub.querySelectorAll("button:not([disabled]), a[href], summary, input:not([disabled])"))
+        .filter((control) => control.getClientRects().length > 0);
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (first && event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (last && !event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
       return;
     }
     if (event.key === "Escape" && !actionHub.hidden) setActionHub(false);
@@ -1748,6 +1784,7 @@
   renderStarterActions();
   renderInstallAvailability();
   syncMobileViewport();
+  resizeComposerInput();
   registerMobileShell();
   installVoiceInput();
   boot();

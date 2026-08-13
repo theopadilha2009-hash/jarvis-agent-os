@@ -84,6 +84,8 @@ supabase/.temp/
 !05_EXECUCAO/63_DECISIONS/.gitkeep
 05_EXECUCAO/64_PERSONAL_TOOLS/*
 !05_EXECUCAO/64_PERSONAL_TOOLS/.gitkeep
+05_EXECUCAO/65_AGENT_RUNS/*
+!05_EXECUCAO/65_AGENT_RUNS/.gitkeep
 
 # Generated validation history. Fixtures and test code remain versioned.
 10_TESTES/AUDITS/*.md

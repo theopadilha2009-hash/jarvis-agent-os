@@ -1,8 +1,9 @@
 # Model variants (runtime)
 
-- `01_avatar_boneco_humanoid.glb` — busto humanoide frontal da tela principal.
-- Runtime web ativo: este arquivo, servido em
-  `/asset/models/variants/01_avatar_boneco_humanoid.glb`.
+- `01_avatar_boneco_humanoid.glb` — variante arquivada para referência; não é
+  carregada pelo cockpit.
+- Runtime web ativo: núcleo cognitivo abstrato criado em `web/jarvis-3d.js`,
+  sem rosto, corpo ou download de GLB.
 - `../jarvis-humanoid.glb` permanece como modelo legado compatível; ele não é o
   avatar padrão porque a animação embutida gira o busto e inclui um plano de
   partículas que atravessa a face.

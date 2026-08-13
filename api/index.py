@@ -27,6 +27,7 @@ import re
 import shlex
 import secrets
 import subprocess
+import sys
 import threading
 import time
 import unicodedata
@@ -38,6 +39,20 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 UI_FILE = WEB_DIR / "index.html"
 UI_ASSET_DIR = ROOT / "11_SCRIPTS" / "jarvis_ui_assets"
+sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
+from action_registry import (  # noqa: E402
+    ACTION_REGISTRY,
+    RUN_PROTOCOL,
+    RunStore,
+    action_for_intent,
+    action_payloads,
+    needs_interactive_confirmation,
+    run_public_payload,
+)
+from memory_index import MemoryIndex  # noqa: E402
+
+AGENT_RUNS = RunStore()
+LOCAL_MEMORY_INDEX = MemoryIndex()
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openrouter/free"
 ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
@@ -414,12 +429,45 @@ PERSONAL_ACTION_CATALOG = (
         "private": True,
     },
     {
+        "id": "task",
+        "label": "Criar tarefa",
+        "description": "Prepara uma tarefa datada e pede confirmação do conteúdo.",
+        "command": "crie uma tarefa para amanhã: revisar minhas prioridades",
+        "executor": "agenda",
+        "interaction": "draft",
+        "private": True,
+    },
+    {
         "id": "github",
         "label": "Inspecionar GitHub",
         "description": "Consulta a conta autenticada pelo worker local.",
         "command": "mostre meus repositórios do GitHub",
         "executor": "mac",
         "private": True,
+    },
+    {
+        "id": "screen-record",
+        "label": "Gravar minha tela",
+        "description": "Abre o gravador nativo; Theo confirma início e término.",
+        "command": "grave a tela do meu Mac",
+        "executor": "mac",
+        "private": True,
+    },
+    {
+        "id": "system",
+        "label": "Verificar sistema",
+        "description": "Resume o estado do JARVIS, integrações e worker local.",
+        "command": "verifique o estado do JARVIS e do meu Mac",
+        "executor": "jarvis",
+        "private": True,
+    },
+    {
+        "id": "plan",
+        "label": "Criar plano executável",
+        "description": "Transforma uma ideia em etapas, riscos e próximo passo.",
+        "command": "crie um plano curto e executável para a minha próxima prioridade",
+        "executor": "jarvis",
+        "private": False,
     },
     {
         "id": "research",
@@ -858,6 +906,11 @@ def web_capabilities():
             else:
                 row["status"] = "configured" if configured[row["name"]] else "needs_environment"
     return rows
+
+
+def web_action_registry():
+    """Return the same safe action metadata used by the local CLI runtime."""
+    return action_payloads("web")
 
 
 def request_route(raw_path):
@@ -2647,8 +2700,10 @@ def status_payload(owner_authenticated=False):
         },
         "memory": {
             "provider": "supabase" if supabase_configured() else "local_markdown",
-            "configured": supabase_configured(),
-            "persistent": supabase_configured(),
+            "configured": True,
+            "persistent": True,
+            "index": "supabase" if supabase_configured() else "sqlite_runtime_over_markdown",
+            "remote_write_configured": supabase_configured(),
             "conversation_history": bool(supabase_configured() and owner_authenticated),
             "semantic_memory": "explicit_or_confirmed",
             "suggestion_policy": "durable_selective_confirmation",
@@ -5649,7 +5704,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         }, 502
 
 
-def command_payload(body, origin="", local_execute=False, owner_authenticated=False):
+def dispatch_command_payload(body, origin="", local_execute=False, owner_authenticated=False):
     command = clean_text(body.get("command") or body.get("prompt"))
     if not command:
         return {"ok": False, "error": "Comando vazio."}, 400
@@ -5727,6 +5782,220 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
     )
 
 
+def command_intent(command):
+    """Classify only far enough to attach registry policy before execution."""
+    if VOICE_DESIGN_PATTERN.search(command):
+        return "voice_design"
+    if DAILY_BRIEF_PATTERN.search(command):
+        return "daily_brief"
+    if CAPABILITY_OVERVIEW_PATTERN.search(command):
+        return "personal_overview"
+    if compound_device_plan(command):
+        return "device_run"
+    if re.search(r"\b(?:busc(?:a|ar)|busqu(?:e|em)|procur(?:a|ar|e)|pesquis(?:a|ar|e))\b.{0,80}\bmem[oó]ria\b", command, re.I):
+        return "memory_search"
+    if re.search(r"\b(mostr(?:a|ar)|abr(?:e|ir)|ver|list(?:a|ar))\b.{0,60}\b(mem[oó]ria|mem[oó]rias|aprendizados|decis[oõ]es)\b", command, re.I):
+        return "memory_view"
+    for pattern, intent in LOCAL_INTENTS:
+        if pattern.search(command):
+            return intent
+    if command.startswith("/"):
+        return "planning"
+    return "research" if WEB_SEARCH_EXPLICIT_PATTERN.search(command) or WEB_SEARCH_FRESHNESS_PATTERN.search(command) else "assistant"
+
+
+def action_name_for_command(command, intent=""):
+    action = action_for_intent(intent or command_intent(command))
+    return action.name if action else "assistant_chat"
+
+
+def run_plan_for(command, action_name, intent=""):
+    action = ACTION_REGISTRY.get(action_name) or ACTION_REGISTRY["assistant_chat"]
+    return [{
+        "id": "step-1",
+        "action": action.name,
+        "label": action.label,
+        "executor": action.executor,
+        "risk": action.risk,
+        "intent": intent or command_intent(command),
+        "status": "pending",
+    }]
+
+
+def run_evidence(payload):
+    evidence = []
+    if isinstance(payload.get("sources"), list):
+        evidence.extend({"type": "source", "value": item.get("url") or item.get("title")} for item in payload["sources"][:12] if isinstance(item, dict))
+    if isinstance(payload.get("memory_results"), list):
+        evidence.extend({"type": "memory", "value": item.get("path"), "kind": item.get("kind")} for item in payload["memory_results"][:12] if isinstance(item, dict))
+    jobs = payload.get("jobs") if isinstance(payload.get("jobs"), list) else []
+    if jobs:
+        evidence.extend({"type": "worker_job", "value": item.get("id"), "status": item.get("status")} for item in jobs if isinstance(item, dict) and item.get("id"))
+    elif isinstance(payload.get("job"), dict) and payload["job"].get("id"):
+        evidence.append({"type": "worker_job", "value": payload["job"].get("id"), "status": payload["job"].get("status")})
+    if payload.get("executed_locally"):
+        evidence.append({"type": "local_execution", "value": payload.get("intent") or payload.get("status_real")})
+    if payload.get("artifact_url"):
+        evidence.append({"type": "artifact", "value": payload.get("artifact_url")})
+    return evidence
+
+
+def refresh_agent_run(record):
+    """Refresh a running remote-worker run from persisted job evidence."""
+    if not record or record.get("state") != "running" or not supabase_configured():
+        return record
+    job_ids = [
+        item.get("value")
+        for item in record.get("evidence", [])
+        if isinstance(item, dict) and item.get("type") == "worker_job" and item.get("value") is not None
+    ]
+    if not job_ids:
+        return record
+    if len(job_ids) > 1:
+        payload, status = supabase_device_run(",".join(str(item) for item in job_ids))
+        terminal = bool(payload.get("run", {}).get("terminal"))
+        succeeded = payload.get("run", {}).get("status") == "succeeded"
+    else:
+        payload, status = supabase_device_command(job_ids[0])
+        job_status = payload.get("job", {}).get("status")
+        terminal = job_status in {"succeeded", "failed", "canceled"}
+        succeeded = job_status == "succeeded"
+    if status >= 400 or not terminal:
+        return record
+    state = "completed" if succeeded else "canceled" if payload.get("job", {}).get("status") == "canceled" or payload.get("run", {}).get("status") == "canceled" else "failed"
+    return AGENT_RUNS.update(
+        record["id"],
+        state=state,
+        result={
+            "ok": succeeded,
+            "status_real": payload.get("status_real"),
+            "message": payload.get("message") or payload.get("error"),
+            "http_status": status,
+        },
+        evidence=run_evidence(payload),
+        error=payload.get("error") if state == "failed" else "",
+        event_type="RUN_COMPLETED" if state == "completed" else "RUN_CANCELED" if state == "canceled" else "RUN_FAILED",
+    )
+
+
+def command_payload(body, origin="", local_execute=False, owner_authenticated=False):
+    """Run the legacy dispatcher behind the durable JARVIS run contract."""
+    command = clean_text(body.get("command") or body.get("prompt"))
+    if not command:
+        return dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+    intent = command_intent(command)
+    action_name = action_name_for_command(command, intent)
+    action = ACTION_REGISTRY[action_name]
+    plan = run_plan_for(command, action_name, intent)
+
+    # Pairing is checked before recording a private confirmation request.
+    if action.private and owner_pairing_required() and not owner_authenticated:
+        return dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+
+    if intent == "message_send" and not message_send_details(command):
+        alias_shape = re.search(
+            r"(?i)\b(?:mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,30}\bpara\s+"
+            r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ ._-]{1,80}\s+(?:dizendo|falando|com\s+(?:o\s+)?texto)\s+.+",
+            command,
+        )
+        if not alias_shape:
+            return dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+
+    if intent == "memory_search":
+        query = re.sub(r"(?i)^.*?\bmem[oó]ria\b\s*(?:por|sobre|de|:)?\s*", "", command).strip() or command
+        search = LOCAL_MEMORY_INDEX.search(query)
+        payload = {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "local_memory_search",
+            "visual_state": "memory",
+            "intent": intent,
+            "provider": "sqlite_local_index",
+            "message": f"Encontrei {search['count']} memória(s) para “{query}”.",
+            "memory_results": search["results"],
+            "index": search["index"],
+        }
+        status = 200
+    elif needs_interactive_confirmation(intent):
+        record = AGENT_RUNS.create(
+            command,
+            action=action_name,
+            source="web",
+            state="waiting_confirmation",
+            plan=plan,
+            metadata={"intent": intent, "origin": clean_text(origin, 200)},
+        )
+        payload = {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "waiting_confirmation",
+            "visual_state": "planning",
+            "intent": intent,
+            "message": f"Revise e confirme antes de: {action.label.lower()}.",
+        }
+        payload.update(run_public_payload(record))
+        return payload, 202
+    else:
+        payload, status = dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+    pending = bool(
+        isinstance(payload.get("run"), dict) and not payload["run"].get("terminal")
+        or isinstance(payload.get("job"), dict) and payload["job"].get("status") in {"pending", "running"}
+    )
+    state = "running" if pending else "completed" if payload.get("ok", status < 400) and status < 400 else "failed"
+    record = AGENT_RUNS.create(
+        command,
+        action=action_name,
+        source="web",
+        state="planned",
+        plan=plan,
+        metadata={"intent": intent, "origin": clean_text(origin, 200)},
+    )
+    record = AGENT_RUNS.update(
+        record["id"],
+        state=state,
+        result={
+            "ok": bool(payload.get("ok", status < 400)),
+            "status_real": payload.get("status_real"),
+            "message": payload.get("message") or payload.get("error"),
+            "http_status": status,
+        },
+        evidence=run_evidence(payload),
+        error=payload.get("error") if state == "failed" else "",
+        event_type="RUN_DISPATCHED" if state == "running" else "RUN_COMPLETED" if state == "completed" else "RUN_FAILED",
+    )
+    result = dict(payload)
+    result.update(run_public_payload(record))
+    return result, status
+
+
+def execute_saved_run(record, *, origin="", local_execute=False, owner_authenticated=False):
+    """Execute a confirmed persisted request through the same dispatcher."""
+    AGENT_RUNS.update(record["id"], state="running", event_type="RUN_CONFIRMED")
+    body = {"command": record.get("command", "")}
+    payload, status = dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+    pending = bool(
+        isinstance(payload.get("run"), dict) and not payload["run"].get("terminal")
+        or isinstance(payload.get("job"), dict) and payload["job"].get("status") in {"pending", "running"}
+    )
+    state = "running" if pending else "completed" if payload.get("ok", status < 400) and status < 400 else "failed"
+    updated = AGENT_RUNS.update(
+        record["id"],
+        state=state,
+        result={
+            "ok": bool(payload.get("ok", status < 400)),
+            "status_real": payload.get("status_real"),
+            "message": payload.get("message") or payload.get("error"),
+            "http_status": status,
+        },
+        evidence=run_evidence(payload),
+        error=payload.get("error") if state == "failed" else "",
+        event_type="RUN_DISPATCHED" if state == "running" else "RUN_COMPLETED" if state == "completed" else "RUN_FAILED",
+    )
+    result = dict(payload)
+    result.update(run_public_payload(updated))
+    return result, status
+
+
 def execution_events(payload, started_at, status_code):
     """Describe the work that actually happened during this HTTP request.
 
@@ -5737,7 +6006,7 @@ def execution_events(payload, started_at, status_code):
     finished_at = datetime.now(timezone.utc)
     elapsed_ms = max(0, round((finished_at - started_at).total_seconds() * 1000))
     run = payload.get("run") if isinstance(payload.get("run"), dict) else {}
-    run_id = clean_text(run.get("id"), 120) or f"run-{started_at.strftime('%Y%m%d%H%M%S%f')}-{threading.get_ident()}"
+    run_id = clean_text(payload.get("run_id") or run.get("id"), 120) or f"run-{started_at.strftime('%Y%m%d%H%M%S%f')}-{threading.get_ident()}"
     ok = bool(payload.get("ok", status_code < 400)) and status_code < 400
     route = clean_text(payload.get("status_real") or payload.get("endpoint") or "request", 80)
     events = [{
@@ -5752,7 +6021,7 @@ def execution_events(payload, started_at, status_code):
     web_search = payload.get("web_search") if isinstance(payload.get("web_search"), dict) else {}
     job = payload.get("job") if isinstance(payload.get("job"), dict) else {}
     jobs = payload.get("jobs") if isinstance(payload.get("jobs"), list) else []
-    pending_work = bool(
+    pending_work = payload.get("state") in {"planned", "waiting_confirmation", "running"} or bool(
         run and not run.get("terminal")
         or job.get("status") in {"pending", "running"}
     )
@@ -5812,7 +6081,7 @@ def execution_events(payload, started_at, status_code):
         "id": f"{run_id}-{len(events) + 1}",
         "type": "RUN_WAITING" if pending_work else "RUN_FINISHED" if ok else "RUN_ERROR",
         "status": "running" if pending_work else "succeeded" if ok else "failed",
-        "label": "Execução em andamento" if pending_work else "Resultado confirmado" if ok else "Execução interrompida",
+            "label": "Aguardando confirmação" if payload.get("state") == "waiting_confirmation" else "Execução em andamento" if pending_work else "Resultado confirmado" if ok else "Execução interrompida",
         "detail": route,
         "timestamp": finished_at.isoformat(),
     })
@@ -5827,6 +6096,34 @@ def execution_events(payload, started_at, status_code):
 def response_cards(payload):
     """Build small, typed UI cards only from fields confirmed in a response."""
     cards = []
+    agent_plan = payload.get("plan") if isinstance(payload.get("plan"), list) else []
+    if agent_plan and not payload.get("steps"):
+        cards.append({
+            "id": clean_text(payload.get("run_id"), 120) or "agent-plan",
+            "type": "agent_run",
+            "status": clean_text(payload.get("state") or "planned", 40),
+            "title": "Plano do JARVIS",
+            "subtitle": "Confirmação necessária" if payload.get("needs_confirmation") else "Execução registrada",
+            "items": [
+                f"{clean_text(item.get('label') or item.get('action'), 160)} · {clean_text(item.get('risk'), 40)}"
+                for item in agent_plan[:6]
+                if isinstance(item, dict)
+            ],
+        })
+    memory_results = payload.get("memory_results") if isinstance(payload.get("memory_results"), list) else []
+    if memory_results:
+        cards.append({
+            "id": "memory-search",
+            "type": "memory",
+            "status": "confirmed",
+            "title": "Memória pesquisada",
+            "subtitle": f"{len(memory_results)} resultado(s) no índice local",
+            "items": [
+                f"{clean_text(item.get('title'), 150)} · {clean_text(item.get('kind'), 30)} · {clean_text(item.get('snippet'), 220)}"
+                for item in memory_results[:8]
+                if isinstance(item, dict)
+            ],
+        })
     domains = payload.get("domains") if isinstance(payload.get("domains"), list) else []
     if domains:
         cards.append({
@@ -6123,8 +6420,25 @@ class handler(BaseHTTPRequestHandler):
                 "endpoint": f"GET {path}",
                 "status_real": "web_capabilities",
                 "capabilities": web_capabilities(),
+                "action_registry": {
+                    "protocol": "jarvis-actions/1",
+                    "actions": web_action_registry(),
+                },
                 "device_actions": [intent for _, intent in LOCAL_INTENTS],
             })
+        if path.startswith("/runs/"):
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = f"GET {path}"
+                return self.send_json(status, payload)
+            run_id = path.removeprefix("/runs/").split("/", 1)[0]
+            record = AGENT_RUNS.get(run_id)
+            if not record:
+                return self.send_json(404, {"ok": False, "error": "Run não encontrado."})
+            record = refresh_agent_run(record)
+            payload = {"ok": True, "endpoint": f"GET /runs/{run_id}", "protocol": RUN_PROTOCOL}
+            payload.update(run_public_payload(record))
+            return self.send_json(200, payload)
         if path in {"/sources", "/sources-data", "/sources-dashboard"}:
             sources = public_sources()
             return self.send_json(200, {
@@ -6144,6 +6458,19 @@ class handler(BaseHTTPRequestHandler):
                 return self.send_json(status, payload)
             payload = memory_tree_payload()
             return self.send_json(200 if payload.get("ok") else 503, payload)
+        if path == "/memory-search":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /memory-search"
+                return self.send_json(status, payload)
+            term = clean_text((query.get("q") or [""])[0], 500)
+            search = LOCAL_MEMORY_INDEX.search(term)
+            return self.send_json(200, {
+                "ok": True,
+                "endpoint": "GET /memory-search",
+                "status_real": "local_memory_search",
+                **search,
+            })
         if path == "/conversation-history":
             if owner_pairing_required() and not owner_authenticated:
                 payload, status = pairing_required_payload()
@@ -6237,6 +6564,12 @@ class handler(BaseHTTPRequestHandler):
 
         origin = clean_text(self.headers.get("Origin") or self.headers.get("Referer"), 200)
         owner_authenticated = owner_token_matches(self.headers.get("X-Jarvis-Owner-Token"))
+        client = str((self.client_address or [""])[0]).lower()
+        local_execute = (
+            not bool(os.environ.get("VERCEL"))
+            and os.environ.get("JARVIS_WEB_LOCAL_EXEC", "1") != "0"
+            and client in {"127.0.0.1", "::1", "localhost"}
+        )
         if path == "/admin-login":
             payload, status = admin_login_payload(body)
             return self.send_json(status, payload)
@@ -6257,12 +6590,6 @@ class handler(BaseHTTPRequestHandler):
                 payload["endpoint"] = "POST /conversation-clear"
             return self.send_json(status, payload)
         if path == "/command":
-            client = str((self.client_address or [""])[0]).lower()
-            local_execute = (
-                not bool(os.environ.get("VERCEL"))
-                and os.environ.get("JARVIS_WEB_LOCAL_EXEC", "1") != "0"
-                and client in {"127.0.0.1", "::1", "localhost"}
-            )
             payload, status = command_payload(
                 body,
                 origin=origin,
@@ -6275,6 +6602,58 @@ class handler(BaseHTTPRequestHandler):
                 status,
                 clean_text(body.get("command") or body.get("prompt"), 8_000),
             )
+            return self.send_json(status, payload)
+        if path.startswith("/runs/"):
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = f"POST {path}"
+                return self.send_json(status, payload)
+            suffix = path.removeprefix("/runs/").split("/")
+            if len(suffix) != 2 or suffix[1] not in {"confirm", "cancel", "retry"}:
+                return self.send_json(404, {"ok": False, "error": "Operação de run não encontrada."})
+            run_id, operation = suffix
+            record = AGENT_RUNS.get(run_id)
+            if not record:
+                return self.send_json(404, {"ok": False, "error": "Run não encontrado."})
+            if operation == "cancel":
+                canceled = AGENT_RUNS.cancel(run_id)
+                payload = {"ok": True, "endpoint": f"POST /runs/{run_id}/cancel", "message": "Run cancelado antes de novas etapas."}
+                payload.update(run_public_payload(canceled))
+                return self.send_json(200, payload)
+            if operation == "confirm":
+                if record.get("state") != "waiting_confirmation":
+                    return self.send_json(409, {"ok": False, "error": "Este run não está aguardando confirmação.", **run_public_payload(record)})
+                payload, status = execute_saved_run(
+                    record,
+                    origin=origin,
+                    local_execute=local_execute,
+                    owner_authenticated=owner_authenticated,
+                )
+                payload = attach_execution_events(payload, started_at, status, record.get("command", ""))
+                return self.send_json(status, payload)
+            if record.get("state") not in {"failed", "canceled"}:
+                return self.send_json(409, {"ok": False, "error": "Somente runs falhos ou cancelados podem ser repetidos.", **run_public_payload(record)})
+            action = ACTION_REGISTRY.get(record.get("action")) or ACTION_REGISTRY["assistant_chat"]
+            retry_state = "waiting_confirmation" if action.confirmation == "interactive" else "planned"
+            retried = AGENT_RUNS.create(
+                record.get("command", ""),
+                action=action.name,
+                source="web-retry",
+                state=retry_state,
+                plan=record.get("plan") or [],
+                metadata={"retry_of": run_id},
+            )
+            if retry_state == "waiting_confirmation":
+                payload = {"ok": True, "endpoint": f"POST /runs/{run_id}/retry", "message": "Nova tentativa criada; confirme a ação novamente."}
+                payload.update(run_public_payload(retried))
+                return self.send_json(202, payload)
+            payload, status = execute_saved_run(
+                retried,
+                origin=origin,
+                local_execute=local_execute,
+                owner_authenticated=owner_authenticated,
+            )
+            payload = attach_execution_events(payload, started_at, status, retried.get("command", ""))
             return self.send_json(status, payload)
         if path in {"/assistant", "/chat"}:
             payload, status = assistant_response(
@@ -6309,7 +6688,8 @@ class handler(BaseHTTPRequestHandler):
         if path == "/self-test":
             checks = [
                 {"name": "cockpit", "ok": UI_FILE.is_file()},
-                {"name": "model_asset", "ok": (UI_ASSET_DIR / "models" / "variants" / "01_avatar_boneco_humanoid.glb").is_file()},
+                {"name": "abstract_cognitive_core", "ok": "makeCognitiveCore" in (WEB_DIR / "jarvis-3d.js").read_text(encoding="utf-8")},
+                {"name": "action_registry", "ok": bool(ACTION_REGISTRY)},
                 {"name": "stateless_gateway", "ok": True},
                 {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},
                 {"name": "live_web_search_configured", "ok": True, "required": False},
@@ -6356,7 +6736,8 @@ def main():
     parser = argparse.ArgumentParser(description="JARVIS web gateway preview")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8790)
-    parser.add_argument("--no-open", action="store_true")
+    parser.add_argument("--open", action="store_true", help="abre o navegador explicitamente")
+    parser.add_argument("--no-open", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     required = [
@@ -6368,7 +6749,6 @@ def main():
         WEB_DIR / "jarvis-sw.js",
         WEB_DIR / "jarvis-icon-192.png",
         WEB_DIR / "jarvis-icon-512.png",
-        UI_ASSET_DIR / "models" / "variants" / "01_avatar_boneco_humanoid.glb",
     ]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.is_file()]
     if args.check:
@@ -6390,7 +6770,7 @@ def main():
     print("JARVIS web gateway")
     print(f"Status real: local preview at {url}")
     print("Produção: nada alterado.")
-    if not args.no_open:
+    if args.open and not args.no_open:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:
         server.serve_forever()

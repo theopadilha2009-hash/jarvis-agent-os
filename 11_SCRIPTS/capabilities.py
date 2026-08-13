@@ -12,6 +12,8 @@ from pathlib import Path
 import json
 import sys
 
+from action_registry import action_payloads
+
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "01_SISTEMA" / "06_CAPABILITIES" / "CAPABILITY_REGISTRY.json"
 
@@ -53,6 +55,13 @@ def cmd_list(argv):
         for c in caps:
             print(f"  - {c.get('name')}: {c.get('what', '')}")
         print("")
+    actions = action_payloads("cli")
+    print(f"## action_registry  ({len(actions)})")
+    print("  Contrato executável compartilhado por ./jarvis do e pelo cockpit web.")
+    for action in actions:
+        confirmation = " · confirmar" if action["requires_confirmation"] else ""
+        print(f"  - {action['name']}: {action['label']} · {action['risk']}{confirmation}")
+    print("")
     print("Use:")
     print("  ./jarvis capability-check <NAME>")
     print("  ./jarvis capability-plan  <NAME>   (apenas para grupo future_adapter)")

@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const mount = document.getElementById("avatar3d");
 const stage = document.getElementById("stage");
@@ -8,13 +7,11 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const compactViewport = matchMedia("(max-width: 900px)").matches;
 const constrainedHardware = (navigator.deviceMemory && navigator.deviceMemory <= 4)
   || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 18 : 30;
-const IDLE_TARGET_FPS = compactViewport || constrainedHardware ? 8 : 12;
+const ACTIVE_TARGET_FPS = compactViewport || constrainedHardware ? 16 : 24;
+const IDLE_TARGET_FPS = 2;
 const BACKGROUND_TARGET_FPS = 1;
 const EFFECT_TARGET_FPS = 10;
 const BASE_FRAME_INTERVAL_MS = 1000 / ACTIVE_TARGET_FPS;
-const FRONTAL_PITCH_RADIANS = THREE.MathUtils.degToRad(20);
-const MODEL_DISPLAY_SIZE = 1.9;
 
 const COLORS = {
   idle: 0x46e6ff,
@@ -84,7 +81,7 @@ async function loadMemoryLabels() {
 }
 
 function drawMemory(ctx, width, height, time, labels, opacity = 1) {
-  const centerX = width * (compactViewport ? 0.62 : 0.66);
+  const centerX = width * 0.5;
   const centerY = height * 0.43;
   const span = Math.min(width, height);
   const visibleLabels = labels.slice(0, 16);
@@ -174,7 +171,7 @@ const FORGE_COMPONENTS = Array.from({ length: 20 }, (_, index) => ({
 }));
 
 function drawForge(ctx, width, height, time, opacity = 1) {
-  const centerX = width * (compactViewport ? 0.62 : 0.66);
+  const centerX = width * 0.5;
   const centerY = height * 0.43;
   const span = Math.min(width, height);
   const assembly = 0.5 + 0.5 * Math.sin(time * 0.92);
@@ -400,6 +397,64 @@ function installCyanRemap(material) {
   material.needsUpdate = true;
 }
 
+function makeCognitiveCore(frameMaterial, glassMaterial, accentMaterial, modelWireMaterial) {
+  const model = new THREE.Group();
+  model.name = "jarvis-cognitive-core";
+
+  const add = (name, geometry, material, position = [0, 0, 0], rotation = [0, 0, 0]) => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = name;
+    mesh.position.set(...position);
+    mesh.rotation.set(...rotation);
+    model.add(mesh);
+    return mesh;
+  };
+
+  // The runtime identity is deliberately abstract: crystal, field and orbital
+  // mechanics only. No anatomical silhouette or character-like features.
+  const crystal = add("core-crystal", new THREE.IcosahedronGeometry(0.5, 3), glassMaterial);
+  const light = add("core-light", new THREE.IcosahedronGeometry(0.24, 2), accentMaterial);
+  const cage = add("core-cage", new THREE.IcosahedronGeometry(0.64, 1), modelWireMaterial);
+  const halo = add("primary-halo", new THREE.TorusGeometry(0.88, 0.025, 10, 96), frameMaterial);
+  const orbitA = add("orbit-a", new THREE.TorusGeometry(1.08, 0.012, 8, 96), accentMaterial, [0, 0, 0], [0.88, 0.18, 0.16]);
+  const orbitB = add("orbit-b", new THREE.TorusGeometry(1.08, 0.012, 8, 96), accentMaterial, [0, 0, 0], [-0.7, -0.28, 0.44]);
+
+  const arcMaterial = accentMaterial.clone();
+  arcMaterial.opacity = 0.62;
+  const arcs = [0.12, 2.18, 4.3].map((start, index) => add(
+    `signal-arc-${index + 1}`,
+    new THREE.RingGeometry(1.22, 1.25, 72, 1, start, 0.88),
+    arcMaterial,
+  ));
+
+  const fins = [];
+  for (let index = 0; index < 8; index += 1) {
+    const angle = index * Math.PI / 4;
+    const fin = add(
+      `field-segment-${index + 1}`,
+      new THREE.BoxGeometry(0.25, 0.045, 0.06),
+      frameMaterial,
+      [Math.cos(angle) * 0.76, Math.sin(angle) * 0.76, 0],
+      [0, 0, angle + Math.PI / 2],
+    );
+    fins.push(fin);
+  }
+
+  const nodes = [];
+  [0.38, 2.48, 4.58].forEach((angle, index) => {
+    nodes.push(add(
+      `orbit-node-${index + 1}`,
+      new THREE.OctahedronGeometry(0.055, 1),
+      accentMaterial,
+      [Math.cos(angle) * 1.09, Math.sin(angle) * 1.09, 0.04],
+    ));
+  });
+
+  model.userData = { crystal, light, cage, halo, orbitA, orbitB, arcs, fins, nodes };
+  model.scale.setScalar(1.02);
+  return model;
+}
+
 async function start() {
   const renderer = new THREE.WebGLRenderer({
     alpha: true,
@@ -430,52 +485,39 @@ async function start() {
   const rim = new THREE.DirectionalLight(0x60a5fa, 1.85);
   rim.position.set(-3, 1.3, -2);
   scene.add(rim);
-  const coreEntity = makeCoreEntity(scene);
-
   const root = new THREE.Group();
   scene.add(root);
-  const gltf = await new Promise((resolve, reject) => {
-    new GLTFLoader().load("/asset/models/variants/01_avatar_boneco_humanoid.glb?v=20260812-facing1", resolve, undefined, reject);
-  });
 
-  const model = gltf.scene || gltf.scenes[0];
-  const box = new THREE.Box3().setFromObject(model);
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
-  const scale = MODEL_DISPLAY_SIZE / (Math.max(size.x, size.y, size.z) || 1);
-  model.scale.setScalar(scale);
-  model.position.set(-center.x * scale, -center.y * scale - 0.02, -center.z * scale);
-  root.add(model);
-
-  const shellMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x091922,
-    metalness: 0.42,
-    roughness: 0.3,
-    clearcoat: 0.72,
-    clearcoatRoughness: 0.22,
-    transmission: 0.08,
-    thickness: 0.62,
-    ior: 1.34,
-    emissive: 0x063746,
-    emissiveIntensity: 0.28,
-    transparent: true,
-    opacity: 0.92,
-    side: THREE.DoubleSide,
-  });
-  const eyeSocketMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x06141c,
-    metalness: 0.18,
+  const frameMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x102732,
+    metalness: 0.86,
     roughness: 0.18,
-    emissive: 0x052a35,
-    emissiveIntensity: 0.34,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.12,
+    emissive: 0x073b49,
+    emissiveIntensity: 0.28,
     transparent: true,
     opacity: 0.94,
     side: THREE.DoubleSide,
   });
-  const irisMaterial = new THREE.MeshBasicMaterial({
+  const glassMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x153d4a,
+    metalness: 0.12,
+    roughness: 0.08,
+    clearcoat: 1,
+    clearcoatRoughness: 0.04,
+    transmission: 0.16,
+    thickness: 0.8,
+    emissive: 0x08748a,
+    emissiveIntensity: 0.5,
+    transparent: true,
+    opacity: 0.82,
+    side: THREE.DoubleSide,
+  });
+  const accentMaterial = new THREE.MeshBasicMaterial({
     color: 0xb6f7ff,
     transparent: true,
-    opacity: 0.96,
+    opacity: 0.94,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
@@ -487,39 +529,13 @@ async function start() {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  installCyanRemap(shellMaterial);
-  const wireOverlays = [];
-  model.traverse((object) => {
-    if (!object.isMesh) return;
-    object.frustumCulled = true;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    const identity = `${object.name} ${object.parent?.name || ""} ${materials.map((material) => material?.name || "").join(" ")}`;
-    if (/sketchfab.*particles|particle.*plane/i.test(identity)) {
-      object.visible = false;
-      object.userData.jarvisSuppressedEffect = true;
-      return;
-    }
-    object.material = /iris/i.test(identity)
-      ? irisMaterial
-      : /eye/i.test(identity) ? eyeSocketMaterial : shellMaterial;
-    const wire = new THREE.Mesh(object.geometry, modelWireMaterial);
-    wire.position.copy(object.position);
-    wire.scale.copy(object.scale).multiplyScalar(1.004);
-    wire.quaternion.copy(object.quaternion);
-    wireOverlays.push([object.parent, wire]);
-  });
-  wireOverlays.forEach(([parent, wire]) => parent?.add(wire));
-  const mixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null;
-  if (mixer && !reducedMotion) {
-    const action = mixer.clipAction(gltf.animations[0]);
-    action.play();
-    action.paused = true;
-    mixer.setTime(0.04);
-  }
-  stage.dataset.modelAsset = "humanoid-face";
-  stage.dataset.modelAnimations = String(gltf.animations.length);
-  stage.dataset.modelAnimationSeconds = gltf.animations[0]?.duration?.toFixed(1) || "0";
-  stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "command-deck";
+  installCyanRemap(frameMaterial);
+  const model = makeCognitiveCore(frameMaterial, glassMaterial, accentMaterial, modelWireMaterial);
+  root.add(model);
+  stage.dataset.modelAsset = "procedural-cognitive-core";
+  stage.dataset.modelAnimations = "0";
+  stage.dataset.modelAnimationSeconds = "0";
+  stage.dataset.renderProfile = constrainedHardware ? "adaptive-lite" : "cognitive-core";
 
   const particleCount = compactViewport || constrainedHardware ? 24 : 42;
   const particlePositions = new Float32Array(particleCount * 3);
@@ -555,7 +571,12 @@ async function start() {
   const whiteColor = new THREE.Color(0xffffff);
 
   stage.addEventListener("pointermove", (event) => {
-    const rect = stage.getBoundingClientRect();
+    const rect = mount.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
+      pointerX = 0;
+      pointerY = 0;
+      return;
+    }
     pointerX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointerY = ((event.clientY - rect.top) / rect.height) * 2 - 1;
   }, { passive: true });
@@ -566,12 +587,14 @@ async function start() {
 
   let canvasWidth = 1;
   let canvasHeight = 1;
+  let layoutScale = 1;
   function resize() {
     const rect = mount.getBoundingClientRect();
     canvasWidth = Math.max(rect.width, 1);
     canvasHeight = Math.max(rect.height, 1);
     camera.aspect = canvasWidth / canvasHeight;
     camera.updateProjectionMatrix();
+    layoutScale = Math.min(1, Math.max(0.58, camera.aspect * 1.25));
     renderer.setSize(canvasWidth, canvasHeight, false);
     const density = Math.min(window.devicePixelRatio || 1, 1.5);
     effectCanvas.width = Math.round(canvasWidth * density);
@@ -587,7 +610,7 @@ async function start() {
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
   stage.classList.remove("gpu-error");
-  presenceValue.textContent = "Busto humanoide frontal · ondas suaves · Forja · Memória";
+  presenceValue.textContent = "Núcleo cognitivo abstrato · Forja · Memória";
 
   let previousFrameMs = 0;
   let effectVisible = false;
@@ -673,8 +696,6 @@ async function start() {
     if (timeMs - fpsWindowStart >= 1000) {
       const measuredFps = Math.round(sampledFrames * 1000 / (timeMs - fpsWindowStart));
       stage.dataset.renderFps = String(measuredFps);
-      const renderTelemetry = document.getElementById("sceneRender");
-      if (renderTelemetry) renderTelemetry.textContent = `3D ${measuredFps} FPS`;
       const currentTargetFps = 1000 / frameIntervalMs;
       slowFrameWindows = measuredFps < currentTargetFps * 0.72
         ? slowFrameWindows + 1
@@ -705,14 +726,24 @@ async function start() {
     currentColor.lerp(targetColor, colorEase);
     particleMaterial.color.copy(currentColor);
     modelWireMaterial.color.copy(currentColor);
-    irisMaterial.color.copy(currentColor).lerp(whiteColor, 0.32);
-    eyeSocketMaterial.emissive.copy(currentColor).multiplyScalar(0.08);
-    shellMaterial.emissive.copy(currentColor).multiplyScalar(0.22);
-    shellMaterial.emissiveIntensity = isWorking ? 0.34 : visualState === "speaking" ? 0.31 : 0.26;
+    accentMaterial.color.copy(currentColor).lerp(whiteColor, 0.32);
+    frameMaterial.emissive.copy(currentColor).multiplyScalar(0.18);
+    glassMaterial.emissive.copy(currentColor).multiplyScalar(0.5);
+    frameMaterial.emissiveIntensity = isWorking ? 0.42 : visualState === "speaking" ? 0.38 : 0.28;
+    glassMaterial.emissiveIntensity = isWorking ? 0.68 : visualState === "speaking" ? 0.74 : 0.5;
     modelWireMaterial.opacity = isWorking ? 0.105 : visualState === "speaking" ? 0.1 : 0.075;
-    if (mixer) {
-      mixer.update(deltaSeconds);
-    }
+
+    const motion = activeStates.has(visualState) ? 1 : 0.24;
+    model.userData.crystal.rotation.x += deltaSeconds * 0.09 * motion;
+    model.userData.crystal.rotation.y -= deltaSeconds * 0.13 * motion;
+    model.userData.cage.rotation.x -= deltaSeconds * 0.045 * motion;
+    model.userData.cage.rotation.y += deltaSeconds * 0.065 * motion;
+    model.userData.halo.rotation.z += deltaSeconds * 0.035 * motion;
+    model.userData.orbitA.rotation.z += deltaSeconds * 0.075 * motion;
+    model.userData.orbitB.rotation.z -= deltaSeconds * 0.06 * motion;
+    model.userData.arcs.forEach((arc, index) => {
+      arc.rotation.z += deltaSeconds * (index % 2 ? -0.052 : 0.044) * motion;
+    });
 
     const orientationEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.45);
     currentX += (pointerX * 0.12 - currentX) * orientationEase;
@@ -723,20 +754,23 @@ async function start() {
     camera.position.x += (cameraTargetX - camera.position.x) * cameraEase;
     camera.position.z += (cameraTargetZ - camera.position.z) * cameraEase;
     camera.lookAt(0, -0.01, 0);
-    const targetPositionX = -modeBlend.memory * 0.34 - modeBlend.forge * 0.3 - modeBlend.core * 0.18;
+    const targetPositionX = 0;
     const positionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.35);
     root.position.x += (targetPositionX - root.position.x) * positionEase;
-    root.position.y = -0.08 + Math.sin(time * 0.48) * 0.012;
+    const activePresence = activeStates.has(visualState) ? 1 : 0;
+    root.position.y = -0.02 + Math.sin(time * 0.48) * 0.008 * activePresence;
     const facingYaw = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
     root.rotation.y = currentX + facingYaw + Math.sin(time * 0.22) * 0.012;
-    root.rotation.x = FRONTAL_PITCH_RADIANS + currentY + Math.sin(time * 0.28) * 0.003;
+    root.rotation.x = currentY + Math.sin(time * 0.28) * 0.002 * activePresence;
     const speakingPulse = visualState === "speaking" ? (Math.sin(time * 2.4) + 1) * 0.08 : 0;
-    const targetScale = 1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035;
+    const corePulse = 1 + Math.sin(time * (isWorking ? 2.2 : 1.05)) * (isWorking ? 0.055 : 0.025);
+    model.userData.light.scale.setScalar(corePulse + speakingPulse * 0.45);
+    model.userData.crystal.scale.setScalar(1 + speakingPulse * 0.12);
+    const targetScale = layoutScale * (1 - modeBlend.memory * 0.07 - modeBlend.forge * 0.045 - modeBlend.core * 0.025 + speakingPulse * 0.035);
     currentScale += (targetScale - currentScale) * (1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8));
     root.scale.setScalar(currentScale);
     particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
     particles.rotation.y += deltaSeconds * (isWorking ? 0.038 : 0.018);
-    coreEntity.update(time, modeBlend.core, deltaSeconds);
 
     const effectFrameDue = timeMs - effectLastFrameMs >= 1000 / EFFECT_TARGET_FPS;
     const effectBlend = Math.max(modeBlend.memory, modeBlend.forge, modeBlend.voice);
@@ -767,7 +801,6 @@ async function start() {
     window.removeEventListener("jarvis-state", wakeRender);
     document.removeEventListener("visibilitychange", wakeRender);
     resizeObserver.disconnect();
-    mixer?.stopAllAction();
     const disposedTextures = new Set();
     model.traverse((object) => {
       if (!object.isMesh) return;
