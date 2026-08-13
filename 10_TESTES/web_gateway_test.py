@@ -2448,9 +2448,115 @@ São Paulo - SP
         self.assertEqual(payload["agent_route"]["execution"], "verified_adapter")
         self.assertEqual(payload["agent_route"]["model"], "tool-capable/free")
         self.assertEqual(captured_requests[0]["tool_choice"], "auto")
-        self.assertFalse(captured_requests[0]["parallel_tool_calls"])
+        self.assertTrue(captured_requests[0]["parallel_tool_calls"])
         self.assertGreaterEqual(len(captured_requests[0]["tools"]), 8)
         enqueue.assert_called_once_with("abra Google Chrome", "open_application")
+
+    def test_ultron_orchestrates_three_verified_model_tools_and_reports_each_front(self):
+        tool_calls = [
+            {
+                "id": f"call-{name}",
+                "type": "function",
+                "function": {"name": name, "arguments": "{}"},
+            }
+            for name in ("view_memory", "view_agenda", "get_daily_brief")
+        ]
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "tool-capable/free",
+                    "choices": [{"message": {"content": None, "tool_calls": tool_calls}}],
+                }).encode("utf-8")
+
+        sent = []
+
+        def fake_urlopen(request, **_kwargs):
+            sent.append(json.loads(request.data.decode("utf-8")))
+            return FakeResponse()
+
+        def fake_execute(tool_call, _command, **_kwargs):
+            name = tool_call["function"]["name"]
+            return {
+                "ok": True,
+                "status_real": f"{name}_confirmed",
+                "message": f"{name} concluída",
+                "provider": "verified_test_adapter",
+                "agent_route": {"tool": name, "execution": "verified_adapter"},
+            }, 200
+
+        env = {"OPENROUTER_API_KEY": "test-key", "JARVIS_OWNER_TOKEN": "private-owner-token"}
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "assistant_memory_rows", return_value=([], False)
+        ), patch.object(MODULE, "urlopen", side_effect=fake_urlopen), patch.object(
+            MODULE, "execute_agent_tool", side_effect=fake_execute
+        ) as executor:
+            payload, status = MODULE.assistant_response({
+                "messages": [
+                    {"role": "user", "content": "quero consultar memória, agenda e github"},
+                    {"role": "assistant", "content": "Posso consultar as três frentes."},
+                    {"role": "user", "content": "faz isso"},
+                ],
+            }, owner_authenticated=True)
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["agentic"])
+        self.assertEqual(payload["provider"], "ultron_orchestrator")
+        self.assertEqual(payload["orchestration"]["protocol"], "ultron-orchestration/1")
+        self.assertEqual(payload["orchestration"]["selected"], 3)
+        self.assertEqual(payload["orchestration"]["succeeded"], 3)
+        self.assertEqual(len(payload["tool_results"]), 3)
+        self.assertEqual(executor.call_count, 3)
+        self.assertTrue(sent[0]["parallel_tool_calls"])
+        self.assertIn("até três ferramentas distintas", sent[0]["messages"][0]["content"])
+
+    def test_tool_orchestrator_caps_three_fronts_and_keeps_partial_failure_visible(self):
+        names = ("view_memory", "view_agenda", "get_daily_brief", "inspect_github")
+        calls = [{
+            "id": f"call-{name}",
+            "function": {"name": name, "arguments": "{}"},
+        } for name in names]
+
+        def fake_execute(tool_call, _command, **_kwargs):
+            name = tool_call["function"]["name"]
+            ok = name != "view_agenda"
+            payload = {
+                "ok": ok,
+                "status_real": f"{name}_{'confirmed' if ok else 'failed'}",
+                "message": f"resultado {name}" if ok else "agenda indisponível",
+                "provider": "verified_test_adapter",
+                "agent_route": {"tool": name},
+            }
+            if name == "get_daily_brief":
+                payload["job"] = {"id": "job-brief", "status": "pending"}
+                return payload, 202
+            return payload, 200 if ok else 503
+
+        with patch.object(MODULE, "execute_agent_tool", side_effect=fake_execute) as executor:
+            payload, status = MODULE.execute_agent_tools(
+                calls,
+                "consulte quatro frentes",
+                owner_authenticated=True,
+                max_tools=3,
+            )
+
+        self.assertEqual(status, 207)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["status_real"], "ultron_orchestration_partial")
+        self.assertEqual(payload["orchestration"]["requested"], 4)
+        self.assertEqual(payload["orchestration"]["selected"], 3)
+        self.assertEqual(payload["orchestration"]["succeeded"], 1)
+        self.assertEqual(payload["orchestration"]["queued"], 1)
+        self.assertEqual(payload["orchestration"]["failed"], 1)
+        self.assertEqual(payload["orchestration"]["ignored"], 1)
+        self.assertEqual(executor.call_count, 3)
 
     def test_guest_chat_does_not_receive_private_tool_schemas(self):
         class FakeResponse:
@@ -3054,6 +3160,8 @@ São Paulo - SP
         self.assertEqual(jarvis["multiplier"], 1)
         self.assertEqual(ultron["mode"], "ultron_3x")
         self.assertEqual(ultron["multiplier"], 3)
+        self.assertEqual(jarvis["max_agent_tools_per_request"], 1)
+        self.assertEqual(ultron["max_agent_tools_per_request"], 3)
         self.assertEqual(ultron["max_workflows_per_request"], 3)
         self.assertEqual(ultron["max_workflow_nodes"], jarvis["max_workflow_nodes"] * 3)
 
