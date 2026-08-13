@@ -6058,7 +6058,12 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
         return payload, status
 
     return assistant_response(
-        {"command": command, "messages": body.get("messages"), "attachments": body.get("attachments")},
+        {
+            "command": command,
+            "messages": body.get("messages"),
+            "attachments": body.get("attachments"),
+            "strength": normalized_response_strength(body),
+        },
         origin=origin,
         local_execute=local_execute,
         owner_authenticated=owner_authenticated,
