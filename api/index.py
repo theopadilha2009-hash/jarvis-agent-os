@@ -61,7 +61,7 @@ ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 ELEVENLABS_VOICE_DESIGN_URL = "https://api.elevenlabs.io/v1/text-to-voice/design"
 ELEVENLABS_VOICE_CREATE_URL = "https://api.elevenlabs.io/v1/text-to-voice"
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
-DEFAULT_ELEVENLABS_MODEL = "eleven_flash_v2_5"
+DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
 MAX_BODY_BYTES = 4_000_000
 MAX_PROMPT_CHARS = 8_000
 MAX_ATTACHMENT_BYTES = 2_500_000
@@ -3367,11 +3367,11 @@ def elevenlabs_speech(body):
         "model_id": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
         "language_code": "pt",
         "voice_settings": {
-            "stability": 0.62,
-            "similarity_boost": 0.76,
+            "stability": 0.42,
+            "similarity_boost": 0.78,
             "style": 0.0,
-            "use_speaker_boost": False,
-            "speed": 0.86,
+            "use_speaker_boost": True,
+            "speed": 1.02,
         },
     }, ensure_ascii=False).encode("utf-8")
     url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
@@ -7014,7 +7014,7 @@ class handler(BaseHTTPRequestHandler):
         if path == "/self-test":
             checks = [
                 {"name": "cockpit", "ok": UI_FILE.is_file()},
-                {"name": "purple_cognitive_bust", "ok": "visitor-internal-neural-network" in (WEB_DIR / "jarvis-3d.js").read_text(encoding="utf-8")},
+                {"name": "purple_cognitive_bust", "ok": "visitor-animated-surface-topology" in (WEB_DIR / "jarvis-3d.js").read_text(encoding="utf-8")},
                 {"name": "action_registry", "ok": bool(ACTION_REGISTRY)},
                 {"name": "stateless_gateway", "ok": True},
                 {"name": "assistant_configured", "ok": bool(os.environ.get("OPENROUTER_API_KEY")), "required": False},

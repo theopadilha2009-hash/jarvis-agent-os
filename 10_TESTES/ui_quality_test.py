@@ -12,6 +12,8 @@ INDEX = WEB / "index.html"
 CSS = WEB / "jarvis.css"
 APP_JS = WEB / "jarvis.js"
 PRESENCE_JS = WEB / "jarvis-3d.js"
+STRANDS_JS = WEB / "strands.js"
+AURORA_JS = WEB / "aurora.js"
 THREE_JS = WEB / "vendor" / "three.module.js"
 
 
@@ -115,28 +117,43 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(PRESENCE_JS.stat().st_size, 64 * 1024)
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
-    def test_3d_is_lazy_adaptive_and_fully_pauses(self):
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-essence1")', self.html)
+    def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-space2")', self.html)
         self.assertIn("requestIdleCallback", self.html)
-        self.assertIn("adaptive-lite", self.presence_js)
-        self.assertIn("BACKGROUND_TARGET_FPS", self.presence_js)
+        self.assertIn("activeFps: 45", self.presence_js)
+        self.assertIn("idleFps: 24", self.presence_js)
+        self.assertIn("pixelRatio: 1.25", self.presence_js)
+        self.assertIn("activeFps: 30, idleFps: 18, pixelRatio: 1", self.presence_js)
+        self.assertIn("activeFps: 20, idleFps: 10, pixelRatio: 0.75", self.presence_js)
         self.assertIn("document.hidden", self.presence_js)
-        self.assertIn("constrainedHardware", self.presence_js)
+        self.assertIn("if (!reducedMotion) scheduleRender(frameIntervalMs)", self.presence_js)
+        self.assertNotIn("constrainedHardware", self.presence_js)
+        self.assertNotIn("slowFrameWindows", self.presence_js)
 
-    def test_all_shell_assets_share_restored_cache_version(self):
+    def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
-        self.assertGreaterEqual(self.html.count("20260813-essence1"), 7)
+        self.assertGreaterEqual(self.html.count("20260813-space2"), 9)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
         self.assertIn("--cyan: #a855f7", self.css)
         self.assertIn("visitor-purple-volume", self.presence_js)
         self.assertIn("visitor-real-eye-", self.presence_js)
-        self.assertIn("visitor-internal-neural-network", self.presence_js)
+        self.assertIn("visitor-animated-surface-topology", self.presence_js)
+        self.assertIn("visitor-mesh-derived-dissolution", self.presence_js)
+        self.assertNotIn("TubeGeometry", self.presence_js)
         self.assertIn("jarvis-humanoid.glb", self.presence_js)
         self.assertIn("ownerModel.visible = isOwner", self.presence_js)
-        self.assertNotIn("strandsVisual", self.html)
-        self.assertNotIn("strands-visual", self.css)
+        self.assertIn('id="auroraVisual"', self.html)
+        self.assertIn('id="strandsVisual"', self.html)
+        self.assertIn(".aurora-visual", self.css)
+        self.assertIn(".strands-visual", self.css)
+        self.assertIn('["#2E1065", "#7C3AED", "#A855F7"]', self.html)
+        self.assertIn('["#6D28D9", "#A855F7", "#C084FC"]', self.html)
+        self.assertTrue(AURORA_JS.is_file())
+        self.assertTrue(STRANDS_JS.is_file())
+        for legacy_accent in ("#2563eb", "#60a5fa", "#49c7dc", "#71ddeb", "#9beeff"):
+            self.assertNotIn(legacy_accent, self.css.lower())
         self.assertNotIn("TetrahedronGeometry", self.presence_js)
 
 
