@@ -11,6 +11,7 @@ WEB = ROOT / "web"
 INDEX = WEB / "index.html"
 CSS = WEB / "jarvis.css"
 UI_REPAIR_CSS = WEB / "ui-repair.css"
+LOGO_FILTER = WEB / "logo-filter.svg"
 APP_JS = WEB / "jarvis.js"
 API_VAULT_JS = WEB / "api-vault.js"
 MISSION_CONTROL_JS = WEB / "mission-control.js"
@@ -54,6 +55,7 @@ class UIQualityTest(unittest.TestCase):
         cls.html = INDEX.read_text(encoding="utf-8")
         cls.css = CSS.read_text(encoding="utf-8")
         cls.ui_repair_css = UI_REPAIR_CSS.read_text(encoding="utf-8")
+        cls.logo_filter = LOGO_FILTER.read_text(encoding="utf-8")
         cls.app_js = APP_JS.read_text(encoding="utf-8")
         cls.api_vault_js = API_VAULT_JS.read_text(encoding="utf-8")
         cls.mission_control_js = MISSION_CONTROL_JS.read_text(encoding="utf-8")
@@ -219,7 +221,7 @@ class UIQualityTest(unittest.TestCase):
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 5)
-        self.assertGreaterEqual(self.html.count("20260813-uifix1"), 5)
+        self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 5)
 
     def test_purple_brand_and_bust_contract(self):
         self.assertIn("jarvis-logo.png", self.html)
@@ -279,7 +281,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('"jarvis-response-strength"', self.app_js)
         self.assertIn("scheduleUltronLaughter", self.app_js)
         self.assertIn("4 - field.childElementCount", self.app_js)
-        self.assertIn("18 + Math.random() * 16", self.app_js)
+        self.assertIn("24 + Math.random() * 18", self.app_js)
+        self.assertIn("3.8 + Math.random() * 1.9", self.app_js)
+        self.assertIn('font-family: "Marker Felt", "Noteworthy"', self.ui_repair_css)
         self.assertIn('html[data-persona="ultron"] .message-context', self.ui_repair_css)
         self.assertIn('html[data-persona="ultron"] .message-actions .speak-command', self.ui_repair_css)
         self.assertIn('html[data-persona="ultron"] .composer input', self.ui_repair_css)
@@ -291,9 +295,18 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("modo master", self.app_js.casefold())
 
     def test_identity_logo_blends_without_dark_square(self):
+        self.assertIn('url("/ui/logo-filter.svg?v=20260813-uipolish1#logoNoBlack")', self.ui_repair_css)
+        self.assertIn('id="logoNoBlack"', self.logo_filter)
+        self.assertIn("0.82 0.82 0.82 0 -0.11", self.logo_filter)
         self.assertIn("mix-blend-mode: screen", self.ui_repair_css)
         self.assertIn("border-color: transparent", self.ui_repair_css)
         self.assertIn("background: transparent", self.ui_repair_css)
+
+    def test_api_vault_editor_has_a_bounded_scroll_surface(self):
+        self.assertIn(".integrations-dialog[open]", self.ui_repair_css)
+        self.assertIn("grid-template-rows: auto minmax(0, 1fr)", self.ui_repair_css)
+        self.assertIn(".integration-provider-list,\n  .integration-editor", self.ui_repair_css)
+        self.assertIn("overscroll-behavior: contain", self.ui_repair_css)
 
 
 if __name__ == "__main__":

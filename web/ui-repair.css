@@ -9,7 +9,7 @@
 .identity-logo {
   object-fit: contain;
   mix-blend-mode: screen;
-  filter: saturate(1.18) contrast(1.1) brightness(1.08) drop-shadow(0 0 8px rgba(168, 85, 247, 0.35));
+  filter: url("/ui/logo-filter.svg?v=20260813-uipolish1#logoNoBlack") saturate(1.18) contrast(1.1) brightness(1.08) drop-shadow(0 0 8px rgba(168, 85, 247, 0.35));
 }
 
 .scene-modes > button > span {
@@ -65,13 +65,40 @@
 .ultron-laughter { z-index: 8; }
 .ultron-laughter span {
   opacity: 0;
+  font-family: "Marker Felt", "Noteworthy", "Bradley Hand", "Comic Sans MS", cursive;
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: 0.015em;
   text-shadow: 0 0 15px rgba(239, 68, 68, 0.86), 0 0 36px rgba(127, 29, 29, 0.62);
 }
 @keyframes ultron-laugh-drift {
-  12% { opacity: 0.38; }
-  44% { opacity: 0.82; transform: translate(-50%, -7px) rotate(var(--laugh-tilt)) scale(1); }
-  78% { opacity: 0.34; }
-  100% { opacity: 0; transform: translate(-50%, -34px) rotate(var(--laugh-tilt)) scale(1.08); filter: blur(1px); }
+  8% { opacity: 0.42; }
+  40% { opacity: 0.88; transform: translate(-50%, -10px) rotate(var(--laugh-tilt)) skewX(-5deg) scale(1); }
+  72% { opacity: 0.36; }
+  100% { opacity: 0; transform: translate(-50%, -44px) rotate(var(--laugh-tilt)) skewX(4deg) scale(1.12); filter: blur(1px); }
+}
+
+@media (min-width: 721px) {
+  .integrations-dialog[open] {
+    height: min(780px, calc(100dvh - 32px));
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .integrations-layout {
+    min-height: 0;
+    height: 100%;
+    max-height: none;
+    overflow: hidden;
+  }
+
+  .integration-provider-list,
+  .integration-editor {
+    min-height: 0;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    touch-action: pan-y;
+  }
 }
 
 /* Prevent the late purple clarity layer from leaking into ULTRON. */
@@ -82,7 +109,7 @@ html[data-persona="ultron"] .identity-mark {
 }
 html[data-persona="ultron"] .identity-mark::before { background: rgba(127, 29, 29, 0.1); }
 html[data-persona="ultron"] .identity-logo {
-  filter: saturate(1.12) contrast(1.12) brightness(1.08) drop-shadow(0 0 8px rgba(239, 68, 68, 0.42));
+  filter: url("/ui/logo-filter.svg?v=20260813-uipolish1#logoNoBlack") saturate(1.12) contrast(1.12) brightness(1.08) drop-shadow(0 0 8px rgba(239, 68, 68, 0.42));
 }
 html[data-persona="ultron"] .scene-objective strong,
 html[data-persona="ultron"] .scene-objective span { color: #fecaca; text-shadow: 0 0 28px rgba(239, 68, 68, 0.2); }
