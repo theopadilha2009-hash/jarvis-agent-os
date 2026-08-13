@@ -373,7 +373,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-apitools1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-missions1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-apitools1', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-apitools1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
@@ -479,6 +479,44 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 202)
         self.assertEqual(retried["state"], "waiting_confirmation")
         self.assertNotEqual(retried["run_id"], second["run_id"])
+
+    def test_mission_control_prioritizes_real_runs_and_safe_operations(self):
+        waiting = MODULE.AGENT_RUNS.create(
+            "envie a atualização somente depois da minha confirmação",
+            action="message_send",
+            source="test",
+            state="waiting_confirmation",
+            plan=MODULE.run_plan_for("envie a atualização", "message_send", "message_send"),
+        )
+        failed = MODULE.AGENT_RUNS.create(
+            "missão que falhou durante o teste",
+            action="assistant_chat",
+            source="test",
+            state="planned",
+            plan=MODULE.run_plan_for("missão que falhou", "assistant_chat", "assistant"),
+        )
+        failed = MODULE.AGENT_RUNS.update(
+            failed["id"], state="failed", error="falha verificada",
+            evidence=[{"type": "private", "value": "não expor este valor"}], event_type="RUN_FAILED",
+        )
+        status, _, control = self.json_request("/mission-control?limit=12")
+        self.assertEqual(status, 200)
+        self.assertEqual(control["protocol"], MODULE.MISSION_CONTROL_PROTOCOL)
+        self.assertEqual(control["health"], "needs_attention")
+        self.assertGreaterEqual(control["summary"]["waiting_confirmation"], 1)
+        self.assertGreaterEqual(control["summary"]["failed"], 1)
+        rows = {row["run_id"]: row for row in control["missions"]}
+        self.assertEqual(rows[waiting["id"]]["operations"], ["confirm", "cancel"])
+        self.assertEqual(rows[failed["id"]]["operations"], ["retry"])
+        self.assertEqual(rows[failed["id"]]["evidence_count"], 1)
+        self.assertNotIn("não expor este valor", json.dumps(control, ensure_ascii=False))
+        self.assertEqual(control["missions"][0]["state"], "waiting_confirmation")
+
+    def test_mission_control_requires_private_pairing_when_configured(self):
+        with patch.dict(os.environ, {"JARVIS_OWNER_TOKEN": "private-test-token"}):
+            status, _, payload = self.json_request("/mission-control")
+        self.assertEqual(status, 401)
+        self.assertEqual(payload["endpoint"], "GET /mission-control")
 
     def test_memory_search_uses_local_index(self):
         status, _, payload = self.json_request(

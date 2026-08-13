@@ -12,6 +12,8 @@ INDEX = WEB / "index.html"
 CSS = WEB / "jarvis.css"
 APP_JS = WEB / "jarvis.js"
 API_VAULT_JS = WEB / "api-vault.js"
+MISSION_CONTROL_JS = WEB / "mission-control.js"
+MISSION_CONTROL_CSS = WEB / "mission-control.css"
 PRESENCE_JS = WEB / "jarvis-3d.js"
 STRANDS_JS = WEB / "strands.js"
 AURORA_JS = WEB / "aurora.js"
@@ -51,6 +53,8 @@ class UIQualityTest(unittest.TestCase):
         cls.css = CSS.read_text(encoding="utf-8")
         cls.app_js = APP_JS.read_text(encoding="utf-8")
         cls.api_vault_js = API_VAULT_JS.read_text(encoding="utf-8")
+        cls.mission_control_js = MISSION_CONTROL_JS.read_text(encoding="utf-8")
+        cls.mission_control_css = MISSION_CONTROL_CSS.read_text(encoding="utf-8")
         cls.presence_js = PRESENCE_JS.read_text(encoding="utf-8")
         cls.parser = CockpitParser()
         cls.parser.feed(cls.html)
@@ -160,6 +164,18 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
         self.assertLess(PRESENCE_JS.stat().st_size, 64 * 1024)
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
+
+    def test_mission_control_is_lazy_real_and_operator_controlled(self):
+        self.assertIn("Missões <kbd>⌘K</kbd>", self.html)
+        self.assertIn('import("/ui/mission-control.js?v=20260813-missions1")', self.api_vault_js)
+        self.assertIn('request("/mission-control?limit=12")', self.mission_control_js)
+        self.assertIn("jarvis-mission-control/1", self.mission_control_js)
+        self.assertIn("data-mission-operation", self.mission_control_js)
+        self.assertIn("window.confirm", self.mission_control_js)
+        self.assertIn("mission-control-row", self.mission_control_css)
+        self.assertIn("prefers-reduced-motion", self.mission_control_css)
+        self.assertLess(MISSION_CONTROL_JS.stat().st_size, 16 * 1024)
+        self.assertLess(MISSION_CONTROL_CSS.stat().st_size, 8 * 1024)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('import("/ui/jarvis-3d.js?v=20260813-apitools1")', self.html)

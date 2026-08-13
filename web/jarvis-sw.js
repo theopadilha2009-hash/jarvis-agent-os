@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260813-apitools1";
+const CACHE_VERSION = "jarvis-mobile-shell-20260813-missions1";
 const SHELL = [
   "/",
   "/ui/manifest.webmanifest?v=20260813-apitools1",
