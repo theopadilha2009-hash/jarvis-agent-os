@@ -148,7 +148,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/feature-loader.js?v=20260814-chatfix2', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix3', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix4', html)
         self.assertIn(b'/ui/jarvis.css?v=20260814-chatfix1', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix3', html)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', html)
@@ -476,7 +476,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260814-chatfix3", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260814-chatfix4", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix3', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', service_worker)
@@ -489,7 +489,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/memory-explorer.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', service_worker)
-        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix3', service_worker)
+        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix4', service_worker)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-health.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/voice-calibrator.css?v=20260813-ultronfix1', service_worker)
@@ -1365,6 +1365,25 @@ class WebGatewayTest(unittest.TestCase):
         }
         self.assertEqual(len(keys), 3)
         self.assertEqual(MODULE._OPENROUTER_INFLIGHT._initial_value, 3)
+
+    def test_session_turn_blocks_double_send_and_rate_limit(self):
+        MODULE._SESSION_INFLIGHT.clear()
+        MODULE._SESSION_HITS.clear()
+        ok, token, status = MODULE.begin_session_turn("pc-fair-aaaa")
+        self.assertTrue(ok)
+        self.assertEqual(status, 200)
+        blocked, payload, blocked_status = MODULE.begin_session_turn("pc-fair-aaaa")
+        self.assertFalse(blocked)
+        self.assertEqual(blocked_status, 429)
+        self.assertEqual(payload["status_real"], "session_already_working")
+        MODULE.end_session_turn("pc-fair-aaaa")
+        MODULE._SESSION_HITS["pc-fair-aaaa"] = [time.monotonic()] * MODULE.SESSION_RATE_LIMIT
+        limited, limited_payload, limited_status = MODULE.begin_session_turn("pc-fair-aaaa")
+        self.assertFalse(limited)
+        self.assertEqual(limited_status, 429)
+        self.assertEqual(limited_payload["status_real"], "session_rate_limited")
+        MODULE._SESSION_HITS.clear()
+        MODULE._SESSION_INFLIGHT.clear()
 
     def test_occupancy_counts_distinct_browser_sessions(self):
         MODULE._PRESENCE.clear()

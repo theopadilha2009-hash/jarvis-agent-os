@@ -1881,6 +1881,11 @@ _OPENROUTER_WAITING = 0
 _PRESENCE = {}
 _PRESENCE_LOCK = threading.Lock()
 PRESENCE_TTL_SECONDS = 90.0
+SESSION_RATE_LIMIT = 8
+SESSION_RATE_WINDOW = 60.0
+_SESSION_LOCK = threading.Lock()
+_SESSION_INFLIGHT = {}
+_SESSION_HITS = {}
 CONVERSATION_SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{8,80}$")
 
 MEMORY_SIGNAL_PATTERNS = (
@@ -2509,6 +2514,82 @@ def acquire_openrouter_slot(timeout=18):
     finally:
         with _OPENROUTER_STATS_LOCK:
             _OPENROUTER_WAITING = max(0, _OPENROUTER_WAITING - 1)
+
+
+def begin_session_turn(session_id):
+    token = normalized_conversation_session_id(session_id)
+    if not token:
+        return True, "", 200
+    now = time.monotonic()
+    with _SESSION_LOCK:
+        if _SESSION_INFLIGHT.get(token):
+            return False, {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "session_already_working",
+                "error": "Este computador já tem um pedido em andamento. Espere a resposta antes de mandar outro.",
+                "retryable": True,
+                "queue": {"retry_after": 2},
+            }, 429
+        hits = [stamp for stamp in _SESSION_HITS.get(token, []) if now - stamp < SESSION_RATE_WINDOW]
+        if len(hits) >= SESSION_RATE_LIMIT:
+            return False, {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "session_rate_limited",
+                "error": "Muitos pedidos deste computador em um minuto. Espere um pouco para os outros também usarem.",
+                "retryable": True,
+                "queue": {"retry_after": 8},
+            }, 429
+        hits.append(now)
+        _SESSION_HITS[token] = hits[-SESSION_RATE_LIMIT:]
+        _SESSION_INFLIGHT[token] = True
+    return True, token, 200
+
+
+def end_session_turn(session_id):
+    token = normalized_conversation_session_id(session_id)
+    if not token:
+        return
+    with _SESSION_LOCK:
+        _SESSION_INFLIGHT.pop(token, None)
+
+
+def sync_presence(session_id=""):
+    token = normalized_conversation_session_id(session_id)
+    if token:
+        touch_presence(token)
+    local = occupancy_payload()
+    if not token or not supabase_configured():
+        return local
+    updated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    since = (datetime.now(timezone.utc) - timedelta(seconds=int(PRESENCE_TTL_SECONDS))).isoformat().replace("+00:00", "Z")
+    try:
+        supabase_request(
+            "POST",
+            query="on_conflict=owner_id,key",
+            body={
+                "owner_id": "theo",
+                "key": f"presence:{token}",
+                "value": {"seen_at": updated_at},
+                "updated_at": updated_at,
+            },
+            prefer="resolution=merge-duplicates,return=minimal",
+            table=SUPABASE_SETTINGS_TABLE,
+        )
+        rows = supabase_request(
+            query=(
+                "select=key,updated_at&owner_id=eq.theo&key=like.presence:*"
+                f"&updated_at=gte.{quote(since, safe='')}&limit=40"
+            ),
+            table=SUPABASE_SETTINGS_TABLE,
+        )
+        remote = len(rows) if isinstance(rows, list) else 0
+        if remote:
+            local["online"] = max(local["online"], remote)
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        pass
+    return local
 
 
 def conversation_history_payload(session_id=""):
@@ -8774,12 +8855,21 @@ class handler(BaseHTTPRequestHandler):
             "label": "Selecionando rota e contexto",
         }):
             return
-        payload, status = command_payload(
-            body,
-            origin=origin,
-            local_execute=local_execute,
-            owner_authenticated=owner_authenticated,
-        )
+        session_id = request_conversation_session_id(self, body)
+        allowed, extra, extra_status = begin_session_turn(session_id)
+        if not allowed:
+            extra["occupancy"] = sync_presence(session_id)
+            payload, status = extra, extra_status
+        else:
+            try:
+                payload, status = command_payload(
+                    body,
+                    origin=origin,
+                    local_execute=local_execute,
+                    owner_authenticated=owner_authenticated,
+                )
+            finally:
+                end_session_turn(session_id)
         command = clean_text(body.get("command") or body.get("prompt"), 8_000)
         payload = attach_execution_events(payload, started_at, status, command)
         if not self._stream_event({
@@ -8879,16 +8969,14 @@ class handler(BaseHTTPRequestHandler):
         if path in {"/health", "/status", "/runtime"}:
             payload = status_payload(owner_authenticated=owner_authenticated)
             payload["endpoint"] = f"GET {path}"
-            touch_presence(request_conversation_session_id(self))
-            payload["occupancy"] = occupancy_payload()
+            payload["occupancy"] = sync_presence(request_conversation_session_id(self))
             return self.send_json(200, payload)
         if path == "/presence":
-            touch_presence(request_conversation_session_id(self))
             return self.send_json(200, {
                 "ok": True,
                 "endpoint": "GET /presence",
                 "status_real": "occupancy_read",
-                **occupancy_payload(),
+                **sync_presence(request_conversation_session_id(self)),
             })
         if path == "/personal-overview":
             return self.send_json(200, personal_overview_payload(owner_authenticated=owner_authenticated))
@@ -9190,13 +9278,20 @@ class handler(BaseHTTPRequestHandler):
                 owner_authenticated,
             )
         if path == "/command":
-            request_conversation_session_id(self, body)
-            payload, status = command_payload(
-                body,
-                origin=origin,
-                local_execute=local_execute,
-                owner_authenticated=owner_authenticated,
-            )
+            session_id = request_conversation_session_id(self, body)
+            allowed, extra, extra_status = begin_session_turn(session_id)
+            if not allowed:
+                extra["occupancy"] = sync_presence(session_id)
+                return self.send_json(extra_status, extra)
+            try:
+                payload, status = command_payload(
+                    body,
+                    origin=origin,
+                    local_execute=local_execute,
+                    owner_authenticated=owner_authenticated,
+                )
+            finally:
+                end_session_turn(session_id)
             payload = attach_execution_events(
                 payload,
                 started_at,
@@ -9204,7 +9299,7 @@ class handler(BaseHTTPRequestHandler):
                 clean_text(body.get("command") or body.get("prompt"), 8_000),
             )
             if isinstance(payload, dict):
-                payload["occupancy"] = occupancy_payload()
+                payload["occupancy"] = sync_presence(session_id)
             return self.send_json(status, payload)
         if path.startswith("/runs/"):
             if owner_pairing_required() and not owner_authenticated:
