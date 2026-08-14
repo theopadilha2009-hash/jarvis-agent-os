@@ -154,6 +154,7 @@
     overview: null,
     workingStartedAt: 0,
     lastResponseOk: true,
+    lastError: "",
     filePreviewing: false,
     strength: (() => {
       try {
@@ -245,6 +246,30 @@
         ? "1 neste computador"
         : `${online} computadores agora`;
     target.title = "Cada computador tem o próprio chat. Memória permanente só se você pedir.";
+  }
+
+  function copyBugReport() {
+    const lastUser = [...session.history].reverse().find((row) => row.role === "user");
+    const lastAssistant = [...session.history].reverse().find((row) => row.role === "assistant");
+    const report = [
+      "BUG JARVIS (visitante)",
+      `quando: ${new Date().toISOString()}`,
+      `url: ${window.location.origin}${window.location.pathname}`,
+      `modo: ${session.paired ? "ULTRON (não deveria estar assim num amigo)" : "visitante"}`,
+      `pedido: ${lastUser?.content || session.currentCommand || "—"}`,
+      `resposta: ${(lastAssistant?.content || "").slice(0, 280) || "—"}`,
+      `erro: ${session.lastError || "nenhum erro gravado"}`,
+      "como reportar: manda isso pro Theo no WhatsApp",
+    ].join("\n");
+    const done = (ok) => {
+      const hint = byId("welcomeHint");
+      if (hint) hint.textContent = ok ? "Relatório copiado. Manda pro Theo no WhatsApp." : "Não deu pra copiar. Seleciona o texto e manda no WhatsApp.";
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(report).then(() => done(true)).catch(() => done(false));
+      return;
+    }
+    done(false);
   }
 
   function assistantName() {
@@ -741,6 +766,8 @@
     document.querySelector('meta[name="description"]')?.setAttribute("content", `${name}, central pessoal de memória, automação e controle do Mac de Theo.`);
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", name);
     byId("identityAssistantName").textContent = name;
+    const identityRole = document.querySelector(".identity-name small");
+    if (identityRole) identityRole.textContent = ultron ? "para Theo" : "visitante";
     byId("conversationAssistantName").textContent = name;
     byId("systemDialogTitle").textContent = `SISTEMA ${name}`;
     byId("installDialogTitle").textContent = `${name} NO CELULAR`;
@@ -833,8 +860,8 @@
   const STARTER_ACTIONS = {
     guest: [
       ["Pesquisar agora", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
-      ["O que você faz?", "me diga em poucas frases as melhores coisas que você consegue fazer"],
-      ["Testar sua voz", "fale uma frase curta para mim"],
+      ["O que você faz?", "me diga em poucas frases as melhores coisas que você consegue fazer neste modo visitante"],
+      ["Copiar relatório", "__copy_bug_report__"],
     ],
     owner: [
       ["Resumo do meu dia", "me dê um resumo operacional do meu dia"],
@@ -852,14 +879,20 @@
       `<button type="button" data-starter-command="${escapeHtml(command)}">${escapeHtml(label)}</button>`
     )).join("");
     target.querySelectorAll("[data-starter-command]").forEach((button) => {
-      button.addEventListener("click", () => sendCommand(button.dataset.starterCommand || ""));
+      button.addEventListener("click", () => {
+        if (button.dataset.starterCommand === "__copy_bug_report__") {
+          copyBugReport();
+          return;
+        }
+        sendCommand(button.dataset.starterCommand || "");
+      });
     });
   }
 
   function renderWelcomeState(note = "") {
     const defaultHint = session.paired
       ? "Dê a ordem. Eu escolho a rota mais forte disponível."
-      : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
+      : "Visitante: converse e pesquise. Sem Mac e sem memória do Theo. Achou um bug? use Copiar relatório.";
     feed.innerHTML = (
       `<div class="welcome" id="welcomeMessage">`
       + `<strong>${session.paired ? "Diga. Eu assumo daqui." : "Estou aqui."}</strong>`
@@ -990,12 +1023,15 @@
   function updateActionHub(command = session.currentCommand, data = {}) {
     if (Array.isArray(data.actions) || Array.isArray(data.domains)) session.overview = data;
     const context = `${command || ""} ${data.intent || ""}`;
-    const source = Array.isArray(session.overview?.actions) && session.overview.actions.length
+    const catalog = session.paired
+      ? ACTION_CATALOG
+      : ACTION_CATALOG.filter((item) => item.executor === "web" || item.executor === "jarvis");
+    const source = session.paired && Array.isArray(session.overview?.actions) && session.overview.actions.length
       ? session.overview.actions.map((item) => ({
           ...item,
           keywords: ACTION_CATALOG.find((fallback) => fallback.id === item.id)?.keywords || /$^/,
         }))
-      : ACTION_CATALOG;
+      : catalog;
     const ranked = [...source].sort((left, right) => Number(right.keywords.test(context)) - Number(left.keywords.test(context)));
     const grid = byId("actionHubGrid");
     grid.innerHTML = ranked.map((item, index) => (
@@ -1020,7 +1056,14 @@
     const domainCapabilities = Array.isArray(session.overview?.domains)
       ? session.overview.domains.map((item) => `${item.label}: ${item.status} · ${item.detail}`)
       : [];
-    byId("capabilityList").innerHTML = (domainCapabilities.length ? domainCapabilities : CAPABILITIES)
+    const guestCapabilities = [
+      "Conversar e pesquisar na internet com fontes",
+      "Falar e ouvir neste navegador",
+      "Cada computador tem o próprio chat",
+      "Sem Mac, sem memória do Theo, sem n8n",
+      "Achou um bug: Copiar relatório e mandar pro Theo",
+    ];
+    byId("capabilityList").innerHTML = (session.paired && domainCapabilities.length ? domainCapabilities : session.paired ? CAPABILITIES : guestCapabilities)
       .map((item) => `<li>${escapeHtml(item)}</li>`).join("");
     byId("hubWorkerValue").textContent = session.deviceOnline ? "conectado" : session.deviceBridge ? "offline" : "não configurado";
     byId("actionHubHint").textContent = data.job?.id
@@ -2051,6 +2094,7 @@
     if (!data || data.ok === false) {
       stage.classList.remove("spatial-result");
       const error = data?.error || data?.message || "Não consegui completar isso.";
+      session.lastError = error;
       session.responseState = "error";
       byId("sceneEyebrow").textContent = "ATENÇÃO";
       byId("sceneMission").textContent = compactHudText(error, "Execução interrompida");
@@ -2385,8 +2429,8 @@
       const accessMode = session.paired ? "owner" : "guest";
       stage.dataset.access = accessMode;
       applyIdentityMode();
-      byId("accessMode").textContent = session.paired ? "Theo · modo Ultron" : "modo visitante";
       const canLeaveOwnerMode = Boolean(session.paired && status.owner_pairing?.required);
+      byId("accessMode").textContent = canLeaveOwnerMode ? "Sair do Ultron" : session.paired ? "Theo · modo Ultron" : "visitante";
       byId("accessMode").dataset.action = canLeaveOwnerMode ? "logout" : "details";
       byId("accessMode").title = canLeaveOwnerMode
         ? "Voltar ao modo visitante"
@@ -2401,7 +2445,7 @@
       if (welcomeHint) {
         welcomeHint.textContent = session.paired
           ? "Dê a ordem. Eu escolho a rota mais forte disponível."
-          : "Converse livremente. Memória privada e Mac pertencem ao Theo.";
+          : "Visitante: converse e pesquise. Sem Mac e sem memória do Theo.";
       }
       renderStarterActions();
       session.deviceBridge = Boolean(status.device_bridge?.configured);

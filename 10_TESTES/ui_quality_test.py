@@ -346,7 +346,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertGreaterEqual(
-            self.html.count("20260814-chatfix1") + self.html.count("20260814-chatfix2") + self.html.count("20260814-chatfix3") + self.html.count("20260814-chatfix4"),
+            self.html.count("20260814-chatfix1") + self.html.count("20260814-chatfix2") + self.html.count("20260814-chatfix3") + self.html.count("20260814-chatfix4") + self.html.count("20260814-chatfix5"),
             4,
         )
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
@@ -426,6 +426,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("jarvis-conversation-local", self.app_js)
         self.assertIn("renderOccupancy", self.app_js)
         self.assertIn("na fila", self.app_js)
+        self.assertIn("__copy_bug_report__", self.app_js)
+        self.assertIn("BUG JARVIS (visitante)", self.app_js)
+        self.assertIn("Sair do Ultron", self.app_js)
         self.assertIn('<textarea id="commandInput"', self.html)
         self.assertIn('id="strengthButton"', self.html)
         self.assertIn('id="identityAssistantName"', self.html)
