@@ -15,7 +15,7 @@ let pending = null;
 if (!document.querySelector("link[data-jarvis-action-permissions]")) {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
-  stylesheet.href = "/ui/action-permissions.css?v=20260813-permissions1";
+  stylesheet.href = "/ui/action-permissions.css?v=20260813-ultronfix1";
   stylesheet.dataset.jarvisActionPermissions = "true";
   document.head.appendChild(stylesheet);
 }

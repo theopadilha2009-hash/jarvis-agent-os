@@ -23,6 +23,8 @@ VOICE_CALIBRATOR_JS = WEB / "voice-calibrator.js"
 VOICE_CALIBRATOR_CSS = WEB / "voice-calibrator.css"
 N8N_TEMPLATE_PACK_JS = WEB / "n8n-template-pack.js"
 FEATURE_LOADER_JS = WEB / "feature-loader.js"
+PRESENCE_LOADER_JS = WEB / "presence-loader.js"
+ULTRON_COMPLETION_CSS = WEB / "ultron-completion.css"
 MEMORY_EXPLORER_JS = WEB / "memory-explorer.js"
 MEMORY_EXPLORER_CSS = WEB / "memory-explorer.css"
 ACTION_PERMISSIONS_JS = WEB / "action-permissions.js"
@@ -75,6 +77,9 @@ class UIQualityTest(unittest.TestCase):
         cls.mission_control_css = MISSION_CONTROL_CSS.read_text(encoding="utf-8")
         cls.voice_pacing_js = VOICE_PACING_JS.read_text(encoding="utf-8")
         cls.presence_js = PRESENCE_JS.read_text(encoding="utf-8")
+        cls.presence_loader_js = PRESENCE_LOADER_JS.read_text(encoding="utf-8")
+        cls.feature_loader_js = FEATURE_LOADER_JS.read_text(encoding="utf-8")
+        cls.ultron_completion_css = ULTRON_COMPLETION_CSS.read_text(encoding="utf-8")
         cls.parser = CockpitParser()
         cls.parser.feed(cls.html)
 
@@ -85,7 +90,7 @@ class UIQualityTest(unittest.TestCase):
     def test_dialogs_have_valid_accessible_titles(self):
         known_ids = set(self.parser.ids)
         dialogs = [attrs for tag, attrs in self.parser.elements if tag == "dialog"]
-        self.assertEqual(len(dialogs), 7)
+        self.assertEqual(len(dialogs), 5)
         for dialog in dialogs:
             label_id = dialog.get("aria-labelledby")
             self.assertTrue(label_id, f"Dialog sem aria-labelledby: {dialog.get('id')}")
@@ -150,6 +155,10 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('sendButton.toggleAttribute("aria-busy", value)', self.app_js)
 
     def test_api_vault_and_n8n_forge_are_real_controls(self):
+        dynamic_ids = {
+            "memoryExplorerDialog", "memoryExplorerMount",
+            "actionPermissionsDialog", "actionPermissionsMount",
+        }
         for element_id in (
             "integrationsButton",
             "integrationsDialog",
@@ -187,7 +196,8 @@ class UIQualityTest(unittest.TestCase):
             "n8nPreviewButton",
             "n8nCreateButton",
         ):
-            self.assertIn(f'id="{element_id}"', self.html)
+            source = self.feature_loader_js if element_id in dynamic_ids else self.html
+            self.assertIn(f'"{element_id}"', source)
         self.assertIn("AES-GCM", self.api_vault_js)
         self.assertIn("false,", self.api_vault_js)
         self.assertIn("indexedDB", self.api_vault_js)
@@ -237,16 +247,18 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('data-voice-setting="speed"', voice_calibrator)
         self.assertIn("sem aplicar pitch artificial", voice_calibrator)
         self.assertIn("voice_profile: window.JarvisVoiceCalibrator?.profile()", self.app_js)
-        self.assertIn("voice-calibrator.js?v=20260813-permissions1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
-        self.assertIn("n8n-template-pack.js?v=20260813-permissions1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
+        self.assertIn("voice-calibrator.js?v=20260813-ultronfix1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
+        self.assertIn("n8n-template-pack.js?v=20260813-ultronfix1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
         memory_explorer = MEMORY_EXPLORER_JS.read_text(encoding="utf-8")
         self.assertIn('name="q"', memory_explorer)
         self.assertIn('name="kind"', memory_explorer)
         self.assertIn('name="from"', memory_explorer)
         self.assertIn('name="to"', memory_explorer)
         feature_loader = FEATURE_LOADER_JS.read_text(encoding="utf-8")
-        self.assertIn("memory-explorer.js?v=20260813-permissions1", feature_loader)
-        self.assertIn("action-permissions.js?v=20260813-permissions1", feature_loader)
+        self.assertIn("memory-explorer.js?v=20260813-ultronfix1", feature_loader)
+        self.assertIn("action-permissions.js?v=20260813-ultronfix1", feature_loader)
+        self.assertIn("Dar uma estrela no JARVIS no GitHub", feature_loader)
+        self.assertIn("screenUnavailable", feature_loader)
         action_permissions = ACTION_PERMISSIONS_JS.read_text(encoding="utf-8")
         self.assertIn("jarvis-action-permissions-v1", action_permissions)
         self.assertIn("Permitir uma vez", action_permissions)
@@ -264,6 +276,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(VOICE_CALIBRATOR_CSS.stat().st_size, 4 * 1024)
         self.assertLess(N8N_TEMPLATE_PACK_JS.stat().st_size, 5 * 1024)
         self.assertLess(FEATURE_LOADER_JS.stat().st_size, 3 * 1024)
+        self.assertLess(PRESENCE_LOADER_JS.stat().st_size, 3 * 1024)
+        self.assertLess(ULTRON_COMPLETION_CSS.stat().st_size, 7 * 1024)
         self.assertLess(MEMORY_EXPLORER_JS.stat().st_size, 8 * 1024)
         self.assertLess(MEMORY_EXPLORER_CSS.stat().st_size, 4 * 1024)
         self.assertLess(ACTION_PERMISSIONS_JS.stat().st_size, 8 * 1024)
@@ -307,8 +321,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("memórias relevantes", self.app_js)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-apitools1")', self.html)
-        self.assertIn("requestIdleCallback", self.html)
+        self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260813-ultronfix1")', self.presence_loader_js)
+        self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
         self.assertIn("idleFps: 24", self.presence_js)
         self.assertIn("pixelRatio: 1.25", self.presence_js)
@@ -321,9 +336,17 @@ class UIQualityTest(unittest.TestCase):
 
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
-        self.assertGreaterEqual(self.html.count("20260813-apitools1"), 4)
+        self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertGreaterEqual(self.html.count("20260813-uipolish1"), 1)
-        self.assertGreaterEqual(self.html.count("20260813-permissions1"), 7)
+        self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 7)
+
+    def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
+        self.assertIn('html[data-persona="ultron"]', self.ultron_completion_css)
+        self.assertIn(".send-button", self.ultron_completion_css)
+        self.assertIn(".memory-search-button", self.ultron_completion_css)
+        self.assertIn(".integration-tabs button[aria-selected=\"true\"]", self.ultron_completion_css)
+        self.assertIn('document.documentElement.dataset.persona === "ultron"', self.presence_js)
+        self.assertIn('"rgba(239,68,68,', self.presence_js)
 
     def test_final_responsive_guardrails_cover_real_viewports(self):
         css = RESPONSIVE_POLISH_CSS.read_text(encoding="utf-8")
@@ -361,8 +384,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('id="strandsVisual"', self.html)
         self.assertIn(".aurora-visual", self.css)
         self.assertIn(".strands-visual", self.css)
-        self.assertIn('["#2E1065", "#7C3AED", "#A855F7"]', self.html)
-        self.assertIn('["#6D28D9", "#A855F7", "#C084FC"]', self.html)
+        self.assertIn('["#2E1065", "#7C3AED", "#A855F7"]', self.presence_loader_js)
+        self.assertIn('["#6D28D9", "#A855F7", "#C084FC"]', self.presence_loader_js)
         self.assertTrue(AURORA_JS.is_file())
         self.assertTrue(STRANDS_JS.is_file())
         self.assertIn('window.addEventListener("jarvis-voice-level", onVoiceLevel)', STRANDS_JS.read_text(encoding="utf-8"))
@@ -389,8 +412,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('html[data-persona="ultron"]', self.css)
         self.assertIn("@keyframes ultron-laugh-drift", self.css)
         self.assertIn("--cyan: #ef4444", self.css)
-        self.assertIn("#240307", self.html)
-        self.assertIn("#EF4444", self.html)
+        self.assertIn("#240307", self.presence_loader_js)
+        self.assertIn("#EF4444", self.presence_loader_js)
         self.assertIn('document.documentElement.dataset.persona = ultron ? "ultron" : "jarvis"', self.app_js)
         self.assertIn('strength: session.strength', self.app_js)
         self.assertIn('"jarvis-response-strength"', self.app_js)

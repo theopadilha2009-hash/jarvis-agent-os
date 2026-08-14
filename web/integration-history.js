@@ -87,13 +87,13 @@ window.JarvisIntegrationHistory = (() => {
   }
 
   document.querySelector('[data-integration-tab="health"]')?.addEventListener("click", () => {
-    import("/ui/integration-health.js?v=20260813-permissions1").catch(() => null);
+    import("/ui/integration-health.js?v=20260813-ultronfix1").catch(() => null);
   }, { once: true });
   document.getElementById("voiceTuningButton")?.addEventListener("click", () => {
-    import("/ui/voice-calibrator.js?v=20260813-permissions1").catch(() => null);
+    import("/ui/voice-calibrator.js?v=20260813-ultronfix1").catch(() => null);
   }, { once: true });
   document.querySelector('[data-integration-tab="workflows"]')?.addEventListener("click", () => {
-    import("/ui/n8n-template-pack.js?v=20260813-permissions1").catch(() => null);
+    import("/ui/n8n-template-pack.js?v=20260813-ultronfix1").catch(() => null);
   }, { once: true });
 
   return Object.freeze({ clear, record, render, summary });

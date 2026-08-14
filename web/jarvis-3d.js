@@ -38,6 +38,7 @@ const COLORS = {
   offline: 0x51445f,
 };
 const OWNER_RED = 0xef3340;
+const personaColor = (jarvis, ultron) => document.documentElement.dataset.persona === "ultron" ? ultron : jarvis;
 
 const VISITOR_HEAD_POSE_GLSL = `
   vec3 jarvisPoseHead(vec3 source, vec3 look) {
@@ -298,15 +299,15 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
   const aura = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, span * 0.42);
-  aura.addColorStop(0, "rgba(167,139,250,.14)");
-  aura.addColorStop(0.5, "rgba(139,92,246,.055)");
-  aura.addColorStop(1, "rgba(91,33,182,0)");
+  aura.addColorStop(0, personaColor("rgba(167,139,250,.14)", "rgba(248,113,113,.16)"));
+  aura.addColorStop(0.5, personaColor("rgba(139,92,246,.055)", "rgba(239,68,68,.065)"));
+  aura.addColorStop(1, personaColor("rgba(91,33,182,0)", "rgba(127,29,29,0)"));
   ctx.fillStyle = aura;
   ctx.fillRect(0, 0, width, height);
 
   ctx.lineWidth = 1;
   for (let ring = 1; ring <= 4; ring += 1) {
-    ctx.strokeStyle = `rgba(167,139,250,${0.16 - ring * 0.022})`;
+    ctx.strokeStyle = personaColor(`rgba(167,139,250,${0.16 - ring * 0.022})`, `rgba(248,113,113,${0.18 - ring * 0.022})`);
     ctx.setLineDash(ring % 2 ? [3, 8] : []);
     ctx.beginPath();
     ctx.ellipse(centerX, centerY, span * ring * 0.082, span * ring * 0.061, time * 0.025 * (ring % 2 ? 1 : -1), 0, Math.PI * 2);
@@ -321,20 +322,22 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
     const radius = span * (0.075 + lane * 0.052);
     const x = centerX + Math.cos(angle) * radius;
     const y = centerY + Math.sin(angle) * radius * 0.76;
-    ctx.strokeStyle = "rgba(167,139,250,.12)";
+    ctx.strokeStyle = personaColor("rgba(167,139,250,.12)", "rgba(248,113,113,.13)");
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(x, y);
     ctx.stroke();
-    ctx.fillStyle = index % 3 ? "rgba(167,139,250,.9)" : "rgba(216, 180, 254,.95)";
-    ctx.shadowColor = "#a78bfa";
+    ctx.fillStyle = index % 3
+      ? personaColor("rgba(167,139,250,.9)", "rgba(248,113,113,.9)")
+      : personaColor("rgba(216, 180, 254,.95)", "rgba(254,202,202,.95)");
+    ctx.shadowColor = personaColor("#a78bfa", "#ef4444");
     ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.arc(x, y, 2 + (index % 3) * 0.7, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
     if (index < 10) {
-      ctx.fillStyle = "rgba(204,251,241,.66)";
+      ctx.fillStyle = personaColor("rgba(204,251,241,.66)", "rgba(255,245,245,.72)");
       ctx.textAlign = x < centerX ? "right" : "left";
       ctx.fillText(label, x + (x < centerX ? -7 : 7), y + 3);
     }
@@ -343,32 +346,32 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
   const writeProgress = (time * 0.24) % 1;
   const writeX = centerX - span * (0.38 - writeProgress * 0.38);
   const writeY = centerY + Math.sin(writeProgress * Math.PI) * -span * 0.055;
-  ctx.strokeStyle = "rgba(216, 180, 254,.26)";
+  ctx.strokeStyle = personaColor("rgba(216, 180, 254,.26)", "rgba(254,202,202,.28)");
   ctx.beginPath();
   ctx.moveTo(centerX - span * 0.38, centerY);
   ctx.quadraticCurveTo(centerX - span * 0.18, centerY - span * 0.11, centerX, centerY);
   ctx.stroke();
-  ctx.fillStyle = `rgba(207,250,254,${0.25 + writeProgress * 0.65})`;
-  ctx.shadowColor = "#a855f7";
+  ctx.fillStyle = personaColor(`rgba(207,250,254,${0.25 + writeProgress * 0.65})`, `rgba(255,245,245,${0.25 + writeProgress * 0.65})`);
+  ctx.shadowColor = personaColor("#a855f7", "#ef4444");
   ctx.shadowBlur = 18;
   ctx.fillRect(writeX - 7, writeY - 4, 14, 8);
   ctx.shadowBlur = 0;
 
-  ctx.fillStyle = "rgba(167,139,250,.95)";
-  ctx.shadowColor = "#a78bfa";
+  ctx.fillStyle = personaColor("rgba(167,139,250,.95)", "rgba(248,113,113,.95)");
+  ctx.shadowColor = personaColor("#a78bfa", "#ef4444");
   ctx.shadowBlur = 28;
   ctx.beginPath();
   ctx.arc(centerX, centerY, 7 + Math.sin(time * 2) * 1.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.fillStyle = "rgba(220,252,248,.92)";
+  ctx.fillStyle = personaColor("rgba(220,252,248,.92)", "rgba(255,245,245,.94)");
   ctx.textAlign = "center";
   ctx.font = "700 18px ui-sans-serif, system-ui";
   ctx.fillText(String(labels.length), centerX, centerY - 18);
   ctx.font = "8px ui-monospace, Menlo, monospace";
   ctx.fillText("MEMÓRIA · REGISTRO CONFIRMADO", centerX, centerY + 26);
   ctx.textAlign = "right";
-  ctx.fillStyle = "rgba(221,214,254,.45)";
+  ctx.fillStyle = personaColor("rgba(221,214,254,.45)", "rgba(254,202,202,.48)");
   ctx.fillText("CONTEXTO · ÍNDICE PERSISTENTE", width - 24, height - 28);
   ctx.restore();
 }
@@ -388,15 +391,17 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
   const aura = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, span * 0.42);
-  aura.addColorStop(0, `rgba(168, 85, 247,${0.13 + assembly * 0.08})`);
-  aura.addColorStop(0.48, "rgba(192,132,252,.045)");
-  aura.addColorStop(1, "rgba(109,40,217,0)");
+  aura.addColorStop(0, personaColor(`rgba(168, 85, 247,${0.13 + assembly * 0.08})`, `rgba(239,68,68,${0.14 + assembly * 0.09})`));
+  aura.addColorStop(0.48, personaColor("rgba(192,132,252,.045)", "rgba(248,113,113,.055)"));
+  aura.addColorStop(1, personaColor("rgba(109,40,217,0)", "rgba(127,29,29,0)"));
   ctx.fillStyle = aura;
   ctx.fillRect(0, 0, width, height);
 
   for (let ring = 1; ring <= 3; ring += 1) {
     const radius = ring * span * 0.09;
-    ctx.strokeStyle = ring === 2 ? "rgba(168, 85, 247,.2)" : "rgba(168,85,247,.12)";
+    ctx.strokeStyle = ring === 2
+      ? personaColor("rgba(168, 85, 247,.2)", "rgba(248,113,113,.24)")
+      : personaColor("rgba(168,85,247,.12)", "rgba(239,68,68,.14)");
     ctx.lineWidth = ring === 2 ? 1.4 : 1;
     ctx.beginPath();
     for (let side = 0; side <= 8; side += 1) {
@@ -415,7 +420,9 @@ function drawForge(ctx, width, height, time, opacity = 1) {
     const angle = component.angle + time * (index % 2 ? -0.08 : 0.08);
     const x = centerX + Math.cos(angle) * distance;
     const y = centerY + Math.sin(angle) * distance * 0.78;
-    ctx.strokeStyle = index % 3 ? "rgba(168,85,247,.11)" : "rgba(168, 85, 247,.18)";
+    ctx.strokeStyle = index % 3
+      ? personaColor("rgba(168,85,247,.11)", "rgba(239,68,68,.13)")
+      : personaColor("rgba(168, 85, 247,.18)", "rgba(248,113,113,.2)");
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(x, y);
@@ -423,8 +430,12 @@ function drawForge(ctx, width, height, time, opacity = 1) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(component.phase + time * (0.18 + index % 3 * 0.04));
-    ctx.strokeStyle = index % 3 ? `rgba(233,213,255,${0.34 + assembly * 0.38})` : `rgba(216,180,254,${0.4 + assembly * 0.4})`;
-    ctx.fillStyle = index % 3 ? "rgba(109,40,217,.12)" : "rgba(168,85,247,.13)";
+    ctx.strokeStyle = index % 3
+      ? personaColor(`rgba(233,213,255,${0.34 + assembly * 0.38})`, `rgba(254,226,226,${0.38 + assembly * 0.4})`)
+      : personaColor(`rgba(216,180,254,${0.4 + assembly * 0.4})`, `rgba(254,202,202,${0.44 + assembly * 0.4})`);
+    ctx.fillStyle = index % 3
+      ? personaColor("rgba(109,40,217,.12)", "rgba(127,29,29,.14)")
+      : personaColor("rgba(168,85,247,.13)", "rgba(239,68,68,.15)");
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.roundRect(-component.size, -component.size * 0.55, component.size * 2, component.size * 1.1, 2);
@@ -435,9 +446,9 @@ function drawForge(ctx, width, height, time, opacity = 1) {
 
   const coreRadius = 12 + assembly * 14;
   const glow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius * 2.4);
-  glow.addColorStop(0, `rgba(243,232,255,${0.7 + assembly * 0.24})`);
-  glow.addColorStop(0.42, `rgba(168, 85, 247,${0.24 + assembly * 0.18})`);
-  glow.addColorStop(1, "rgba(192,132,252,0)");
+  glow.addColorStop(0, personaColor(`rgba(243,232,255,${0.7 + assembly * 0.24})`, `rgba(255,245,245,${0.72 + assembly * 0.24})`));
+  glow.addColorStop(0.42, personaColor(`rgba(168, 85, 247,${0.24 + assembly * 0.18})`, `rgba(239,68,68,${0.28 + assembly * 0.2})`));
+  glow.addColorStop(1, personaColor("rgba(192,132,252,0)", "rgba(248,113,113,0)"));
   ctx.fillStyle = glow;
   ctx.beginPath();
   ctx.arc(centerX, centerY, coreRadius * 2.4, 0, Math.PI * 2);
@@ -446,9 +457,9 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   ctx.beginPath();
   ctx.arc(centerX, centerY, coreRadius * 0.35, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "rgba(168,85,247,.5)";
+  ctx.strokeStyle = personaColor("rgba(168,85,247,.5)", "rgba(248,113,113,.58)");
   ctx.strokeRect(centerX - span * 0.105, centerY - span * 0.06, span * 0.21, span * 0.12);
-  ctx.fillStyle = "rgba(233,213,255,.75)";
+  ctx.fillStyle = personaColor("rgba(233,213,255,.75)", "rgba(254,226,226,.8)");
   ctx.font = "700 9px ui-monospace, Menlo, monospace";
   ctx.textAlign = "center";
   ctx.fillText("FORJA · CONSTRUÇÃO EM CURSO", centerX, centerY + span * 0.28);
@@ -456,7 +467,9 @@ function drawForge(ctx, width, height, time, opacity = 1) {
     const angle = -Math.PI * 0.8 + index * Math.PI * 0.53;
     const x = centerX + Math.cos(angle) * span * 0.27;
     const y = centerY + Math.sin(angle) * span * 0.25;
-    ctx.fillStyle = index <= Math.floor(assembly * 4) ? "rgba(233,213,255,.72)" : "rgba(233,213,255,.38)";
+    ctx.fillStyle = index <= Math.floor(assembly * 4)
+      ? personaColor("rgba(233,213,255,.72)", "rgba(254,226,226,.78)")
+      : personaColor("rgba(233,213,255,.38)", "rgba(254,202,202,.42)");
     ctx.fillText(label, x, y);
   });
   ctx.restore();
