@@ -30,35 +30,6 @@
   white-space: nowrap;
 }
 
-.composer {
-  grid-template-columns: 40px 56px 46px 1fr;
-  grid-template-rows: auto auto;
-  gap: 8px 8px;
-}
-.composer .attachment-button { grid-column: 1; grid-row: 1; }
-.composer .strength-button { grid-column: 2; grid-row: 1; justify-self: start; }
-.composer .voice-button,
-.composer .send-button {
-  grid-column: 3;
-  grid-row: 1;
-  width: 46px;
-  min-width: 46px;
-  min-height: 46px;
-  padding: 0;
-  border-radius: 50%;
-  place-self: start center;
-}
-.composer input,
-.composer textarea {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  min-height: 52px;
-  overflow: hidden;
-  resize: none;
-  scrollbar-width: none;
-}
-.composer textarea::-webkit-scrollbar { display: none; }
-
 .composer[data-has-payload="false"] .send-button,
 .composer[data-has-payload="true"] .voice-button { display: none; }
 .send-button { font-size: 0; }
@@ -190,95 +161,10 @@ html[data-persona="ultron"] .new-conversation-button:focus-visible {
   white-space: nowrap;
 }
 
-.access-mode {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.access-swap {
-  width: 13px;
-  height: 13px;
-  flex: 0 0 13px;
-}
-.scene-objective,
-.state-beacon,
-.hud-rail,
-.scene-telemetry,
-#sceneCommandButton {
-  display: none !important;
-}
-.stage[data-access="guest"] #tourButton,
-.stage[data-access="guest"] #actionHubButton,
-.stage[data-access="guest"] #integrationsButton {
-  display: none;
-}
 .identity-name small a {
   color: inherit;
   text-decoration: none;
 }
-.github-star-button {
-  display: inline-block;
-  width: 80px;
-  height: 20px;
-  border: 0;
-  overflow: hidden;
-  vertical-align: middle;
-  background: #fff;
-  border-radius: 4px;
-}
-.conversation,
-.stage.has-conversation .conversation {
-  left: var(--conversation-left, 50%);
-  top: var(--conversation-top, auto);
-  bottom: var(--conversation-bottom, 16px);
-  width: var(--conversation-width, min(720px, calc(100vw - 32px)));
-  height: var(--conversation-height, min(56vh, 460px));
-  transform: var(--conversation-transform, translateX(-50%));
-  background: rgba(14, 8, 24, 0.94);
-}
-#connectionText { display: none; }
-.conversation-head { padding-top: 18px; }
-.conversation-move,
-.conversation-edges {
-  position: absolute;
-  grid-column: 1;
-  grid-row: 1 / -1;
-  z-index: 4;
-  pointer-events: none;
-}
-.conversation-edges { inset: 0; }
-.conversation-move {
-  top: 10px;
-  left: 50%;
-  width: 56px;
-  height: 8px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgba(216, 180, 254, 0.35);
-  cursor: grab;
-  pointer-events: auto;
-}
-.conversation-move:active { cursor: grabbing; }
-.conversation-edges i {
-  position: absolute;
-  pointer-events: auto;
-}
-.conversation-edges [data-edge="n"],
-.conversation-edges [data-edge="s"] { left: 18px; right: 18px; height: 10px; cursor: ns-resize; }
-.conversation-edges [data-edge="n"] { top: 0; }
-.conversation-edges [data-edge="s"] { bottom: 0; }
-.conversation-edges [data-edge="e"],
-.conversation-edges [data-edge="w"] { top: 18px; bottom: 18px; width: 10px; cursor: ew-resize; }
-.conversation-edges [data-edge="e"] { right: 0; }
-.conversation-edges [data-edge="w"] { left: 0; }
-.conversation-edges [data-edge="ne"],
-.conversation-edges [data-edge="nw"],
-.conversation-edges [data-edge="se"],
-.conversation-edges [data-edge="sw"] { width: 16px; height: 16px; }
-.conversation-edges [data-edge="ne"] { top: 0; right: 0; cursor: nesw-resize; }
-.conversation-edges [data-edge="nw"] { top: 0; left: 0; cursor: nwse-resize; }
-.conversation-edges [data-edge="se"] { bottom: 0; right: 0; cursor: nwse-resize; }
-.conversation-edges [data-edge="sw"] { bottom: 0; left: 0; cursor: nesw-resize; }
 .conversation-feed,
 .message,
 .welcome,
@@ -366,11 +252,5 @@ html[data-persona="ultron"] .shimmer-loader::after {
 }
 
 @media (max-width: 720px) {
-  .composer { grid-template-columns: 40px 50px 46px 1fr; }
   .strength-button { min-width: 50px; }
-}
-@media (max-width: 350px) {
-  .composer { grid-template-columns: 38px 46px 44px 1fr; gap: 6px; }
-  .composer .voice-button,
-  .composer .send-button { width: 44px; min-width: 44px; }
 }

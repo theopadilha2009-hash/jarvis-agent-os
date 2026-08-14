@@ -1132,55 +1132,16 @@ button {
   55%, 100% { left: 112%; }
 }
 
+/* Geometria da janela vive em shell.css. Aqui só a pele. */
 .conversation {
-  position: absolute;
-  z-index: 12;
-  left: 50%;
-  bottom: 16px;
-  width: clamp(560px, 52vw, 720px);
-  height: var(--conversation-height, 220px);
-  display: grid;
-  grid-template-rows: 12px auto minmax(0, 1fr) auto auto;
-  transform: translateX(-50%);
-  border: 1px solid rgba(168, 85, 247, 0.12);
-  border-radius: 24px;
-  background: rgba(18, 8, 34, 0.78);
-  box-shadow: 0 32px 110px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(20px);
-  transition: width 320ms ease, background 320ms ease;
-}
-
-.stage.has-conversation .conversation {
-  width: clamp(620px, 57vw, 780px);
-  height: var(--conversation-height, min(48vh, calc(100% - 88px)));
-  background: rgba(18, 8, 34, 0.88);
 }
 
 .stage.has-conversation .state-beacon {
   display: none;
 }
 
-.conversation-resize {
-  grid-row: 1;
-  width: 72px;
-  height: 12px;
-  margin: 2px auto 0;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(216, 180, 254, 0.28);
-  cursor: ns-resize;
-  touch-action: none;
-}
-
-.conversation-resize:hover,
-.conversation-resize:focus-visible {
-  background: rgba(192, 132, 252, 0.7);
-  outline: none;
-}
-
 .conversation-head {
-  grid-row: 2;
-  min-height: 30px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1743,11 +1704,6 @@ button {
 .message-actions .cancel-run { color: #fca5a5; }
 
 .composer {
-  grid-row: 4;
-  display: grid;
-  grid-template-columns: 46px 38px minmax(0, 1fr) auto;
-  gap: 8px;
-  padding: 9px 11px 11px;
   border-top: 1px solid rgba(168, 85, 247, 0.09);
 }
 
@@ -1762,11 +1718,7 @@ button {
   padding: 11px 15px;
   font: inherit;
   font-size: 14px;
-  resize: vertical;
-  min-height: 44px;
-  max-height: 168px;
   line-height: 1.4;
-  overflow-y: auto;
 }
 
 .composer input:focus,
@@ -2595,13 +2547,6 @@ dialog::backdrop {
   }
 
   .conversation {
-    bottom: 22px;
-    width: clamp(620px, 53vw, 760px);
-    height: 142px;
-    border-color: rgba(168, 85, 247, 0.13);
-    border-radius: 18px;
-    background: linear-gradient(180deg, rgba(3, 4, 16, 0.78), rgba(2, 4, 16, 0.9));
-    box-shadow: 0 30px 100px rgba(0, 0, 0, 0.42), inset 0 1px rgba(255, 255, 255, 0.025);
     backdrop-filter: blur(28px);
   }
 
@@ -2616,12 +2561,6 @@ dialog::backdrop {
     background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--state) 72%, white), transparent);
     opacity: 0.48;
     pointer-events: none;
-  }
-
-  .stage.has-conversation .conversation {
-    width: clamp(660px, 56vw, 800px);
-    height: min(236px, calc(100% - 172px));
-    background: linear-gradient(180deg, rgba(3, 4, 16, 0.88), rgba(2, 4, 16, 0.96));
   }
 
   .conversation-head { padding-inline: 18px; }
@@ -2663,15 +2602,11 @@ dialog::backdrop {
 
 @media (max-width: 1120px) {
   .hud-rail { width: 220px; }
-  .conversation { width: min(720px, calc(100% - 48px)); }
-  .stage.has-conversation .conversation { width: min(780px, calc(100% - 48px)); }
   .spoken-caption { width: min(440px, 46vw); }
 }
 
 @media (max-width: 940px) {
   .hud-rail { display: none; }
-  .conversation { width: calc(100% - 28px); }
-  .stage.has-conversation .conversation { width: calc(100% - 28px); }
   .spoken-caption { width: min(520px, calc(100% - 40px)); }
 }
 
@@ -2718,19 +2653,6 @@ dialog::backdrop {
   .avatar { inset: -1% -18% 42%; transition: inset 280ms ease, bottom 280ms ease, opacity 280ms ease; }
   .target-ring { top: 25%; width: 220px; }
   .spoken-caption { bottom: calc(43% + 22px); width: calc(100% - 28px); font-size: 12px; }
-  .conversation {
-    bottom: max(8px, env(safe-area-inset-bottom));
-    width: calc(100% - 16px);
-    height: 218px;
-    border-radius: 24px 24px 18px 18px;
-    transition: width 260ms ease, height 260ms ease, background 260ms ease;
-  }
-  .stage.has-conversation .conversation,
-  .stage.mobile-chat-expanded .conversation {
-    width: calc(100% - 16px);
-    height: min(64%, 540px);
-    min-height: 330px;
-  }
   .stage.mobile-chat-expanded .avatar,
   .stage.has-conversation .avatar { bottom: 54%; opacity: 0.34; }
   .stage.mobile-chat-expanded .target-ring,
@@ -2748,14 +2670,8 @@ dialog::backdrop {
   .request-progress span::after { display: none; }
   .starter-actions { gap: 5px; }
   .starter-actions button { min-height: 42px; padding: 8px 11px; font-size: 9px; }
-  .composer { grid-template-columns: 44px 38px minmax(0, 1fr) auto; }
-  .composer {
-    grid-template-columns: 44px 44px minmax(0, 1fr) auto;
-    gap: 6px;
-    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
-  }
   .composer input,
-  .composer textarea { min-height: 44px; padding: 10px 12px; border-radius: 14px; font-size: 16px; }
+  .composer textarea { padding: 10px 12px; border-radius: 14px; }
   .voice-button,
   .attachment-button,
   .send-button { min-width: 44px; min-height: 44px; border-radius: 14px; }
@@ -2795,23 +2711,9 @@ dialog::backdrop {
   #tourButton { display: none; }
 
   .stage.mobile-keyboard-open .presence { opacity: 0.12; }
-  .stage.mobile-keyboard-open .conversation {
-    top: 6px;
-    right: 6px;
-    bottom: max(4px, env(safe-area-inset-bottom));
-    left: 6px;
-    width: auto;
-    height: auto;
-    min-height: 0;
-    transform: none;
-  }
 }
 
 /* ULTRON mode — authenticated identity, red environment and controlled menace. */
-.composer {
-  grid-template-columns: 46px 38px minmax(112px, 1fr) 58px 74px;
-}
-
 .strength-button {
   min-width: 58px;
   display: grid;
@@ -3095,7 +2997,6 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
 }
 
 @media (max-width: 720px) {
-  .composer { grid-template-columns: 44px 44px minmax(72px, 1fr) 50px 64px; }
   .strength-button { min-width: 50px; padding-inline: 4px; }
   html[data-persona="ultron"] .conversation,
   html[data-persona="ultron"] .stage.has-conversation .conversation,
@@ -3106,7 +3007,6 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
 }
 
 @media (max-width: 350px) {
-  .composer { grid-template-columns: 42px 42px minmax(52px, 1fr) 46px 44px; }
   .strength-button { min-width: 46px; }
 }
 
@@ -3142,8 +3042,6 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
 }
 
 @media (max-height: 700px) and (min-width: 721px) {
-  .conversation { bottom: 14px; }
-  .stage.has-conversation .conversation { height: var(--conversation-height, min(58vh, calc(100% - 72px))); }
   .spoken-caption { bottom: 256px; }
 }
 
@@ -3334,19 +3232,6 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
 
   .conversation,
   .stage.has-conversation .conversation {
-    top: 20px;
-    right: 20px;
-    bottom: 20px;
-    left: auto;
-    width: clamp(390px, 28.5vw, 460px);
-    height: auto;
-    transform: none;
-    border-color: rgba(168, 85, 247, 0.12);
-    border-radius: 20px;
-    background:
-      radial-gradient(circle at 100% 0, rgba(109, 40, 217, 0.08), transparent 38%),
-      linear-gradient(180deg, rgba(3, 4, 16, 0.93), rgba(2, 4, 16, 0.97));
-    box-shadow: 0 32px 120px rgba(0, 0, 0, 0.36), inset 0 1px rgba(255, 255, 255, 0.025);
     backdrop-filter: blur(12px);
   }
 
@@ -3383,14 +3268,11 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
   }
 
   .composer {
-    grid-template-columns: 46px 40px minmax(150px, 1fr) 58px 76px;
-    gap: 7px;
-    padding: 12px;
     background: rgba(2, 4, 16, 0.76);
   }
 
   .composer input,
-  .composer textarea { min-height: 46px; padding-inline: 14px; }
+  .composer textarea { padding-inline: 14px; }
   .voice-button,
   .attachment-button,
   .send-button { min-height: 46px; border-radius: 14px; }
@@ -3400,9 +3282,6 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
 }
 
 @media (min-width: 1500px) {
-  .presence { right: 490px; }
-  .conversation,
-  .stage.has-conversation .conversation { width: 450px; }
   .avatar { inset: -8% 1% 7%; }
 }
 
@@ -3522,7 +3401,6 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
   .quality-button { opacity: 0.58; }
 
   .presence {
-    right: clamp(396px, 27vw, 438px);
     border-right-color: rgba(139, 92, 246, 0.06);
   }
 
@@ -3556,24 +3434,9 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
 
   .scene-telemetry { left: 42px; bottom: 30px; opacity: 0.48; }
 
-  .conversation,
-  .stage.has-conversation .conversation {
-    top: 28px;
-    right: 26px;
-    bottom: 28px;
-    width: clamp(360px, 24vw, 400px);
-    border-color: rgba(139, 92, 246, 0.1);
-    background:
-      radial-gradient(circle at 100% 0, rgba(109, 40, 217, 0.08), transparent 40%),
-      linear-gradient(180deg, rgba(3, 4, 16, 0.84), rgba(7, 3, 14, 0.91));
-    box-shadow: 0 30px 110px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.025);
-  }
 }
 
 @media (min-width: 1500px) {
-  .presence { right: 438px; }
-  .conversation,
-  .stage.has-conversation .conversation { width: 400px; }
   .avatar { inset: 4% 5% 12%; }
 }
 

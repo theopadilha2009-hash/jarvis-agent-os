@@ -2574,7 +2574,7 @@
   function syncComposerHeight() {
     if (!input) return;
     input.style.height = "auto";
-    input.style.height = `${Math.min(168, Math.max(44, input.scrollHeight))}px`;
+    input.style.height = `${Math.min(120, Math.max(50, input.scrollHeight))}px`;
   }
 
   function clamp(value, min, max) {
@@ -2586,10 +2586,11 @@
     if (!panel || !rect) return;
     const minW = 280;
     const minH = 240;
+    const topbar = 60;
     const width = clamp(rect.width, minW, window.innerWidth - 16);
-    const height = clamp(rect.height, minH, window.innerHeight - 16);
+    const height = clamp(rect.height, minH, window.innerHeight - topbar - 16);
     const left = clamp(rect.left, 8, Math.max(8, window.innerWidth - width - 8));
-    const top = clamp(rect.top, 8, Math.max(8, window.innerHeight - height - 8));
+    const top = clamp(rect.top, topbar, Math.max(topbar, window.innerHeight - height - 8));
     panel.dataset.placed = "1";
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
@@ -2684,6 +2685,10 @@
     panel.querySelectorAll(".conversation-edges [data-edge]").forEach((handle) => {
       handle.addEventListener("pointerdown", (event) => begin(handle.dataset.edge, event));
       handle.addEventListener("touchstart", (event) => begin(handle.dataset.edge, event), { passive: false });
+    });
+    window.addEventListener("resize", () => {
+      const box = panel.getBoundingClientRect();
+      applyConversationRect({ left: box.left, top: box.top, width: box.width, height: box.height }, false);
     });
     try {
       const saved = JSON.parse(localStorage.getItem(CHAT_RECT_KEY) || "null");
