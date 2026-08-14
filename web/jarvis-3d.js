@@ -798,14 +798,17 @@ async function start() {
   const nucleusRay = new THREE.Vector3();
   function placeMiniNuclei() {
     const compact = canvasWidth < 760;
-    const centerX = compact ? 34 : 58;
-    const diameter = compact ? 30 : 44;
-    const rows = [0.5, 0.645, 0.79];
+    // Miniatura de verdade: dá para reconhecer o núcleo, não é um pontinho.
+    const diameter = Math.min(compact ? 76 : 130, Math.max(60, canvasHeight * 0.17), canvasWidth * 0.22);
+    const centerX = Math.round(18 + diameter / 2);
+    const step = Math.max(diameter * 1.14, canvasHeight * 0.145);
+    const first = Math.min(canvasHeight * 0.46, canvasHeight - diameter / 2 - 8 - step * 2);
+    const rows = [first, first + step, first + step * 2];
     camera.updateMatrixWorld(true);
     const depth = camera.position.z - MINI_PLANE_Z;
     const viewHeight = 2 * Math.tan((camera.fov * Math.PI) / 180 / 2) * depth;
     miniNuclei.forEach((nucleus, index) => {
-      const pixelY = canvasHeight * rows[index];
+      const pixelY = rows[index];
       nucleusRay.set((centerX / canvasWidth) * 2 - 1, -((pixelY / canvasHeight) * 2 - 1), 0.5)
         .unproject(camera)
         .sub(camera.position)
