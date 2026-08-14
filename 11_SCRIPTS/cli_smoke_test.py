@@ -729,7 +729,7 @@ CHECKS = [
             "JARVIS Self Edit",
             "GitHub main + Vercel production autorizados",
             "theopadilha2009-hash/jarvis-agent-os",
-            "jarvis-agent-os-delta.vercel.app",
+            "jarvis-theo.vercel.app",
             "Produção: nada alterado",
         ],
     },

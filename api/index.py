@@ -179,7 +179,7 @@ GITHUB_RESEARCH_PATTERN = re.compile(
 )
 FREE_SEARCH_RESULT_LIMIT = 10
 GITHUB_DEEP_RESULT_LIMIT = 3
-FREE_SEARCH_USER_AGENT = "Mozilla/5.0 (compatible; TheoJarvisResearch/1.0; +https://jarvis-agent-os-delta.vercel.app)"
+FREE_SEARCH_USER_AGENT = "Mozilla/5.0 (compatible; TheoJarvisResearch/1.0; +https://jarvis-theo.vercel.app)"
 PUBLIC_READER_URL = "https://r.jina.ai/"
 PUBLIC_SEARCH_CACHE_SECONDS = 300.0
 DEFAULT_FREE_MODEL_POOL = (
