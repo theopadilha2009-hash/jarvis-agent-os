@@ -29,7 +29,7 @@ githubStar.className = "github-star-button";
 githubStar.title = "Star no GitHub";
 githubStar.setAttribute("aria-label", "Dar uma estrela no GitHub");
 githubStar.src = "https://ghbtns.com/github-btn.html?user=theopadilha2009-hash&repo=jarvis-agent-os&type=star&count=true";
-githubStar.width = "92";
+githubStar.width = "80";
 githubStar.height = "20";
 githubStar.loading = "lazy";
 document.getElementById("integrationsButton")?.before(githubStar);

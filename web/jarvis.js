@@ -36,6 +36,7 @@
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   const CHAT_HEIGHT_KEY = "jarvis-chat-height";
+  const CHAT_RECT_KEY = "jarvis-chat-rect";
   const MAX_VISIBLE_MESSAGES = 24;
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
@@ -1859,9 +1860,12 @@
     const controller = new AbortController();
     currentSpeechController = controller;
     const clientIntegrations = await runtimeClientIntegrations();
+    const headers = { "Content-Type": "application/json" };
+    const token = ownerToken();
+    if (token) headers["X-Jarvis-Owner-Token"] = token;
     const response = await fetch("/speech", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         text,
         previous_text: previousText,
@@ -1963,11 +1967,36 @@
     byId("voiceValue").textContent = status;
     byId("voiceLink").textContent = status.toLowerCase();
     byId("integrationValue").textContent = `IA · ${status}`;
-    byId("integrationHint").textContent = "A conversa continua em texto; a saída humana aguarda cota válida da ElevenLabs.";
-    if (!voiceFailureNotified) {
-      voiceFailureNotified = true;
-      addMessage(`Áudio não reproduzido: ${status}. A resposta em texto continua funcionando.`, "voice-status");
-    }
+    byId("integrationHint").textContent = "ElevenLabs falhou; a voz do navegador cobre enquanto isso.";
+  }
+
+  function speakBrowser(text, generation) {
+    const synth = window.speechSynthesis;
+    if (!synth || !text) return false;
+    synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "pt-BR";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.onstart = () => {
+      if (generation === speechGeneration) beginSpeaking(text);
+    };
+    utterance.onend = () => {
+      if (generation === speechGeneration) finishSpeaking();
+    };
+    utterance.onerror = () => {
+      if (generation === speechGeneration) finishSpeaking();
+    };
+    const pickVoice = () => {
+      const voices = synth.getVoices() || [];
+      const pt = voices.find((voice) => /pt-BR|portuguese/i.test(`${voice.lang} ${voice.name}`));
+      if (pt) utterance.voice = pt;
+      synth.speak(utterance);
+    };
+    if (synth.getVoices().length) pickVoice();
+    else synth.addEventListener("voiceschanged", pickVoice, { once: true });
+    byId("voiceValue").textContent = "Voz do navegador";
+    return true;
   }
 
   async function speak(text) {
@@ -1977,7 +2006,6 @@
     stopSpeechOutput();
     if (session.muted) return false;
     const generation = speechGeneration;
-    if (!session.elevenlabs) return false;
     session.voicePending = true;
     const voiceRequestedAt = performance.now();
     byId("spokenCaption").textContent = "Preparando voz…";
@@ -2009,11 +2037,11 @@
       session.voiceError = "";
       voiceFailureNotified = false;
       if (generation === speechGeneration) finishSpeaking();
-      return played;
+      if (played) return true;
+      return speakBrowser(chunks.join(" "), generation);
     } catch (error) {
       if (error?.name === "AbortError") return false;
       if (generation === speechGeneration) {
-        finishSpeaking();
         const errorCode = error?.message;
         const status = {
           elevenlabs_quota: "ElevenLabs sem créditos",
@@ -2021,6 +2049,7 @@
           elevenlabs_rate_limit: "ElevenLabs no limite",
         }[errorCode] || "ElevenLabs indisponível";
         reportVoiceFailure(status, ["elevenlabs_quota", "elevenlabs_authorization"].includes(errorCode));
+        return speakBrowser(chunks.join(" "), generation);
       }
       return false;
     } finally {
@@ -2548,27 +2577,73 @@
     input.style.height = `${Math.min(168, Math.max(44, input.scrollHeight))}px`;
   }
 
-  function applyConversationHeight(px, persist = true) {
+  function clamp(value, min, max) {
+    return Math.round(Math.min(max, Math.max(min, value)));
+  }
+
+  function applyConversationRect(rect, persist = true) {
     const panel = document.querySelector(".conversation");
-    if (!panel) return;
-    const min = 220;
-    const max = Math.max(min, window.innerHeight - 88);
-    const height = Math.round(Math.min(max, Math.max(min, Number(px) || min)));
+    if (!panel || !rect) return;
+    const minW = 280;
+    const minH = 240;
+    const width = clamp(rect.width, minW, window.innerWidth - 16);
+    const height = clamp(rect.height, minH, window.innerHeight - 16);
+    const left = clamp(rect.left, 8, Math.max(8, window.innerWidth - width - 8));
+    const top = clamp(rect.top, 8, Math.max(8, window.innerHeight - height - 8));
+    panel.style.setProperty("--conversation-left", `${left}px`);
+    panel.style.setProperty("--conversation-top", `${top}px`);
+    panel.style.setProperty("--conversation-width", `${width}px`);
     panel.style.setProperty("--conversation-height", `${height}px`);
+    panel.style.setProperty("--conversation-transform", "none");
+    panel.style.setProperty("--conversation-bottom", "auto");
     if (persist) {
-      try { localStorage.setItem(CHAT_HEIGHT_KEY, String(height)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(CHAT_RECT_KEY, JSON.stringify({ left, top, width, height }));
+        localStorage.setItem(CHAT_HEIGHT_KEY, String(height));
+      } catch { /* ignore */ }
     }
   }
 
+  function defaultConversationRect() {
+    const width = Math.min(720, window.innerWidth - 32);
+    const height = Math.min(Math.round(window.innerHeight * 0.56), 460, window.innerHeight - 32);
+    return {
+      width,
+      height,
+      left: Math.round((window.innerWidth - width) / 2),
+      top: window.innerHeight - height - 16,
+    };
+  }
+
   function bindConversationResize() {
-    const handle = byId("conversationResize");
     const panel = document.querySelector(".conversation");
-    if (!handle || !panel) return;
+    if (!panel) return;
+    let startX = 0;
     let startY = 0;
-    let startHeight = 0;
+    let start = {};
+    let edge = "";
+    const pointOf = (event) => event.touches ? event.touches[0] : event;
     const onMove = (event) => {
-      const point = event.touches ? event.touches[0] : event;
-      applyConversationHeight(startHeight + (startY - point.clientY));
+      const point = pointOf(event);
+      const dx = point.clientX - startX;
+      const dy = point.clientY - startY;
+      const next = { ...start };
+      if (edge === "move") {
+        next.left = start.left + dx;
+        next.top = start.top + dy;
+      } else {
+        if (edge.includes("e")) next.width = start.width + dx;
+        if (edge.includes("s")) next.height = start.height + dy;
+        if (edge.includes("w")) {
+          next.width = start.width - dx;
+          next.left = start.left + dx;
+        }
+        if (edge.includes("n")) {
+          next.height = start.height - dy;
+          next.top = start.top + dy;
+        }
+      }
+      applyConversationRect(next);
       event.preventDefault();
     };
     const onEnd = () => {
@@ -2577,22 +2652,38 @@
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
     };
-    const onStart = (event) => {
-      const point = event.touches ? event.touches[0] : event;
+    const begin = (nextEdge, event) => {
+      const point = pointOf(event);
+      const box = panel.getBoundingClientRect();
+      edge = nextEdge;
+      startX = point.clientX;
       startY = point.clientY;
-      startHeight = panel.getBoundingClientRect().height;
+      start = { left: box.left, top: box.top, width: box.width, height: box.height };
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onEnd);
       window.addEventListener("touchmove", onMove, { passive: false });
       window.addEventListener("touchend", onEnd);
       event.preventDefault();
     };
-    handle.addEventListener("pointerdown", onStart);
-    handle.addEventListener("touchstart", onStart, { passive: false });
+    byId("conversationMove")?.addEventListener("pointerdown", (event) => begin("move", event));
+    byId("conversationMove")?.addEventListener("touchstart", (event) => begin("move", event), { passive: false });
+    panel.querySelectorAll(".conversation-edges [data-edge]").forEach((handle) => {
+      handle.addEventListener("pointerdown", (event) => begin(handle.dataset.edge, event));
+      handle.addEventListener("touchstart", (event) => begin(handle.dataset.edge, event), { passive: false });
+    });
     try {
-      const saved = Number(localStorage.getItem(CHAT_HEIGHT_KEY));
-      if (saved >= 220) applyConversationHeight(saved, false);
-    } catch { /* ignore */ }
+      const saved = JSON.parse(localStorage.getItem(CHAT_RECT_KEY) || "null");
+      if (saved && saved.width && saved.height) {
+        applyConversationRect(saved, false);
+        return;
+      }
+      const legacy = Number(localStorage.getItem(CHAT_HEIGHT_KEY));
+      const rect = defaultConversationRect();
+      if (legacy >= 220) rect.height = legacy;
+      applyConversationRect(rect, false);
+    } catch {
+      applyConversationRect(defaultConversationRect(), false);
+    }
   }
 
   byId("commandForm").addEventListener("submit", (event) => {

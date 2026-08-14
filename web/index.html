@@ -15,7 +15,7 @@
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
 <link rel="stylesheet" href="/ui/jarvis.css?v=20260814-chatfix1">
-<link rel="stylesheet" href="/ui/ui-repair.css?v=20260814-chatfix9">
+<link rel="stylesheet" href="/ui/ui-repair.css?v=20260814-chatfix10">
 <link rel="stylesheet" href="/ui/api-panel.css?v=20260813-ultronfix1">
 <link rel="stylesheet" href="/ui/responsive-polish.css?v=20260814-chatfix1">
   <script type="importmap">
@@ -161,8 +161,18 @@
         </aside>
       </section>
 
-      <section class="conversation" aria-label="Conversa com JARVIS">
-        <div class="conversation-resize" id="conversationResize" role="separator" aria-orientation="horizontal" aria-label="Arraste para aumentar o chat" title="Arraste para aumentar o chat"></div>
+      <section class="conversation" id="conversationPanel" aria-label="Conversa com JARVIS">
+        <div class="conversation-move" id="conversationMove" title="Arrastar o chat"></div>
+        <div class="conversation-edges" aria-hidden="true">
+          <i data-edge="n" id="conversationResize"></i>
+          <i data-edge="s"></i>
+          <i data-edge="e"></i>
+          <i data-edge="w"></i>
+          <i data-edge="ne"></i>
+          <i data-edge="nw"></i>
+          <i data-edge="se"></i>
+          <i data-edge="sw"></i>
+        </div>
         <div class="conversation-head">
           <span><i aria-hidden="true"></i><b id="conversationAssistantName">JARVIS</b><small id="conversationState">pronto</small></span>
           <div class="conversation-head-actions">
@@ -398,7 +408,7 @@
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/feature-loader.js?v=20260814-chatfix2" defer></script>
 <script src="/ui/device-feedback.js?v=20260813-device1" defer></script>
-<script src="/ui/jarvis.js?v=20260814-chatfix9" defer></script>
+<script src="/ui/jarvis.js?v=20260814-chatfix10" defer></script>
 <script type="module" src="/ui/presence-loader.js?v=20260813-ultronfix1"></script>
 </body>
 </html>
