@@ -29,7 +29,7 @@ VERCEL_PROJECT = {
     "orgId": "team_NZSAr4PoQtmbTxc2MxkMpKUu",
     "projectName": "jarvis-agent-os",
 }
-PRODUCTION_URL = "https://jarvis-agent-os-delta.vercel.app"
+PRODUCTION_URL = "https://jarvis-theo.vercel.app"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 SECRET_LIKE = re.compile(
     r"\b(?:sk-or-v1-|sbp_|vcp_|sk_)[A-Za-z0-9_-]{12,}|"
