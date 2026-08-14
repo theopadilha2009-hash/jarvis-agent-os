@@ -197,9 +197,20 @@ html[data-persona="ultron"] .new-conversation-button:focus-visible {
 }
 .stage[data-access="guest"] #tourButton,
 .stage[data-access="guest"] #actionHubButton,
-.stage[data-access="guest"] #integrationsButton,
-.stage[data-access="guest"] .github-star-button {
+.stage[data-access="guest"] #integrationsButton {
   display: none;
+}
+.identity-name small a {
+  color: inherit;
+  text-decoration: none;
+}
+.github-star-button {
+  display: inline-block;
+  width: 92px;
+  height: 20px;
+  border: 0;
+  overflow: hidden;
+  vertical-align: middle;
 }
 .conversation,
 .stage.has-conversation .conversation {

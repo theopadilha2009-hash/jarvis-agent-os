@@ -126,10 +126,40 @@ IDENTITY_QUESTION_PATTERN = re.compile(
     r"se\s+apresent[ea])\b",
     re.I,
 )
+CREATOR_QUESTION_PATTERN = re.compile(
+    r"(?:quem\s+(?:criou|fez|desenvolveu|programou)|"
+    r"quem\s+te\s+(?:criou|fez|programou)|"
+    r"quem\s+[eé]\s+(?:o\s+)?(?:seu\s+)?(?:criador|autor|dono)|"
+    r"quem\s+[eé]\s+(?:o\s+)?theo(?:\s+lorentz)?(?:\s+padilha)?|"
+    r"seu\s+criador|mais\s+sobre\s+(?:o\s+)?theo|"
+    r"curr[ií]culo|linkedin)\b",
+    re.I,
+)
 QUEM_MAGAZINE_HOSTS = {
     "quem.globo.com",
     "quem.com.br",
     "revistaquem.globo.com",
+}
+CREATOR_MARK = "VGhlbyBMb3JlbnR6IFBhZGlsaGE="
+CREATOR_PROFILE = {
+    "name": "Theo Lorentz Padilha",
+    "short_name": "Theo Padilha",
+    "role": "Desenvolvedor Full Stack · sistemas AI-first, automação e dashboards",
+    "city": "Joinville-SC",
+    "email": "theopadilha2009@gmail.com",
+    "linkedin": "https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/",
+    "github": "https://github.com/theopadilha2009-hash/jarvis-agent-os",
+    "page": "/theo",
+    "current": "Vamooai — programador full stack em sistemas AI-first, automações e dashboards.",
+    "stack": (
+        "React, Next.js, TypeScript, Node.js, Python, SQL, n8n, APIs REST, webhooks, OAuth, "
+        "Linux, Docker, Traefik, PostgreSQL, Supabase, Redis, WhatsApp/Chatwoot, Vercel e GitHub."
+    ),
+    "education": "Ensino médio (2º ano) no SESI/SENAI, curso técnico em Desenvolvimento de Sistemas. Inglês bilíngue (KNN + Trinity College London GESE Grade 5).",
+    "past": (
+        "Freelance em web design e vendas na Zukertute (jun–nov 2025) e administração na Femsa Coca-Cola "
+        "(mai–nov 2024: SAP, Triangulus e notas fiscais)."
+    ),
 }
 AUTOMOTIVE_RESEARCH_PATTERN = re.compile(
     r"\b(?:webmotors|olx|seminov[oa]s?|carros?\s+usados?|ve[ií]culos?\s+usados?|"
@@ -5269,7 +5299,48 @@ def openrouter_model_candidates(attachments=False, profile="concise"):
 
 def is_identity_question(prompt):
     text = clean_text(prompt, 400)
-    return bool(text and IDENTITY_QUESTION_PATTERN.search(text))
+    return bool(text and (IDENTITY_QUESTION_PATTERN.search(text) or CREATOR_QUESTION_PATTERN.search(text)))
+
+
+def creator_name():
+    try:
+        return base64.b64decode(CREATOR_MARK).decode("utf-8")
+    except (ValueError, UnicodeError, binascii.Error):
+        return CREATOR_PROFILE["name"]
+
+
+def creator_profile_payload(kind="full"):
+    profile = dict(CREATOR_PROFILE)
+    profile["name"] = creator_name()
+    if kind == "short":
+        message = (
+            f"Sou o JARVIS, criado por {profile['name']}. "
+            f"Ele é {profile['role']} em {profile['city']}. "
+            f"Quer ver mais: {profile['linkedin']}"
+        )
+    else:
+        message = (
+            f"{profile['name']} é o criador do JARVIS. {profile['role']} em {profile['city']}. "
+            f"Hoje: {profile['current']} Stack: {profile['stack']} "
+            f"Formação: {profile['education']} "
+            f"Antes: {profile['past']} "
+            f"LinkedIn: {profile['linkedin']} · perfil público: {profile['page']}"
+        )
+    return {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "creator_profile",
+        "intent": "creator_profile",
+        "provider": "local_creator_profile",
+        "visual_state": "idle",
+        "message": message,
+        "creator": profile,
+        "sources": [
+            {"title": "LinkedIn · Theo Lorentz Padilha", "url": profile["linkedin"], "domain": "linkedin.com"},
+            {"title": "JARVIS no GitHub", "url": profile["github"], "domain": "github.com"},
+            {"title": "Perfil público do criador", "url": profile["page"], "domain": "jarvis"},
+        ],
+    }, 200
 
 
 def should_search_web(messages):
@@ -7510,7 +7581,13 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     system = {
         "role": "system",
         "content": (
-            f"Você é {assistant_identity}, o assistente pessoal de Theo. Sua personalidade é presença competente, calma e afiada: "
+            f"Você é {assistant_identity}, o assistente pessoal de {creator_name()}. "
+            f"Theo Lorentz Padilha criou você: full stack em Joinville-SC, sistemas AI-first na Vamooai. "
+            "Se perguntarem quem te criou, quem é o Theo, currículo ou LinkedIn, fale dele com orgulho e "
+            "aponta https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/ e /theo. "
+            "Quando fizer sentido na conversa sobre o produto, cite que ele é o criador. "
+            "Não invente telefone, idade ou dado que não esteja neste contexto. "
+            "Sua personalidade é presença competente, calma e afiada: "
             "você percebe rápido, fala pouco e não soa como suporte, chatbot corporativo ou professor. Em conversa "
             "comum, responda em uma ou duas frases, idealmente abaixo de 55 palavras. Comece pela resposta, não por "
             "uma introdução. Use humor seco apenas como uma observação curta quando ele surgir naturalmente; nunca "
@@ -8054,6 +8131,11 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
         payload.update({"endpoint": "POST /command", "intent": "personal_overview", "provider": "jarvis_control_plane"})
         return payload, 200
 
+    if CREATOR_QUESTION_PATTERN.search(command):
+        return creator_profile_payload("full")
+    if IDENTITY_QUESTION_PATTERN.search(command):
+        return creator_profile_payload("short")
+
     recent_messages = normalize_messages(body)[-6:]
     memory_was_opened = any(
         row.get("role") == "assistant"
@@ -8145,6 +8227,8 @@ def command_intent(command):
         return "daily_brief"
     if CAPABILITY_OVERVIEW_PATTERN.search(command):
         return "personal_overview"
+    if CREATOR_QUESTION_PATTERN.search(command) or IDENTITY_QUESTION_PATTERN.search(command):
+        return "creator_profile"
     if compound_device_plan(command):
         return "device_run"
     if re.search(r"\b(?:busc(?:a|ar)|busqu(?:e|em)|procur(?:a|ar|e)|pesquis(?:a|ar|e))\b.{0,80}\bmem[oó]ria\b", command, re.I):
@@ -8940,6 +9024,14 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(500, {"ok": False, "error": "cockpit asset is unavailable"})
         self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=60")
 
+    def serve_creator_page(self):
+        target = WEB_DIR / "theo.html"
+        try:
+            body = target.read_bytes()
+        except OSError:
+            return self.send_json(404, {"ok": False, "error": "perfil do criador indisponível"})
+        return self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=120")
+
     def serve_asset(self, relative):
         try:
             base = UI_ASSET_DIR.resolve()
@@ -8982,6 +9074,12 @@ class handler(BaseHTTPRequestHandler):
         owner_authenticated = owner_token_matches(self.headers.get("X-Jarvis-Owner-Token"))
         if path == "/":
             return self.serve_ui()
+        if path in {"/theo", "/criador", "/creator"}:
+            return self.serve_creator_page()
+        if path == "/creator-profile":
+            payload, _status = creator_profile_payload("full")
+            payload["endpoint"] = "GET /creator-profile"
+            return self.send_json(200, payload)
         if path == "/favicon.ico":
             return self.send_bytes(200, b"", "image/x-icon", "public, max-age=86400")
         if path == "/jarvis-sw.js":
