@@ -26,6 +26,10 @@
   const installButton = byId("installButton");
   const installDialog = byId("installDialog");
   const mobileLayout = window.matchMedia("(max-width: 720px)");
+  const CREATOR_MARK = "VGhlbyBMb3JlbnR6IFBhZGlsaGE=";
+  const creatorName = () => {
+    try { return window.atob(CREATOR_MARK); } catch { return "Theo Lorentz Padilha"; }
+  };
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
@@ -763,13 +767,13 @@
     const name = assistantName();
     const ultron = session.paired;
     document.documentElement.dataset.persona = ultron ? "ultron" : "jarvis";
-    document.title = `${name} · Theo`;
+    document.title = `${name} · ${creatorName()}`;
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", ultron ? "#190305" : "#130824");
-    document.querySelector('meta[name="description"]')?.setAttribute("content", `${name}, central pessoal de memória, automação e controle do Mac de Theo.`);
+    document.querySelector('meta[name="description"]')?.setAttribute("content", `${name}, criado por ${creatorName()}. Central pessoal de memória, automação e controle.`);
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", name);
     byId("identityAssistantName").textContent = name;
-    const identityRole = document.querySelector(".identity-name small");
-    if (identityRole) identityRole.textContent = ultron ? "para Theo" : "visitante";
+    const identityRole = byId("identityCreator") || document.querySelector(".identity-name small");
+    if (identityRole) identityRole.textContent = ultron ? `para ${creatorName()}` : `por ${creatorName()}`;
     byId("conversationAssistantName").textContent = name;
     byId("systemDialogTitle").textContent = `SISTEMA ${name}`;
     byId("installDialogTitle").textContent = `${name} NO CELULAR`;
@@ -879,7 +883,7 @@
   const STARTER_ACTIONS = {
     guest: [
       ["Pesquisar agora", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
-      ["O que você faz?", "me diga em poucas frases as melhores coisas que você consegue fazer neste modo visitante"],
+      ["Quem te criou?", "quem criou você"],
       ["Copiar relatório", "__copy_bug_report__"],
     ],
     owner: [

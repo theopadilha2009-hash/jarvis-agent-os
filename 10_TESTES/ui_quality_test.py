@@ -346,7 +346,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertGreaterEqual(
-            sum(self.html.count(f"20260814-chatfix{n}") for n in range(1, 9)),
+            sum(self.html.count(f"20260814-chatfix{n}") for n in range(1, 10)),
             4,
         )
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
@@ -430,6 +430,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("BUG JARVIS (visitante)", self.app_js)
         self.assertIn("Sair do Ultron", self.app_js)
         self.assertIn("access-swap", self.html)
+        self.assertIn("identityCreator", self.html)
+        self.assertIn("VGhlbyBMb3JlbnR6IFBhZGlsaGE=", self.app_js)
+        self.assertIn("Quem te criou?", self.app_js)
         self.assertIn("jarvis-owner-last-active", self.app_js)
         self.assertIn("expireIdleOwnerSession", self.app_js)
         self.assertIn("min(42vh, 340px)", self.ui_repair_css)
