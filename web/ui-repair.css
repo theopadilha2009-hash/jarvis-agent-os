@@ -191,41 +191,55 @@ html[data-persona="ultron"] .new-conversation-button:focus-visible {
 .scene-objective,
 .state-beacon,
 .hud-rail,
+.scene-telemetry,
 #sceneCommandButton {
   display: none !important;
 }
 .stage[data-access="guest"] #tourButton,
 .stage[data-access="guest"] #actionHubButton,
-.stage[data-access="guest"] #integrationsButton {
+.stage[data-access="guest"] #integrationsButton,
+.stage[data-access="guest"] .github-star-button {
   display: none;
+}
+.conversation,
+.stage.has-conversation .conversation {
+  background: rgba(14, 8, 24, 0.94);
+}
+.conversation-feed,
+.message,
+.welcome,
+.welcome span {
+  color: #f6eefe;
 }
 .scene-modes {
   left: 18px;
   right: auto;
   top: 44%;
   transform: translateY(-50%);
-  width: 92px;
-  gap: 8px;
+  width: 108px;
+  gap: 10px;
 }
 .scene-modes > span {
-  min-height: 72px;
+  min-height: 88px;
   grid-template-columns: 1fr;
-  grid-template-rows: 28px auto auto;
+  grid-template-rows: 40px auto auto;
   justify-items: center;
   text-align: center;
-  padding: 8px 6px 10px;
-  border-radius: 16px;
+  padding: 10px 8px 12px;
+  border-radius: 18px;
+  background: rgba(16, 8, 28, 0.72);
 }
 .scene-modes > span i {
   grid-row: 1;
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
   background:
     radial-gradient(circle at 30% 30%, rgba(255,255,255,.35), transparent 46%),
     linear-gradient(145deg, rgba(168, 85, 247, .85), rgba(76, 29, 149, .95));
   color: transparent;
   font-size: 0;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
 }
 .scene-modes > span[data-scene-mode="forge"] i {
   background:
@@ -266,7 +280,7 @@ html[data-persona="ultron"] .shimmer-loader::after {
   background: linear-gradient(90deg, var(--state) var(--shimmer-progress), rgba(248, 113, 113, 0.16) var(--shimmer-progress));
 }
 
-@media (min-width: 941px) { .scene-modes { width: 132px; } }
+@media (min-width: 941px) { .scene-modes { width: 148px; } }
 @media (max-width: 720px) {
   .composer { grid-template-columns: 40px minmax(0, 1fr) 50px 46px; }
   .strength-button { min-width: 50px; }

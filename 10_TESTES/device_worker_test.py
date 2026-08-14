@@ -65,6 +65,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertFalse(MODULE.self_publish_requested("melhore seus scripts sem fazer deploy"))
         self.assertFalse(MODULE.self_publish_requested("edite seus arquivos, somente local"))
         self.assertTrue(MODULE.self_publish_requested("crie a melhoria e suba para produção"))
+        self.assertTrue(MODULE.self_publish_requested("faça deploy e merge do que você melhorou no jarvis"))
 
         capture = MODULE.command_argv({"action": "screen_capture", "target": ""})
         recording = MODULE.command_argv({"action": "screen_record", "target": "native-recorder"})
