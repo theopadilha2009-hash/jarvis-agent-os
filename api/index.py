@@ -306,10 +306,14 @@ DAILY_BRIEF_PATTERN = re.compile(
 SELF_EDIT_PATTERN = re.compile(
     r"(?:\b(?:auto[-\s]?(?:edit(?:e|ar)|melhor(?:e|ar))|"
     r"(?:edit(?:e|ar)|mex(?:a|er)|alter(?:e|ar)|modifiqu(?:e|ar)|melhor(?:e|ar)|"
-    r"arrum(?:e|ar)|corrij(?:a|ir))\b.{0,100}\b(?:seus|nos\s+seus|pr[oó]prios?)\b"
+    r"arrum(?:e|ar)|corrig(?:e|ir|a))\b.{0,100}\b(?:seus|nos\s+seus|pr[oó]prios?)\b"
     r".{0,50}\b(?:scripts?|c[oó]digo|arquivos?)\b)|"
     r"(?:\b(?:cri(?:a|e|ar)|implement(?:a|e|ar)|adicion(?:a|e|ar)|constru(?:a|ir)|"
-    r"desenvolv(?:a|e|er))\b.{0,160}\b(?:no|para\s+o)\s+jarvis\b))",
+    r"desenvolv(?:a|e|er))\b.{0,160}\b(?:no|para\s+o)\s+jarvis\b)|"
+    r"(?:\b(?:melhor(?:e|ar)|corrig(?:e|ir|a)|arrum(?:e|ar)|simplif(?:ique|icar)|ajust(?:e|ar))\b"
+    r".{0,90}\b(?:voc[eê]|ultron|jarvis|interface|tela|chat|menu|bot[aã]o|visitante|visual|layout)\b)|"
+    r"(?:\b(?:se\s+melhor(?:e|ar)|melhor(?:e|ar)\s+(?:a\s+si|voc[eê]\s+mesmo)|auto[- ]?evol)\b)|"
+    r"(?:\b(?:fa[cç]a|faz(?:er)?)\b.{0,40}\b(?:deploy|merge|mescl(?:a|e|ar)|public(?:a|ar))\b))",
     re.I,
 )
 MEMORY_KIND_LABELS = {

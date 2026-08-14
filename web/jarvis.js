@@ -864,10 +864,9 @@
       ["Copiar relatório", "__copy_bug_report__"],
     ],
     owner: [
+      ["Melhorar você", "melhore a interface e o modo visitante do jarvis e corrija o que estiver confuso"],
+      ["Deploy e merge", "faça deploy e merge do que você melhorou no jarvis"],
       ["Resumo do meu dia", "me dê um resumo operacional do meu dia"],
-      ["Analisar meu Mac", "meu computador está travando, analise a memória"],
-      ["Abrir Spotify", "abra o Spotify"],
-      ["Criar fluxo n8n", "crie um workflow n8n para receber leads por webhook e preparar os dados"],
     ],
   };
 
@@ -2430,7 +2429,7 @@
       stage.dataset.access = accessMode;
       applyIdentityMode();
       const canLeaveOwnerMode = Boolean(session.paired && status.owner_pairing?.required);
-      byId("accessMode").textContent = canLeaveOwnerMode ? "Sair do Ultron" : session.paired ? "Theo · modo Ultron" : "visitante";
+      byId("accessModeLabel").textContent = canLeaveOwnerMode ? "Sair do Ultron" : session.paired ? "Theo · modo Ultron" : "visitante";
       byId("accessMode").dataset.action = canLeaveOwnerMode ? "logout" : "details";
       byId("accessMode").title = canLeaveOwnerMode
         ? "Voltar ao modo visitante"

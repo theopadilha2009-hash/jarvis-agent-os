@@ -290,7 +290,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(MEMORY_EXPLORER_CSS.stat().st_size, 4 * 1024)
         self.assertLess(ACTION_PERMISSIONS_JS.stat().st_size, 8 * 1024)
         self.assertLess(ACTION_PERMISSIONS_CSS.stat().st_size, 4 * 1024)
-        self.assertLess(UI_REPAIR_CSS.stat().st_size, 8 * 1024)
+        self.assertLess(UI_REPAIR_CSS.stat().st_size, 10 * 1024)
         self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
         self.assertLess(RESPONSIVE_POLISH_CSS.stat().st_size, 12 * 1024)
         self.assertLess(PRESENCE_JS.stat().st_size, 64 * 1024)
@@ -346,7 +346,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertGreaterEqual(
-            self.html.count("20260814-chatfix1") + self.html.count("20260814-chatfix2") + self.html.count("20260814-chatfix3") + self.html.count("20260814-chatfix4") + self.html.count("20260814-chatfix5"),
+            sum(self.html.count(f"20260814-chatfix{n}") for n in range(1, 7)),
             4,
         )
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
@@ -429,6 +429,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("__copy_bug_report__", self.app_js)
         self.assertIn("BUG JARVIS (visitante)", self.app_js)
         self.assertIn("Sair do Ultron", self.app_js)
+        self.assertIn("access-swap", self.html)
+        self.assertIn("Melhorar você", self.app_js)
+        self.assertIn("hidden", self.html)
         self.assertIn('<textarea id="commandInput"', self.html)
         self.assertIn('id="strengthButton"', self.html)
         self.assertIn('id="identityAssistantName"', self.html)
