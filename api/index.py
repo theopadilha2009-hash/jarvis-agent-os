@@ -68,7 +68,7 @@ ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 ELEVENLABS_VOICE_DESIGN_URL = "https://api.elevenlabs.io/v1/text-to-voice/design"
 ELEVENLABS_VOICE_CREATE_URL = "https://api.elevenlabs.io/v1/text-to-voice"
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
-DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
+DEFAULT_ELEVENLABS_MODEL = "eleven_flash_v2_5"
 MAX_BODY_BYTES = 4_000_000
 MAX_PROMPT_CHARS = 8_000
 MAX_ATTACHMENT_BYTES = 2_500_000
@@ -5156,6 +5156,49 @@ def voice_profile(body):
     }
 
 
+def elevenlabs_provider_error(error):
+    raw = b""
+    try:
+        raw = error.read(4_000) if hasattr(error, "read") else b""
+    except Exception:
+        raw = b""
+    detail = {}
+    try:
+        parsed = json.loads(raw.decode("utf-8", "replace") or "{}")
+        if isinstance(parsed, dict) and isinstance(parsed.get("detail"), dict):
+            detail = parsed["detail"]
+    except json.JSONDecodeError:
+        detail = {}
+    code = clean_text(detail.get("code") or detail.get("status"), 80).casefold()
+    if code in {"quota_exceeded", "payment_required"} or getattr(error, "code", 0) == 402:
+        return {
+            "ok": False,
+            "error": "ElevenLabs sem créditos disponíveis.",
+            "error_code": "elevenlabs_quota",
+            "fallback": "browser_voice",
+        }, 502
+    if getattr(error, "code", 0) in {401, 403} or code in {"unauthorized", "invalid_api_key"}:
+        return {
+            "ok": False,
+            "error": "A chave ou a voz da ElevenLabs não foi autorizada.",
+            "error_code": "elevenlabs_authorization",
+            "fallback": "browser_voice",
+        }, 502
+    if getattr(error, "code", 0) == 429:
+        return {
+            "ok": False,
+            "error": "O limite temporário da ElevenLabs foi atingido.",
+            "error_code": "elevenlabs_rate_limit",
+            "fallback": "browser_voice",
+        }, 502
+    return {
+        "ok": False,
+        "error": f"ElevenLabs recusou a voz (HTTP {getattr(error, 'code', 0)}).",
+        "error_code": "elevenlabs_provider_error",
+        "fallback": "browser_voice",
+    }, 502
+
+
 def elevenlabs_speech(body):
     text = clean_text(body.get("text") or body.get("message"), 2_200)
     previous_text = clean_text(body.get("previous_text"), 1_200)
@@ -5202,33 +5245,7 @@ def elevenlabs_speech(body):
             raise ValueError("empty audio")
         return audio, 200
     except HTTPError as error:
-        if error.code == 402:
-            return {
-                "ok": False,
-                "error": "ElevenLabs sem créditos disponíveis (HTTP 402).",
-                "error_code": "elevenlabs_quota",
-                "fallback": "text_only",
-            }, 502
-        if error.code in {401, 403}:
-            return {
-                "ok": False,
-                "error": "A chave ou a voz da ElevenLabs não foi autorizada.",
-                "error_code": "elevenlabs_authorization",
-                "fallback": "text_only",
-            }, 502
-        if error.code == 429:
-            return {
-                "ok": False,
-                "error": "O limite temporário da ElevenLabs foi atingido.",
-                "error_code": "elevenlabs_rate_limit",
-                "fallback": "text_only",
-            }, 502
-        return {
-            "ok": False,
-            "error": f"ElevenLabs recusou a voz (HTTP {error.code}).",
-            "error_code": "elevenlabs_provider_error",
-            "fallback": "text_only",
-        }, 502
+        return elevenlabs_provider_error(error)
     except (URLError, TimeoutError, ValueError):
         return {"ok": False, "error": "ElevenLabs não respondeu com áudio válido.", "fallback": "text_only"}, 504
 

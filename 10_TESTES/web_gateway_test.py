@@ -3207,7 +3207,7 @@ São Paulo - SP
         self.assertEqual(sent_request.headers["Xi-api-key"], "private-test-key")
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
         self.assertNotIn("language_code", sent_payload)
-        self.assertEqual(sent_payload["model_id"], "eleven_multilingual_v2")
+        self.assertEqual(sent_payload["model_id"], "eleven_flash_v2_5")
         self.assertEqual(sent_payload["seed"], 7319)
         self.assertEqual(sent_payload["apply_text_normalization"], "auto")
         self.assertEqual(sent_payload["previous_text"], "O diagnóstico terminou.")
@@ -3247,7 +3247,27 @@ São Paulo - SP
         self.assertEqual(status, 502)
         self.assertEqual(payload["error_code"], "elevenlabs_quota")
         self.assertIn("sem créditos", payload["error"])
-        self.assertEqual(payload["fallback"], "text_only")
+        self.assertEqual(payload["fallback"], "browser_voice")
+
+    def test_elevenlabs_free_quota_on_401_is_quota_not_auth(self):
+        class QuotaError(HTTPError):
+            def read(self, *_args):
+                return json.dumps({
+                    "detail": {
+                        "type": "invalid_request",
+                        "code": "quota_exceeded",
+                        "status": "quota_exceeded",
+                        "message": "This request exceeds your quota of 10000.",
+                    }
+                }).encode("utf-8")
+
+        provider_error = QuotaError("https://api.elevenlabs.io", 401, "unauthorized", {}, None)
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key"}, clear=False):
+            with patch.object(MODULE, "urlopen", side_effect=provider_error):
+                payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
+        self.assertEqual(status, 502)
+        self.assertEqual(payload["error_code"], "elevenlabs_quota")
+        self.assertNotEqual(payload["error_code"], "elevenlabs_authorization")
 
     def test_agenda_routes_to_configured_n8n_webhook(self):
         class FakeN8nResponse:
