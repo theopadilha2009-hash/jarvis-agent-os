@@ -2590,6 +2590,14 @@
     const height = clamp(rect.height, minH, window.innerHeight - 16);
     const left = clamp(rect.left, 8, Math.max(8, window.innerWidth - width - 8));
     const top = clamp(rect.top, 8, Math.max(8, window.innerHeight - height - 8));
+    panel.dataset.placed = "1";
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.width = `${width}px`;
+    panel.style.height = `${height}px`;
+    panel.style.right = "auto";
+    panel.style.bottom = "auto";
+    panel.style.transform = "none";
     panel.style.setProperty("--conversation-left", `${left}px`);
     panel.style.setProperty("--conversation-top", `${top}px`);
     panel.style.setProperty("--conversation-width", `${width}px`);
@@ -2665,6 +2673,12 @@
       window.addEventListener("touchend", onEnd);
       event.preventDefault();
     };
+    const startMove = (event) => {
+      if (event.target.closest("button, a, input, textarea")) return;
+      begin("move", event);
+    };
+    panel.querySelector(".conversation-head")?.addEventListener("pointerdown", startMove);
+    panel.querySelector(".conversation-head")?.addEventListener("touchstart", startMove, { passive: false });
     byId("conversationMove")?.addEventListener("pointerdown", (event) => begin("move", event));
     byId("conversationMove")?.addEventListener("touchstart", (event) => begin("move", event), { passive: false });
     panel.querySelectorAll(".conversation-edges [data-edge]").forEach((handle) => {

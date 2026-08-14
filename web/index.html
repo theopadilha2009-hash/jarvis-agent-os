@@ -18,6 +18,22 @@
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260814-chatfix11">
 <link rel="stylesheet" href="/ui/api-panel.css?v=20260813-ultronfix1">
 <link rel="stylesheet" href="/ui/responsive-polish.css?v=20260814-chatfix11">
+<link rel="stylesheet" href="/ui/shell-final.css?v=20260814-chatfix12">
+<script>
+(() => {
+  try {
+    const rect = JSON.parse(localStorage.getItem("jarvis-chat-rect") || "null");
+    if (!rect || !rect.width || !rect.height) return;
+    const root = document.documentElement.style;
+    root.setProperty("--conversation-left", `${rect.left}px`);
+    root.setProperty("--conversation-top", `${rect.top}px`);
+    root.setProperty("--conversation-width", `${rect.width}px`);
+    root.setProperty("--conversation-height", `${rect.height}px`);
+    root.setProperty("--conversation-transform", "none");
+    root.setProperty("--conversation-bottom", "auto");
+  } catch (_error) { /* first visit */ }
+})();
+</script>
   <script type="importmap">
     {"imports":{"three":"/ui/vendor/three.module.js","three/addons/":"/ui/vendor/addons/","ogl":"/ui/vendor/ogl/jarvis.js"}}
   </script>
@@ -79,6 +95,11 @@
           <span data-scene-mode="memory"><i>03</i><b>MEMÓRIA</b><small>guardar</small></span>
           <button id="sceneCommandButton" type="button"><i>⌘</i><span><b>ARSENAL</b><small>ações reais</small></span></button>
         </nav>
+        <div class="nucleus-legend" aria-hidden="true">
+          <span>Núcleo</span>
+          <span>Forja</span>
+          <span>Memória</span>
+        </div>
 
         <div class="scene-telemetry" aria-label="Telemetria do sistema">
           <span><i></i><b id="sceneBrain">IA verificando</b></span>
@@ -408,7 +429,7 @@
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/feature-loader.js?v=20260814-chatfix2" defer></script>
 <script src="/ui/device-feedback.js?v=20260813-device1" defer></script>
-<script src="/ui/jarvis.js?v=20260814-chatfix11" defer></script>
+<script src="/ui/jarvis.js?v=20260814-chatfix12" defer></script>
 <script type="module" src="/ui/presence-loader.js?v=20260813-ultronfix1"></script>
 </body>
 </html>

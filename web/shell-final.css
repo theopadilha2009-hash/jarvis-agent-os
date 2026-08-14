@@ -1,0 +1,128 @@
+/* Last-loaded shell. Wins over jarvis/ui-repair/responsive. */
+.conversation,
+.stage.has-conversation .conversation {
+  position: absolute;
+  z-index: 12;
+  left: var(--conversation-left, 50%);
+  top: var(--conversation-top, auto);
+  right: auto;
+  bottom: var(--conversation-bottom, 16px);
+  width: var(--conversation-width, min(720px, calc(100vw - 32px)));
+  height: var(--conversation-height, min(56vh, 460px));
+  max-width: none;
+  transform: var(--conversation-transform, translateX(-50%));
+  display: grid;
+  grid-template-rows: 12px auto minmax(0, 1fr) auto auto;
+  background: rgba(12, 7, 22, 0.96);
+  border: 1px solid rgba(216, 180, 254, 0.16);
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+.conversation[data-placed="1"],
+.stage.has-conversation .conversation[data-placed="1"] {
+  transform: none;
+  bottom: auto;
+}
+
+.conversation-head {
+  grid-row: 2;
+  min-height: 40px;
+  padding: 10px 14px 8px;
+  cursor: grab;
+  user-select: none;
+}
+.conversation-head:active { cursor: grabbing; }
+.conversation-head button,
+.conversation-head a { cursor: pointer; user-select: auto; }
+
+.conversation-move,
+.conversation-edges {
+  position: absolute;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  z-index: 5;
+  pointer-events: none;
+}
+.conversation-edges { inset: 0; }
+.conversation-move { display: none; }
+.conversation-edges i {
+  position: absolute;
+  pointer-events: auto;
+}
+.conversation-edges [data-edge="n"],
+.conversation-edges [data-edge="s"] { left: 18px; right: 18px; height: 8px; cursor: ns-resize; }
+.conversation-edges [data-edge="n"] { top: 0; }
+.conversation-edges [data-edge="s"] { bottom: 0; }
+.conversation-edges [data-edge="e"],
+.conversation-edges [data-edge="w"] { top: 18px; bottom: 18px; width: 8px; cursor: ew-resize; }
+.conversation-edges [data-edge="e"] { right: 0; }
+.conversation-edges [data-edge="w"] { left: 0; }
+.conversation-edges [data-edge="ne"],
+.conversation-edges [data-edge="nw"],
+.conversation-edges [data-edge="se"],
+.conversation-edges [data-edge="sw"] { width: 14px; height: 14px; }
+.conversation-edges [data-edge="ne"] { top: 0; right: 0; cursor: nesw-resize; }
+.conversation-edges [data-edge="nw"] { top: 0; left: 0; cursor: nwse-resize; }
+.conversation-edges [data-edge="se"] { bottom: 0; right: 0; cursor: nwse-resize; }
+.conversation-edges [data-edge="sw"] { bottom: 0; left: 0; cursor: nesw-resize; }
+
+.composer {
+  grid-template-columns: 40px 52px 44px minmax(0, 1fr);
+  grid-template-rows: 44px minmax(52px, auto);
+  gap: 8px;
+  padding: 8px 12px 12px;
+  align-items: center;
+}
+.composer .attachment-button { grid-column: 1; grid-row: 1; }
+.composer .strength-button { grid-column: 2; grid-row: 1; }
+.composer .voice-button,
+.composer .send-button {
+  grid-column: 3;
+  grid-row: 1;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+}
+.composer textarea,
+.composer input {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-height: 52px;
+  max-height: 168px;
+  overflow: hidden;
+  resize: none;
+  scrollbar-width: none;
+}
+.composer textarea::-webkit-scrollbar { width: 0; height: 0; }
+
+.github-star-button {
+  width: 76px;
+  height: 20px;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.scene-objective,
+.state-beacon,
+.hud-rail,
+.scene-telemetry,
+#sceneCommandButton,
+#connectionText { display: none !important; }
+.stage[data-nuclei="3d"] .scene-modes { display: none !important; }
+
+.nucleus-legend {
+  position: absolute;
+  left: 18px;
+  bottom: 16%;
+  z-index: 6;
+  display: grid;
+  gap: 26px;
+  pointer-events: none;
+  color: rgba(246, 238, 254, 0.7);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.stage:not([data-nuclei="3d"]) .nucleus-legend { display: none; }
