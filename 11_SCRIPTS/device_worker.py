@@ -22,10 +22,12 @@ from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
+from spotify_control import command_args as spotify_command_args  # noqa: E402
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "9"
+WORKER_VERSION = "10"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -56,6 +58,7 @@ RETRYABLE_STALE_ACTIONS = {
 ALLOWED_ACTIONS = {
     "open_application",
     "close_application",
+    "spotify_control",
     "message_send",
     "screen_capture",
     "screen_record",
@@ -440,6 +443,11 @@ def command_argv(job: dict) -> list[str]:
         return argv
     if action == "screen_capture":
         return [str(ROOT / "jarvis"), "screen-capture"]
+    if action == "spotify_control":
+        spotify_args = spotify_command_args(job_request_text(job))
+        if not spotify_args:
+            raise WorkerError("Controle do Spotify não reconhecido ou fora do allowlist.")
+        return [str(ROOT / "jarvis"), "spotify", *spotify_args]
     if action == "screen_record":
         return [str(ROOT / "jarvis"), "screen-record"]
     if action == "github_overview":
@@ -786,6 +794,25 @@ def agent_status() -> None:
         print(f"Worker ativo no launchd · PID {pid}")
     else:
         print("Worker não está ativo no launchd.")
+    source = ""
+    if LAUNCH_AGENT.is_file():
+        try:
+            payload = plistlib.loads(LAUNCH_AGENT.read_bytes())
+            arguments = payload.get("ProgramArguments") if isinstance(payload, dict) else []
+            source = str(arguments[1]) if isinstance(arguments, list) and len(arguments) > 1 else ""
+        except (OSError, plistlib.InvalidFileException):
+            source = ""
+    print(f"Fonte instalada: {source or 'não identificada'}")
+    print(f"Fonte existe: {'sim' if source and Path(source).is_file() else 'não'}")
+    try:
+        configuration()
+        print("Ponte Supabase: configurada nas Chaves do macOS ou ambiente")
+    except WorkerError:
+        print("Ponte Supabase: não configurada")
+    print(f"Spotify instalado: {'sim' if Path('/Applications/Spotify.app').is_dir() else 'não'}")
+    expected = str(Path(__file__).resolve())
+    if source and Path(source).resolve() != Path(expected):
+        print(f"AVISO: este checkout não é a fonte instalada; fonte atual esperada: {expected}")
 
 
 def build_parser() -> argparse.ArgumentParser:

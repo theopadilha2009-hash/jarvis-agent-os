@@ -19,6 +19,35 @@ SPEC.loader.exec_module(MODULE)
 
 
 class PersonalToolsTest(unittest.TestCase):
+    def test_spotify_dry_run_never_invokes_native_commands(self):
+        with patch.object(MODULE.subprocess, "run") as run:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                MODULE.cmd_spotify(Namespace(action="next", value=[], dry_run=True))
+        run.assert_not_called()
+        self.assertIn("Spotify não alterado", output.getvalue())
+
+    def test_spotify_volume_is_bounded_and_rechecks_state(self):
+        before = {"state": "playing", "track": "Faixa", "artist": "Artista", "volume": "60", "shuffle": "false", "repeat": "false"}
+        after = {**before, "volume": "35"}
+        output = io.StringIO()
+        with patch.object(MODULE, "_spotify_state", side_effect=[before, after]), patch.object(
+            MODULE, "_spotify_script"
+        ) as script, redirect_stdout(output):
+            MODULE.cmd_spotify(Namespace(action="volume", value=["35"], dry_run=False))
+        script.assert_called_once_with("set sound volume to 35")
+        self.assertIn("volume: 35%", output.getvalue())
+
+    def test_spotify_search_uses_uri_without_shell_or_fake_playback(self):
+        completed = MODULE.subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        output = io.StringIO()
+        with patch.object(MODULE, "_require_binary", return_value="/usr/bin/open"), patch.object(
+            MODULE.subprocess, "run", return_value=completed
+        ) as run, redirect_stdout(output):
+            MODULE.cmd_spotify(Namespace(action="search", value=["Daft", "Punk"], dry_run=False))
+        self.assertEqual(run.call_args.args[0], ["/usr/bin/open", "spotify:search:Daft%20Punk"])
+        self.assertIn("nenhuma faixa específica foi presumida", output.getvalue())
+
     def test_computer_open_dry_run_never_invokes_native_command(self):
         with patch.object(MODULE.subprocess, "run") as run:
             output = io.StringIO()

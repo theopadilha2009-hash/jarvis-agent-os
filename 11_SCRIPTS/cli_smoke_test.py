@@ -695,6 +695,11 @@ CHECKS = [
         "expect": ["System Memory", "Temporários controláveis", "nenhum processo encerrado", "processos pessoais foram preservados", "Produção: nada alterado"],
     },
     {
+        "name": "spotify-dry-run",
+        "cmd": ["./jarvis", "spotify", "next", "--dry-run"],
+        "expect": ["JARVIS — Spotify", "Status real:", "--dry-run", "Spotify não alterado", "Produção: nada alterado"],
+    },
+    {
         "name": "computer-worker-dry-run",
         "cmd": ["./jarvis", "computer-worker", "--once", "--dry-run"],
         "expect": ["Device Worker", "ponte local allowlisted", "nenhum heartbeat ou comando foi gravado", "Produção: nenhum deploy alterado"],

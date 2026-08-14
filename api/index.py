@@ -52,6 +52,10 @@ from action_registry import (  # noqa: E402
     run_summary_payload,
 )
 from memory_index import MemoryIndex  # noqa: E402
+from spotify_control import (  # noqa: E402
+    command_args as spotify_command_args,
+    public_target as spotify_public_target,
+)
 import task_queue as task_queue_store  # noqa: E402
 
 AGENT_RUNS = RunStore()
@@ -227,6 +231,7 @@ SUPABASE_ARTIFACTS_BUCKET = "jarvis-artifacts"
 REMOTE_DEVICE_INTENTS = {
     "open_application",
     "close_application",
+    "spotify_control",
     "message_send",
     "screen_capture",
     "screen_record",
@@ -241,6 +246,7 @@ REMOTE_DEVICE_INTENTS = {
 CHAINABLE_DEVICE_INTENTS = {
     "open_application",
     "close_application",
+    "spotify_control",
     "screen_capture",
     "screen_record",
     "github_overview",
@@ -251,15 +257,18 @@ CHAINABLE_DEVICE_INTENTS = {
 ACTION_SEQUENCE_SPLIT_PATTERN = re.compile(
     r"\s+(?:e\s+depois|depois|e\s+ent[aã]o|ent[aã]o|e)\s+"
     r"(?=(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|captur\w*|"
-    r"faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*))|"
+    r"faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*|"
+    r"to(?:c|q)\w*|paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*))|"
     r"\s*[;,]\s*(?=(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|"
-    r"captur\w*|faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*))",
+    r"captur\w*|faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*|"
+    r"to(?:c|q)\w*|paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*))",
     re.I,
 )
 
 COMPOUND_ACTION_START_PATTERN = re.compile(
     r"^\s*(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|captur\w*|faz\w*|"
-    r"grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*)\b",
+    r"grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*|to(?:c|q)\w*|"
+    r"paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*)\b",
     re.I,
 )
 
@@ -1612,6 +1621,11 @@ BASE_WEB_CAPABILITIES = [
         "what": "Envia mensagens explícitas pelo app Mensagens do macOS.",
     },
     {
+        "name": "spotify_control",
+        "status": "available_on_local_worker",
+        "what": "Controla reprodução, faixa, volume, aleatório e repetição no Spotify instalado, confirmando o estado real.",
+    },
+    {
         "name": "screen_recording",
         "status": "available_on_local_worker",
         "what": "Abre o gravador nativo do macOS; Theo confirma área, início e término na tela.",
@@ -1639,9 +1653,9 @@ PERSONAL_ACTION_CATALOG = (
     },
     {
         "id": "spotify",
-        "label": "Abrir Spotify",
-        "description": "Abre o aplicativo no Mac pareado.",
-        "command": "abra o Spotify",
+        "label": "Controlar Spotify",
+        "description": "Toca, pausa, muda a faixa, ajusta volume e consulta o que está tocando.",
+        "command": "continue o Spotify",
         "executor": "mac",
         "private": True,
     },
@@ -1779,8 +1793,22 @@ JARVIS_CLEANUP_PATTERN = re.compile(
     re.I,
 )
 
+SPOTIFY_CONTROL_PATTERN = re.compile(
+    r"(?:\bspotify\b.{0,100}\b(?:play|to(?:c|q)\w*|reproduz\w*|retom\w*|continu\w*|paus\w*|"
+    r"pr[oó]xim\w*|anteri\w*|volt\w*|volum\w*|status|tocando|bus\w*|procur\w*|"
+    r"pesquis\w*|aleat[oó]ri\w*|shuffle|repet\w*)\b|"
+    r"\b(?:play|to(?:c|q)\w*|reproduz\w*|retom\w*|continu\w*|paus\w*|pr[oó]xim\w*|"
+    r"anteri\w*|volt\w*|volum\w*|status|tocando|bus\w*|procur\w*|pesquis\w*|"
+    r"aleat[oó]ri\w*|shuffle|repet\w*)\b.{0,100}\bspotify\b|"
+    r"\b(?:o\s+que\s+(?:est[aá]|t[aá])\s+tocando|qual\s+(?:m[uú]sica|faixa)|"
+    r"paus\w*|to(?:c|q)\w*|pr[oó]xim\w*|(?:m[uú]sica|faixa)\s+anterior|volume)\b"
+    r".{0,35}\b(?:m[uú]sica|faixa)\b)",
+    re.I,
+)
+
 LOCAL_INTENTS = (
     (SELF_EDIT_PATTERN, "self_edit"),
+    (SPOTIFY_CONTROL_PATTERN, "spotify_control"),
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
     (re.compile(r"\b(abr(?:a|e|ir)|inici(?:a|e|ar)|grav(?:a|e|ar))\b.{0,50}\b(gravador|grava[cç][aã]o|tela)\b", re.I), "screen_record"),
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar)|analis(?:a|e|ar))\b.{0,70}\b(github|reposit[oó]rios?|pull requests?|prs?)\b", re.I), "github_overview"),
@@ -3187,6 +3215,18 @@ def supabase_device_enqueue(command, intent):
                 "intent": intent,
             }, 400
         target = clean_text(command_args[-1], 120)
+    elif intent == "spotify_control":
+        spotify_args = spotify_command_args(command)
+        if not spotify_args:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "spotify_control_invalid",
+                "visual_state": "error",
+                "error": "Não reconheci esse controle. Peça status, tocar, pausar, próxima/anterior, volume de 0 a 100, aleatório, repetição ou busca.",
+                "intent": intent,
+            }, 400
+        target = spotify_public_target(spotify_args)
     elif intent == "message_send":
         details = message_send_details(command)
         if not details:
@@ -3252,6 +3292,8 @@ def supabase_device_enqueue(command, intent):
             "message": (
                 "Autoedição enviada ao Mac. Vou editar e testar; se o pedido disser para publicar ou fazer deploy, também vou subir, mesclar e verificar a produção."
                 if intent == "self_edit"
+                else "Controle enviado ao Spotify do Mac. Estou acompanhando até o app devolver o estado real."
+                if intent == "spotify_control"
                 else "Pedido enviado ao worker do Mac. Estou acompanhando a execução."
             ),
             "intent": intent,
@@ -3292,6 +3334,11 @@ def chain_step_target(step):
         if not command_args:
             raise ValueError("Não identifiquei qual aplicativo usar em uma das etapas.")
         return clean_text(command_args[-1], 120)
+    if intent == "spotify_control":
+        spotify_args = spotify_command_args(command)
+        if not spotify_args:
+            raise ValueError("Não reconheci um dos controles do Spotify.")
+        return spotify_public_target(spotify_args)
     if intent == "storage_scan":
         return "downloads"
     if intent == "screen_record":
@@ -3354,7 +3401,13 @@ def supabase_device_enqueue_plan(command, steps):
                 "request": step_command,
                 "original_request": clean_text(command, 4_000),
                 "retry_policy": {"max_attempts": 2 if retryable else 1, "idempotent": retryable},
-                "success_evidence": "application_state" if intent in {"open_application", "close_application"} else "command_output",
+                "success_evidence": (
+                    "application_state"
+                    if intent in {"open_application", "close_application"}
+                    else "spotify_state"
+                    if intent == "spotify_control"
+                    else "command_output"
+                ),
             }, ensure_ascii=False, separators=(",", ":"))
             rows = supabase_request(
                 "POST",
@@ -4553,6 +4606,9 @@ def local_handoff(command, intent, execute=False):
         command_args = memory_write_command(command)
     elif intent in {"open_application", "close_application"}:
         command_args = computer_app_command(command, intent)
+    elif intent == "spotify_control":
+        spotify_args = spotify_command_args(command)
+        command_args = ["./jarvis", "spotify", *spotify_args] if spotify_args else None
     elif intent == "system_memory":
         cleanup_requested = bool(JARVIS_CLEANUP_PATTERN.search(command))
         command_args = ["./jarvis", "system-memory"]
@@ -4573,14 +4629,17 @@ def local_handoff(command, intent, execute=False):
         command_args = ["./jarvis", "do", command]
     if not command_args:
         application_intent = intent in {"open_application", "close_application"}
+        spotify_intent = intent == "spotify_control"
         return {
             "ok": False,
             "endpoint": "POST /command",
-            "status_real": "application_target_missing" if application_intent else "memory_content_missing",
+            "status_real": "application_target_missing" if application_intent else "spotify_control_invalid" if spotify_intent else "memory_content_missing",
             "visual_state": "error",
             "message": (
                 "Diga exatamente qual aplicativo devo abrir ou fechar."
                 if application_intent
+                else "Não reconheci esse controle do Spotify. Use tocar, pausar, próxima/anterior, volume, aleatório, repetição, busca ou status."
+                if spotify_intent
                 else "Diga exatamente o que devo guardar; não vou fingir que salvei um ‘isso’ sem contexto."
             ),
             "intent": intent,
@@ -4610,6 +4669,7 @@ def local_handoff(command, intent, execute=False):
                 "system_memory": "Diagnóstico do Mac concluído; somente temporários do JARVIS foram elegíveis para limpeza.",
                 "open_application": "Aplicativo aberto no seu Mac.",
                 "close_application": "Aplicativo fechado no seu Mac.",
+                "spotify_control": "Spotify controlado e estado consultado novamente no seu Mac.",
             }
             return {
                 "ok": action_succeeded,
@@ -6471,7 +6531,7 @@ def capability_question_payload(prompt):
     if topics["n8n"]:
         pieces.append("no n8n eu monto o fluxo e aciono webhooks configurados; criar dentro da sua conta exige a API ou credencial do n8n conectada")
     if topics["computer"]:
-        pieces.append("no Mac o worker abre ou fecha apps, tira prints, abre o gravador e analisa memória")
+        pieces.append("no Mac o worker abre ou fecha apps, controla reprodução e volume do Spotify, tira prints, abre o gravador e analisa memória")
     if topics["github"]:
         pieces.append("no GitHub eu consulto a conta autenticada sem expor o token")
     if topics["evolve"]:
@@ -6513,6 +6573,25 @@ def agent_tool_definitions():
                     "type": "object",
                     "properties": {"application": {"type": "string", "description": "Exact application name."}},
                     "required": ["application"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "control_spotify",
+                "description": "Control Spotify playback on Theo's paired Mac and verify the real player state.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["status", "play", "pause", "next", "previous", "volume", "shuffle", "repeat", "search", "play-uri"],
+                        },
+                        "value": {"type": "string", "description": "Volume, on/off, search text, or an allowlisted spotify:track URI when required."},
+                    },
+                    "required": ["operation"],
                     "additionalProperties": False,
                 },
             },
@@ -6804,6 +6883,25 @@ def execute_agent_tool(tool_call, original_command, local_execute=False, owner_a
             return {"ok": False, "status_real": "agent_tool_target_missing", "error": "Não identifiquei qual aplicativo usar."}, 400
         intent = name
         command = f"{'abra' if name == 'open_application' else 'feche'} {app}"
+    elif name == "control_spotify":
+        operation = clean_text(args.get("operation"), 30)
+        value = clean_text(args.get("value"), 140).strip()
+        commands = {
+            "status": "status do Spotify",
+            "play": "continue o Spotify",
+            "pause": "pause o Spotify",
+            "next": "próxima faixa no Spotify",
+            "previous": "faixa anterior no Spotify",
+            "volume": f"volume do Spotify para {value}",
+            "shuffle": f"{'ative' if value == 'on' else 'desative'} o aleatório no Spotify",
+            "repeat": f"{'ative' if value == 'on' else 'desative'} a repetição no Spotify",
+            "search": f"busque no Spotify {value}",
+            "play-uri": f"toque no Spotify {value}",
+        }
+        command = commands.get(operation, "")
+        if not command or not spotify_command_args(command):
+            return {"ok": False, "status_real": "agent_tool_spotify_invalid", "error": "O controle do Spotify não é válido."}, 400
+        intent = "spotify_control"
     elif name == "send_message":
         recipient = clean_text(args.get("recipient"), 100).strip(' \"“”')
         message = clean_text(args.get("message"), 4_000).strip(' \"“”')

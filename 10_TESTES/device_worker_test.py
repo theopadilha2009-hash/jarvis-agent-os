@@ -69,6 +69,11 @@ class DeviceWorkerTest(unittest.TestCase):
         capture = MODULE.command_argv({"action": "screen_capture", "target": ""})
         recording = MODULE.command_argv({"action": "screen_record", "target": "native-recorder"})
         github = MODULE.command_argv({"action": "github_overview", "target": "theopadilha2009-hash"})
+        spotify = MODULE.command_argv({
+            "action": "spotify_control",
+            "target": "volume 35",
+            "request_text": "volume do Spotify para 35",
+        })
         storage = MODULE.command_argv({"action": "storage_scan", "target": "downloads"})
         message = MODULE.command_argv({
             "action": "message_send",
@@ -78,6 +83,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(capture, [str(ROOT / "jarvis"), "screen-capture"])
         self.assertEqual(recording, [str(ROOT / "jarvis"), "screen-record"])
         self.assertEqual(github, [str(ROOT / "jarvis"), "github-overview", "--limit", "12"])
+        self.assertEqual(spotify, [str(ROOT / "jarvis"), "spotify", "volume", "35"])
         self.assertEqual(storage[:3], [str(ROOT / "jarvis"), "storage-scan", str(Path.home() / "Downloads")])
         self.assertEqual(
             message,
@@ -100,6 +106,8 @@ class DeviceWorkerTest(unittest.TestCase):
             MODULE.command_argv({"action": "open_application", "target": "Calculator; echo nope"})
         with self.assertRaises(MODULE.WorkerError):
             MODULE.command_argv({"action": "storage_scan", "target": "/"})
+        with self.assertRaises(MODULE.WorkerError):
+            MODULE.command_argv({"action": "spotify_control", "target": "invalid", "request_text": "Spotify faça qualquer coisa"})
         with self.assertRaises(MODULE.WorkerError):
             MODULE.command_argv({
                 "action": "message_send",
@@ -194,7 +202,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
-        self.assertEqual(kwargs["body"]["version"], "9")
+        self.assertEqual(kwargs["body"]["version"], "10")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):
@@ -217,15 +225,16 @@ class DeviceWorkerTest(unittest.TestCase):
             "image/png",
         )
 
-    def test_stale_recovery_never_repeats_message_send(self):
+    def test_stale_recovery_never_repeats_side_effecting_actions(self):
         stale = [
             {"id": 31, "action": "screen_capture"},
             {"id": 32, "action": "message_send"},
             {"id": 33, "action": "self_edit"},
+            {"id": 34, "action": "spotify_control"},
         ]
-        with patch.object(MODULE, "rest_request", side_effect=[stale, [], [], []]) as request:
+        with patch.object(MODULE, "rest_request", side_effect=[stale, [], [], [], []]) as request:
             requeued, failed = MODULE.recover_stale_commands()
-        self.assertEqual((requeued, failed), (1, 2))
+        self.assertEqual((requeued, failed), (1, 3))
         retry_body = request.call_args_list[1].kwargs["body"]
         message_body = request.call_args_list[2].kwargs["body"]
         self.assertEqual(retry_body["status"], "pending")
@@ -233,6 +242,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(message_body["status"], "failed")
         self.assertIn("não foi repetida", message_body["result"])
         self.assertEqual(request.call_args_list[3].kwargs["body"]["status"], "failed")
+        self.assertEqual(request.call_args_list[4].kwargs["body"]["status"], "failed")
         recovery_query = request.call_args_list[0].kwargs["query"]
         self.assertIn("%2B00:00", recovery_query)
         self.assertNotIn("+00:00", recovery_query)

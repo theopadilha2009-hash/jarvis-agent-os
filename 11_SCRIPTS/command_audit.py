@@ -98,6 +98,7 @@ CRITICAL_COMMANDS = [
     "memory-save",
     "storage-scan",
     "system-memory",
+    "spotify",
     "computer",
     "computer-worker",
     "self-edit",
