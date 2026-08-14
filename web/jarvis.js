@@ -27,6 +27,8 @@
   const installDialog = byId("installDialog");
   const mobileLayout = window.matchMedia("(max-width: 720px)");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
+  const OWNER_IDLE_KEY = "jarvis-owner-last-active";
+  const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   const CHAT_HEIGHT_KEY = "jarvis-chat-height";
@@ -797,12 +799,29 @@
     }
   }
 
+  function touchOwnerActivity() {
+    try { localStorage.setItem(OWNER_IDLE_KEY, String(Date.now())); } catch { /* ignore */ }
+  }
+
+  function expireIdleOwnerSession() {
+    if (!ownerToken()) return false;
+    let last = 0;
+    try { last = Number(localStorage.getItem(OWNER_IDLE_KEY) || 0); } catch { last = 0; }
+    if (last && Date.now() - last < OWNER_IDLE_MS) return false;
+    try {
+      localStorage.removeItem(OWNER_TOKEN_KEY);
+      localStorage.removeItem(OWNER_IDLE_KEY);
+    } catch { /* ignore */ }
+    return true;
+  }
+
   async function exitOwnerMode(trigger = null) {
     const control = trigger || byId("leaveOwnerMode");
     if (control) control.disabled = true;
     stopSpeechOutput();
     try {
       localStorage.removeItem(OWNER_TOKEN_KEY);
+      localStorage.removeItem(OWNER_IDLE_KEY);
     } catch {
       byId("pairingHint").textContent = "Este navegador não permitiu encerrar a sessão local.";
       if (control) control.disabled = false;
@@ -2408,6 +2427,7 @@
 
   async function boot() {
     try {
+      expireIdleOwnerSession();
       const status = await request("/status");
       renderOccupancy(status.occupancy);
       byId("connectionDot").classList.toggle("online", Boolean(status.ok));
@@ -2415,6 +2435,7 @@
       byId("serviceValue").textContent = status.service || "jarvis-web";
       byId("modelValue").textContent = status.ai?.model || "—";
       session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
+      if (session.paired) touchOwnerActivity();
       const browserProviders = renderIntegrationRegistry();
       const browserOpenRouter = browserProviders.includes("openrouter");
       const browserN8n = browserProviders.includes("n8n");
@@ -2694,6 +2715,7 @@
         return;
       }
       localStorage.setItem(OWNER_TOKEN_KEY, data.session_token);
+      touchOwnerActivity();
       byId("adminPassword").value = "";
       session.historyRestored = false;
       await boot();
@@ -2715,6 +2737,7 @@
     }
     try {
       localStorage.setItem(OWNER_TOKEN_KEY, token);
+      touchOwnerActivity();
     } catch {
       byId("pairingHint").textContent = "Este navegador bloqueou o armazenamento local.";
       return;

@@ -119,6 +119,18 @@ WEB_SEARCH_DECISION_PATTERN = re.compile(
     r"mercado\s+(?:atual|hoje)|amazon|mercado\s*livre|olx|webmotors|kabum|magalu|shopee)\b",
     re.I,
 )
+IDENTITY_QUESTION_PATTERN = re.compile(
+    r"(?:quem\s+[eé]\s+(?:voc[eê]|tu|vc|o\s+jarvis|o\s+ultron|esse\s+assistente)|"
+    r"quem\s+sou\s+eu|"
+    r"o\s+que\s+[eé]\s+(?:voc[eê]|o\s+jarvis|o\s+ultron)|"
+    r"se\s+apresent[ea])\b",
+    re.I,
+)
+QUEM_MAGAZINE_HOSTS = {
+    "quem.globo.com",
+    "quem.com.br",
+    "revistaquem.globo.com",
+}
 AUTOMOTIVE_RESEARCH_PATTERN = re.compile(
     r"\b(?:webmotors|olx|seminov[oa]s?|carros?\s+usados?|ve[ií]culos?\s+usados?|"
     r"tabela\s+fipe|pre[cç](?:o|os)|quanto\s+custa|valor\s+(?:do|da|de))\b",
@@ -5255,11 +5267,18 @@ def openrouter_model_candidates(attachments=False, profile="concise"):
     return candidates or [DEFAULT_MODEL]
 
 
+def is_identity_question(prompt):
+    text = clean_text(prompt, 400)
+    return bool(text and IDENTITY_QUESTION_PATTERN.search(text))
+
+
 def should_search_web(messages):
     """Route explicit research and time-sensitive questions to live search."""
     if not messages:
         return False
     latest = clean_text(messages[-1].get("content"), 8_000)
+    if is_identity_question(latest):
+        return False
     return bool(
         is_automotive_research(latest)
         or WEB_SEARCH_EXPLICIT_PATTERN.search(latest)
@@ -5363,6 +5382,8 @@ def search_query_from_prompt(prompt):
     )
     query = re.sub(r"(?i)(?:[.;]\s*)?se\s+n[aã]o\s+(?:conseguir\s+)?confirmar\b.*$", "", query)
     query = re.sub(r"\s+", " ", query).strip(" .,:;!?-")
+    if is_identity_question(query) or query.casefold() in {"quem", "quem e", "quem é"}:
+        return clean_text(prompt, 500)
     return query or clean_text(prompt, 500)
 
 
@@ -6101,6 +6122,9 @@ def relevant_public_sources(sources, query, limit=FREE_SEARCH_RESULT_LIMIT):
             clean_text(item.get("url"), 500),
         ])
         haystack_terms = memory_terms(haystack)
+        host = clean_text(item.get("domain"), 160).casefold().removeprefix("www.")
+        if host in QUEM_MAGAZINE_HOSTS and "revista" not in query_terms:
+            continue
         anchor_overlap = len(anchor_terms & haystack_terms)
         if anchor_terms and not anchor_overlap:
             continue

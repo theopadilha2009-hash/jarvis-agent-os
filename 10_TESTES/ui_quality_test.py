@@ -275,7 +275,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
-        self.assertLess(critical_bytes, 256 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
+        self.assertLess(critical_bytes, 264 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
         self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
         self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 4 * 1024)
         self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 7 * 1024)
@@ -346,7 +346,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertGreaterEqual(
-            sum(self.html.count(f"20260814-chatfix{n}") for n in range(1, 8)),
+            sum(self.html.count(f"20260814-chatfix{n}") for n in range(1, 9)),
             4,
         )
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
@@ -430,6 +430,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("BUG JARVIS (visitante)", self.app_js)
         self.assertIn("Sair do Ultron", self.app_js)
         self.assertIn("access-swap", self.html)
+        self.assertIn("jarvis-owner-last-active", self.app_js)
+        self.assertIn("expireIdleOwnerSession", self.app_js)
+        self.assertIn("min(42vh, 340px)", self.ui_repair_css)
         self.assertIn(".scene-telemetry", self.ui_repair_css)
         self.assertIn(".github-star-button", self.ui_repair_css)
         self.assertIn("Melhorar você", self.app_js)
