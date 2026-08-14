@@ -14,7 +14,7 @@
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
 <link rel="stylesheet" href="/ui/jarvis.css?v=20260814-chatfix1">
-<link rel="stylesheet" href="/ui/ui-repair.css?v=20260814-chatfix3">
+<link rel="stylesheet" href="/ui/ui-repair.css?v=20260814-chatfix6">
 <link rel="stylesheet" href="/ui/api-panel.css?v=20260813-ultronfix1">
 <link rel="stylesheet" href="/ui/responsive-polish.css?v=20260814-chatfix1">
   <script type="importmap">
@@ -34,7 +34,12 @@
       <div class="connection">
         <span class="connection-dot" id="connectionDot"></span>
         <span id="connectionText">acordando</span>
-        <button class="access-mode" id="accessMode" type="button" title="Ver acesso atual">verificando acesso</button>
+        <button class="access-mode" id="accessMode" type="button" title="Ver acesso atual">
+          <svg class="access-swap" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M16.5 4.5 20 8l-3.5 3.5M20 8H9.5A5.5 5.5 0 0 0 4 13.5M7.5 19.5 4 16l3.5-3.5M4 16h10.5A5.5 5.5 0 0 0 20 10.5"></path>
+          </svg>
+          <span id="accessModeLabel">verificando acesso</span>
+        </button>
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
         <button class="quiet-button" id="tourButton" type="button">Guia</button>
         <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
@@ -61,7 +66,7 @@
         <div class="avatar" id="avatar3d" aria-hidden="true"></div>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
 
-        <section class="scene-objective" id="sceneObjective" aria-live="polite">
+        <section class="scene-objective" id="sceneObjective" aria-live="polite" hidden>
           <small id="sceneEyebrow">SISTEMA ONLINE</small>
           <strong id="sceneMission">Aguardando comando</strong>
           <span id="sceneDetail">Núcleo pronto para conversar ou agir.</span>
@@ -392,7 +397,7 @@
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/feature-loader.js?v=20260814-chatfix2" defer></script>
 <script src="/ui/device-feedback.js?v=20260813-device1" defer></script>
-<script src="/ui/jarvis.js?v=20260814-chatfix5" defer></script>
+<script src="/ui/jarvis.js?v=20260814-chatfix6" defer></script>
 <script type="module" src="/ui/presence-loader.js?v=20260813-ultronfix1"></script>
 </body>
 </html>
