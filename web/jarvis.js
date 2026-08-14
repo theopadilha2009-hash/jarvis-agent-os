@@ -28,6 +28,7 @@
   const mobileLayout = window.matchMedia("(max-width: 720px)");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
+  const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   const CHAT_HEIGHT_KEY = "jarvis-chat-height";
   const MAX_VISIBLE_MESSAGES = 24;
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -211,6 +212,39 @@
     } catch {
       return "";
     }
+  }
+
+  function localHistoryKey() {
+    return `${LOCAL_HISTORY_KEY}:${conversationSessionId()}`;
+  }
+
+  function readLocalHistory() {
+    try {
+      const rows = JSON.parse(localStorage.getItem(localHistoryKey()) || "[]");
+      if (!Array.isArray(rows)) return [];
+      return rows.filter((row) => row && (row.role === "user" || row.role === "assistant") && typeof row.content === "string").slice(-24);
+    } catch {
+      return [];
+    }
+  }
+
+  function writeLocalHistory() {
+    try {
+      localStorage.setItem(localHistoryKey(), JSON.stringify(session.history.slice(-24)));
+    } catch { /* quota / private mode */ }
+  }
+
+  function renderOccupancy(data) {
+    const target = byId("conversationOccupancy");
+    if (!target) return;
+    const online = Math.max(1, Number(data?.online) || 1);
+    const waiting = Number(data?.waiting) || 0;
+    target.textContent = waiting
+      ? `${online} aqui · ${waiting} na fila`
+      : online === 1
+        ? "1 neste computador"
+        : `${online} computadores agora`;
+    target.title = "Cada computador tem o próprio chat. Memória permanente só se você pedir.";
   }
 
   function assistantName() {
@@ -863,6 +897,7 @@
     }
     session.history = [];
     session.historyRestored = true;
+    writeLocalHistory();
     session.currentCommand = "";
     session.mission = null;
     session.responseState = "";
@@ -1032,14 +1067,33 @@
     }
   }
 
+  function restoreLocalConversation() {
+    if (session.historyRestored && session.history.length) return;
+    const rows = readLocalHistory();
+    if (!rows.length) {
+      session.historyRestored = true;
+      return;
+    }
+    session.history = rows;
+    session.historyRestored = true;
+    if (byId("welcomeMessage")) {
+      session.history.forEach((message) => {
+        addMessage(message.content, message.role === "user" ? "user" : "jarvis");
+      });
+      feed.scrollTop = feed.scrollHeight;
+    }
+    byId("conversationMemoryValue").textContent = `${Math.ceil(session.history.length / 2)} turnos neste computador`;
+    byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
+  }
+
   async function restoreConversationHistory() {
     if (!session.paired || session.historyRestored) return;
     try {
       const data = await request("/conversation-history");
-      if (data.ok && Array.isArray(data.messages)) {
+      if (data.ok && Array.isArray(data.messages) && data.messages.length) {
         session.history = data.messages.slice(-24);
         session.historyRestored = true;
-        if (session.history.length && byId("welcomeMessage")) {
+        if (byId("welcomeMessage")) {
           session.history.forEach((message) => {
             const role = message.role === "user" ? "user" : "jarvis";
             addMessage(message.content, role);
@@ -1050,13 +1104,18 @@
           ? `${Math.ceil(session.history.length / 2)} turnos no Supabase`
           : "sessão local";
         byId("contextCount").textContent = `${Math.ceil(session.history.length / 2)} turnos`;
+        writeLocalHistory();
+      } else {
+        restoreLocalConversation();
       }
     } catch {
       byId("conversationMemoryValue").textContent = "sincronização indisponível";
+      restoreLocalConversation();
     }
   }
 
   async function syncConversationHistory() {
+    writeLocalHistory();
     if (!session.paired || !session.history.length) return;
     try {
       const data = await request("/conversation-sync", {
@@ -2182,6 +2241,7 @@
     syncComposerHeight();
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-24);
+    writeLocalHistory();
     setRequest(command);
     if (session.paired && session.strength === "maximum") signalUltron("order");
     const workingState = workingStateFor(command);
@@ -2216,7 +2276,13 @@
         renderAttachmentTray();
         clearAttachmentPreview();
       }
+      if (data?.retryable && /ocupad|fila/i.test(String(data.error || "")) && !options.retriedBusy) {
+        renderOccupancy(data.occupancy);
+        await new Promise((resolve) => window.setTimeout(resolve, 2500));
+        return sendCommand(rawValue, { ...options, retriedBusy: true, includeAttachments: false });
+      }
       session.lastResponseOk = data?.ok !== false;
+      renderOccupancy(data.occupancy);
       showResponse(data);
       const answer = data.message || data.summary;
       if (answer) {
@@ -2294,6 +2360,7 @@
   async function boot() {
     try {
       const status = await request("/status");
+      renderOccupancy(status.occupancy);
       byId("connectionDot").classList.toggle("online", Boolean(status.ok));
       byId("connectionText").textContent = status.ok ? "online" : "offline";
       byId("serviceValue").textContent = status.service || "jarvis-web";
@@ -2387,9 +2454,13 @@
       if (session.paired) {
         await Promise.all([restoreConversationHistory(), refreshPersonalOverview()]);
       } else {
+        restoreLocalConversation();
         refreshPersonalOverview();
       }
       refreshPulse();
+      window.setInterval(() => {
+        request("/presence").then((data) => renderOccupancy(data)).catch(() => null);
+      }, 20000);
     } catch {
       byId("connectionText").textContent = "offline";
       session.responseState = "offline";
