@@ -84,6 +84,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
   padding: 0 22px;
   border-bottom: 1px solid rgba(168, 85, 247, 0.3);
   background: linear-gradient(180deg, rgba(24, 9, 45, 0.96), rgba(10, 4, 22, 0.9));
@@ -172,7 +174,11 @@ button {
 }
 
 .connection {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 9px;
+  min-width: 0;
 }
 
 .access-mode {
@@ -1130,28 +1136,50 @@ button {
   position: absolute;
   z-index: 12;
   left: 50%;
-  bottom: 20px;
+  bottom: 16px;
   width: clamp(560px, 52vw, 720px);
-  height: 146px;
+  height: var(--conversation-height, 220px);
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: 12px auto minmax(0, 1fr) auto auto;
   transform: translateX(-50%);
   border: 1px solid rgba(168, 85, 247, 0.12);
   border-radius: 24px;
   background: rgba(18, 8, 34, 0.78);
   box-shadow: 0 32px 110px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(20px);
-  transition: width 320ms ease, height 320ms ease, background 320ms ease;
+  transition: width 320ms ease, background 320ms ease;
 }
 
 .stage.has-conversation .conversation {
   width: clamp(620px, 57vw, 780px);
-  height: min(224px, calc(100% - 170px));
+  height: var(--conversation-height, min(48vh, calc(100% - 88px)));
   background: rgba(18, 8, 34, 0.88);
 }
 
-.conversation-head {
+.stage.has-conversation .state-beacon {
+  display: none;
+}
+
+.conversation-resize {
   grid-row: 1;
+  width: 72px;
+  height: 12px;
+  margin: 2px auto 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(216, 180, 254, 0.28);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.conversation-resize:hover,
+.conversation-resize:focus-visible {
+  background: rgba(192, 132, 252, 0.7);
+  outline: none;
+}
+
+.conversation-head {
+  grid-row: 2;
   min-height: 30px;
   display: flex;
   align-items: center;
@@ -1723,7 +1751,8 @@ button {
   border-top: 1px solid rgba(168, 85, 247, 0.09);
 }
 
-.composer input {
+.composer input,
+.composer textarea {
   min-width: 0;
   border: 1px solid rgba(168, 85, 247, 0.15);
   border-radius: 16px;
@@ -1731,10 +1760,17 @@ button {
   background: rgba(0, 0, 0, 0.3);
   color: var(--text);
   padding: 11px 15px;
+  font: inherit;
   font-size: 14px;
+  resize: vertical;
+  min-height: 44px;
+  max-height: 168px;
+  line-height: 1.4;
+  overflow-y: auto;
 }
 
-.composer input:focus {
+.composer input:focus,
+.composer textarea:focus {
   border-color: var(--line-hot);
   box-shadow: 0 0 0 3px rgba(192, 132, 252, 0.06);
 }
@@ -2610,7 +2646,8 @@ dialog::backdrop {
   }
 
   .composer { padding: 8px 10px 10px; }
-  .composer input { border-color: rgba(168, 85, 247, 0.12); background: rgba(7, 3, 14, 0.66); }
+  .composer input,
+  .composer textarea { border-color: rgba(168, 85, 247, 0.12); background: rgba(7, 3, 14, 0.66); }
   .send-button { border-radius: 12px; }
 }
 
@@ -2717,7 +2754,8 @@ dialog::backdrop {
     gap: 6px;
     padding: 8px 8px max(8px, env(safe-area-inset-bottom));
   }
-  .composer input { min-height: 44px; padding: 10px 12px; border-radius: 14px; font-size: 16px; }
+  .composer input,
+  .composer textarea { min-height: 44px; padding: 10px 12px; border-radius: 14px; font-size: 16px; }
   .voice-button,
   .attachment-button,
   .send-button { min-width: 44px; min-height: 44px; border-radius: 14px; }
@@ -3000,13 +3038,15 @@ html[data-persona="ultron"] .composer {
   background: rgba(39, 5, 9, 0.92);
 }
 
-html[data-persona="ultron"] .composer input {
+html[data-persona="ultron"] .composer input,
+html[data-persona="ultron"] .composer textarea {
   border-color: rgba(248, 113, 113, 0.34);
   background: rgba(22, 2, 5, 0.82);
   box-shadow: inset 0 1px 8px rgba(0, 0, 0, 0.34);
 }
 
-html[data-persona="ultron"] .composer input:focus {
+html[data-persona="ultron"] .composer input:focus,
+html[data-persona="ultron"] .composer textarea:focus {
   border-color: #f87171;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14), inset 0 1px 8px rgba(0, 0, 0, 0.32);
 }
@@ -3034,34 +3074,6 @@ html[data-persona="ultron"] .pulse-button {
   color: #f6d4d7;
 }
 
-.ultron-laughter {
-  position: absolute;
-  z-index: 4;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.ultron-laughter span {
-  position: absolute;
-  left: var(--laugh-x);
-  top: var(--laugh-y);
-  color: rgba(254, 202, 202, 0.72);
-  font: 800 var(--laugh-size)/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.14em;
-  text-shadow: 0 0 12px rgba(239, 68, 68, 0.72), 0 0 28px rgba(127, 29, 29, 0.46);
-  transform: translate(-50%, 12px) rotate(var(--laugh-tilt)) scale(0.88);
-  opacity: 0;
-  animation: ultron-laugh-drift var(--laugh-duration) ease-in-out forwards;
-}
-
-@keyframes ultron-laugh-drift {
-  16% { opacity: 0.42; }
-  48% { opacity: 0.76; transform: translate(-50%, -5px) rotate(var(--laugh-tilt)) scale(1); }
-  82% { opacity: 0.3; }
-  100% { opacity: 0; transform: translate(-50%, -26px) rotate(var(--laugh-tilt)) scale(1.06); filter: blur(1px); }
-}
-
 html[data-persona="ultron"] .stage.ultron-signal .target-ring {
   animation: ultron-target-lock 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -3082,8 +3094,6 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
   32% { box-shadow: 0 20px 64px rgba(0, 0, 0, 0.48), 0 0 34px rgba(239, 51, 64, 0.25); }
 }
 
-html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
-
 @media (max-width: 720px) {
   .composer { grid-template-columns: 44px 44px minmax(72px, 1fr) 50px 64px; }
   .strength-button { min-width: 50px; padding-inline: 4px; }
@@ -3098,10 +3108,6 @@ html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
 @media (max-width: 350px) {
   .composer { grid-template-columns: 42px 42px minmax(52px, 1fr) 46px 44px; }
   .strength-button { min-width: 46px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ultron-laughter { display: none; }
 }
 
 @media (max-width: 420px) {
@@ -3137,8 +3143,14 @@ html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
 
 @media (max-height: 700px) and (min-width: 721px) {
   .conversation { bottom: 14px; }
-  .stage.has-conversation .conversation { height: 230px; }
+  .stage.has-conversation .conversation { height: var(--conversation-height, min(58vh, calc(100% - 72px))); }
   .spoken-caption { bottom: 256px; }
+}
+
+@media (max-width: 1280px) {
+  #tourButton,
+  #qualityButton { display: none; }
+  .quiet-button kbd { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3377,7 +3389,8 @@ html:not([data-persona="ultron"]) .ultron-laughter { display: none; }
     background: rgba(2, 4, 16, 0.76);
   }
 
-  .composer input { min-height: 46px; padding-inline: 14px; }
+  .composer input,
+  .composer textarea { min-height: 46px; padding-inline: 14px; }
   .voice-button,
   .attachment-button,
   .send-button { min-height: 46px; border-radius: 14px; }
@@ -3756,7 +3769,8 @@ dialog {
   background: rgba(28, 14, 48, 0.9);
 }
 
-.composer input {
+.composer input,
+.composer textarea {
   border-color: rgba(192, 132, 252, 0.34);
   border-radius: 12px;
   background: rgba(15, 7, 27, 0.76);
@@ -3764,9 +3778,11 @@ dialog {
   box-shadow: inset 0 1px 8px rgba(3, 1, 8, 0.22);
 }
 
-.composer input::placeholder { color: #ae95c5; }
+.composer input::placeholder,
+.composer textarea::placeholder { color: #ae95c5; }
 
-.composer input:focus {
+.composer input:focus,
+.composer textarea:focus {
   border-color: #c084fc;
   box-shadow: 0 0 0 3px rgba(192, 132, 252, 0.13), inset 0 1px 8px rgba(3, 1, 8, 0.2);
 }

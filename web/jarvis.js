@@ -27,6 +27,8 @@
   const installDialog = byId("installDialog");
   const mobileLayout = window.matchMedia("(max-width: 720px)");
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
+  const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
+  const CHAT_HEIGHT_KEY = "jarvis-chat-height";
   const MAX_VISIBLE_MESSAGES = 24;
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
@@ -196,8 +198,20 @@
   let viewportWidth = window.innerWidth;
   let voiceLevel = 0;
   let voiceAudioContext = null;
-  let laughterTimer = 0;
   let ultronSignalTimer = 0;
+
+  function conversationSessionId() {
+    try {
+      let id = localStorage.getItem(CONVERSATION_SESSION_KEY) || "";
+      if (!/^[A-Za-z0-9_-]{8,80}$/.test(id)) {
+        id = (window.crypto?.randomUUID?.() || `c-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`).replace(/[^A-Za-z0-9_-]/g, "");
+        localStorage.setItem(CONVERSATION_SESSION_KEY, id);
+      }
+      return id;
+    } catch {
+      return "";
+    }
+  }
 
   function assistantName() {
     return session.paired ? "ULTRON" : "JARVIS";
@@ -672,26 +686,6 @@
     }
   }
 
-  function spawnUltronLaugh(reason = "ambient") {
-    const field = byId("ultronLaughter");
-    if (!field || !session.paired || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const available = Math.max(0, 4 - field.childElementCount);
-    const eventDriven = reason !== "ambient";
-    const amount = Math.min(available, eventDriven ? 2 : Math.random() > 0.58 ? 2 : 1);
-    const variants = ["HA HA", "HAHA", "HA HA HA", "HAHAHA"];
-    for (let index = 0; index < amount; index += 1) {
-      const laugh = document.createElement("span");
-      laugh.textContent = variants[Math.floor(Math.random() * variants.length)];
-      laugh.style.setProperty("--laugh-x", `${8 + Math.random() * 84}%`);
-      laugh.style.setProperty("--laugh-y", `${8 + Math.random() * 74}%`);
-      laugh.style.setProperty("--laugh-tilt", `${-12 + Math.random() * 24}deg`);
-      laugh.style.setProperty("--laugh-size", `${24 + Math.random() * 18}px`);
-      laugh.style.setProperty("--laugh-duration", `${3.8 + Math.random() * 1.9}s`);
-      field.appendChild(laugh);
-      laugh.addEventListener("animationend", () => laugh.remove(), { once: true });
-    }
-  }
-
   function signalUltron(reason = "response") {
     if (!session.paired) return;
     window.clearTimeout(ultronSignalTimer);
@@ -702,20 +696,6 @@
       stage.classList.remove("ultron-signal");
       delete stage.dataset.ultronSignal;
     }, 900);
-    spawnUltronLaugh(reason);
-  }
-
-  function scheduleUltronLaughter(initial = false) {
-    window.clearTimeout(laughterTimer);
-    if (!session.paired) {
-      byId("ultronLaughter")?.replaceChildren();
-      return;
-    }
-    if (initial) byId("ultronLaughter")?.replaceChildren();
-    laughterTimer = window.setTimeout(() => {
-      spawnUltronLaugh();
-      scheduleUltronLaughter(false);
-    }, initial?900:3600 + Math.random() * 3200);
   }
 
   function applyIdentityMode() {
@@ -745,7 +725,6 @@
     renderMuteState();
     renderApiPower();
     renderIntegrationRegistry();
-    scheduleUltronLaughter(true);
     window.dispatchEvent(new CustomEvent("jarvis-persona", { detail: { persona: ultron ? "ultron" : "jarvis" } }));
   }
 
@@ -1707,6 +1686,8 @@
     const headers = new Headers(requestOptions.headers || {});
     const token = ownerToken();
     if (token) headers.set("X-Jarvis-Owner-Token", token);
+    const conversationId = conversationSessionId();
+    if (conversationId) headers.set("X-Jarvis-Conversation-Id", conversationId);
     requestOptions.headers = headers;
     if (!requestOptions.signal && typeof window.AbortSignal?.timeout === "function") {
       requestOptions.signal = window.AbortSignal.timeout(path === "/command" ? 45000 : 20000);
@@ -2181,6 +2162,7 @@
       addMessage(command, options.source === "voice" ? "user voice" : "user");
       input.value = "";
       syncComposerAction();
+      syncComposerHeight();
       showResponse({ ok: false, worker_offline: true, error: "O Mac está offline. A captura não entrou na fila; ligue o worker e tente de novo." });
       return;
     }
@@ -2197,6 +2179,7 @@
     addMessage(command, options.source === "voice" ? "user voice" : "user", fileLabel);
     input.value = "";
     syncComposerAction();
+    syncComposerHeight();
     session.history.push({ role: "user", content: command });
     session.history = session.history.slice(-24);
     setRequest(command);
@@ -2414,6 +2397,59 @@
     }
   }
 
+  function syncComposerHeight() {
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(168, Math.max(44, input.scrollHeight))}px`;
+  }
+
+  function applyConversationHeight(px, persist = true) {
+    const panel = document.querySelector(".conversation");
+    if (!panel) return;
+    const min = 220;
+    const max = Math.max(min, window.innerHeight - 88);
+    const height = Math.round(Math.min(max, Math.max(min, Number(px) || min)));
+    panel.style.setProperty("--conversation-height", `${height}px`);
+    if (persist) {
+      try { localStorage.setItem(CHAT_HEIGHT_KEY, String(height)); } catch { /* ignore */ }
+    }
+  }
+
+  function bindConversationResize() {
+    const handle = byId("conversationResize");
+    const panel = document.querySelector(".conversation");
+    if (!handle || !panel) return;
+    let startY = 0;
+    let startHeight = 0;
+    const onMove = (event) => {
+      const point = event.touches ? event.touches[0] : event;
+      applyConversationHeight(startHeight + (startY - point.clientY));
+      event.preventDefault();
+    };
+    const onEnd = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+    };
+    const onStart = (event) => {
+      const point = event.touches ? event.touches[0] : event;
+      startY = point.clientY;
+      startHeight = panel.getBoundingClientRect().height;
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onEnd);
+      window.addEventListener("touchmove", onMove, { passive: false });
+      window.addEventListener("touchend", onEnd);
+      event.preventDefault();
+    };
+    handle.addEventListener("pointerdown", onStart);
+    handle.addEventListener("touchstart", onStart, { passive: false });
+    try {
+      const saved = Number(localStorage.getItem(CHAT_HEIGHT_KEY));
+      if (saved >= 220) applyConversationHeight(saved, false);
+    } catch { /* ignore */ }
+  }
+
   byId("commandForm").addEventListener("submit", (event) => {
     event.preventDefault();
     sendCommand(input.value, { includeAttachments: true });
@@ -2422,8 +2458,19 @@
     if (mobileLayout.matches) setMobileChatExpanded(true);
     window.setTimeout(syncMobileViewport, 80);
   });
-  input.addEventListener("input", syncComposerAction);
+  input.addEventListener("input", () => {
+    syncComposerAction();
+    syncComposerHeight();
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      byId("commandForm").requestSubmit();
+    }
+  });
   input.addEventListener("blur", () => window.setTimeout(syncMobileViewport, 80));
+  bindConversationResize();
+  syncComposerHeight();
   attachmentButton.addEventListener("click", () => attachmentInput.click());
   attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
   pulseButton.addEventListener("click", () => {
@@ -2623,7 +2670,6 @@
     window.clearInterval(progressInterval);
     window.clearTimeout(progressHideTimer);
     window.clearTimeout(filePreviewTimer);
-    window.clearTimeout(laughterTimer);
     byId("integrationFields")?.replaceChildren();
     stopSpeechOutput();
   }, { once: true });
