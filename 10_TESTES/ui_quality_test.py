@@ -263,7 +263,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("memory-explorer.js?v=20260813-ultronfix1", feature_loader)
         self.assertIn("action-permissions.js?v=20260813-ultronfix1", feature_loader)
         self.assertIn("Dar uma estrela no GitHub", feature_loader)
-        self.assertIn("ghbtns.com/github-btn.html", feature_loader)
+        self.assertIn("api.github.com/repos/", feature_loader)
+        self.assertNotIn("ghbtns.com", feature_loader)
         self.assertIn("screenUnavailable", feature_loader)
         self.assertIn("devicePollDelay", self.app_js)
         self.assertIn("worker_offline", self.app_js)
@@ -334,7 +335,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260814-nuclei1")', self.presence_loader_js)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260814-nucleus2")', self.presence_loader_js)
         self.assertIn("always: true", self.presence_js)
         self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
@@ -351,7 +352,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
-        self.assertGreaterEqual(self.html.count("20260814-shell1"), 5)
+        self.assertGreaterEqual(self.html.count("20260814-nucleus2"), 5)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -445,7 +446,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("Quem te criou?", self.app_js)
         self.assertIn("jarvis-owner-last-active", self.app_js)
         self.assertIn("expireIdleOwnerSession", self.app_js)
-        self.assertIn("min(56vh, 460px)", self.shell_css)
+        self.assertIn("clamp(340px, 62vh, 620px)", self.shell_css)
         self.assertIn(".scene-telemetry", self.shell_css)
         self.assertIn(".github-star-button", self.shell_css)
         self.assertIn("Melhorar você", self.app_js)
@@ -463,7 +464,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('"jarvis-response-strength"', self.app_js)
         self.assertIn("function signalUltron", self.app_js)
         self.assertIn("X-Jarvis-Conversation-Id", self.app_js)
-        self.assertIn("ghbtns.com/github-btn.html", self.feature_loader_js)
+        self.assertIn('githubStar.className = "github-star-button"', self.feature_loader_js)
+        self.assertNotIn("ghbtns.com", self.feature_loader_js)
         self.assertIn('data.persona?.id === "ultron_private"', self.app_js)
         self.assertIn("@keyframes ultron-target-lock", self.css)
         self.assertIn('html[data-persona="ultron"] .message-context', self.ui_repair_css)
@@ -522,6 +524,29 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn(".composer .voice-button,\n.composer .send-button {", self.shell_css)
         self.assertIn("Math.min(120, Math.max(50, input.scrollHeight))", self.app_js)
 
+    def test_chat_window_opens_tall_and_drops_the_squashed_saved_rect(self):
+        """A janela salva antes da v2 abria 720x240; a chave nova descarta isso."""
+        self.assertIn('const CHAT_RECT_KEY = "jarvis-chat-rect-v2"', self.app_js)
+        self.assertIn('localStorage.removeItem("jarvis-chat-rect")', self.html)
+        self.assertIn('localStorage.getItem("jarvis-chat-rect-v2")', self.html)
+        self.assertNotIn("jarvis-chat-height", self.app_js)
+        self.assertIn("const minH = 340", self.app_js)
+        self.assertIn("Math.max(440, Math.round(window.innerHeight * 0.62))", self.app_js)
+
+    def test_mini_nuclei_are_anchored_to_the_legend(self):
+        """Núcleo, Forja e Memória: cada nome encosta na sua própria miniatura."""
+        self.assertIn("placeMiniNuclei", self.presence_js)
+        self.assertIn("camera.updateMatrixWorld(true)", self.presence_js)
+        self.assertIn("--nucleus-x", self.presence_js)
+        self.assertIn("--nucleus-y", self.presence_js)
+        self.assertIn(".nucleus-legend span", self.shell_css)
+        self.assertIn("left: var(--nucleus-x", self.shell_css)
+        # A legenda vive dentro do canvas 3D, senão o offset do .avatar desalinha.
+        avatar = self.html.split('id="avatar3d"', 1)[1].split("</div>", 1)[0]
+        self.assertIn("nucleus-legend", avatar)
+        # Sem baseY os três colapsam na mesma altura do busto.
+        self.assertIn("group.userData.baseY", self.presence_js)
+        self.assertNotIn("group.position.y = 0.02 + Math.sin", self.presence_js)
 
     def test_api_vault_editor_has_a_bounded_scroll_surface(self):
         self.assertIn(".integrations-dialog[open]", self.ui_repair_css)
