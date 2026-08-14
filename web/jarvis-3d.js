@@ -475,11 +475,12 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   ctx.restore();
 }
 
-function makeCoreEntity(scene) {
+function makeCoreEntity(scene, options = {}) {
+  const always = Boolean(options.always);
   const group = new THREE.Group();
-  group.position.set(0.94, 0.02, -1.05);
-  group.scale.setScalar(0.58);
-  group.visible = false;
+  group.position.set(options.x ?? 0.94, options.y ?? 0.02, options.z ?? -1.05);
+  group.scale.setScalar(options.scale ?? 0.58);
+  group.visible = always;
   scene.add(group);
 
   const obsidianMaterial = new THREE.MeshPhysicalMaterial({
@@ -489,7 +490,7 @@ function makeCoreEntity(scene) {
     thickness: 1.2,
     ior: 1.46,
     clearcoat: 0.9,
-    emissive: 0x3b1675,
+    emissive: options.emissive ?? 0x3b1675,
     emissiveIntensity: 0.32,
     transparent: true,
     opacity: 0,
@@ -500,7 +501,7 @@ function makeCoreEntity(scene) {
   group.add(core);
 
   const soulMaterial = new THREE.MeshBasicMaterial({
-    color: 0xc084fc,
+    color: options.soul ?? 0xc084fc,
     transparent: true,
     opacity: 0,
     blending: THREE.AdditiveBlending,
@@ -510,7 +511,7 @@ function makeCoreEntity(scene) {
   group.add(soul);
 
   const wireMaterial = new THREE.MeshBasicMaterial({
-    color: 0x8b5cf6,
+    color: options.wire ?? 0x8b5cf6,
     wireframe: true,
     transparent: true,
     opacity: 0,
@@ -540,14 +541,16 @@ function makeCoreEntity(scene) {
 
   let alpha = 0;
   function update(time, visibility, deltaSeconds = 0) {
-    const ultron = document.documentElement.dataset.persona === "ultron";
-    obsidianMaterial.color.setHex(ultron ? 0x220305 : 0x120825);
-    obsidianMaterial.emissive.setHex(ultron ? 0x7f1d1d : 0x3b1675);
-    soulMaterial.color.setHex(ultron ? 0xf87171 : 0xc084fc);
-    wireMaterial.color.setHex(ultron ? 0xef4444 : 0x8b5cf6);
-    shardMaterial.color.setHex(ultron ? 0xfca5a5 : 0xc084fc);
+    if (!always) {
+      const ultron = document.documentElement.dataset.persona === "ultron";
+      obsidianMaterial.color.setHex(ultron ? 0x220305 : 0x120825);
+      obsidianMaterial.emissive.setHex(ultron ? 0x7f1d1d : 0x3b1675);
+      soulMaterial.color.setHex(ultron ? 0xf87171 : 0xc084fc);
+      wireMaterial.color.setHex(ultron ? 0xef4444 : 0x8b5cf6);
+      shardMaterial.color.setHex(ultron ? 0xfca5a5 : 0xc084fc);
+    }
     const transitionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
-    alpha += (Math.max(0, Math.min(1, visibility)) - alpha) * transitionEase;
+    alpha += (Math.max(0, Math.min(1, always ? 1 : visibility)) - alpha) * transitionEase;
     group.visible = alpha > 0.01;
     if (!group.visible) return;
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
@@ -639,6 +642,12 @@ async function start() {
   lowerFill.position.set(-1.2, -1.8, 2.4);
   scene.add(lowerFill);
   const coreEntity = makeCoreEntity(scene);
+  const miniNuclei = [
+    makeCoreEntity(scene, { always: true, x: -1.68, y: -0.62, z: 1.35, scale: 0.17, soul: 0xc084fc, wire: 0xa855f7, emissive: 0x3b1675 }),
+    makeCoreEntity(scene, { always: true, x: -1.68, y: -0.96, z: 1.35, scale: 0.17, soul: 0xfb923c, wire: 0xf97316, emissive: 0x9a3412 }),
+    makeCoreEntity(scene, { always: true, x: -1.68, y: -1.30, z: 1.35, scale: 0.17, soul: 0x67e8f9, wire: 0x22d3ee, emissive: 0x0e7490 }),
+  ];
+  stage.dataset.nuclei = "3d";
 
   const root = new THREE.Group();
   scene.add(root);
@@ -1009,6 +1018,7 @@ async function start() {
     particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
     particles.rotation.y += deltaSeconds * (isWorking ? 0.022 : 0.008);
     coreEntity.update(time, modeBlend.core, deltaSeconds);
+    miniNuclei.forEach((nucleus, index) => nucleus.update(time + index * 0.55, 1, deltaSeconds));
 
     const effectFrameDue = timeMs - effectLastFrameMs >= 1000 / EFFECT_TARGET_FPS;
     const effectBlend = Math.max(modeBlend.memory, modeBlend.forge);

@@ -1,19 +1,19 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260814-chatfix10";
+const CACHE_VERSION = "jarvis-mobile-shell-20260814-chatfix11";
 const SHELL = [
   "/",
   "/ui/manifest.webmanifest?v=20260813-apitools1",
   "/ui/jarvis-logo.png?v=20260813-logonative1",
   "/ui/jarvis.css?v=20260814-chatfix1",
-  "/ui/ui-repair.css?v=20260814-chatfix10",
+  "/ui/ui-repair.css?v=20260814-chatfix11",
   "/ui/api-panel.css?v=20260813-ultronfix1",
   "/ui/integration-health.css?v=20260813-ultronfix1",
   "/ui/voice-calibrator.css?v=20260813-ultronfix1",
   "/ui/memory-explorer.css?v=20260813-ultronfix1",
   "/ui/action-permissions.css?v=20260813-ultronfix1",
   "/ui/ultron-completion.css?v=20260814-chatfix2",
-  "/ui/responsive-polish.css?v=20260814-chatfix1",
+  "/ui/responsive-polish.css?v=20260814-chatfix11",
   "/ui/api-vault.js?v=20260813-ultronfix1",
   "/ui/integration-history.js?v=20260813-ultronfix1",
   "/ui/feature-loader.js?v=20260814-chatfix2",
@@ -25,8 +25,8 @@ const SHELL = [
   "/ui/action-permissions.js?v=20260813-ultronfix1",
   "/ui/voice-pacing.js?v=20260813-voice2",
   "/ui/device-feedback.js?v=20260813-device1",
-  "/ui/jarvis.js?v=20260814-chatfix10",
-  "/ui/jarvis-3d.js?v=20260813-ultronfix1",
+  "/ui/jarvis.js?v=20260814-chatfix11",
+  "/ui/jarvis-3d.js?v=20260814-nuclei1",
   "/ui/aurora.js?v=20260813-apitools1",
   "/ui/strands.js?v=20260813-apitools1",
   "/ui/vendor/ogl/jarvis.js",
