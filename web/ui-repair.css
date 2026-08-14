@@ -205,6 +205,9 @@ html[data-persona="ultron"] .new-conversation-button:focus-visible {
 .stage.has-conversation .conversation {
   background: rgba(14, 8, 24, 0.94);
 }
+.conversation { height: var(--conversation-height, min(42vh, 340px)); }
+.stage.has-conversation .conversation { height: var(--conversation-height, min(58vh, calc(100% - 80px))); }
+#connectionText { display: none; }
 .conversation-feed,
 .message,
 .welcome,

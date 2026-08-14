@@ -148,9 +148,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/feature-loader.js?v=20260814-chatfix2', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix7', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix8', html)
         self.assertIn(b'/ui/jarvis.css?v=20260814-chatfix1', html)
-        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix7', html)
+        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix8', html)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
         self.assertIn(b'/ui/responsive-polish.css?v=20260814-chatfix1', html)
@@ -476,9 +476,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260814-chatfix7", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260814-chatfix8", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
-        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix7', service_worker)
+        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix8', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-history.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/feature-loader.js?v=20260814-chatfix2', service_worker)
@@ -489,7 +489,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/memory-explorer.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', service_worker)
-        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix7', service_worker)
+        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix8', service_worker)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-health.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/voice-calibrator.css?v=20260813-ultronfix1', service_worker)
@@ -2726,6 +2726,9 @@ São Paulo - SP
         self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "pesquise sobre a mclaren qual a melhor hoje"}]))
         self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "qual a melhor McLaren hoje"}]))
         self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "explique o que é inflação"}]))
+        self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "quem é você"}]))
+        self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "pesquise quem é o jarvis"}]))
+        self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "quem é o atual presidente do Brasil"}]))
 
     def test_guest_can_chat_without_private_memory_or_device_access(self):
         class FakeResponse:
@@ -3540,6 +3543,26 @@ São Paulo - SP
         ]
         relevant = MODULE.relevant_public_sources(sources, "versão estável atual do Next.js")
         self.assertEqual([row["domain"] for row in relevant], ["github.com"])
+
+    def test_identity_search_drops_revista_quem(self):
+        sources = [
+            {
+                "title": "QUEM - Notícias de famosos",
+                "url": "https://quem.globo.com/",
+                "domain": "quem.globo.com",
+                "snippet": "Revista Quem",
+            },
+            {
+                "title": "JARVIS assistente",
+                "url": "https://example.com/jarvis",
+                "domain": "example.com",
+                "snippet": "assistente pessoal",
+            },
+        ]
+        relevant = MODULE.relevant_public_sources(sources, "quem é você assistente")
+        self.assertEqual([row["domain"] for row in relevant], ["example.com"])
+        self.assertTrue(MODULE.is_identity_question("quem é você"))
+        self.assertFalse(MODULE.is_identity_question("quem é o atual presidente do Brasil"))
 
     def test_runtime_v2_relevance_requires_the_distinctive_subject(self):
         sources = [
