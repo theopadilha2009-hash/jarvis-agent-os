@@ -2879,6 +2879,10 @@ def system_memory_command(args=None):
     """./jarvis system-memory [--cleanup-jarvis] [--dry-run]"""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["system-memory", *(args or [])])
 
+def spotify_command(args=None):
+    """./jarvis spotify status|play|pause|next|previous|volume|shuffle|repeat|search|play-uri"""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["spotify", *(args or [])])
+
 def computer_command(args=None):
     """./jarvis computer list|inspect|open|close [APP] [--dry-run]"""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["computer", *(args or [])])
@@ -3350,6 +3354,7 @@ def _help_full():
   ./jarvis web [--open|--check]     cockpit visual + OpenRouter + worker local
   ./jarvis storage-scan [PASTA] [--top N] [--min-mb N]  inventário read-only de arquivos grandes
   ./jarvis system-memory [--cleanup-jarvis] [--dry-run]  RAM + limpeza restrita a temporários JARVIS
+  ./jarvis spotify status|play|pause|next|previous|volume N|shuffle on|off|repeat on|off|search TEXTO|play-uri URI [--dry-run]  controla Spotify com confirmação real
   ./jarvis computer list|inspect|open|close [APP] [--dry-run]  Computer Use local via Orca
   ./jarvis computer-worker [--once|--watch|--install|--status|--uninstall] [--dry-run]  fila allowlisted Vercel → Mac
   ./jarvis self-edit "melhoria" [--dry-run] [--publish]  altera/testa; --publish faz PR+merge+deploy apenas no JARVIS autorizado
@@ -3582,6 +3587,8 @@ def main():
         storage_scan_command(sys.argv[2:])
     elif cmd == "system-memory":
         system_memory_command(sys.argv[2:])
+    elif cmd == "spotify":
+        spotify_command(sys.argv[2:])
     elif cmd == "computer":
         computer_command(sys.argv[2:])
     elif cmd == "computer-worker":

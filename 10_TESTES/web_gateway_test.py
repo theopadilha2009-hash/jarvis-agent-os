@@ -859,6 +859,53 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(closed["intent"], "close_application")
         self.assertEqual(closed["local_command"], "./jarvis computer close Spotify")
 
+    def test_spotify_controls_route_to_real_local_command(self):
+        cases = {
+            "pause o Spotify": "./jarvis spotify pause",
+            "próxima faixa no Spotify": "./jarvis spotify next",
+            "volume do Spotify para 35": "./jarvis spotify volume 35",
+            "o que está tocando no Spotify": "./jarvis spotify status",
+            "busque no Spotify Daft Punk": "./jarvis spotify search 'Daft Punk'",
+        }
+        with patch.object(MODULE, "supabase_configured", return_value=False):
+            for command, expected in cases.items():
+                with self.subTest(command=command):
+                    payload, status = MODULE.command_payload(
+                        {"command": command},
+                        local_execute=False,
+                        owner_authenticated=True,
+                    )
+                    self.assertEqual(status, 200)
+                    self.assertEqual(payload["intent"], "spotify_control")
+                    self.assertEqual(payload["local_command"], expected)
+
+    def test_spotify_remote_control_enters_allowlisted_queue(self):
+        with patch.object(MODULE, "supabase_configured", return_value=True), patch.object(
+            MODULE, "supabase_request", return_value=[{"id": 92, "status": "pending"}]
+        ) as request:
+            payload, status = MODULE.command_payload(
+                {"command": "volume do Spotify para 35"},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["status_real"], "device_command_queued")
+        self.assertEqual(payload["job"]["action"], "spotify_control")
+        self.assertEqual(payload["job"]["target"], "volume 35")
+        body = request.call_args.kwargs["body"]
+        self.assertEqual(body["action"], "spotify_control")
+        self.assertEqual(body["target"], "volume 35")
+
+    def test_spotify_control_can_be_one_verified_step_in_a_mac_run(self):
+        steps = MODULE.compound_device_plan("pause o Spotify e depois tire um print da tela")
+        self.assertEqual([step["intent"] for step in steps], ["spotify_control", "screen_capture"])
+        self.assertEqual(MODULE.chain_step_target(steps[0]), "pause")
+
+    def test_agent_tool_catalog_exposes_bounded_spotify_control(self):
+        tool = next(row for row in MODULE.agent_tool_definitions() if row["function"]["name"] == "control_spotify")
+        operation = tool["function"]["parameters"]["properties"]["operation"]
+        self.assertIn("volume", operation["enum"])
+        self.assertNotIn("shell", operation["enum"])
+
     def test_remote_device_action_requires_owner_pairing(self):
         env = {
             "SUPABASE_URL": "https://jarvis.example.supabase.co",

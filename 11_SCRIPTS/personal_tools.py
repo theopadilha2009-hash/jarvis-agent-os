@@ -19,10 +19,12 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
+from spotify_control import SAFE_QUERY_PATTERN, TRACK_URI_PATTERN  # noqa: E402
 RUNTIME_DIR = ROOT / "05_EXECUCAO" / "64_PERSONAL_TOOLS"
 MEMORY_DIR = ROOT / "03_MEMORIA"
 SCREENSHOT_DIR = RUNTIME_DIR / "screenshots"
@@ -325,10 +327,144 @@ def cmd_doctor(_args: argparse.Namespace) -> None:
         path = shutil.which(binary)
         available += int(bool(path))
         print(f"{'OK' if path else 'AUSENTE':7} {purpose:28} {path or binary}")
+    spotify_app = Path("/Applications/Spotify.app")
+    available += int(spotify_app.is_dir())
+    print(f"{'OK' if spotify_app.is_dir() else 'AUSENTE':7} {'controle real do Spotify':28} {spotify_app}")
     print("")
-    print(f"Disponíveis: {available}/{len(tools)}")
+    print(f"Disponíveis: {available}/{len(tools) + 1}")
     print("Regra: somente message-send envia sob pedido explícito; nenhum arquivo é apagado automaticamente.")
     print("Produção: nada alterado.")
+
+
+def _spotify_state() -> dict[str, str]:
+    binary = _require_binary("osascript")
+    script = """
+if application "Spotify" is not running then return "closed"
+tell application "Spotify"
+  set currentState to (player state as text)
+  set trackName to ""
+  set artistName to ""
+  if currentState is not "stopped" then
+    set trackName to name of current track
+    set artistName to artist of current track
+  end if
+  return currentState & (ASCII character 9) & trackName & (ASCII character 9) & artistName & (ASCII character 9) & (sound volume as text) & (ASCII character 9) & (shuffling as text) & (ASCII character 9) & (repeating as text)
+end tell
+""".strip()
+    result = subprocess.run([binary, "-e", script], text=True, capture_output=True, check=False, timeout=20)
+    if result.returncode != 0:
+        if "-1743" in result.stderr or "not authorized" in result.stderr.lower():
+            _computer_fail("permita que o Terminal controle o Spotify em Ajustes > Privacidade e Segurança > Automação.", 4)
+        _computer_fail("o Spotify não respondeu ao controle do macOS.")
+    values = result.stdout.strip().split("\t")
+    if values == ["closed"]:
+        return {"state": "closed", "track": "", "artist": "", "volume": "", "shuffle": "", "repeat": ""}
+    values.extend([""] * (6 - len(values)))
+    return dict(zip(("state", "track", "artist", "volume", "shuffle", "repeat"), values[:6]))
+
+
+def _spotify_script(command: str) -> None:
+    binary = _require_binary("osascript")
+    result = subprocess.run(
+        [binary, "-e", f'tell application "Spotify" to {command}'],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=20,
+    )
+    if result.returncode != 0:
+        if "-1743" in result.stderr or "not authorized" in result.stderr.lower():
+            _computer_fail("permita que o Terminal controle o Spotify em Ajustes > Privacidade e Segurança > Automação.", 4)
+        _computer_fail("o Spotify recusou o controle solicitado.")
+
+
+def _print_spotify_state(state: dict[str, str]) -> None:
+    labels = {"playing": "tocando", "paused": "pausado", "stopped": "parado", "closed": "fechado"}
+    print(f"estado: {labels.get(state['state'], state['state'] or 'desconhecido')}")
+    if state["track"]:
+        print(f"faixa: {state['track']} — {state['artist']}")
+    if state["volume"]:
+        print(f"volume: {state['volume']}%")
+    if state["shuffle"]:
+        print(f"aleatório: {'ligado' if state['shuffle'] == 'true' else 'desligado'}")
+    if state["repeat"]:
+        print(f"repetição: {'ligada' if state['repeat'] == 'true' else 'desligada'}")
+
+
+def cmd_spotify(args: argparse.Namespace) -> None:
+    action = args.action
+    value = " ".join(args.value or []).strip()
+    print("JARVIS — Spotify")
+    print(f"Status real: controle local allowlisted solicitado ({action}); sucesso depende da confirmação do Spotify.")
+    if args.dry_run:
+        print(f"Modo: --dry-run ({action}{f' · {value}' if value else ''}; Spotify não alterado).")
+        print("Produção: nada alterado.")
+        return
+
+    if action == "search":
+        if not SAFE_QUERY_PATTERN.fullmatch(value):
+            _computer_fail("busca inválida; use entre 2 e 120 caracteres simples.", 2)
+        result = subprocess.run(
+            [_require_binary("open"), f"spotify:search:{quote(value, safe='')}"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=20,
+        )
+        if result.returncode != 0:
+            _computer_fail("o macOS não conseguiu abrir a busca no Spotify.")
+        print(f"OK — busca aberta no Spotify: {value}")
+        print("Evidência: a busca foi entregue ao aplicativo; nenhuma faixa específica foi presumida como tocando.")
+        print("Produção: Spotify local alterado; nenhum deploy alterado.")
+        return
+
+    if action in {"play", "play-uri"}:
+        opened = subprocess.run(
+            [_require_binary("open"), "-b", "com.spotify.client"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=20,
+        )
+        if opened.returncode != 0:
+            _computer_fail("o Spotify não está instalado ou não pôde ser aberto.")
+        time.sleep(0.8)
+
+    before = _spotify_state()
+    if action == "status":
+        _print_spotify_state(before)
+        print("Produção: nada alterado.")
+        return
+    if before["state"] == "closed" and action not in {"play", "play-uri"}:
+        _computer_fail("o Spotify está fechado; abra ou peça para tocar antes desse controle.", 3)
+
+    commands = {
+        "play": "play",
+        "pause": "pause",
+        "next": "next track",
+        "previous": "previous track",
+        "toggle": "playpause",
+        "shuffle": f"set shuffling to {'true' if value == 'on' else 'false'}",
+        "repeat": f"set repeating to {'true' if value == 'on' else 'false'}",
+    }
+    if action == "volume":
+        if not value.isdigit() or not 0 <= int(value) <= 100:
+            _computer_fail("volume inválido; use um número de 0 a 100.", 2)
+        command = f"set sound volume to {int(value)}"
+    elif action == "play-uri":
+        if not TRACK_URI_PATTERN.fullmatch(value):
+            _computer_fail("URI inválida; somente spotify:track:<id> é permitido.", 2)
+        command = f'play track "{value}"'
+    else:
+        if action in {"shuffle", "repeat"} and value not in {"on", "off"}:
+            _computer_fail("use on ou off para esse controle.", 2)
+        command = commands[action]
+    _spotify_script(command)
+    time.sleep(0.25)
+    after = _spotify_state()
+    print("OK — comando aceito e estado consultado novamente.")
+    _print_spotify_state(after)
+    print("Produção: Spotify local alterado; nenhum deploy alterado.")
 
 
 def cmd_screen_capture(args: argparse.Namespace) -> None:
@@ -985,6 +1121,14 @@ def build_parser() -> argparse.ArgumentParser:
     system_memory.add_argument("--cleanup-jarvis", action="store_true")
     system_memory.add_argument("--dry-run", action="store_true")
 
+    spotify = sub.add_parser("spotify")
+    spotify.add_argument(
+        "action",
+        choices=("status", "play", "pause", "toggle", "next", "previous", "volume", "shuffle", "repeat", "search", "play-uri"),
+    )
+    spotify.add_argument("value", nargs="*")
+    spotify.add_argument("--dry-run", action="store_true")
+
     computer = sub.add_parser("computer")
     computer.add_argument("action", choices=("list", "inspect", "open", "close"))
     computer.add_argument("app", nargs="?")
@@ -1011,6 +1155,7 @@ def main() -> None:
         "memory-save": cmd_memory_save,
         "storage-scan": cmd_storage_scan,
         "system-memory": cmd_system_memory,
+        "spotify": cmd_spotify,
         "computer": cmd_computer,
         "files-triage": cmd_files_triage,
     }
