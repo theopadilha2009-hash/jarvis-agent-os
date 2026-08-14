@@ -16,8 +16,8 @@
   top: var(--conversation-top, auto);
   right: auto;
   bottom: var(--conversation-bottom, 16px);
-  width: var(--conversation-width, min(720px, calc(100vw - 32px)));
-  height: var(--conversation-height, min(56vh, 460px));
+  width: var(--conversation-width, min(660px, calc(100vw - 32px)));
+  height: var(--conversation-height, clamp(340px, 62vh, 620px));
   min-width: 0;
   min-height: 0;
   max-width: none;
@@ -128,14 +128,30 @@
 
 /* ---------- Estrela oficial do GitHub ---------- */
 .github-star-button {
-  display: inline-block;
-  width: 76px;
-  height: 20px;
-  border: 0;
-  overflow: hidden;
-  vertical-align: middle;
-  background: #fff;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(192, 132, 252, 0.32);
+  border-radius: 9px;
+  background: rgba(46, 22, 76, 0.5);
+  color: rgba(246, 238, 254, 0.86);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.github-star-button:is(:hover, :focus-visible) {
+  border-color: rgba(216, 180, 254, 0.66);
+  background: rgba(76, 29, 149, 0.6);
+  color: #fff;
+}
+.github-star-button i { font-style: normal; color: #fbbf24; }
+.github-star-button b {
+  padding-left: 7px;
+  border-left: 1px solid rgba(192, 132, 252, 0.28);
+  font-weight: 600;
 }
 
 /* ---------- Sem chrome morto ---------- */
@@ -149,19 +165,32 @@
 
 .stage[data-nuclei="3d"] .scene-modes { display: none !important; }
 
+/* A legenda mora dentro do canvas 3D e cada nome é ancorado pelo próprio
+   núcleo em miniatura — jarvis-3d.js escreve --nucleus-x/--nucleus-y. */
 .nucleus-legend {
   position: absolute;
-  left: 18px;
-  bottom: 16%;
-  z-index: 6;
-  display: grid;
-  gap: 26px;
+  z-index: 2;
+  inset: 0;
   pointer-events: none;
-  color: rgba(246, 238, 254, 0.7);
+}
+.nucleus-legend span {
+  position: absolute;
+  left: var(--nucleus-x, 58px);
+  top: var(--nucleus-y, 50%);
+  transform: translateY(-50%);
+  padding-left: 12px;
+  color: rgba(246, 238, 254, 0.74);
   font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  text-shadow: 0 1px 10px rgba(10, 4, 20, 0.8);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 420ms ease;
 }
+.stage[data-nuclei="3d"] .nucleus-legend span { opacity: 1; }
+.nucleus-legend span:nth-child(2) { color: rgba(253, 186, 116, 0.78); }
+.nucleus-legend span:nth-child(3) { color: rgba(165, 243, 252, 0.78); }
 .stage:not([data-nuclei="3d"]) .nucleus-legend { display: none; }
 
 /* Visitante só vê o essencial; o ícone de troca abre o acesso. */

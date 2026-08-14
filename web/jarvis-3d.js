@@ -479,6 +479,7 @@ function makeCoreEntity(scene, options = {}) {
   const always = Boolean(options.always);
   const group = new THREE.Group();
   group.position.set(options.x ?? 0.94, options.y ?? 0.02, options.z ?? -1.05);
+  group.userData.baseY = group.position.y;
   group.scale.setScalar(options.scale ?? 0.58);
   group.visible = always;
   scene.add(group);
@@ -571,7 +572,7 @@ function makeCoreEntity(scene, options = {}) {
       shard.rotation.y -= deltaSeconds * 0.085;
     });
     group.rotation.y = Math.sin(time * 0.34) * 0.12;
-    group.position.y = 0.02 + Math.sin(time * 0.8) * 0.035;
+    group.position.y = group.userData.baseY + Math.sin(time * 0.8) * 0.035;
   }
 
   return { group, update };
@@ -642,10 +643,11 @@ async function start() {
   lowerFill.position.set(-1.2, -1.8, 2.4);
   scene.add(lowerFill);
   const coreEntity = makeCoreEntity(scene);
+  const MINI_PLANE_Z = 1.35;
   const miniNuclei = [
-    makeCoreEntity(scene, { always: true, x: -1.68, y: -0.62, z: 1.35, scale: 0.17, soul: 0xc084fc, wire: 0xa855f7, emissive: 0x3b1675 }),
-    makeCoreEntity(scene, { always: true, x: -1.68, y: -0.96, z: 1.35, scale: 0.17, soul: 0xfb923c, wire: 0xf97316, emissive: 0x9a3412 }),
-    makeCoreEntity(scene, { always: true, x: -1.68, y: -1.30, z: 1.35, scale: 0.17, soul: 0x67e8f9, wire: 0x22d3ee, emissive: 0x0e7490 }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xc084fc, wire: 0xa855f7, emissive: 0x3b1675 }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xfb923c, wire: 0xf97316, emissive: 0x9a3412 }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0x67e8f9, wire: 0x22d3ee, emissive: 0x0e7490 }),
   ];
   stage.dataset.nuclei = "3d";
 
@@ -788,6 +790,39 @@ async function start() {
 
   let canvasWidth = 1;
   let canvasHeight = 1;
+
+  // As miniaturas vivem na coluna esquerda do palco: a posição é decidida em
+  // pixels e convertida para o mundo, então a legenda encosta nelas em
+  // qualquer proporção de tela.
+  const legendItems = Array.from(document.querySelectorAll(".nucleus-legend span"));
+  const nucleusRay = new THREE.Vector3();
+  function placeMiniNuclei() {
+    const compact = canvasWidth < 760;
+    const centerX = compact ? 34 : 58;
+    const diameter = compact ? 30 : 44;
+    const rows = [0.5, 0.645, 0.79];
+    camera.updateMatrixWorld(true);
+    const depth = camera.position.z - MINI_PLANE_Z;
+    const viewHeight = 2 * Math.tan((camera.fov * Math.PI) / 180 / 2) * depth;
+    miniNuclei.forEach((nucleus, index) => {
+      const pixelY = canvasHeight * rows[index];
+      nucleusRay.set((centerX / canvasWidth) * 2 - 1, -((pixelY / canvasHeight) * 2 - 1), 0.5)
+        .unproject(camera)
+        .sub(camera.position)
+        .normalize();
+      const distance = (MINI_PLANE_Z - camera.position.z) / nucleusRay.z;
+      const world = camera.position.clone().addScaledVector(nucleusRay, distance);
+      nucleus.group.position.set(world.x, world.y, MINI_PLANE_Z);
+      nucleus.group.userData.baseY = world.y;
+      // 1.5 é o raio do halo de estilhaços, o contorno mais largo do núcleo.
+      nucleus.group.scale.setScalar((diameter / 2 / canvasHeight) * viewHeight / 1.5);
+      const label = legendItems[index];
+      if (!label) return;
+      label.style.setProperty("--nucleus-x", `${Math.round(centerX + diameter / 2)}px`);
+      label.style.setProperty("--nucleus-y", `${Math.round(pixelY)}px`);
+    });
+  }
+
   function resize() {
     const rect = mount.getBoundingClientRect();
     canvasWidth = Math.max(rect.width, 1);
@@ -802,6 +837,7 @@ async function start() {
     effectCanvas.style.width = `${canvasWidth}px`;
     effectCanvas.style.height = `${canvasHeight}px`;
     effectContext.setTransform(density, 0, 0, density, 0, 0);
+    placeMiniNuclei();
   }
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(mount);
