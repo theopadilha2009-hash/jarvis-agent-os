@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260814-chatfix11";
+const CACHE_VERSION = "jarvis-mobile-shell-20260814-chatfix12";
 const SHELL = [
   "/",
   "/ui/manifest.webmanifest?v=20260813-apitools1",
@@ -14,6 +14,7 @@ const SHELL = [
   "/ui/action-permissions.css?v=20260813-ultronfix1",
   "/ui/ultron-completion.css?v=20260814-chatfix2",
   "/ui/responsive-polish.css?v=20260814-chatfix11",
+  "/ui/shell-final.css?v=20260814-chatfix12",
   "/ui/api-vault.js?v=20260813-ultronfix1",
   "/ui/integration-history.js?v=20260813-ultronfix1",
   "/ui/feature-loader.js?v=20260814-chatfix2",
@@ -25,7 +26,7 @@ const SHELL = [
   "/ui/action-permissions.js?v=20260813-ultronfix1",
   "/ui/voice-pacing.js?v=20260813-voice2",
   "/ui/device-feedback.js?v=20260813-device1",
-  "/ui/jarvis.js?v=20260814-chatfix11",
+  "/ui/jarvis.js?v=20260814-chatfix12",
   "/ui/jarvis-3d.js?v=20260814-nuclei1",
   "/ui/aurora.js?v=20260813-apitools1",
   "/ui/strands.js?v=20260813-apitools1",

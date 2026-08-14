@@ -13,6 +13,7 @@ CSS = WEB / "jarvis.css"
 UI_REPAIR_CSS = WEB / "ui-repair.css"
 API_PANEL_CSS = WEB / "api-panel.css"
 RESPONSIVE_POLISH_CSS = WEB / "responsive-polish.css"
+SHELL_FINAL_CSS = WEB / "shell-final.css"
 INTEGRATION_HEALTH_CSS = WEB / "integration-health.css"
 LOGO = WEB / "jarvis-logo.png"
 APP_JS = WEB / "jarvis.js"
@@ -293,6 +294,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(UI_REPAIR_CSS.stat().st_size, 12 * 1024)
         self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
         self.assertLess(RESPONSIVE_POLISH_CSS.stat().st_size, 12 * 1024)
+        self.assertLess(SHELL_FINAL_CSS.stat().st_size, 8 * 1024)
         self.assertLess(PRESENCE_JS.stat().st_size, 64 * 1024)
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
@@ -347,7 +349,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertGreaterEqual(
-            sum(self.html.count(f"20260814-chatfix{n}") for n in range(1, 12)),
+            sum(self.html.count(f"20260814-chatfix{n}") for n in range(1, 13)),
             4,
         )
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
@@ -427,6 +429,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("CHAT_RECT_KEY", self.app_js)
         self.assertIn("speakBrowser", self.app_js)
         self.assertIn("nucleus-pulse", self.ui_repair_css)
+        self.assertIn("shell-final.css", self.html)
+        self.assertIn("dataset.placed", self.app_js)
+        self.assertIn("nucleus-legend", self.html)
         self.assertIn('id="conversationOccupancy"', self.html)
         self.assertIn("jarvis-conversation-local", self.app_js)
         self.assertIn("renderOccupancy", self.app_js)
