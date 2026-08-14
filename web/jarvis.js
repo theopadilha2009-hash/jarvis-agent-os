@@ -1929,10 +1929,12 @@
 
   window.JarvisVoicePreview = () => speak("Certo, Theo. Estou aqui e vou cuidar disso com calma.");
 
+  const devicePollDelay = window.JarvisDeviceFeedback?.pollDelay || ((attempt) => Math.min(1200, 250 + (attempt * 190)));
+
   async function monitorDeviceCommand(jobId, message) {
     for (let attempt = 0; attempt < 50; attempt += 1) {
       if (session.canceledJobs.has(String(jobId))) return;
-      await new Promise((resolve) => window.setTimeout(resolve, 1200));
+      await new Promise((resolve) => window.setTimeout(resolve, devicePollDelay(attempt)));
       let data;
       try {
         data = await request(`/device-command?id=${encodeURIComponent(jobId)}`);
@@ -1970,7 +1972,7 @@
     const ids = jobIds.map(String);
     for (let attempt = 0; attempt < 80; attempt += 1) {
       if (ids.every((id) => session.canceledJobs.has(id))) return;
-      await new Promise((resolve) => window.setTimeout(resolve, 1200));
+      await new Promise((resolve) => window.setTimeout(resolve, devicePollDelay(attempt)));
       let data;
       try {
         data = await request(`/device-run?ids=${encodeURIComponent(ids.join(","))}`);
@@ -2013,10 +2015,23 @@
       byId("sceneEyebrow").textContent = "ATENÇÃO";
       byId("sceneMission").textContent = compactHudText(error, "Execução interrompida");
       byId("sceneDetail").textContent = "O erro foi preservado sem inventar um resultado.";
-      addMessage(error, "error");
+      const message = addMessage(error, "error");
+      if (data?.worker_offline) {
+        window.JarvisDeviceFeedback?.mountOfflineActions({
+          message,
+          dialog,
+          refresh: async () => {
+            await refreshWorkerStatus(byId("workerValue"));
+            return session.deviceOnline;
+          },
+          onConnected: () => {
+            byId("sceneDetail").textContent = "Worker local reconectado e pronto para receber a ação.";
+          },
+        });
+      }
       renderLiveCanvas({ message: error });
       settleState();
-      speak(error);
+      if (!data?.worker_offline) speak(error);
       if (data?.pairing_required) {
         dialog.showModal();
         window.setTimeout(() => byId("adminPassword").focus(), 30);
@@ -2166,7 +2181,7 @@
       addMessage(command, options.source === "voice" ? "user voice" : "user");
       input.value = "";
       syncComposerAction();
-      showResponse({ ok: false, error: "O Mac está offline. A captura não entrou na fila; ligue o worker e tente de novo." });
+      showResponse({ ok: false, worker_offline: true, error: "O Mac está offline. A captura não entrou na fila; ligue o worker e tente de novo." });
       return;
     }
     const permissionCategory = session.paired ? window.JarvisFeatureLoader?.categoryForCommand(command) : "";
