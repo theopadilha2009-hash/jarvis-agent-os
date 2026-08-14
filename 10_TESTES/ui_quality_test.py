@@ -347,6 +347,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn(".integration-tabs button[aria-selected=\"true\"]", self.ultron_completion_css)
         self.assertIn('document.documentElement.dataset.persona === "ultron"', self.presence_js)
         self.assertIn('"rgba(239,68,68,', self.presence_js)
+        self.assertIn("wireMaterial.color.setHex(ultron ? 0xef4444 : 0x8b5cf6)", self.presence_js)
+        self.assertIn("soulMaterial.color.setHex(ultron ? 0xf87171 : 0xc084fc)", self.presence_js)
 
     def test_final_responsive_guardrails_cover_real_viewports(self):
         css = RESPONSIVE_POLISH_CSS.read_text(encoding="utf-8")

@@ -540,6 +540,12 @@ function makeCoreEntity(scene) {
 
   let alpha = 0;
   function update(time, visibility, deltaSeconds = 0) {
+    const ultron = document.documentElement.dataset.persona === "ultron";
+    obsidianMaterial.color.setHex(ultron ? 0x220305 : 0x120825);
+    obsidianMaterial.emissive.setHex(ultron ? 0x7f1d1d : 0x3b1675);
+    soulMaterial.color.setHex(ultron ? 0xf87171 : 0xc084fc);
+    wireMaterial.color.setHex(ultron ? 0xef4444 : 0x8b5cf6);
+    shardMaterial.color.setHex(ultron ? 0xfca5a5 : 0xc084fc);
     const transitionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
     alpha += (Math.max(0, Math.min(1, visibility)) - alpha) * transitionEase;
     group.visible = alpha > 0.01;
