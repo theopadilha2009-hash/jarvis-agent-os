@@ -360,7 +360,10 @@
         setIntegrationFeedback("Entre no modo Ultron para autorizar um envio externo.", "error");
         return;
       }
-      if (!window.confirm(`Enviar este evento para ${definition.label}? Esta ação acontece fora do JARVIS.`)) return;
+      if (!await window.JarvisFeatureLoader?.authorize("outbound", `Enviar evento para ${definition.label}`)) {
+        setIntegrationFeedback("Envio externo cancelado.", "error");
+        return;
+      }
     }
     const button = byId("integrationToolRunButton");
     button.disabled = true;
@@ -634,7 +637,11 @@
       byId("n8nWorkflowGoal").focus();
       return;
     }
-    if (action === "duplicate" && !window.confirm("Criar uma cópia inativa deste workflow? Nada será ativado.")) return;
+    if (session.paired && ["create", "duplicate"].includes(action)
+      && !await window.JarvisFeatureLoader?.authorize("automation", action === "create" ? "Criar workflow inativo no n8n" : "Duplicar workflow inativo no n8n")) {
+      setIntegrationFeedback("Operação n8n cancelada.", "error");
+      return;
+    }
     const config = await apiVault().get("n8n") || {};
     const button = byId(action === "preview" ? "n8nPreviewButton" : action === "create" ? "n8nCreateButton" : "n8nListButton");
     button.disabled = true;
@@ -649,7 +656,7 @@
           goal: goals[0] || goal,
           goals,
           workflow_id: workflowId,
-          confirmed: action === "duplicate",
+          confirmed: ["create", "duplicate"].includes(action),
           template: byId("n8nWorkflowTemplate").value,
           config,
         }),
@@ -2155,6 +2162,11 @@
     const attachments = options.includeAttachments ? session.attachments.slice() : [];
     const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
+    const permissionCategory = session.paired ? window.JarvisFeatureLoader?.categoryForCommand(command) : "";
+    if (permissionCategory && !await window.JarvisFeatureLoader?.authorize(permissionCategory, command)) {
+      addMessage("Ação cancelada pela política de permissões do Ultron.", "error");
+      return;
+    }
     session.responseState = "";
     stage.classList.remove("spatial-result");
     session.memoryViewing = false;

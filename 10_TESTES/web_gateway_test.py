@@ -143,16 +143,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="conversationState"', html)
         self.assertIn(b'class="identity-logo"', html)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-memory1', html)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-memory1', html)
-        self.assertIn(b'/ui/feature-loader.js?v=20260813-memory1', html)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-permissions1', html)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-permissions1', html)
+        self.assertIn(b'/ui/feature-loader.js?v=20260813-permissions1', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-memory1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-memory1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260813-permissions1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260813-permissions1', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', html)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-memory1', html)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-permissions1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-memory1', html)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-permissions1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -337,6 +337,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(headers.get_content_type(), "text/css")
         self.assertIn(b".memory-explorer-form", memory_explorer_css)
 
+        status, headers, action_permissions_js = self.request("/ui/action-permissions.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/javascript")
+        self.assertIn(b"jarvis-action-permissions-v1", action_permissions_js)
+
+        status, headers, action_permissions_css = self.request("/ui/action-permissions.css")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/css")
+        self.assertIn(b".permission-request", action_permissions_css)
+
         status, headers, responsive_css = self.request("/ui/responsive-polish.css")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/css")
@@ -444,21 +454,23 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-memory1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260813-permissions1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', service_worker)
-        self.assertIn(b'/ui/api-vault.js?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/integration-history.js?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/feature-loader.js?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/integration-health.js?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/voice-calibrator.js?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/n8n-template-pack.js?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/memory-explorer.js?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/api-panel.css?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/integration-health.css?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/voice-calibrator.css?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/memory-explorer.css?v=20260813-memory1', service_worker)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-memory1', service_worker)
+        self.assertIn(b'/ui/api-vault.js?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/integration-history.js?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/feature-loader.js?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/integration-health.js?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/voice-calibrator.js?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/n8n-template-pack.js?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/memory-explorer.js?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/action-permissions.js?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/api-panel.css?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/integration-health.css?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/voice-calibrator.css?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/memory-explorer.css?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/action-permissions.css?v=20260813-permissions1', service_worker)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260813-permissions1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -3768,6 +3780,7 @@ São Paulo - SP
                 "action": "create",
                 "goal": "receber leads por webhook",
                 "template": "webhook",
+                "confirmed": True,
                 "config": {"base_url": "https://theo.app.n8n.cloud", "api_key": "n8n-secret"},
             }, owner_authenticated=True)
         self.assertEqual(status, 201)
@@ -3797,6 +3810,7 @@ São Paulo - SP
                 "action": "create",
                 "goals": ["captar lead", "avisar no Slack", "salvar no banco", "ignorar quarto"],
                 "template": "manual",
+                "confirmed": True,
                 "config": {"base_url": "https://theo.app.n8n.cloud/api/v1", "api_key": "n8n-secret"},
             }, owner_authenticated=True)
 
@@ -3826,6 +3840,18 @@ São Paulo - SP
         self.assertEqual(payload["power_profile"]["mode"], "jarvis_1x")
         self.assertEqual(len(payload["workflows"]), 1)
         self.assertEqual(payload["workflow"]["id"], "wf-jarvis")
+
+    def test_ultron_n8n_creation_requires_explicit_permission(self):
+        with patch.object(MODULE, "integration_json_request") as provider:
+            payload, status = MODULE.n8n_workflow_action_payload({
+                "action": "create",
+                "goal": "criar fluxo manual",
+                "template": "manual",
+                "config": {"base_url": "https://theo.app.n8n.cloud", "api_key": "n8n-secret"},
+            }, owner_authenticated=True)
+        self.assertEqual(status, 409)
+        self.assertEqual(payload["status_real"], "n8n_create_confirmation_required")
+        provider.assert_not_called()
 
     def test_n8n_inspection_is_read_only_and_hides_node_parameters(self):
         workflow = {

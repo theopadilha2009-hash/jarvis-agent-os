@@ -1446,6 +1446,8 @@ def n8n_workflow_action_payload(body, owner_authenticated=False):
                 "power_profile": power,
                 "credential_persisted_server_side": False,
             }, 200
+        if owner_authenticated and body.get("confirmed") is not True:
+            return {"ok": False, "status_real": "n8n_create_confirmation_required", "error": "Autorize a criação inativa antes de continuar."}, 409
         created_workflows = []
         for workflow, template, plan in workflow_specs:
             try:
