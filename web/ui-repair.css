@@ -171,6 +171,12 @@ html[data-persona="ultron"] .new-conversation-button:focus-visible {
   color: #fff7ff;
   box-shadow: 0 0 16px rgba(139, 92, 246, 0.45);
 }
+.conversation-channel {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 html[data-persona="ultron"] .strength-button b,
 html[data-persona="ultron"] .scene-modes small,
 html[data-persona="ultron"] .shimmer-icon,

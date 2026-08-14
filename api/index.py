@@ -1876,6 +1876,11 @@ ASSISTANT_MEMORY_CACHE_SECONDS = 30.0
 _PUBLIC_SEARCH_CACHE = {}
 _PUBLIC_SEARCH_CACHE_LOCK = threading.Lock()
 _OPENROUTER_INFLIGHT = threading.BoundedSemaphore(3)
+_OPENROUTER_STATS_LOCK = threading.Lock()
+_OPENROUTER_WAITING = 0
+_PRESENCE = {}
+_PRESENCE_LOCK = threading.Lock()
+PRESENCE_TTL_SECONDS = 90.0
 CONVERSATION_SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{8,80}$")
 
 MEMORY_SIGNAL_PATTERNS = (
@@ -2459,7 +2464,51 @@ def request_conversation_session_id(handler, body=None):
     extra = ""
     if isinstance(body, dict):
         extra = body.get("session_id") or body.get("conversation_id")
-    return normalized_conversation_session_id(header or extra)
+    token = normalized_conversation_session_id(header or extra)
+    if token:
+        touch_presence(token)
+    return token
+
+
+def touch_presence(session_id):
+    token = normalized_conversation_session_id(session_id)
+    if not token:
+        return
+    now = time.monotonic()
+    cutoff = now - PRESENCE_TTL_SECONDS
+    with _PRESENCE_LOCK:
+        _PRESENCE[token] = now
+        stale = [key for key, seen in _PRESENCE.items() if seen < cutoff]
+        for key in stale:
+            _PRESENCE.pop(key, None)
+
+
+def occupancy_payload():
+    now = time.monotonic()
+    with _PRESENCE_LOCK:
+        online = sum(1 for seen in _PRESENCE.values() if now - seen <= PRESENCE_TTL_SECONDS)
+    with _OPENROUTER_STATS_LOCK:
+        waiting = max(0, _OPENROUTER_WAITING)
+    return {
+        "online": online,
+        "waiting": waiting,
+        "busy": waiting > 0 or _OPENROUTER_INFLIGHT._value == 0,
+        "capacity": _OPENROUTER_INFLIGHT._initial_value,
+        "chat_scope": "este_navegador",
+        "memory_scope": "so_se_pedir",
+    }
+
+
+def acquire_openrouter_slot(timeout=18):
+    global _OPENROUTER_WAITING
+    with _OPENROUTER_STATS_LOCK:
+        _OPENROUTER_WAITING += 1
+        waiting = _OPENROUTER_WAITING
+    try:
+        return _OPENROUTER_INFLIGHT.acquire(timeout=timeout), waiting
+    finally:
+        with _OPENROUTER_STATS_LOCK:
+            _OPENROUTER_WAITING = max(0, _OPENROUTER_WAITING - 1)
 
 
 def conversation_history_payload(session_id=""):
@@ -4276,6 +4325,7 @@ def status_payload(owner_authenticated=False):
         "runtime": "vercel_serverless" if os.environ.get("VERCEL") else "local_web_preview",
         "status_real": "web_cockpit_ready",
         "mode": "personal_single_operator",
+        "occupancy": occupancy_payload(),
         "power_profile": execution_power_profile(owner_authenticated),
         "ai": {
             "provider": "openrouter",
@@ -7537,9 +7587,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             last_error = None
             key_retryable_codes = {401, 402, 403, 408, 409, 429, 500, 502, 503, 504}
-            acquired = _OPENROUTER_INFLIGHT.acquire(timeout=18)
+            acquired, waiting = acquire_openrouter_slot(18)
             if not acquired:
-                raise TimeoutError("openrouter_busy")
+                raise TimeoutError(f"openrouter_busy:{waiting}")
             try:
                 for index, api_key in enumerate(api_keys):
                     request_headers = dict(headers)
@@ -7836,15 +7886,21 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         if free_search_sources:
             return search_results_without_synthesis(free_search_bundle, "openrouter_timeout"), 200
         busy = "openrouter_busy" in str(error)
+        waiting = 0
+        if busy:
+            match = re.search(r"openrouter_busy:(\d+)", str(error))
+            waiting = int(match.group(1)) if match else occupancy_payload().get("waiting", 0)
         return {
             "ok": False,
             "endpoint": "POST /assistant",
             "error": (
-                "A IA está ocupada com outro pedido agora. Tente de novo em alguns segundos."
+                f"A IA está atendendo outras {max(waiting, 1)} pessoa(s). Tente de novo em alguns segundos."
                 if busy
                 else "O modelo externo não respondeu a tempo."
             ),
             "retryable": True,
+            "occupancy": occupancy_payload(),
+            "queue": {"waiting": waiting, "retry_after": 3} if busy else {},
         }, 504
     except (ValueError, KeyError, json.JSONDecodeError):
         if free_search_sources:
@@ -8823,7 +8879,17 @@ class handler(BaseHTTPRequestHandler):
         if path in {"/health", "/status", "/runtime"}:
             payload = status_payload(owner_authenticated=owner_authenticated)
             payload["endpoint"] = f"GET {path}"
+            touch_presence(request_conversation_session_id(self))
+            payload["occupancy"] = occupancy_payload()
             return self.send_json(200, payload)
+        if path == "/presence":
+            touch_presence(request_conversation_session_id(self))
+            return self.send_json(200, {
+                "ok": True,
+                "endpoint": "GET /presence",
+                "status_real": "occupancy_read",
+                **occupancy_payload(),
+            })
         if path == "/personal-overview":
             return self.send_json(200, personal_overview_payload(owner_authenticated=owner_authenticated))
         if path == "/pulse":
@@ -9124,6 +9190,7 @@ class handler(BaseHTTPRequestHandler):
                 owner_authenticated,
             )
         if path == "/command":
+            request_conversation_session_id(self, body)
             payload, status = command_payload(
                 body,
                 origin=origin,
@@ -9136,6 +9203,8 @@ class handler(BaseHTTPRequestHandler):
                 status,
                 clean_text(body.get("command") or body.get("prompt"), 8_000),
             )
+            if isinstance(payload, dict):
+                payload["occupancy"] = occupancy_payload()
             return self.send_json(status, payload)
         if path.startswith("/runs/"):
             if owner_pairing_required() and not owner_authenticated:

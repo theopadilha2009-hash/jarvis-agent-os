@@ -148,9 +148,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/feature-loader.js?v=20260814-chatfix2', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix3', html)
         self.assertIn(b'/ui/jarvis.css?v=20260814-chatfix1', html)
-        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix2', html)
+        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix3', html)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
         self.assertIn(b'/ui/responsive-polish.css?v=20260814-chatfix1', html)
@@ -476,9 +476,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260814-chatfix2", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260814-chatfix3", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
-        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix2', service_worker)
+        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix3', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-history.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/feature-loader.js?v=20260814-chatfix2', service_worker)
@@ -489,7 +489,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/memory-explorer.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', service_worker)
-        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix1', service_worker)
+        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix3', service_worker)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-health.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/voice-calibrator.css?v=20260813-ultronfix1', service_worker)
@@ -1365,6 +1365,19 @@ class WebGatewayTest(unittest.TestCase):
         }
         self.assertEqual(len(keys), 3)
         self.assertEqual(MODULE._OPENROUTER_INFLIGHT._initial_value, 3)
+
+    def test_occupancy_counts_distinct_browser_sessions(self):
+        MODULE._PRESENCE.clear()
+        MODULE.touch_presence("pc-um-aaaaaa")
+        MODULE.touch_presence("pc-dois-bbbb")
+        MODULE.touch_presence("pc-tres-cccc")
+        payload = MODULE.occupancy_payload()
+        self.assertEqual(payload["online"], 3)
+        self.assertEqual(payload["chat_scope"], "este_navegador")
+        self.assertEqual(payload["memory_scope"], "so_se_pedir")
+        self.assertEqual(payload["capacity"], 3)
+        empty = MODULE.occupancy_payload()
+        self.assertGreaterEqual(empty["online"], 3)
 
     def test_new_conversation_clears_chat_but_preserves_memory_storage(self):
         with patch.dict(os.environ, {

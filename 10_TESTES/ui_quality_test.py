@@ -345,7 +345,10 @@ class UIQualityTest(unittest.TestCase):
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
-        self.assertGreaterEqual(self.html.count("20260814-chatfix1") + self.html.count("20260814-chatfix2"), 4)
+        self.assertGreaterEqual(
+            self.html.count("20260814-chatfix1") + self.html.count("20260814-chatfix2") + self.html.count("20260814-chatfix3"),
+            4,
+        )
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -419,6 +422,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("scheduleUltronLaughter", self.app_js)
         self.assertNotIn("HAHAHA", self.app_js)
         self.assertIn('id="conversationResize"', self.html)
+        self.assertIn('id="conversationOccupancy"', self.html)
+        self.assertIn("jarvis-conversation-local", self.app_js)
+        self.assertIn("renderOccupancy", self.app_js)
         self.assertIn('<textarea id="commandInput"', self.html)
         self.assertIn('id="strengthButton"', self.html)
         self.assertIn('id="identityAssistantName"', self.html)
