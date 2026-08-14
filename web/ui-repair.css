@@ -32,7 +32,8 @@
 
 .composer { grid-template-columns: 40px minmax(0, 1fr) 58px 46px; }
 .composer .attachment-button { grid-column: 1; grid-row: 1; }
-.composer input { grid-column: 2; grid-row: 1; }
+.composer input,
+.composer textarea { grid-column: 2; grid-row: 1; }
 .composer .strength-button { grid-column: 3; grid-row: 1; }
 .composer .voice-button,
 .composer .send-button {
@@ -60,22 +61,6 @@
   content: "·";
   font-size: 24px;
   animation: listen-pulse 900ms ease-in-out infinite;
-}
-
-.ultron-laughter { z-index: 8; }
-.ultron-laughter span {
-  opacity: 0;
-  font-family: "Marker Felt", "Noteworthy", "Bradley Hand", "Comic Sans MS", cursive;
-  font-weight: 700;
-  font-style: italic;
-  letter-spacing: 0.015em;
-  text-shadow: 0 0 15px rgba(239, 68, 68, 0.86), 0 0 36px rgba(127, 29, 29, 0.62);
-}
-@keyframes ultron-laugh-drift {
-  8% { opacity: 0.42; }
-  40% { opacity: 0.88; transform: translate(-50%, -10px) rotate(var(--laugh-tilt)) skewX(-5deg) scale(1); }
-  72% { opacity: 0.36; }
-  100% { opacity: 0; transform: translate(-50%, -44px) rotate(var(--laugh-tilt)) skewX(4deg) scale(1.12); filter: blur(1px); }
 }
 
 @media (min-width: 721px) {
@@ -134,7 +119,8 @@ html[data-persona="ultron"] .message.user {
   border-color: rgba(248, 113, 113, 0.28);
   background: rgba(127, 29, 29, 0.2);
 }
-html[data-persona="ultron"] .composer input {
+html[data-persona="ultron"] .composer input,
+html[data-persona="ultron"] .composer textarea {
   border-color: rgba(248, 113, 113, 0.24);
   background: rgba(24, 3, 7, 0.78);
 }
@@ -172,11 +158,17 @@ html[data-persona="ultron"] .message-actions button:focus-visible {
   border-color: rgba(254, 226, 226, 0.72);
   background-color: rgba(127, 29, 29, 0.94);
 }
-html[data-persona="ultron"] .new-conversation-button,
 html[data-persona="ultron"] .starter-actions button {
   border-color: rgba(248, 113, 113, 0.42);
   background: linear-gradient(145deg, rgba(185, 28, 28, 0.52), rgba(127, 29, 29, 0.36));
   color: #fff7f7;
+}
+html[data-persona="ultron"] .new-conversation-button,
+html[data-persona="ultron"] .new-conversation-button:hover,
+html[data-persona="ultron"] .new-conversation-button:focus-visible {
+  border-color: rgba(216, 180, 254, 0.55);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.72), rgba(109, 40, 217, 0.5));
+  color: #fff7ff;
 }
 html[data-persona="ultron"] .strength-button b,
 html[data-persona="ultron"] .scene-modes small,

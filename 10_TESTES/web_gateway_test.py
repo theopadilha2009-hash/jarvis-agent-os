@@ -135,7 +135,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"JARVIS", html)
         self.assertIn(b'id="voiceButton"', html)
-        self.assertIn(b'<input id="commandInput"', html)
+        self.assertIn(b'id="commandInput"', html)
         self.assertIn(b'<svg aria-hidden="true" viewBox="0 0 24 24">', html)
         self.assertIn(b'id="muteButton"', html)
         self.assertIn(b'id="avatar3d"', html)
@@ -145,15 +145,15 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', html)
         self.assertIn(b'/ui/integration-history.js?v=20260813-ultronfix1', html)
-        self.assertIn(b'/ui/feature-loader.js?v=20260813-ultronfix1', html)
+        self.assertIn(b'/ui/feature-loader.js?v=20260814-chatfix1', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-device1', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260813-ultronfix1', html)
-        self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260814-chatfix1', html)
+        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix1', html)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-ultronfix1', html)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260814-chatfix1', html)
         self.assertIn(b'/ui/presence-loader.js?v=20260813-ultronfix1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
@@ -333,7 +333,8 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, feature_loader = self.request("/ui/feature-loader.js")
         self.assertEqual(status, 200)
         self.assertIn(b"memory-explorer.js", feature_loader)
-        self.assertIn(b"Dar uma estrela no JARVIS no GitHub", feature_loader)
+        self.assertIn(b"Dar uma estrela no GitHub", feature_loader)
+        self.assertIn(b"github-star-count", feature_loader)
 
         status, headers, presence_loader = self.request("/ui/presence-loader.js")
         self.assertEqual(status, 200)
@@ -475,12 +476,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260813-device1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260814-chatfix1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
-        self.assertIn(b'/ui/ui-repair.css?v=20260813-uipolish1', service_worker)
+        self.assertIn(b'/ui/ui-repair.css?v=20260814-chatfix1', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-history.js?v=20260813-ultronfix1', service_worker)
-        self.assertIn(b'/ui/feature-loader.js?v=20260813-ultronfix1', service_worker)
+        self.assertIn(b'/ui/feature-loader.js?v=20260814-chatfix1', service_worker)
         self.assertIn(b'/ui/presence-loader.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-health.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/voice-calibrator.js?v=20260813-ultronfix1', service_worker)
@@ -488,14 +489,14 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/memory-explorer.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', service_worker)
-        self.assertIn(b'/ui/jarvis.js?v=20260813-device1', service_worker)
+        self.assertIn(b'/ui/jarvis.js?v=20260814-chatfix1', service_worker)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-health.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/voice-calibrator.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/memory-explorer.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.css?v=20260813-ultronfix1', service_worker)
-        self.assertIn(b'/ui/ultron-completion.css?v=20260813-ultronfix1', service_worker)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260813-ultronfix1', service_worker)
+        self.assertIn(b'/ui/ultron-completion.css?v=20260814-chatfix1', service_worker)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260814-chatfix1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -1314,7 +1315,8 @@ class WebGatewayTest(unittest.TestCase):
     def test_private_conversation_history_is_normalized_and_persisted(self):
         rows = [{
             "value": {
-                "schema_version": 1,
+                "schema_version": 2,
+                "session_id": "sess-abc12345",
                 "messages": [
                     {"role": "user", "content": "lembre do contexto"},
                     {"role": "assistant", "content": "Contexto mantido."},
@@ -1326,34 +1328,50 @@ class WebGatewayTest(unittest.TestCase):
             "SUPABASE_URL": "https://jarvis.example.supabase.co",
             "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
         }, clear=False), patch.object(MODULE, "supabase_request", side_effect=[rows, []]) as request:
-            restored, restored_status = MODULE.conversation_history_payload()
+            restored, restored_status = MODULE.conversation_history_payload("sess-abc12345")
             saved, saved_status = MODULE.persist_conversation_history({
                 "messages": [
                     {"role": "user", "content": "conversa segura"},
                     {"role": "assistant", "content": "mantida"},
                     {"role": "user", "content": "token=placeholdervalue123456"},
                 ],
-            })
+            }, "sess-abc12345")
         self.assertEqual(restored_status, 200)
         self.assertEqual(restored["count"], 2)
         self.assertEqual(saved_status, 200)
         self.assertEqual(saved["count"], 2)
+        self.assertEqual(request.call_args_list[1].kwargs["body"]["key"], "conversation_history:sess-abc12345")
         written = request.call_args_list[1].kwargs["body"]["value"]["messages"]
         self.assertNotIn("placeholdervalue123456", json.dumps(written))
+
+    def test_conversation_history_is_isolated_per_browser_session(self):
+        empty, empty_status = MODULE.conversation_history_payload("")
+        self.assertEqual(empty_status, 200)
+        self.assertEqual(empty["messages"], [])
+        self.assertEqual(empty["status_real"], "conversation_history_session_required")
+        refused, refused_status = MODULE.persist_conversation_history({
+            "messages": [{"role": "user", "content": "oi"}, {"role": "assistant", "content": "ok"}],
+        })
+        self.assertEqual(refused_status, 400)
+        self.assertEqual(MODULE.conversation_storage_key("sess-one-aaaa"), "conversation_history:sess-one-aaaa")
+        self.assertNotEqual(
+            MODULE.conversation_storage_key("sess-one-aaaa"),
+            MODULE.conversation_storage_key("sess-two-bbbb"),
+        )
 
     def test_new_conversation_clears_chat_but_preserves_memory_storage(self):
         with patch.dict(os.environ, {
             "SUPABASE_URL": "https://jarvis.example.supabase.co",
             "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
         }, clear=False), patch.object(MODULE, "supabase_request", return_value=[]) as request:
-            payload, status = MODULE.clear_conversation_history()
+            payload, status = MODULE.clear_conversation_history("sess-abc12345")
 
         self.assertEqual(status, 200)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["count"], 0)
         written = request.call_args.kwargs
         self.assertEqual(written["table"], MODULE.SUPABASE_SETTINGS_TABLE)
-        self.assertEqual(written["body"]["key"], "conversation_history")
+        self.assertEqual(written["body"]["key"], "conversation_history:sess-abc12345")
         self.assertEqual(written["body"]["value"]["messages"], [])
 
     def test_paired_personal_tools_enter_allowlisted_queue(self):
@@ -2647,6 +2665,8 @@ São Paulo - SP
         self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "pesquise isso no Google"}]))
         self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "busque modelos 3D de robô"}]))
         self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "procure projetos públicos no GitHub"}]))
+        self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "pesquise sobre a mclaren qual a melhor hoje"}]))
+        self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "qual a melhor McLaren hoje"}]))
         self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "explique o que é inflação"}]))
 
     def test_guest_can_chat_without_private_memory_or_device_access(self):
@@ -3355,10 +3375,19 @@ São Paulo - SP
         self.assertTrue(MODULE.output_needs_portuguese_retry(
             "This is the answer and you should use it with your current project."
         ))
+        self.assertTrue(MODULE.output_needs_portuguese_retry(
+            "A McLaren 750S ainda é a referência. This is the current lineup for 2025."
+        ))
         self.assertFalse(MODULE.output_needs_portuguese_retry(
             "Esta é a resposta e você pode usar isso no seu projeto agora."
         ))
         self.assertFalse(MODULE.output_needs_portuguese_retry("Deploy concluído."))
+        self.assertTrue(MODULE.output_denies_live_capability(
+            "Não tenho capacidade de pesquisa em tempo real. Meu conhecimento vem dos dados de treinamento (até 2024)."
+        ))
+        self.assertFalse(MODULE.output_denies_live_capability(
+            "Pesquisei agora. A McLaren 750S continua a referência de uso misto."
+        ))
 
     def test_meta_leak_fallback_never_blames_user_or_requests_rephrasing(self):
         message = MODULE.meta_leak_recovery([{"role": "user", "content": "faça isso"}])

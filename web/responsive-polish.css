@@ -72,6 +72,7 @@ dialog {
 .integration-actions-sticky { backdrop-filter: blur(20px) saturate(120%); }
 
 .composer input::placeholder,
+.composer textarea::placeholder,
 .integration-fields input::placeholder,
 .integration-tool-fields input::placeholder,
 .integration-tool-fields textarea::placeholder,
@@ -207,8 +208,8 @@ dialog {
   .hud-rail { display: none; }
   .avatar { inset: -18% 4% 30%; }
   .spoken-caption { bottom: 166px; }
-  .conversation { bottom: 8px; height: 150px; }
-  .stage.has-conversation .conversation { height: min(72%, 330px); }
+  .conversation { bottom: 8px; height: var(--conversation-height, 180px); }
+  .stage.has-conversation .conversation { height: var(--conversation-height, min(72%, 360px)); }
   .conversation-head { min-height: 34px; }
   .composer { padding-block: 6px; }
   .request-progress { display: none; }
