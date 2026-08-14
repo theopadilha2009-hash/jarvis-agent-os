@@ -2162,6 +2162,13 @@
     const attachments = options.includeAttachments ? session.attachments.slice() : [];
     const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
+    if (session.paired && window.JarvisFeatureLoader?.screenUnavailable(command, session.deviceOnline)) {
+      addMessage(command, options.source === "voice" ? "user voice" : "user");
+      input.value = "";
+      syncComposerAction();
+      showResponse({ ok: false, error: "O Mac está offline. A captura não entrou na fila; ligue o worker e tente de novo." });
+      return;
+    }
     const permissionCategory = session.paired ? window.JarvisFeatureLoader?.categoryForCommand(command) : "";
     if (permissionCategory && !await window.JarvisFeatureLoader?.authorize(permissionCategory, command)) {
       addMessage("Ação cancelada pela política de permissões do Ultron.", "error");

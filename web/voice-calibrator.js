@@ -13,7 +13,7 @@ window.JarvisVoiceCalibrator = (() => {
   if (!document.querySelector("link[data-jarvis-voice-calibrator]")) {
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "/ui/voice-calibrator.css?v=20260813-permissions1";
+    stylesheet.href = "/ui/voice-calibrator.css?v=20260813-ultronfix1";
     stylesheet.dataset.jarvisVoiceCalibrator = "true";
     document.head.appendChild(stylesheet);
   }

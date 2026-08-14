@@ -1,0 +1,143 @@
+.github-star-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  text-decoration: none;
+}
+.github-star-button span { color: #fbbf24; font-size: 13px; line-height: 1; }
+.github-star-button b { font: inherit; font-weight: 650; }
+
+html[data-persona="ultron"] { accent-color: #ef4444; scrollbar-color: #7f1d1d #160305; }
+html[data-persona="ultron"] ::selection { background: rgba(239, 68, 68, .42); color: #fff; }
+html[data-persona="ultron"] :is(
+  .state-beacon, .request-progress, .hud-surface, .action-hub,
+  .integrations-dialog, .voice-calibrator-dialog, .memory-explorer-dialog,
+  .action-permissions-dialog, .tour-dialog, .install-dialog
+) {
+  border-color: rgba(248, 113, 113, .25);
+  background-color: rgba(30, 4, 8, .9);
+  box-shadow: 0 18px 70px rgba(0, 0, 0, .36), inset 0 1px rgba(255, 255, 255, .035);
+}
+html[data-persona="ultron"] :is(
+  .state-beacon, .request-progress, .hud-surface, .action-hub,
+  .integrations-dialog, .voice-calibrator-dialog, .memory-explorer-dialog,
+  .action-permissions-dialog
+) :is(strong, h1, h2, h3) { color: #fff7f7; }
+html[data-persona="ultron"] :is(
+  .state-beacon, .request-progress, .hud-surface, .action-hub,
+  .integrations-dialog, .voice-calibrator-dialog, .memory-explorer-dialog,
+  .action-permissions-dialog
+) :is(small, label, output) { color: #fca5a5; }
+
+html[data-persona="ultron"] :is(
+  .quiet-button, .access-mode, .pulse-button, .github-star-button,
+  .voice-button, .attachment-button, .strength-button,
+  .scene-modes > span, .scene-modes > button,
+  .action-hub button, dialog button
+) {
+  border-color: rgba(248, 113, 113, .34);
+  color: #fee2e2;
+}
+html[data-persona="ultron"] :is(
+  .quiet-button, .access-mode, .pulse-button, .github-star-button,
+  .voice-button, .attachment-button, .strength-button,
+  .action-hub button, dialog button
+):is(:hover, :focus-visible) {
+  border-color: rgba(254, 202, 202, .7);
+  background-color: rgba(127, 29, 29, .58);
+  color: #fff;
+}
+html[data-persona="ultron"] :is(
+  .send-button, .memory-search-button, .integration-tool-run,
+  .n8n-studio-actions button:last-child, .permission-request button:last-child
+) {
+  border-color: rgba(254, 202, 202, .62);
+  background: linear-gradient(135deg, #ef4444, #dc2626 54%, #991b1b);
+  color: #fff;
+  box-shadow: 0 9px 26px rgba(127, 29, 29, .42), inset 0 1px rgba(255, 255, 255, .18);
+}
+html[data-persona="ultron"] .github-star-button {
+  background: linear-gradient(145deg, rgba(90, 12, 18, .88), rgba(36, 4, 8, .92));
+}
+
+html[data-persona="ultron"] :is(.connection-dot, .scene-telemetry i, .conversation-head i) {
+  background: #f87171;
+  box-shadow: 0 0 12px rgba(248, 113, 113, .9);
+}
+html[data-persona="ultron"] :is(.state-progress i, .request-progress i) {
+  background-color: #ef4444;
+}
+html[data-persona="ultron"] .shimmer-loader::after { background-color: #ef4444; }
+html[data-persona="ultron"] .target-ring,
+html[data-persona="ultron"] .target-ring::before,
+html[data-persona="ultron"] .target-ring::after { border-color: rgba(248, 113, 113, .25); }
+
+html[data-persona="ultron"] :is(
+  .integrations-head, .integration-provider-list, .integration-editor-header,
+  .integration-actions-sticky, .action-hub header,
+  .permissions-head, .memory-explorer-head, .voice-calibrator-head
+) {
+  border-color: rgba(248, 113, 113, .22);
+  background: linear-gradient(180deg, rgba(41, 5, 9, .98), rgba(24, 3, 6, .96));
+}
+html[data-persona="ultron"] :is(
+  .integration-provider-list button, .integration-tabs, .integration-toolbox,
+  .integration-history, .integration-health-card, .n8n-studio,
+  .n8n-workflow-preview, .n8n-template-card, .n8n-workflow-row,
+  .memory-explorer-results article, .permissions-list article,
+  .voice-sliders, .mission-control, .mission-control-row
+) {
+  border-color: rgba(248, 113, 113, .24);
+  background: linear-gradient(145deg, rgba(57, 7, 12, .72), rgba(24, 3, 6, .82));
+}
+html[data-persona="ultron"] :is(
+  .integration-provider-list button.active,
+  .integration-tabs button[aria-selected="true"],
+  .voice-presets button[data-active="true"]
+) {
+  border-color: rgba(248, 113, 113, .58);
+  background: linear-gradient(135deg, rgba(220, 38, 38, .36), rgba(127, 29, 29, .28));
+  color: #fff7f7;
+}
+html[data-persona="ultron"] :is(
+  .integration-provider-list i, .n8n-map-node, .n8n-map-connector,
+  .integration-history-row > i, .api-power-badge
+) {
+  border-color: rgba(248, 113, 113, .5);
+  background-color: #dc2626;
+  color: #fff7f7;
+  box-shadow: 0 0 12px rgba(239, 68, 68, .34);
+}
+html[data-persona="ultron"] :is(
+  .integration-fields input, .integration-tool-fields input,
+  .integration-tool-fields textarea, .n8n-studio input, .n8n-studio select,
+  .memory-explorer-form input, .memory-explorer-form select,
+  .permissions-list select
+) {
+  border-color: rgba(248, 113, 113, .3);
+  background: rgba(18, 2, 5, .88);
+  color: #fff7f7;
+}
+html[data-persona="ultron"] :is(input, textarea, select):focus {
+  border-color: #f87171;
+  outline-color: rgba(248, 113, 113, .62);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .13);
+}
+html[data-persona="ultron"] :is(
+  .integration-provider-list b, .integration-editor-header strong,
+  .integration-toolbox strong, .n8n-studio strong, .n8n-workflow-row strong,
+  .memory-explorer-results strong, .permissions-list strong,
+  .voice-preset-head strong, .mission-control strong
+) { color: #fff7f7; }
+html[data-persona="ultron"] :is(
+  .integration-feedback[data-state="success"],
+  .integration-history-row[data-ok="true"] b,
+  .mission-control-row header > small[data-tone="active"]
+) { color: #fca5a5; }
+
+@media (max-width: 1180px) {
+  .github-star-button b { display: none; }
+  .github-star-button { width: 34px; padding-inline: 0; }
+}
