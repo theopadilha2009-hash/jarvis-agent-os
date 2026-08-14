@@ -494,7 +494,7 @@ class UIQualityTest(unittest.TestCase):
         }
         window_selector = re.compile(r"\.(?:conversation|composer)(?![\w:-])")
         offenders = []
-        for path in (CSS, UI_REPAIR_CSS, API_PANEL_CSS, RESPONSIVE_POLISH_CSS, ULTRON_COMPLETION_CSS):
+        for path in sorted(p for p in WEB.glob("*.css") if p.name != "shell.css"):
             text = re.sub(r"/\*.*?\*/", " ", path.read_text(encoding="utf-8"), flags=re.S)
             for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", text):
                 if not window_selector.search(selector):
