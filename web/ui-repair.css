@@ -166,9 +166,10 @@ html[data-persona="ultron"] .starter-actions button {
 html[data-persona="ultron"] .new-conversation-button,
 html[data-persona="ultron"] .new-conversation-button:hover,
 html[data-persona="ultron"] .new-conversation-button:focus-visible {
-  border-color: rgba(216, 180, 254, 0.55);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.72), rgba(109, 40, 217, 0.5));
+  border-color: #c084fc;
+  background: linear-gradient(145deg, #8b5cf6, #6d28d9);
   color: #fff7ff;
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.45);
 }
 html[data-persona="ultron"] .strength-button b,
 html[data-persona="ultron"] .scene-modes small,

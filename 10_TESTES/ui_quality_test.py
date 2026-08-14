@@ -260,7 +260,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("memory-explorer.js?v=20260813-ultronfix1", feature_loader)
         self.assertIn("action-permissions.js?v=20260813-ultronfix1", feature_loader)
         self.assertIn("Dar uma estrela no GitHub", feature_loader)
-        self.assertIn("github-star-count", feature_loader)
+        self.assertIn("ghbtns.com/github-btn.html", feature_loader)
         self.assertIn("screenUnavailable", feature_loader)
         self.assertIn("devicePollDelay", self.app_js)
         self.assertIn("worker_offline", self.app_js)
@@ -345,7 +345,7 @@ class UIQualityTest(unittest.TestCase):
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
-        self.assertGreaterEqual(self.html.count("20260814-chatfix1"), 4)
+        self.assertGreaterEqual(self.html.count("20260814-chatfix1") + self.html.count("20260814-chatfix2"), 4)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -432,7 +432,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('"jarvis-response-strength"', self.app_js)
         self.assertIn("function signalUltron", self.app_js)
         self.assertIn("X-Jarvis-Conversation-Id", self.app_js)
-        self.assertIn("github-star-count", self.feature_loader_js)
+        self.assertIn("ghbtns.com/github-btn.html", self.feature_loader_js)
         self.assertIn('data.persona?.id === "ultron_private"', self.app_js)
         self.assertIn("@keyframes ultron-target-lock", self.css)
         self.assertIn('html[data-persona="ultron"] .message-context', self.ui_repair_css)

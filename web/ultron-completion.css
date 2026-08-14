@@ -1,36 +1,13 @@
 .github-star-button {
-  display: inline-flex;
-  align-items: stretch;
-  min-height: 28px;
+  display: inline-block;
+  width: 92px;
+  height: 20px;
   margin-left: 8px;
-  padding: 0;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  background: #f6f8fa;
-  color: #24292f;
-  text-decoration: none;
+  border: 0;
+  background: transparent;
   overflow: hidden;
-  font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  box-shadow: 0 1px 0 rgba(31, 35, 40, .04);
+  vertical-align: middle;
 }
-.github-star-button:hover,
-.github-star-button:focus-visible {
-  background: #f3f4f6;
-  border-color: #afb8c1;
-  color: #24292f;
-  outline: none;
-}
-.github-star-mark,
-.github-star-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  line-height: 20px;
-}
-.github-star-mark { border-right: 1px solid #d0d7de; background: #fff; }
-.github-star-mark svg { display: block; }
-.github-star-count { background: #fff; min-width: 2.4em; justify-content: center; }
 
 html[data-persona="ultron"] { accent-color: #ef4444; scrollbar-color: #7f1d1d #160305; }
 html[data-persona="ultron"] ::selection { background: rgba(239, 68, 68, .42); color: #fff; }
@@ -81,16 +58,11 @@ html[data-persona="ultron"] :is(
   color: #fff;
   box-shadow: 0 9px 26px rgba(127, 29, 29, .42), inset 0 1px rgba(255, 255, 255, .18);
 }
-html[data-persona="ultron"] .github-star-button,
-html[data-persona="ultron"] .github-star-button:hover,
-html[data-persona="ultron"] .github-star-button:focus-visible {
-  border-color: #d0d7de;
-  background: #f6f8fa;
-  color: #24292f;
-  box-shadow: 0 1px 0 rgba(31, 35, 40, .04);
+html[data-persona="ultron"] .github-star-button {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
-html[data-persona="ultron"] .github-star-mark,
-html[data-persona="ultron"] .github-star-count { background: #fff; color: #24292f; }
 
 html[data-persona="ultron"] :is(.connection-dot, .scene-telemetry i, .conversation-head i) {
   background: #f87171;
@@ -168,6 +140,5 @@ html[data-persona="ultron"] :is(
 ) { color: #fca5a5; }
 
 @media (max-width: 1180px) {
-  .github-star-count { display: none; }
-  .github-star-mark { border-right: 0; }
+  .github-star-button { width: 52px; }
 }
