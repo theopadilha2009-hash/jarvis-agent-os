@@ -2250,18 +2250,29 @@
     setWorking(true, workingState);
     try {
       const clientIntegrations = await runtimeClientIntegrations(command);
-      const data = await request("/command", {
+      const commandBody = {
+        command,
+        messages: session.history,
+        input_mode: options.source || "text",
+        attachments,
+        strength: session.strength,
+        client_integrations: clientIntegrations,
+      };
+      let data = await request("/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          command,
-          messages: session.history,
-          input_mode: options.source || "text",
-          attachments,
-          strength: session.strength,
-          client_integrations: clientIntegrations,
-        }),
+        body: JSON.stringify(commandBody),
       });
+      if (data?.retryable && /ocupad|fila/i.test(String(data.error || ""))) {
+        renderOccupancy(data.occupancy);
+        byId("conversationState").textContent = "na fila";
+        await new Promise((resolve) => window.setTimeout(resolve, Math.max(2000, Number(data.queue?.retry_after || 3) * 1000)));
+        data = await request("/command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...commandBody, attachments: [] }),
+        });
+      }
       const minimumReflectionMs = data.mode === "memory" || data.intent === "memory_view_close"
         ? 100
         : ["research", "planning"].includes(workingState) ? 600 : 280;
@@ -2275,11 +2286,6 @@
         session.attachments = [];
         renderAttachmentTray();
         clearAttachmentPreview();
-      }
-      if (data?.retryable && /ocupad|fila/i.test(String(data.error || "")) && !options.retriedBusy) {
-        renderOccupancy(data.occupancy);
-        await new Promise((resolve) => window.setTimeout(resolve, 2500));
-        return sendCommand(rawValue, { ...options, retriedBusy: true, includeAttachments: false });
       }
       session.lastResponseOk = data?.ok !== false;
       renderOccupancy(data.occupancy);
