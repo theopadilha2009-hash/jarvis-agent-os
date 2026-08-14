@@ -1875,7 +1875,7 @@ _ASSISTANT_MEMORY_CACHE_LOCK = threading.Lock()
 ASSISTANT_MEMORY_CACHE_SECONDS = 30.0
 _PUBLIC_SEARCH_CACHE = {}
 _PUBLIC_SEARCH_CACHE_LOCK = threading.Lock()
-_OPENROUTER_INFLIGHT = threading.BoundedSemaphore(2)
+_OPENROUTER_INFLIGHT = threading.BoundedSemaphore(3)
 CONVERSATION_SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{8,80}$")
 
 MEMORY_SIGNAL_PATTERNS = (
@@ -7537,7 +7537,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             last_error = None
             key_retryable_codes = {401, 402, 403, 408, 409, 429, 500, 502, 503, 504}
-            acquired = _OPENROUTER_INFLIGHT.acquire(timeout=10)
+            acquired = _OPENROUTER_INFLIGHT.acquire(timeout=18)
             if not acquired:
                 raise TimeoutError("openrouter_busy")
             try:

@@ -9,7 +9,7 @@ const loadStyle = (id, href) => {
   document.head.appendChild(link);
 };
 
-loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260814-chatfix1");
+loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260814-chatfix2");
 
 function ensureDialog(id, className, titleId, title, mountId) {
   if (document.getElementById(id)) return;
@@ -24,30 +24,15 @@ function ensureDialog(id, className, titleId, title, mountId) {
 ensureDialog("memoryExplorerDialog", "memory-explorer-dialog", "memoryExplorerTitle", "Explorar memória", "memoryExplorerMount");
 ensureDialog("actionPermissionsDialog", "action-permissions-dialog", "actionPermissionsTitle", "Permissões de ações", "actionPermissionsMount");
 
-const GITHUB_REPO = "theopadilha2009-hash/jarvis-agent-os";
-const githubStar = document.createElement("a");
+const githubStar = document.createElement("iframe");
 githubStar.className = "github-star-button";
-githubStar.href = `https://github.com/${GITHUB_REPO}`;
-githubStar.target = "_blank";
-githubStar.rel = "noopener noreferrer";
 githubStar.title = "Star no GitHub";
 githubStar.setAttribute("aria-label", "Dar uma estrela no GitHub");
-githubStar.innerHTML = (
-  '<span class="github-star-mark" aria-hidden="true">'
-  + '<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"></path></svg>'
-  + "Star"
-  + "</span>"
-  + '<span class="github-star-count" id="githubStarCount">—</span>'
-);
+githubStar.src = "https://ghbtns.com/github-btn.html?user=theopadilha2009-hash&repo=jarvis-agent-os&type=star&count=true";
+githubStar.width = "92";
+githubStar.height = "20";
+githubStar.loading = "lazy";
 document.getElementById("integrationsButton")?.before(githubStar);
-fetch(`https://api.github.com/repos/${GITHUB_REPO}`)
-  .then((response) => (response.ok ? response.json() : null))
-  .then((data) => {
-    const count = Number(data?.stargazers_count);
-    const label = document.getElementById("githubStarCount");
-    if (label && Number.isFinite(count)) label.textContent = count.toLocaleString("en-US");
-  })
-  .catch(() => null);
 
 document.getElementById("memoryExplorerButton")?.addEventListener("click", () => {
   import("/ui/memory-explorer.js?v=20260813-ultronfix1").catch(() => null);
