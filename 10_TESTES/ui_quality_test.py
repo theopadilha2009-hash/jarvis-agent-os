@@ -335,7 +335,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-nucleus3")', self.presence_loader_js)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-nucleus4")', self.presence_loader_js)
         self.assertIn("always: true", self.presence_js)
         self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
@@ -352,7 +352,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
-        self.assertGreaterEqual(self.html.count("20260815-nucleus3"), 5)
+        self.assertGreaterEqual(self.html.count("20260815-nucleus4"), 5)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -365,10 +365,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("wireMaterial.color.setHex(ultron ? (options.ultronWire ?? 0xef4444)", self.presence_js)
         self.assertIn("soulMaterial.color.setHex(ultron ? (options.ultronSoul ?? 0xf87171)", self.presence_js)
         # As miniaturas também viram vermelhas no Ultron: nada de roxo/laranja/ciano.
-        self.assertIn("soul: COLORS.forge", self.presence_js)
-        self.assertIn("soul: COLORS.memory", self.presence_js)
-        self.assertIn("ultronSoul: 0xfca5a5", self.presence_js)
-        self.assertIn("ultronSoul: 0xef4444", self.presence_js)
+        self.assertIn("ultronSoul", self.presence_js)
         self.assertNotIn("if (!always) {", self.presence_js)
         self.assertIn('html[data-persona="ultron"] .nucleus-legend span', self.ultron_completion_css)
         self.assertIn('html[data-persona="ultron"] .conversation-move', self.ultron_completion_css)
@@ -558,6 +555,14 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("nucleus-legend", avatar)
         # Sem baseY os três colapsam na mesma altura do busto.
         self.assertIn("group.userData.baseY", self.presence_js)
+        # Forja e Memória são os visuais reais daqueles modos, não esferas.
+        self.assertIn("drawForge(thumbContext", self.presence_js)
+        self.assertIn("drawMemory(thumbContext", self.presence_js)
+        self.assertIn("nucleusSlots.push", self.presence_js)
+        # Miniatura tem camada própria, na frente do busto.
+        self.assertIn('makeEffectCanvas("nuclei", "2")', self.presence_js)
+        # E não espera o busto de 3 MB para aparecer.
+        self.assertIn("thumbnailTicker = requestAnimationFrame", self.presence_js)
         self.assertNotIn("group.position.y = 0.02 + Math.sin", self.presence_js)
 
     def test_api_vault_editor_has_a_bounded_scroll_surface(self):
