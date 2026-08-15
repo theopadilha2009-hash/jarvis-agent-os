@@ -2325,6 +2325,67 @@
     speak(answer);
   }
 
+  // Ele te vê chegar: se o cockpit ficou parado enquanto o Mac estava
+  // bloqueado ou em outra aba, ele abre a conversa sozinho quando você volta.
+  const ARRIVAL_AWAY_MS = 25 * 60 * 1000;
+  const ARRIVAL_COOLDOWN_MS = 60 * 60 * 1000;
+  const ARRIVAL_KEY = "jarvis-last-arrival";
+  let awaySince = 0;
+
+  function arrivalAllowed() {
+    try {
+      const last = Number(localStorage.getItem(ARRIVAL_KEY) || 0);
+      return !last || Date.now() - last > ARRIVAL_COOLDOWN_MS;
+    } catch {
+      return true;
+    }
+  }
+
+  function markArrival() {
+    try {
+      localStorage.setItem(ARRIVAL_KEY, String(Date.now()));
+    } catch { /* sem storage, o cooldown vale só nesta aba */ }
+  }
+
+  async function greetOnArrival() {
+    if (session.working || session.listening || !arrivalAllowed()) return;
+    markArrival();
+    pulseNucleus("core", "chegada");
+    if (session.paired) {
+      await sendCommand("me dê um resumo operacional do meu dia", { source: "arrival" });
+      return;
+    }
+    const hour = new Date().getHours();
+    const greeting = hour < 5 ? "Boa madrugada" : hour < 12 ? "Bom dia" : hour < 19 ? "Boa tarde" : "Boa noite";
+    const line = `${greeting}, Theo. Estava aqui. Diga o que precisa.`;
+    addMessage(line, "jarvis");
+    speak(line);
+  }
+
+  function watchArrival() {
+    const leaving = () => {
+      if (!awaySince) awaySince = Date.now();
+    };
+    const returning = () => {
+      const away = awaySince ? Date.now() - awaySince : 0;
+      awaySince = 0;
+      if (away >= ARRIVAL_AWAY_MS) greetOnArrival();
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") leaving();
+      else returning();
+    });
+    window.addEventListener("blur", leaving);
+    window.addEventListener("focus", returning);
+    // Máquina que dormiu com a aba visível: o relógio parado denuncia a ausência.
+    let lastTick = Date.now();
+    window.setInterval(() => {
+      const now = Date.now();
+      if (now - lastTick >= ARRIVAL_AWAY_MS && document.visibilityState === "visible") greetOnArrival();
+      lastTick = now;
+    }, 30_000);
+  }
+
   async function sendCommand(rawValue, options = {}) {
     if (session.working) {
       input.focus();
@@ -2744,6 +2805,7 @@
   });
   input.addEventListener("blur", () => window.setTimeout(syncMobileViewport, 80));
   bindConversationResize();
+  watchArrival();
   syncComposerHeight();
   attachmentButton.addEventListener("click", () => attachmentInput.click());
   attachmentInput.addEventListener("change", () => addAttachments(attachmentInput.files));
