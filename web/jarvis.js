@@ -35,8 +35,9 @@
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
-  const CHAT_HEIGHT_KEY = "jarvis-chat-height";
-  const CHAT_RECT_KEY = "jarvis-chat-rect";
+  // v2: as janelas salvas antes disso ficaram achatadas (240px de altura num
+  // painel de 720 de largura). Trocar a chave devolve todo mundo ao default.
+  const CHAT_RECT_KEY = "jarvis-chat-rect-v2";
   const MAX_VISIBLE_MESSAGES = 24;
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
@@ -2574,7 +2575,7 @@
   function syncComposerHeight() {
     if (!input) return;
     input.style.height = "auto";
-    input.style.height = `${Math.min(168, Math.max(44, input.scrollHeight))}px`;
+    input.style.height = `${Math.min(120, Math.max(50, input.scrollHeight))}px`;
   }
 
   function clamp(value, min, max) {
@@ -2584,12 +2585,13 @@
   function applyConversationRect(rect, persist = true) {
     const panel = document.querySelector(".conversation");
     if (!panel || !rect) return;
-    const minW = 280;
-    const minH = 240;
+    const minW = 320;
+    const minH = 340;
+    const topbar = 60;
     const width = clamp(rect.width, minW, window.innerWidth - 16);
-    const height = clamp(rect.height, minH, window.innerHeight - 16);
+    const height = clamp(rect.height, minH, window.innerHeight - topbar - 16);
     const left = clamp(rect.left, 8, Math.max(8, window.innerWidth - width - 8));
-    const top = clamp(rect.top, 8, Math.max(8, window.innerHeight - height - 8));
+    const top = clamp(rect.top, topbar, Math.max(topbar, window.innerHeight - height - 8));
     panel.dataset.placed = "1";
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
@@ -2607,14 +2609,13 @@
     if (persist) {
       try {
         localStorage.setItem(CHAT_RECT_KEY, JSON.stringify({ left, top, width, height }));
-        localStorage.setItem(CHAT_HEIGHT_KEY, String(height));
       } catch { /* ignore */ }
     }
   }
 
   function defaultConversationRect() {
-    const width = Math.min(720, window.innerWidth - 32);
-    const height = Math.min(Math.round(window.innerHeight * 0.56), 460, window.innerHeight - 32);
+    const width = Math.min(660, window.innerWidth - 32);
+    const height = Math.min(Math.max(440, Math.round(window.innerHeight * 0.62)), 620, window.innerHeight - 96);
     return {
       width,
       height,
@@ -2685,16 +2686,17 @@
       handle.addEventListener("pointerdown", (event) => begin(handle.dataset.edge, event));
       handle.addEventListener("touchstart", (event) => begin(handle.dataset.edge, event), { passive: false });
     });
+    window.addEventListener("resize", () => {
+      const box = panel.getBoundingClientRect();
+      applyConversationRect({ left: box.left, top: box.top, width: box.width, height: box.height }, false);
+    });
     try {
       const saved = JSON.parse(localStorage.getItem(CHAT_RECT_KEY) || "null");
       if (saved && saved.width && saved.height) {
         applyConversationRect(saved, false);
         return;
       }
-      const legacy = Number(localStorage.getItem(CHAT_HEIGHT_KEY));
-      const rect = defaultConversationRect();
-      if (legacy >= 220) rect.height = legacy;
-      applyConversationRect(rect, false);
+      applyConversationRect(defaultConversationRect(), false);
     } catch {
       applyConversationRect(defaultConversationRect(), false);
     }

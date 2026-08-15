@@ -3,6 +3,7 @@
 
 from html.parser import HTMLParser
 from pathlib import Path
+import re
 import unittest
 
 
@@ -13,7 +14,7 @@ CSS = WEB / "jarvis.css"
 UI_REPAIR_CSS = WEB / "ui-repair.css"
 API_PANEL_CSS = WEB / "api-panel.css"
 RESPONSIVE_POLISH_CSS = WEB / "responsive-polish.css"
-SHELL_FINAL_CSS = WEB / "shell-final.css"
+SHELL_CSS = WEB / "shell.css"
 INTEGRATION_HEALTH_CSS = WEB / "integration-health.css"
 LOGO = WEB / "jarvis-logo.png"
 APP_JS = WEB / "jarvis.js"
@@ -71,6 +72,7 @@ class UIQualityTest(unittest.TestCase):
         cls.html = INDEX.read_text(encoding="utf-8")
         cls.css = CSS.read_text(encoding="utf-8")
         cls.ui_repair_css = UI_REPAIR_CSS.read_text(encoding="utf-8")
+        cls.shell_css = SHELL_CSS.read_text(encoding="utf-8")
         cls.api_panel_css = API_PANEL_CSS.read_text(encoding="utf-8")
         cls.app_js = APP_JS.read_text(encoding="utf-8")
         cls.api_vault_js = API_VAULT_JS.read_text(encoding="utf-8")
@@ -145,7 +147,7 @@ class UIQualityTest(unittest.TestCase):
     def test_composer_uses_one_whatsapp_style_voice_or_send_action(self):
         self.assertIn('class="strength-gauge"', self.html)
         self.assertIn('class="strength-gauge-needle"', self.html)
-        self.assertIn("grid-template-columns: 40px 56px 46px 1fr", self.ui_repair_css)
+        self.assertIn("grid-template-columns: 40px 56px 46px minmax(0, 1fr)", self.shell_css)
         self.assertIn('.composer[data-has-payload="false"] .send-button', self.ui_repair_css)
         self.assertIn('.composer[data-has-payload="true"] .voice-button', self.ui_repair_css)
         self.assertIn('content: "➤"', self.ui_repair_css)
@@ -261,7 +263,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("memory-explorer.js?v=20260813-ultronfix1", feature_loader)
         self.assertIn("action-permissions.js?v=20260813-ultronfix1", feature_loader)
         self.assertIn("Dar uma estrela no GitHub", feature_loader)
-        self.assertIn("ghbtns.com/github-btn.html", feature_loader)
+        self.assertIn("api.github.com/repos/", feature_loader)
+        self.assertNotIn("ghbtns.com", feature_loader)
         self.assertIn("screenUnavailable", feature_loader)
         self.assertIn("devicePollDelay", self.app_js)
         self.assertIn("worker_offline", self.app_js)
@@ -294,7 +297,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(UI_REPAIR_CSS.stat().st_size, 12 * 1024)
         self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
         self.assertLess(RESPONSIVE_POLISH_CSS.stat().st_size, 12 * 1024)
-        self.assertLess(SHELL_FINAL_CSS.stat().st_size, 8 * 1024)
+        self.assertLess(SHELL_CSS.stat().st_size, 8 * 1024)
         self.assertLess(PRESENCE_JS.stat().st_size, 64 * 1024)
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
@@ -332,7 +335,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260814-nuclei1")', self.presence_loader_js)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260814-nucleus2")', self.presence_loader_js)
         self.assertIn("always: true", self.presence_js)
         self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
@@ -348,10 +351,8 @@ class UIQualityTest(unittest.TestCase):
     def test_all_shell_assets_share_space_cache_version(self):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
-        self.assertGreaterEqual(
-            sum(self.html.count(f"20260814-chatfix{n}") for n in range(1, 13)),
-            4,
-        )
+        self.assertNotIn("chatfix", self.html)
+        self.assertGreaterEqual(self.html.count("20260814-nucleus2"), 5)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -361,8 +362,15 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn(".integration-tabs button[aria-selected=\"true\"]", self.ultron_completion_css)
         self.assertIn('document.documentElement.dataset.persona === "ultron"', self.presence_js)
         self.assertIn('"rgba(239,68,68,', self.presence_js)
-        self.assertIn("wireMaterial.color.setHex(ultron ? 0xef4444 : 0x8b5cf6)", self.presence_js)
-        self.assertIn("soulMaterial.color.setHex(ultron ? 0xf87171 : 0xc084fc)", self.presence_js)
+        self.assertIn("wireMaterial.color.setHex(ultron ? (options.ultronWire ?? 0xef4444)", self.presence_js)
+        self.assertIn("soulMaterial.color.setHex(ultron ? (options.ultronSoul ?? 0xf87171)", self.presence_js)
+        # As miniaturas também viram vermelhas no Ultron: nada de roxo/laranja/ciano.
+        self.assertIn("ultronSoul: 0xfca5a5", self.presence_js)
+        self.assertIn("ultronSoul: 0xef4444", self.presence_js)
+        self.assertNotIn("if (!always) {", self.presence_js)
+        self.assertIn('html[data-persona="ultron"] .nucleus-legend span', self.ultron_completion_css)
+        self.assertIn('html[data-persona="ultron"] .conversation-move', self.ultron_completion_css)
+        self.assertIn("background: linear-gradient(145deg, #ef4444, #991b1b)", self.ui_repair_css)
 
     def test_final_responsive_guardrails_cover_real_viewports(self):
         css = RESPONSIVE_POLISH_CSS.read_text(encoding="utf-8")
@@ -429,7 +437,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("CHAT_RECT_KEY", self.app_js)
         self.assertIn("speakBrowser", self.app_js)
         self.assertIn("nucleus-pulse", self.ui_repair_css)
-        self.assertIn("shell-final.css", self.html)
+        self.assertIn("shell.css", self.html)
         self.assertIn("dataset.placed", self.app_js)
         self.assertIn("nucleus-legend", self.html)
         self.assertIn('id="conversationOccupancy"', self.html)
@@ -445,9 +453,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("Quem te criou?", self.app_js)
         self.assertIn("jarvis-owner-last-active", self.app_js)
         self.assertIn("expireIdleOwnerSession", self.app_js)
-        self.assertIn("min(56vh, 460px)", self.ui_repair_css)
-        self.assertIn(".scene-telemetry", self.ui_repair_css)
-        self.assertIn(".github-star-button", self.ui_repair_css)
+        self.assertIn("clamp(340px, 62vh, 620px)", self.shell_css)
+        self.assertIn(".scene-telemetry", self.shell_css)
+        self.assertIn(".github-star-button", self.shell_css)
         self.assertIn("Melhorar você", self.app_js)
         self.assertIn("hidden", self.html)
         self.assertIn('<textarea id="commandInput"', self.html)
@@ -463,7 +471,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('"jarvis-response-strength"', self.app_js)
         self.assertIn("function signalUltron", self.app_js)
         self.assertIn("X-Jarvis-Conversation-Id", self.app_js)
-        self.assertIn("ghbtns.com/github-btn.html", self.feature_loader_js)
+        self.assertIn('githubStar.className = "github-star-button"', self.feature_loader_js)
+        self.assertNotIn("ghbtns.com", self.feature_loader_js)
         self.assertIn('data.persona?.id === "ultron_private"', self.app_js)
         self.assertIn("@keyframes ultron-target-lock", self.css)
         self.assertIn('html[data-persona="ultron"] .message-context', self.ui_repair_css)
@@ -484,6 +493,67 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("logo-filter.svg", self.html + self.ui_repair_css)
         self.assertIn("border-color: transparent", self.ui_repair_css)
         self.assertIn("background: transparent", self.ui_repair_css)
+
+    def test_only_the_shell_owns_the_chat_window_geometry(self):
+        """Regressão do pulo de altura: uma camada só define a janela do chat."""
+        geometry = {
+            "position", "left", "right", "top", "bottom", "width", "height",
+            "max-height", "min-height", "transform",
+            "grid-template-rows", "grid-template-columns", "grid-row", "grid-column",
+        }
+        window_selector = re.compile(r"\.(?:conversation|composer)(?![\w:-])")
+        offenders = []
+        for path in sorted(p for p in WEB.glob("*.css") if p.name != "shell.css"):
+            text = re.sub(r"/\*.*?\*/", " ", path.read_text(encoding="utf-8"), flags=re.S)
+            for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", text):
+                if not window_selector.search(selector):
+                    continue
+                for declaration in body.split(";"):
+                    prop = declaration.split(":")[0].strip().lower()
+                    if prop in geometry:
+                        offenders.append(f"{path.name}: {' '.join(selector.split())} -> {prop}")
+        self.assertEqual(offenders, [], f"Geometria da janela fora de shell.css: {offenders}")
+        self.assertFalse((WEB / "shell-final.css").exists(), "shell-final.css foi consolidado em shell.css")
+        self.assertNotIn("shell-final.css", self.html)
+
+    def test_chat_window_is_a_real_window_without_height_jump(self):
+        self.assertIn("position: fixed", self.shell_css)
+        for edge in ("n", "s", "e", "w", "ne", "nw", "se", "sw"):
+            self.assertIn(f'.conversation-edges [data-edge="{edge}"]', self.shell_css)
+            self.assertIn(f'data-edge="{edge}"', self.html)
+        self.assertIn(".conversation-head {", self.shell_css)
+        self.assertIn("cursor: grab", self.shell_css)
+        self.assertIn('placeholder="Escreva ou fale comigo"', self.html)
+        self.assertIn(".composer textarea::-webkit-scrollbar", self.shell_css)
+        self.assertIn("scrollbar-width: none", self.shell_css)
+        self.assertIn(".composer .attachment-button { grid-column: 1; grid-row: 1; }", self.shell_css)
+        self.assertIn(".composer .strength-button { grid-column: 2; grid-row: 1;", self.shell_css)
+        self.assertIn(".composer .voice-button,\n.composer .send-button {", self.shell_css)
+        self.assertIn("Math.min(120, Math.max(50, input.scrollHeight))", self.app_js)
+
+    def test_chat_window_opens_tall_and_drops_the_squashed_saved_rect(self):
+        """A janela salva antes da v2 abria 720x240; a chave nova descarta isso."""
+        self.assertIn('const CHAT_RECT_KEY = "jarvis-chat-rect-v2"', self.app_js)
+        self.assertIn('localStorage.removeItem("jarvis-chat-rect")', self.html)
+        self.assertIn('localStorage.getItem("jarvis-chat-rect-v2")', self.html)
+        self.assertNotIn("jarvis-chat-height", self.app_js)
+        self.assertIn("const minH = 340", self.app_js)
+        self.assertIn("Math.max(440, Math.round(window.innerHeight * 0.62))", self.app_js)
+
+    def test_mini_nuclei_are_anchored_to_the_legend(self):
+        """Núcleo, Forja e Memória: cada nome encosta na sua própria miniatura."""
+        self.assertIn("placeMiniNuclei", self.presence_js)
+        self.assertIn("camera.updateMatrixWorld(true)", self.presence_js)
+        self.assertIn("--nucleus-x", self.presence_js)
+        self.assertIn("--nucleus-y", self.presence_js)
+        self.assertIn(".nucleus-legend span", self.shell_css)
+        self.assertIn("left: var(--nucleus-x", self.shell_css)
+        # A legenda vive dentro do canvas 3D, senão o offset do .avatar desalinha.
+        avatar = self.html.split('id="avatar3d"', 1)[1].split("</div>", 1)[0]
+        self.assertIn("nucleus-legend", avatar)
+        # Sem baseY os três colapsam na mesma altura do busto.
+        self.assertIn("group.userData.baseY", self.presence_js)
+        self.assertNotIn("group.position.y = 0.02 + Math.sin", self.presence_js)
 
     def test_api_vault_editor_has_a_bounded_scroll_surface(self):
         self.assertIn(".integrations-dialog[open]", self.ui_repair_css)

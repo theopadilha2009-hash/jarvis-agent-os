@@ -14,15 +14,17 @@
 <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-apitools1">
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260814-chatfix1">
-<link rel="stylesheet" href="/ui/ui-repair.css?v=20260814-chatfix11">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260814-nucleus2">
+<link rel="stylesheet" href="/ui/ui-repair.css?v=20260814-nucleus2">
 <link rel="stylesheet" href="/ui/api-panel.css?v=20260813-ultronfix1">
-<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260814-chatfix11">
-<link rel="stylesheet" href="/ui/shell-final.css?v=20260814-chatfix12">
+<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260814-nucleus2">
+<link rel="stylesheet" href="/ui/shell.css?v=20260814-nucleus2">
 <script>
 (() => {
   try {
-    const rect = JSON.parse(localStorage.getItem("jarvis-chat-rect") || "null");
+    localStorage.removeItem("jarvis-chat-rect");
+    localStorage.removeItem("jarvis-chat-height");
+    const rect = JSON.parse(localStorage.getItem("jarvis-chat-rect-v2") || "null");
     if (!rect || !rect.width || !rect.height) return;
     const root = document.documentElement.style;
     root.setProperty("--conversation-left", `${rect.left}px`);
@@ -80,7 +82,13 @@
           <i class="depth-light depth-light-right"></i>
         </div>
         <div class="strands-visual" id="strandsVisual" aria-hidden="true"></div>
-        <div class="avatar" id="avatar3d" aria-hidden="true"></div>
+        <div class="avatar" id="avatar3d" aria-hidden="true">
+          <div class="nucleus-legend">
+            <span>Núcleo</span>
+            <span>Forja</span>
+            <span>Memória</span>
+          </div>
+        </div>
         <div class="target-ring" aria-hidden="true"><i></i><i></i><i></i></div>
 
         <section class="scene-objective" id="sceneObjective" aria-live="polite" hidden>
@@ -95,11 +103,6 @@
           <span data-scene-mode="memory"><i>03</i><b>MEMÓRIA</b><small>guardar</small></span>
           <button id="sceneCommandButton" type="button"><i>⌘</i><span><b>ARSENAL</b><small>ações reais</small></span></button>
         </nav>
-        <div class="nucleus-legend" aria-hidden="true">
-          <span>Núcleo</span>
-          <span>Forja</span>
-          <span>Memória</span>
-        </div>
 
         <div class="scene-telemetry" aria-label="Telemetria do sistema">
           <span><i></i><b id="sceneBrain">IA verificando</b></span>
@@ -223,7 +226,7 @@
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8.5 12.5 14.8 6.2a3 3 0 0 1 4.2 4.2l-8.5 8.5a5 5 0 0 1-7.1-7.1l8-8"></path></svg>
           </button>
           <input id="attachmentInput" type="file" hidden multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json,.md,.json,.csv">
-          <textarea id="commandInput" maxlength="8000" rows="1" autocomplete="off" placeholder="Escreva ou fale comigo…" aria-label="Pedido para JARVIS"></textarea>
+          <textarea id="commandInput" maxlength="8000" rows="1" autocomplete="off" placeholder="Escreva ou fale comigo" aria-label="Pedido para JARVIS"></textarea>
           <button class="strength-button" id="strengthButton" type="button" title="Ajustar força da resposta" aria-label="Força da resposta: Automática">
             <svg class="strength-gauge" aria-hidden="true" viewBox="0 0 32 24">
               <path class="strength-gauge-track" d="M4 20a12 12 0 0 1 24 0"></path>
@@ -427,9 +430,9 @@
 
 <script src="/ui/api-vault.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
-<script src="/ui/feature-loader.js?v=20260814-chatfix2" defer></script>
+<script src="/ui/feature-loader.js?v=20260814-nucleus2" defer></script>
 <script src="/ui/device-feedback.js?v=20260813-device1" defer></script>
-<script src="/ui/jarvis.js?v=20260814-chatfix12" defer></script>
+<script src="/ui/jarvis.js?v=20260814-nucleus2" defer></script>
 <script type="module" src="/ui/presence-loader.js?v=20260813-ultronfix1"></script>
 </body>
 </html>

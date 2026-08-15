@@ -1,0 +1,230 @@
+/* Cockpit shell — dono único da geometria do JARVIS.
+   Regra do repo: nenhum outro CSS define posição/tamanho de .conversation
+   nem o grid do .composer. Aqui é o único lugar. */
+
+/* A presença ocupa o palco inteiro; o chat é uma janela flutuante. */
+.presence { right: 0; }
+
+/* ---------- Janela do chat ---------- */
+.conversation,
+.stage.has-conversation .conversation,
+.stage.mobile-chat-expanded .conversation,
+.stage.mobile-keyboard-open .conversation {
+  position: fixed;
+  z-index: 12;
+  left: var(--conversation-left, 50%);
+  top: var(--conversation-top, auto);
+  right: auto;
+  bottom: var(--conversation-bottom, 16px);
+  width: var(--conversation-width, min(660px, calc(100vw - 32px)));
+  height: var(--conversation-height, clamp(340px, 62vh, 620px));
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  transform: var(--conversation-transform, translateX(-50%));
+  display: grid;
+  grid-template-rows: 12px auto minmax(0, 1fr) auto auto;
+  border: 1px solid rgba(192, 132, 252, 0.3);
+  border-radius: 18px;
+  background: linear-gradient(155deg, rgba(30, 15, 51, 0.97), rgba(17, 8, 31, 0.98));
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.46), inset 0 1px rgba(255, 255, 255, 0.06);
+  transition: none;
+}
+
+.conversation[data-placed="1"],
+.stage.has-conversation .conversation[data-placed="1"] {
+  bottom: auto;
+  transform: none;
+}
+
+/* Header é a barra de título: arrasta a janela. */
+.conversation-head {
+  grid-row: 2;
+  min-height: 38px;
+  padding: 6px 14px 8px;
+  cursor: grab;
+  user-select: none;
+}
+.conversation-head:active { cursor: grabbing; }
+.conversation-head button,
+.conversation-head a,
+.conversation-head input { cursor: pointer; user-select: auto; }
+
+.conversation-move {
+  grid-row: 1;
+  z-index: 6;
+  width: 46px;
+  height: 4px;
+  margin: 5px auto 0;
+  border-radius: 999px;
+  background: rgba(216, 180, 254, 0.34);
+  cursor: grab;
+}
+.conversation-move:active { cursor: grabbing; }
+
+/* Redimensiona pelos 8 lados. */
+.conversation-edges {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  pointer-events: none;
+}
+.conversation-edges i { position: absolute; pointer-events: auto; }
+.conversation-edges [data-edge="n"],
+.conversation-edges [data-edge="s"] { left: 16px; right: 16px; height: 8px; cursor: ns-resize; }
+.conversation-edges [data-edge="n"] { top: 0; }
+.conversation-edges [data-edge="s"] { bottom: 0; }
+.conversation-edges [data-edge="e"],
+.conversation-edges [data-edge="w"] { top: 16px; bottom: 16px; width: 8px; cursor: ew-resize; }
+.conversation-edges [data-edge="e"] { right: 0; }
+.conversation-edges [data-edge="w"] { left: 0; }
+.conversation-edges [data-edge="ne"],
+.conversation-edges [data-edge="nw"],
+.conversation-edges [data-edge="se"],
+.conversation-edges [data-edge="sw"] { width: 15px; height: 15px; }
+.conversation-edges [data-edge="ne"] { top: 0; right: 0; cursor: nesw-resize; }
+.conversation-edges [data-edge="nw"] { top: 0; left: 0; cursor: nwse-resize; }
+.conversation-edges [data-edge="se"] { bottom: 0; right: 0; cursor: nwse-resize; }
+.conversation-edges [data-edge="sw"] { bottom: 0; left: 0; cursor: nesw-resize; }
+
+.conversation-feed { grid-row: 3; min-height: 0; }
+
+/* ---------- Composer: 3 ícones em cima, campo embaixo ---------- */
+.composer {
+  grid-row: 4;
+  display: grid;
+  grid-template-columns: 40px 56px 46px minmax(0, 1fr);
+  grid-template-rows: 42px auto;
+  gap: 8px;
+  padding: 8px 12px 12px;
+  align-items: center;
+}
+.composer .attachment-button { grid-column: 1; grid-row: 1; }
+.composer .strength-button { grid-column: 2; grid-row: 1; justify-self: start; }
+.composer .voice-button,
+.composer .send-button {
+  grid-column: 3;
+  grid-row: 1;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  place-self: center start;
+}
+.composer input,
+.composer textarea {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-height: 50px;
+  max-height: 120px;
+  overflow: hidden;
+  resize: none;
+  scrollbar-width: none;
+}
+.composer textarea::-webkit-scrollbar { width: 0; height: 0; }
+
+/* ---------- Estrela oficial do GitHub ---------- */
+.github-star-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(192, 132, 252, 0.32);
+  border-radius: 9px;
+  background: rgba(46, 22, 76, 0.5);
+  color: rgba(246, 238, 254, 0.86);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.github-star-button:is(:hover, :focus-visible) {
+  border-color: rgba(216, 180, 254, 0.66);
+  background: rgba(76, 29, 149, 0.6);
+  color: #fff;
+}
+.github-star-button i { font-style: normal; color: #fbbf24; }
+.github-star-button b {
+  padding-left: 7px;
+  border-left: 1px solid rgba(192, 132, 252, 0.28);
+  font-weight: 600;
+}
+
+/* ---------- Sem chrome morto ---------- */
+.scene-objective,
+.state-beacon,
+.hud-rail,
+.scene-telemetry,
+.conversation-resize,
+#sceneCommandButton,
+#connectionText { display: none !important; }
+
+.stage[data-nuclei="3d"] .scene-modes { display: none !important; }
+
+/* A legenda mora dentro do canvas 3D e cada nome é ancorado pelo próprio
+   núcleo em miniatura — jarvis-3d.js escreve --nucleus-x/--nucleus-y. */
+.nucleus-legend {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+.nucleus-legend span {
+  position: absolute;
+  left: var(--nucleus-x, 58px);
+  top: var(--nucleus-y, 50%);
+  transform: translateY(-50%);
+  padding-left: 12px;
+  color: rgba(246, 238, 254, 0.74);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 10px rgba(10, 4, 20, 0.8);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+.stage[data-nuclei="3d"] .nucleus-legend span { opacity: 1; }
+.nucleus-legend span:nth-child(2) { color: rgba(253, 186, 116, 0.78); }
+.nucleus-legend span:nth-child(3) { color: rgba(165, 243, 252, 0.78); }
+.stage:not([data-nuclei="3d"]) .nucleus-legend { display: none; }
+
+/* Visitante só vê o essencial; o ícone de troca abre o acesso. */
+.stage[data-access="guest"] #tourButton,
+.stage[data-access="guest"] #actionHubButton,
+.stage[data-access="guest"] #integrationsButton,
+.stage[data-access="guest"] #qualityButton,
+.stage[data-access="guest"] #detailsButton { display: none; }
+
+.access-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.access-swap {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+}
+
+/* ---------- Telas pequenas: só o composer encolhe ---------- */
+@media (max-width: 720px) {
+  .conversation-head { padding-inline: 11px; }
+  .composer {
+    grid-template-columns: 40px 52px 44px minmax(0, 1fr);
+    gap: 7px;
+    padding: 7px 9px max(9px, env(safe-area-inset-bottom));
+  }
+  .composer .voice-button,
+  .composer .send-button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .composer input,
+  .composer textarea { min-height: 48px; font-size: 16px; }
+}
+
+@media (max-width: 350px) {
+  .composer { grid-template-columns: 38px 48px 44px minmax(0, 1fr); gap: 6px; }
+}

@@ -9,7 +9,7 @@ const loadStyle = (id, href) => {
   document.head.appendChild(link);
 };
 
-loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260814-chatfix2");
+loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260814-nucleus2");
 
 function ensureDialog(id, className, titleId, title, mountId) {
   if (document.getElementById(id)) return;
@@ -24,15 +24,30 @@ function ensureDialog(id, className, titleId, title, mountId) {
 ensureDialog("memoryExplorerDialog", "memory-explorer-dialog", "memoryExplorerTitle", "Explorar memória", "memoryExplorerMount");
 ensureDialog("actionPermissionsDialog", "action-permissions-dialog", "actionPermissionsTitle", "Permissões de ações", "actionPermissionsMount");
 
-const githubStar = document.createElement("iframe");
+// Botão nativo: o embed de terceiro só desenhava para repositório público e
+// sumia por completo aqui. Este sempre aparece; a contagem entra depois se a
+// API do GitHub responder.
+const GITHUB_REPO = "theopadilha2009-hash/jarvis-agent-os";
+const githubStar = document.createElement("a");
 githubStar.className = "github-star-button";
-githubStar.title = "Star no GitHub";
+githubStar.href = `https://github.com/${GITHUB_REPO}`;
+githubStar.target = "_blank";
+githubStar.rel = "noopener noreferrer";
+githubStar.title = "Dar uma estrela no GitHub";
 githubStar.setAttribute("aria-label", "Dar uma estrela no GitHub");
-githubStar.src = "https://ghbtns.com/github-btn.html?user=theopadilha2009-hash&repo=jarvis-agent-os&type=star&count=true";
-githubStar.width = "80";
-githubStar.height = "20";
-githubStar.loading = "lazy";
+githubStar.innerHTML = '<i aria-hidden="true">★</i><span>Star</span><b hidden></b>';
 document.getElementById("integrationsButton")?.before(githubStar);
+
+fetch(`https://api.github.com/repos/${GITHUB_REPO}`, { headers: { Accept: "application/vnd.github+json" } })
+  .then((response) => (response.ok ? response.json() : null))
+  .then((data) => {
+    const stars = Number(data?.stargazers_count);
+    if (!Number.isFinite(stars)) return;
+    const counter = githubStar.querySelector("b");
+    counter.textContent = stars >= 1000 ? `${(stars / 1000).toFixed(1)}k` : String(stars);
+    counter.hidden = false;
+  })
+  .catch(() => null);
 
 document.getElementById("memoryExplorerButton")?.addEventListener("click", () => {
   import("/ui/memory-explorer.js?v=20260813-ultronfix1").catch(() => null);

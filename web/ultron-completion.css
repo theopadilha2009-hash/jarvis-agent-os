@@ -1,13 +1,4 @@
-.github-star-button {
-  display: inline-block;
-  width: 92px;
-  height: 20px;
-  margin-left: 8px;
-  border: 0;
-  background: transparent;
-  overflow: hidden;
-  vertical-align: middle;
-}
+.github-star-button { margin-left: 8px; }
 
 html[data-persona="ultron"] { accent-color: #ef4444; scrollbar-color: #7f1d1d #160305; }
 html[data-persona="ultron"] ::selection { background: rgba(239, 68, 68, .42); color: #fff; }
@@ -58,11 +49,18 @@ html[data-persona="ultron"] :is(
   color: #fff;
   box-shadow: 0 9px 26px rgba(127, 29, 29, .42), inset 0 1px rgba(255, 255, 255, .18);
 }
+html[data-persona="ultron"] .nucleus-legend span { color: rgba(254, 202, 202, .78); }
+html[data-persona="ultron"] .nucleus-legend span:nth-child(2) { color: rgba(248, 113, 113, .82); }
+html[data-persona="ultron"] .nucleus-legend span:nth-child(3) { color: rgba(239, 68, 68, .82); }
+html[data-persona="ultron"] .conversation { border-color: rgba(248, 113, 113, .28); }
+html[data-persona="ultron"] .conversation-move { background: rgba(252, 165, 165, .34); }
+
 html[data-persona="ultron"] .github-star-button {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+  border-color: rgba(248, 113, 113, .34);
+  background: rgba(60, 8, 12, .55);
+  color: #fee2e2;
 }
+html[data-persona="ultron"] .github-star-button b { border-left-color: rgba(248, 113, 113, .3); }
 
 html[data-persona="ultron"] :is(.connection-dot, .scene-telemetry i, .conversation-head i) {
   background: #f87171;
@@ -140,5 +138,6 @@ html[data-persona="ultron"] :is(
 ) { color: #fca5a5; }
 
 @media (max-width: 1180px) {
-  .github-star-button { width: 52px; }
+  .github-star-button span { display: none; }
+  .github-star-button { padding-inline: 8px; }
 }

@@ -479,6 +479,7 @@ function makeCoreEntity(scene, options = {}) {
   const always = Boolean(options.always);
   const group = new THREE.Group();
   group.position.set(options.x ?? 0.94, options.y ?? 0.02, options.z ?? -1.05);
+  group.userData.baseY = group.position.y;
   group.scale.setScalar(options.scale ?? 0.58);
   group.visible = always;
   scene.add(group);
@@ -541,14 +542,12 @@ function makeCoreEntity(scene, options = {}) {
 
   let alpha = 0;
   function update(time, visibility, deltaSeconds = 0) {
-    if (!always) {
-      const ultron = document.documentElement.dataset.persona === "ultron";
-      obsidianMaterial.color.setHex(ultron ? 0x220305 : 0x120825);
-      obsidianMaterial.emissive.setHex(ultron ? 0x7f1d1d : 0x3b1675);
-      soulMaterial.color.setHex(ultron ? 0xf87171 : 0xc084fc);
-      wireMaterial.color.setHex(ultron ? 0xef4444 : 0x8b5cf6);
-      shardMaterial.color.setHex(ultron ? 0xfca5a5 : 0xc084fc);
-    }
+    const ultron = document.documentElement.dataset.persona === "ultron";
+    obsidianMaterial.color.setHex(ultron ? 0x220305 : 0x120825);
+    obsidianMaterial.emissive.setHex(ultron ? (options.ultronEmissive ?? 0x7f1d1d) : (options.emissive ?? 0x3b1675));
+    soulMaterial.color.setHex(ultron ? (options.ultronSoul ?? 0xf87171) : (options.soul ?? 0xc084fc));
+    wireMaterial.color.setHex(ultron ? (options.ultronWire ?? 0xef4444) : (options.wire ?? 0x8b5cf6));
+    shardMaterial.color.setHex(ultron ? (options.ultronSoul ?? 0xfca5a5) : (options.soul ?? 0xc084fc));
     const transitionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
     alpha += (Math.max(0, Math.min(1, always ? 1 : visibility)) - alpha) * transitionEase;
     group.visible = alpha > 0.01;
@@ -571,7 +570,7 @@ function makeCoreEntity(scene, options = {}) {
       shard.rotation.y -= deltaSeconds * 0.085;
     });
     group.rotation.y = Math.sin(time * 0.34) * 0.12;
-    group.position.y = 0.02 + Math.sin(time * 0.8) * 0.035;
+    group.position.y = group.userData.baseY + Math.sin(time * 0.8) * 0.035;
   }
 
   return { group, update };
@@ -642,10 +641,11 @@ async function start() {
   lowerFill.position.set(-1.2, -1.8, 2.4);
   scene.add(lowerFill);
   const coreEntity = makeCoreEntity(scene);
+  const MINI_PLANE_Z = 1.35;
   const miniNuclei = [
-    makeCoreEntity(scene, { always: true, x: -1.68, y: -0.62, z: 1.35, scale: 0.17, soul: 0xc084fc, wire: 0xa855f7, emissive: 0x3b1675 }),
-    makeCoreEntity(scene, { always: true, x: -1.68, y: -0.96, z: 1.35, scale: 0.17, soul: 0xfb923c, wire: 0xf97316, emissive: 0x9a3412 }),
-    makeCoreEntity(scene, { always: true, x: -1.68, y: -1.30, z: 1.35, scale: 0.17, soul: 0x67e8f9, wire: 0x22d3ee, emissive: 0x0e7490 }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xc084fc, wire: 0xa855f7, emissive: 0x3b1675, ultronSoul: 0xfca5a5, ultronWire: 0xf87171, ultronEmissive: 0x991b1b }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xfb923c, wire: 0xf97316, emissive: 0x9a3412, ultronSoul: 0xf87171, ultronWire: 0xef4444, ultronEmissive: 0x7f1d1d }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0x67e8f9, wire: 0x22d3ee, emissive: 0x0e7490, ultronSoul: 0xef4444, ultronWire: 0xdc2626, ultronEmissive: 0x641414 }),
   ];
   stage.dataset.nuclei = "3d";
 
@@ -788,6 +788,42 @@ async function start() {
 
   let canvasWidth = 1;
   let canvasHeight = 1;
+
+  // As miniaturas vivem na coluna esquerda do palco: a posição é decidida em
+  // pixels e convertida para o mundo, então a legenda encosta nelas em
+  // qualquer proporção de tela.
+  const legendItems = Array.from(document.querySelectorAll(".nucleus-legend span"));
+  const nucleusRay = new THREE.Vector3();
+  function placeMiniNuclei() {
+    const compact = canvasWidth < 760;
+    // Miniatura de verdade: dá para reconhecer o núcleo, não é um pontinho.
+    const diameter = Math.min(compact ? 76 : 130, Math.max(60, canvasHeight * 0.17), canvasWidth * 0.22);
+    const centerX = Math.round(18 + diameter / 2);
+    const step = Math.max(diameter * 1.14, canvasHeight * 0.145);
+    const first = Math.min(canvasHeight * 0.46, canvasHeight - diameter / 2 - 8 - step * 2);
+    const rows = [first, first + step, first + step * 2];
+    camera.updateMatrixWorld(true);
+    const depth = camera.position.z - MINI_PLANE_Z;
+    const viewHeight = 2 * Math.tan((camera.fov * Math.PI) / 180 / 2) * depth;
+    miniNuclei.forEach((nucleus, index) => {
+      const pixelY = rows[index];
+      nucleusRay.set((centerX / canvasWidth) * 2 - 1, -((pixelY / canvasHeight) * 2 - 1), 0.5)
+        .unproject(camera)
+        .sub(camera.position)
+        .normalize();
+      const distance = (MINI_PLANE_Z - camera.position.z) / nucleusRay.z;
+      const world = camera.position.clone().addScaledVector(nucleusRay, distance);
+      nucleus.group.position.set(world.x, world.y, MINI_PLANE_Z);
+      nucleus.group.userData.baseY = world.y;
+      // 1.5 é o raio do halo de estilhaços, o contorno mais largo do núcleo.
+      nucleus.group.scale.setScalar((diameter / 2 / canvasHeight) * viewHeight / 1.5);
+      const label = legendItems[index];
+      if (!label) return;
+      label.style.setProperty("--nucleus-x", `${Math.round(centerX + diameter / 2)}px`);
+      label.style.setProperty("--nucleus-y", `${Math.round(pixelY)}px`);
+    });
+  }
+
   function resize() {
     const rect = mount.getBoundingClientRect();
     canvasWidth = Math.max(rect.width, 1);
@@ -802,6 +838,7 @@ async function start() {
     effectCanvas.style.width = `${canvasWidth}px`;
     effectCanvas.style.height = `${canvasHeight}px`;
     effectContext.setTransform(density, 0, 0, density, 0, 0);
+    placeMiniNuclei();
   }
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(mount);
