@@ -271,8 +271,10 @@ def announce_arrival(now: float, reason: str = "worker") -> bool:
     """Theo chegou: falar com ele e abrir o cockpit."""
     if not arrival_allowed(now):
         return False
-    speak_on_mac(BOOT_GREETING if reason == "boot" else ARRIVAL_GREETING)
-    url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/?arrival={reason}"
+    spoken = speak_on_mac(BOOT_GREETING if reason == "boot" else ARRIVAL_GREETING)
+    # A aba não repete o que o alto-falante já disse.
+    silence = "&spoken=1" if spoken in {"local_tts", "say"} else ""
+    url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/?arrival={reason}{silence}"
     try:
         subprocess.run(["/usr/bin/open", url], capture_output=True, timeout=15, check=False)
     except (OSError, subprocess.TimeoutExpired):
