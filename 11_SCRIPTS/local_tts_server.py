@@ -17,6 +17,7 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -34,9 +35,54 @@ VOICE_PROFILE = (
 MAX_TEXT = 2_200
 
 
+LAUNCH_LABEL = "ai.theopadilha.jarvis-voice"
+LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
+LOG_DIR = Path(__file__).resolve().parents[1] / "09_LOGS"
+
+
+def install_agent(args) -> Path:
+    """Deixa a voz de pé desde o boot: sem ela a saudação cai para o `say`."""
+    import plistlib
+
+    payload = {
+        "Label": LAUNCH_LABEL,
+        "ProgramArguments": [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--voice", str(Path(args.voice).expanduser().resolve()),
+            "--host", args.host,
+            "--port", str(args.port),
+            "--pitch", str(args.pitch),
+            "--tempo", str(args.tempo),
+        ],
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "ThrottleInterval": 10,
+        "ProcessType": "Background",
+        "EnvironmentVariables": {
+            "PYTHONUNBUFFERED": "1",
+            "PATH": (
+                f"{Path.home() / '.local' / 'bin'}:"
+                "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+            ),
+        },
+        "StandardOutPath": str(LOG_DIR / "voice-server.log"),
+        "StandardErrorPath": str(LOG_DIR / "voice-server-error.log"),
+    }
+    LAUNCH_AGENT.parent.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    LAUNCH_AGENT.write_bytes(plistlib.dumps(payload, fmt=plistlib.FMT_XML, sort_keys=True))
+    domain = f"gui/{os.getuid()}"
+    subprocess.run(["launchctl", "bootout", f"{domain}/{LAUNCH_LABEL}"], capture_output=True, check=False)
+    subprocess.run(["launchctl", "bootstrap", domain, str(LAUNCH_AGENT)], capture_output=True, check=False)
+    subprocess.run(["launchctl", "kickstart", "-k", f"{domain}/{LAUNCH_LABEL}"], capture_output=True, check=False)
+    return LAUNCH_AGENT
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="JARVIS local neural voice")
     parser.add_argument("--voice", required=True, help="caminho do modelo .onnx do Piper")
+    parser.add_argument("--install-agent", action="store_true", help="sobe junto com o Mac, via LaunchAgent")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8123)
     parser.add_argument("--token", default="", help="exigido no header X-Jarvis-Voice-Token quando definido")
@@ -146,6 +192,11 @@ def main() -> int:
     if not model.is_file():
         print(f"FALHA: modelo não encontrado em {model}")
         return 1
+    if args.install_agent:
+        agent = install_agent(args)
+        print(f"Voz registrada no boot: {agent}")
+        print(f"Status real: {LAUNCH_LABEL} ativo; a saudação de boas-vindas usa esta voz.")
+        return 0
     try:
         from piper import PiperVoice
     except ImportError:
