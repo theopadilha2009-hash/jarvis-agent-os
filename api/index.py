@@ -412,6 +412,36 @@ def execution_power_profile(owner_authenticated=False):
     }
 
 
+def capability_briefing(owner_authenticated=False):
+    """O que você realmente é, derivado do estado — nunca uma promessa vazia."""
+    private = owner_authenticated or not owner_pairing_required()
+    memory_line = (
+        "memória permanente no Supabase privado (peça 'salva na memória: …' e eu gravo de verdade; "
+        "'mostra minhas memórias' abre a constelação)"
+        if supabase_configured() and private
+        else "memória permanente no Supabase privado, disponível quando Theo entra no modo Ultron; "
+        "como visitante, a conversa vive só neste navegador"
+        if supabase_configured()
+        else "memória permanente pelo worker local do Mac; o Supabase ainda não está configurado"
+    )
+    lines = [
+        "A interface é um cockpit com três núcleos, e eles são meus, não do computador de ninguém: "
+        "NÚCLEO pensa e decide, FORJA constrói (código, n8n, deploy), MEMÓRIA guarda. "
+        "'mostra o núcleo de memória' acende o núcleo na cena — eu faço isso, não é metáfora.",
+        f"Guardo o que Theo manda guardar: {memory_line}.",
+        "Pesquiso na internet com fontes reais, leio READMEs e comparo o que encontro.",
+        "Crio e ativo workflows no n8n, e falo com as APIs que estão no cofre.",
+        "O Mac é executado pelo worker local: abrir apps, print, gravar tela, GitHub, diagnóstico.",
+        "Falo com a voz da ElevenLabs e escuto pelo microfone do cockpit.",
+    ]
+    if not private:
+        lines.append(
+            "Este navegador está em modo visitante: memória, agenda e Mac ficam atrás do pareamento; "
+            "diga que existe e como liberar, nunca que não existe."
+        )
+    return "\n".join(f"- {line}" for line in lines)
+
+
 def assistant_persona_profile(owner_authenticated=False):
     """Expose the active identity without leaking its private prompt contract."""
     if owner_authenticated:
@@ -1854,7 +1884,17 @@ SPOTIFY_CONTROL_PATTERN = re.compile(
     re.I,
 )
 
+SCENE_NUCLEUS_PATTERN = re.compile(
+    r"\b(?:mostr(?:a|e|ar)|abr(?:a|e|ir)|acend(?:a|e|er)|ativ(?:a|e|ar)|ver|exib(?:a|e|ir)|entr(?:a|e|ar)\s+no)\b"
+    r"[^.?!]{0,40}?(?:"
+    r"\bn[uú]cleo\b(?:[^.?!]{0,20}?\b(?P<nucleus>mem[oó]ria|forja|core)\b)?"
+    r"|\b(?:modo|constela[cç][aã]o)\b[^.?!]{0,20}?\b(?P<scene>mem[oó]ria|forja)\b"
+    r")",
+    re.I,
+)
+
 LOCAL_INTENTS = (
+    (SCENE_NUCLEUS_PATTERN, "scene_show"),
     (SELF_EDIT_PATTERN, "self_edit"),
     (SPOTIFY_CONTROL_PATTERN, "spotify_control"),
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
@@ -7074,10 +7114,56 @@ def agent_tool_arguments(tool_call):
     return value
 
 
+NUCLEUS_SCENE = {
+    "memory": (
+        "memory",
+        "Núcleo de Memória aceso. É a constelação onde guardo o que você manda guardar: "
+        "decisões, preferências e contexto, gravados no Supabase privado.",
+    ),
+    "forge": (
+        "forge",
+        "Núcleo de Forja aceso. É onde eu construo: código, automação no n8n, deploy — "
+        "as peças se montam enquanto o trabalho roda.",
+    ),
+    "core": (
+        "thinking",
+        "Núcleo aceso. É o que pensa: rota, pesquisa e decisão antes de qualquer ação.",
+    ),
+}
+
+
+def scene_nucleus_payload(command, owner_authenticated=False):
+    """Acender o núcleo que Theo pediu na cena; ele fica aceso até o próximo pedido."""
+    match = SCENE_NUCLEUS_PATTERN.search(clean_text(command, 400) or "")
+    word = ((match.group("nucleus") or match.group("scene") or "") if match else "").casefold()
+    if word.startswith("mem"):
+        key = "memory"
+    elif word.startswith("forj"):
+        key = "forge"
+    else:
+        key = "core"
+    visual_state, message = NUCLEUS_SCENE[key]
+    if key == "memory" and not (owner_authenticated or not owner_pairing_required()):
+        message += " Para gravar de verdade, entre no modo Ultron; como visitante você só vê a cena."
+    return {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "scene_nucleus_shown",
+        "visual_state": visual_state,
+        "message": message,
+        "intent": "scene_show",
+        "nucleus": key,
+        "provider": "jarvis_cockpit",
+        "action_executed": False,
+    }, 200
+
+
 def dispatch_intent(command, intent, local_execute=False, owner_authenticated=False):
     """Run one known intent without giving the model access to arbitrary code."""
     if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
         return pairing_required_payload()
+    if intent == "scene_show":
+        return scene_nucleus_payload(command, owner_authenticated=owner_authenticated)
     if intent == "memory_view":
         payload = memory_tree_payload()
         payload.update({
@@ -7638,6 +7724,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             " Exemplo de tom: pergunta simples recebe 'Está funcionando. A parte lenta é a voz; já estou reduzindo o "
             "tempo dela.' Pedido impossível recebe 'Da Vercel eu não alcanço seu Mac; deixei a ação pronta para o "
             "worker local executar.'"
+            + "\n\nO QUE VOCÊ É (fatos do sistema, não suposição):\n"
+            + capability_briefing(owner_authenticated)
             + (
                 "\n\nMemórias persistentes fornecidas por Theo; use somente quando forem relevantes e "
                 "não invente informações além delas:\n"
