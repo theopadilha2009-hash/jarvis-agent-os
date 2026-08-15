@@ -80,6 +80,12 @@
       ],
       fields: [{ name: "api_key", label: "API key", placeholder: "Chave da ElevenLabs", secret: true }],
     },
+    openai: {
+      label: "OpenAI",
+      eyebrow: "VOZ RESERVA",
+      tools: [],
+      fields: [{ name: "api_key", label: "API key", placeholder: "sk-…  (voz neural quando a ElevenLabs cair)", secret: true }],
+    },
     github: {
       label: "GitHub",
       eyebrow: "CÓDIGO",
@@ -1995,8 +2001,8 @@
     synth.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "pt-BR";
-    utterance.rate = 1;
-    utterance.pitch = 1;
+    utterance.rate = 0.97;
+    utterance.pitch = 1.02;
     utterance.onstart = () => {
       if (generation === speechGeneration) beginSpeaking(text);
     };
@@ -2007,9 +2013,18 @@
       if (generation === speechGeneration) finishSpeaking();
     };
     const pickVoice = () => {
-      const voices = synth.getVoices() || [];
-      const pt = voices.find((voice) => /pt-BR|portuguese/i.test(`${voice.lang} ${voice.name}`));
-      if (pt) utterance.voice = pt;
+      // Última linha: ainda assim, a melhor voz instalada — nunca a compacta padrão.
+      const voices = (synth.getVoices() || []).filter((voice) => /pt.?BR|portuguese/i.test(`${voice.lang} ${voice.name}`));
+      const rank = (voice) => {
+        const name = voice.name || "";
+        if (/google/i.test(name)) return 5;
+        if (/premium|enhanced|siri|neural/i.test(name)) return 4;
+        if (!voice.localService) return 3;
+        if (/luciana|francisca|f[eé]lix/i.test(name)) return 2;
+        return 1;
+      };
+      const best = voices.sort((a, b) => rank(b) - rank(a))[0];
+      if (best) utterance.voice = best;
       synth.speak(utterance);
     };
     if (synth.getVoices().length) pickVoice();
@@ -2193,11 +2208,22 @@
       return;
     }
 
+    if (data.client_action === "clear_chat") {
+      startNewConversation();
+      return;
+    }
     session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
     stage.classList.add("spatial-result");
     session.mission = data.mission || null;
     const answer = identityText(data.message || data.summary || data.next_action || data.status_real || "Pronto.");
+    const card = data.author_card;
+    const authorHtml = card && card.photo
+      ? `<a class="author-card" href="${escapeHtml(card.url)}" target="_blank" rel="noopener noreferrer">`
+        + `<img src="${escapeHtml(card.photo)}" alt="Foto de ${escapeHtml(card.name)}" width="64" height="64">`
+        + `<span><b>${escapeHtml(card.name)}</b><small>${escapeHtml(card.headline)}</small>`
+        + `<em>${escapeHtml(card.city)} · LinkedIn</em></span></a>`
+      : "";
     byId("sceneEyebrow").textContent = data.job?.id || data.executed_locally ? "AÇÃO CONFIRMADA" : "RESULTADO";
     byId("sceneMission").textContent = compactHudText(answer, "Resultado disponível");
     byId("sceneDetail").textContent = data.web_search?.used
@@ -2229,7 +2255,7 @@
       messageActions += `<button class="speak-command" type="button">Ouvir</button>`;
     }
     extra += `<div class="message-actions">${messageActions}</div>`;
-    const message = addMessage(answer, "jarvis", extra);
+    const message = addMessage(answer, "jarvis", authorHtml + extra);
     const copyResponse = message.querySelector(".copy-response");
     if (copyResponse) copyResponse.addEventListener("click", async () => {
       try {
