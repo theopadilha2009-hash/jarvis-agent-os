@@ -4754,6 +4754,42 @@ def supabase_memory_save(command):
         }, 504
 
 
+def autosave_memory_candidate(candidate, owner_authenticated=False):
+    """Guardar sozinho o que é claramente durável — só para o dono, sem segredo."""
+    if not isinstance(candidate, dict) or not supabase_configured():
+        return None
+    if not (owner_authenticated or not owner_pairing_required()):
+        return None
+    if candidate.get("confidence") != "high" or candidate.get("kind") not in {"decision", "preference"}:
+        return None
+    content = clean_text(candidate.get("content"), 4_000)
+    if len(content) < 18 or has_secret_like_text(content):
+        return None
+    layer = memory_layer(content, candidate["kind"])
+    row = {
+        "owner_id": "theo",
+        "kind": candidate["kind"],
+        "content": content,
+        "source": "jarvis-auto",
+        "metadata": {"schema_version": 2, "layer": layer, "auto_saved": True},
+    }
+    try:
+        result = supabase_request("POST", body=row, prefer="return=representation")
+        saved = result[0] if isinstance(result, list) and result else None
+        if not isinstance(saved, dict) or not saved.get("id"):
+            return None
+        invalidate_assistant_memory_cache()
+        return {
+            "id": saved["id"],
+            "kind": candidate["kind"],
+            "layer": layer,
+            "content": content,
+            "reason": candidate.get("reason", ""),
+        }
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return None
+
+
 def memory_record_id(value):
     safe_id = clean_text(value, 100)
     return safe_id if re.fullmatch(r"[A-Za-z0-9-]{1,100}", safe_id) else ""
@@ -8155,6 +8191,14 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         if suggested_memory:
             payload["memory_suggestion"] = suggested_memory
             payload["memory_candidate"] = suggested_memory_candidate
+            auto_saved = autosave_memory_candidate(suggested_memory_candidate, owner_authenticated)
+            if auto_saved:
+                payload["memory_auto_saved"] = auto_saved
+                payload["persistent_write"] = True
+                payload["visual_state"] = "memory"
+                payload["message"] = clean_text(payload.get("message"), 8_000) + (
+                    f"\n\nGuardei na memória: {auto_saved['content'][:160]}"
+                )
         return payload, 200
     except HTTPError as error:
         if free_search_sources:

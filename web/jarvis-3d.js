@@ -663,6 +663,7 @@ async function start() {
   // exatamente o que a miniatura mostra.
   const miniCore = makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: COLORS.thinking, wire: 0xa855f7, emissive: 0x3b1675 });
   const nucleusSlots = [];
+  let miniCoreScale = 0.1;
   stage.dataset.nuclei = "3d";
 
   let canvasWidth = 1;
@@ -670,6 +671,13 @@ async function start() {
   // Declarados aqui porque as miniaturas desenham antes do loop principal.
   let memoryLabels = ["DECISIONS", "LEARNINGS", "PROJECTS", "CONTEXT", "TASKS", "ACTIONS", "THEO"];
   const modeBlend = { core: 0, forge: 0, memory: 0 };
+  // Telemetria viva: o núcleo acende quando o evento real dele acontece.
+  const nucleusPulse = { core: 0, forge: 0, memory: 0 };
+  const onNucleusPulse = (event) => {
+    const nucleus = String(event.detail?.nucleus || "");
+    if (nucleus in nucleusPulse) nucleusPulse[nucleus] = 1;
+  };
+  window.addEventListener("jarvis-nucleus-pulse", onNucleusPulse);
 
   // As miniaturas vivem na coluna esquerda do palco: a posição é decidida em
   // pixels e convertida para o mundo, então a legenda encosta nelas em
@@ -701,7 +709,8 @@ async function start() {
         miniCore.group.position.set(world.x, world.y, MINI_PLANE_Z);
         miniCore.group.userData.baseY = world.y;
         // 1.5 é o raio do halo de estilhaços, o contorno mais largo do núcleo.
-        miniCore.group.scale.setScalar((diameter / 2 / canvasHeight) * viewHeight / 1.5);
+        miniCoreScale = (diameter / 2 / canvasHeight) * viewHeight / 1.5;
+        miniCore.group.scale.setScalar(miniCoreScale);
       }
       const label = legendItems[index];
       if (!label) return;
@@ -730,14 +739,23 @@ async function start() {
   }
   // Os visuais de forja e memória foram desenhados para ocupar a tela toda;
   // em miniatura eles somem no fundo, então a luz é acumulada em passadas.
+  let pulseLastMs = 0;
   function drawNucleusThumbnails(time) {
+    const nowMs = time * 1000;
+    const decay = Math.min(0.25, Math.max(0, (nowMs - pulseLastMs) / 1000)) * 0.9;
+    pulseLastMs = nowMs;
+    Object.keys(nucleusPulse).forEach((key) => {
+      nucleusPulse[key] = Math.max(0, nucleusPulse[key] - decay);
+    });
     thumbContext.clearRect(0, 0, canvasWidth, canvasHeight);
     if (!nucleusSlots[1] || !nucleusSlots[2]) return;
+    const alive = (mode) => 0.66 + modeBlend[mode] * 0.2 + nucleusPulse[mode] * 0.5;
     thumbContext.save();
     thumbContext.globalCompositeOperation = "lighter";
-    for (let pass = 0; pass < 3; pass += 1) {
-      drawForge(thumbContext, canvasWidth, canvasHeight, time, 0.72 + modeBlend.forge * 0.28, nucleusSlots[1]);
-      drawMemory(thumbContext, canvasWidth, canvasHeight, time, memoryLabels, 0.72 + modeBlend.memory * 0.28, nucleusSlots[2]);
+    const passes = 3 + Math.round(Math.max(nucleusPulse.forge, nucleusPulse.memory));
+    for (let pass = 0; pass < passes; pass += 1) {
+      drawForge(thumbContext, canvasWidth, canvasHeight, time, alive("forge"), nucleusSlots[1]);
+      drawMemory(thumbContext, canvasWidth, canvasHeight, time, memoryLabels, alive("memory"), nucleusSlots[2]);
     }
     thumbContext.restore();
   }
@@ -1100,6 +1118,7 @@ async function start() {
     particles.rotation.y += deltaSeconds * (isWorking ? 0.022 : 0.008);
     coreEntity.update(time, modeBlend.core, deltaSeconds);
     miniCore.update(time, 1, deltaSeconds);
+    miniCore.group.scale.setScalar(miniCoreScale * (1 + nucleusPulse.core * 0.18));
 
     const effectFrameDue = timeMs - effectLastFrameMs >= 1000 / EFFECT_TARGET_FPS;
     if (effectFrameDue) {
@@ -1127,6 +1146,7 @@ async function start() {
     window.clearTimeout(animationTimerId);
     cancelAnimationFrame(animationFrameId);
     window.removeEventListener("jarvis-state", wakeRender);
+    window.removeEventListener("jarvis-nucleus-pulse", onNucleusPulse);
     window.removeEventListener("jarvis-voice-level", onVoiceLevel);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     resizeObserver.disconnect();
