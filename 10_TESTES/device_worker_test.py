@@ -39,6 +39,18 @@ class DeviceWorkerTest(unittest.TestCase):
                     self.assertTrue(MODULE.announce_arrival(10_000.0 + MODULE.ARRIVAL_COOLDOWN_SECONDS + 1))
                 with patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "0"}):
                     self.assertFalse(MODULE.announce_arrival(99_999.0))
+        # Boot: uma saudação por ligada, e só depois do sistema subir.
+        self.assertGreater(MODULE.machine_booted_at(), 0)
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder) / "last-boot"
+            with patch.object(MODULE, "BOOT_STATE", state):
+                with patch.object(MODULE, "machine_booted_at", lambda: 1_000.0):
+                    self.assertFalse(MODULE.boot_greeting_due(1_060.0))  # ainda subindo
+                    self.assertTrue(MODULE.boot_greeting_due(2_000.0))
+                    MODULE.mark_boot_greeting(1_000.0)
+                    self.assertFalse(MODULE.boot_greeting_due(2_000.0))
+                with patch.object(MODULE, "machine_booted_at", lambda: 9_000.0):
+                    self.assertTrue(MODULE.boot_greeting_due(10_000.0))
         # A chegada roda antes do heartbeat: Supabase fora do ar não impede
         # receber Theo (o except do heartbeat pularia o resto do ciclo).
         source = Path(MODULE.__file__).read_text(encoding="utf-8")

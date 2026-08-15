@@ -252,7 +252,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('data-voice-setting="speed"', voice_calibrator)
         self.assertIn("sem aplicar pitch artificial", voice_calibrator)
         self.assertIn("voice_profile: window.JarvisVoiceCalibrator?.profile()", self.app_js)
-        self.assertIn("voice-calibrator.js?v=20260813-ultronfix1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
+        self.assertIn("voice-calibrator.js?v=20260815-vozes1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
         self.assertIn("n8n-template-pack.js?v=20260813-ultronfix1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
         memory_explorer = MEMORY_EXPLORER_JS.read_text(encoding="utf-8")
         self.assertIn('name="q"', memory_explorer)
@@ -283,8 +283,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 4 * 1024)
         self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 7 * 1024)
         self.assertLess(INTEGRATION_HEALTH_CSS.stat().st_size, 4 * 1024)
-        self.assertLess(VOICE_CALIBRATOR_JS.stat().st_size, 7 * 1024)
-        self.assertLess(VOICE_CALIBRATOR_CSS.stat().st_size, 4 * 1024)
+        # O calibrador virou também o seletor de vozes; segue sob demanda, fora do arranque.
+        self.assertLess(VOICE_CALIBRATOR_JS.stat().st_size, 12 * 1024)
+        self.assertLess(VOICE_CALIBRATOR_CSS.stat().st_size, 6 * 1024)
         self.assertLess(N8N_TEMPLATE_PACK_JS.stat().st_size, 5 * 1024)
         self.assertLess(FEATURE_LOADER_JS.stat().st_size, 5 * 1024)
         self.assertLess(PRESENCE_LOADER_JS.stat().st_size, 3 * 1024)
@@ -334,7 +335,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-voz3")', self.presence_loader_js)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-vozes1")', self.presence_loader_js)
         self.assertIn("always: true", self.presence_js)
         self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
@@ -351,7 +352,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
-        self.assertGreaterEqual(self.html.count("20260815-voz3"), 5)
+        self.assertGreaterEqual(self.html.count("20260815-vozes1"), 5)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -580,7 +581,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("watchArrival();", self.app_js)
         # O worker abre o cockpit com ?arrival=worker; aí a saudação é imediata.
         self.assertIn('params.get("arrival")', self.app_js)
-        self.assertIn("greetOnArrival({ requested: true })", self.app_js)
+        self.assertIn("greetOnArrival({ requested: true, reason: arrival })", self.app_js)
 
     def test_voice_never_falls_back_to_the_flat_default(self):
         """ElevenLabs sem crédito não pode devolver a voz robótica padrão."""
@@ -591,6 +592,14 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn(".author-card", self.shell_css)
         self.assertIn("author-card", self.app_js)
         self.assertIn("announceVoiceDowngrade", self.app_js)
+        # Painel de vozes: listar, trocar e adicionar.
+        calibrator = VOICE_CALIBRATOR_JS.read_text(encoding="utf-8")
+        self.assertIn("async function loadVoices", calibrator)
+        self.assertIn("async function selectVoice", calibrator)
+        self.assertIn('api("/voices")', calibrator)
+        self.assertIn('api("/voice-select"', calibrator)
+        self.assertIn('data.client_action === "open_voice_panel"', self.app_js)
+        self.assertIn("Bem-vindo, Theo", self.app_js)
         self.assertIn('request("/voice-status")', self.app_js)
         self.assertNotIn("group.position.y = 0.02 + Math.sin", self.presence_js)
 

@@ -2232,6 +2232,9 @@
       startNewConversation();
       return;
     }
+    if (data.client_action === "open_voice_panel") {
+      import("/ui/voice-calibrator.js?v=20260815-vozes1").catch(() => null);
+    }
     session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
     stage.classList.add("spatial-result");
@@ -2393,11 +2396,18 @@
     } catch { /* sem storage, o cooldown vale só nesta aba */ }
   }
 
-  async function greetOnArrival({ requested = false } = {}) {
+  async function greetOnArrival({ requested = false, reason = "" } = {}) {
     if (session.working || session.listening) return;
     if (!requested && !arrivalAllowed()) return;
     markArrival();
-    pulseNucleus("core", "chegada");
+    pulseNucleus("core", reason || "chegada");
+    if (reason === "boot") {
+      const welcome = "Bem-vindo, Theo. Sistemas no ar. O que vamos fazer hoje?";
+      addMessage(welcome, "jarvis");
+      speak(welcome);
+      if (session.paired) await sendCommand("me dê um resumo operacional do meu dia", { source: "arrival" });
+      return;
+    }
     if (session.paired) {
       await sendCommand("me dê um resumo operacional do meu dia", { source: "arrival" });
       return;
@@ -2413,9 +2423,10 @@
     // O worker abre o cockpit com ?arrival=worker quando você desbloqueia o Mac.
     try {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("arrival")) {
+      const arrival = params.get("arrival");
+      if (arrival) {
         history.replaceState(null, "", window.location.pathname);
-        window.setTimeout(() => greetOnArrival({ requested: true }), 900);
+        window.setTimeout(() => greetOnArrival({ requested: true, reason: arrival }), 900);
       }
     } catch { /* sem query string, segue o fluxo normal */ }
     const leaving = () => {
