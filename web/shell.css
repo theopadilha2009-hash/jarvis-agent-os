@@ -126,8 +126,8 @@
 }
 .composer textarea::-webkit-scrollbar { width: 0; height: 0; }
 
-/* ---------- Estrela oficial do GitHub ---------- */
-.github-star-button {
+/* ---------- Assinatura do dono ---------- */
+.author-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -142,16 +142,15 @@
   text-decoration: none;
   white-space: nowrap;
 }
-.github-star-button:is(:hover, :focus-visible) {
+.author-link:is(:hover, :focus-visible) {
   border-color: rgba(216, 180, 254, 0.66);
   background: rgba(76, 29, 149, 0.6);
   color: #fff;
 }
-.github-star-button i { font-style: normal; color: #fbbf24; }
-.github-star-button b {
-  padding-left: 7px;
-  border-left: 1px solid rgba(192, 132, 252, 0.28);
-  font-weight: 600;
+.author-link svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
 }
 
 /* ---------- Sem chrome morto ---------- */

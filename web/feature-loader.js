@@ -9,7 +9,7 @@ const loadStyle = (id, href) => {
   document.head.appendChild(link);
 };
 
-loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260815-nucleus4");
+loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260815-theo1");
 
 function ensureDialog(id, className, titleId, title, mountId) {
   if (document.getElementById(id)) return;
@@ -24,30 +24,16 @@ function ensureDialog(id, className, titleId, title, mountId) {
 ensureDialog("memoryExplorerDialog", "memory-explorer-dialog", "memoryExplorerTitle", "Explorar memória", "memoryExplorerMount");
 ensureDialog("actionPermissionsDialog", "action-permissions-dialog", "actionPermissionsTitle", "Permissões de ações", "actionPermissionsMount");
 
-// Botão nativo: o embed de terceiro só desenhava para repositório público e
-// sumia por completo aqui. Este sempre aparece; a contagem entra depois se a
-// API do GitHub responder.
-const GITHUB_REPO = "theopadilha2009-hash/jarvis-agent-os";
-const githubStar = document.createElement("a");
-githubStar.className = "github-star-button";
-githubStar.href = `https://github.com/${GITHUB_REPO}`;
-githubStar.target = "_blank";
-githubStar.rel = "noopener noreferrer";
-githubStar.title = "Dar uma estrela no GitHub";
-githubStar.setAttribute("aria-label", "Dar uma estrela no GitHub");
-githubStar.innerHTML = '<i aria-hidden="true">★</i><span>Star</span><b hidden></b>';
-document.getElementById("integrationsButton")?.before(githubStar);
-
-fetch(`https://api.github.com/repos/${GITHUB_REPO}`, { headers: { Accept: "application/vnd.github+json" } })
-  .then((response) => (response.ok ? response.json() : null))
-  .then((data) => {
-    const stars = Number(data?.stargazers_count);
-    if (!Number.isFinite(stars)) return;
-    const counter = githubStar.querySelector("b");
-    counter.textContent = stars >= 1000 ? `${(stars / 1000).toFixed(1)}k` : String(stars);
-    counter.hidden = false;
-  })
-  .catch(() => null);
+// Assinatura do dono: leva ao LinkedIn do Theo, sem embed de terceiro.
+const authorLink = document.createElement("a");
+authorLink.className = "author-link";
+authorLink.href = "https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/";
+authorLink.target = "_blank";
+authorLink.rel = "noopener noreferrer";
+authorLink.title = "Theo Lorentz Padilha no LinkedIn";
+authorLink.setAttribute("aria-label", "Abrir o LinkedIn de Theo Lorentz Padilha");
+authorLink.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9h4v12H3zM9 9h3.8v1.7h.05c.53-.95 1.83-1.95 3.76-1.95 4.02 0 4.76 2.5 4.76 5.76V21h-4v-5.6c0-1.34-.03-3.07-1.9-3.07-1.9 0-2.19 1.46-2.19 2.97V21H9z"></path></svg><span>Theo</span>';
+document.getElementById("integrationsButton")?.before(authorLink);
 
 document.getElementById("memoryExplorerButton")?.addEventListener("click", () => {
   import("/ui/memory-explorer.js?v=20260813-ultronfix1").catch(() => null);
