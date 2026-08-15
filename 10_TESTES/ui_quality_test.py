@@ -334,7 +334,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-chegada3")', self.presence_loader_js)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-voz1")', self.presence_loader_js)
         self.assertIn("always: true", self.presence_js)
         self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
@@ -351,7 +351,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
-        self.assertGreaterEqual(self.html.count("20260815-chegada3"), 5)
+        self.assertGreaterEqual(self.html.count("20260815-voz1"), 5)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -590,6 +590,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('data.client_action === "clear_chat"', self.app_js)
         self.assertIn(".author-card", self.shell_css)
         self.assertIn("author-card", self.app_js)
+        self.assertIn("announceVoiceDowngrade", self.app_js)
+        self.assertIn('request("/voice-status")', self.app_js)
         self.assertNotIn("group.position.y = 0.02 + Math.sin", self.presence_js)
 
     def test_api_vault_editor_has_a_bounded_scroll_surface(self):

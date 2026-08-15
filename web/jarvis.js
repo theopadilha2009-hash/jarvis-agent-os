@@ -1986,6 +1986,25 @@
     muteButton.title = session.muted ? `Ativar a voz do ${assistantName()}` : `Mutar a voz do ${assistantName()}`;
   }
 
+  // Voz degradada é um problema visível, não um detalhe silencioso.
+  let voiceDowngradeShown = false;
+  async function announceVoiceDowngrade() {
+    if (voiceDowngradeShown) return;
+    voiceDowngradeShown = true;
+    let note = "A voz neural caiu; estou falando pelo navegador.";
+    try {
+      const status = await request("/voice-status");
+      if (status?.message) {
+        const resets = status.resets_at ? new Date(status.resets_at) : null;
+        const when = resets && !Number.isNaN(resets.valueOf())
+          ? ` Volta em ${resets.toLocaleDateString("pt-BR")}.`
+          : "";
+        note = `${status.message}${when}`;
+      }
+    } catch { /* sem diagnóstico, fica o aviso genérico */ }
+    addMessage(note, "jarvis");
+  }
+
   function reportVoiceFailure(status, terminal = false) {
     session.voiceError = status;
     if (terminal) session.elevenlabs = false;
@@ -1993,6 +2012,7 @@
     byId("voiceLink").textContent = status.toLowerCase();
     byId("integrationValue").textContent = `IA · ${status}`;
     byId("integrationHint").textContent = "ElevenLabs falhou; a voz do navegador cobre enquanto isso.";
+    announceVoiceDowngrade();
   }
 
   function speakBrowser(text, generation) {

@@ -150,7 +150,7 @@ CREATOR_PROFILE = {
     "linkedin": "https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/",
     "github": "https://github.com/theopadilha2009-hash/jarvis-agent-os",
     "page": "/theo",
-    "photo": "/ui/theo-avatar.jpg?v=20260815-chegada3",
+    "photo": "/ui/theo-avatar.jpg?v=20260815-voz1",
     "headline": "Full Stack Developer · AI-First Systems, Automation & Production Infrastructure — Vamoo AI",
     "current": "Vamooai — programador full stack em sistemas AI-first, automações e dashboards.",
     "stack": (
@@ -5289,6 +5289,60 @@ DEFAULT_OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
 DEFAULT_OPENAI_TTS_VOICE = "onyx"
 
 
+def voice_status_payload():
+    """Estado real da voz: quanto sobrou, quando reseta e qual camada está no ar."""
+    api_key = clean_text(os.environ.get("ELEVENLABS_API_KEY"), 2_000)
+    openai_ready = bool(clean_text(os.environ.get("OPENAI_API_KEY"), 200))
+    payload = {
+        "ok": True,
+        "endpoint": "GET /voice-status",
+        "status_real": "voice_status",
+        "provider": "elevenlabs",
+        "elevenlabs_configured": bool(api_key),
+        "openai_backup_ready": openai_ready,
+        "layer": "elevenlabs" if api_key else "browser",
+    }
+    if not api_key:
+        payload["message"] = "ElevenLabs não está configurada; a voz sai pelo navegador."
+        return payload, 200
+    request = Request(
+        "https://api.elevenlabs.io/v1/user/subscription",
+        headers={"xi-api-key": api_key},
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=15) as response:
+            data = json.loads(response.read(200_000).decode("utf-8", "replace"))
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        payload["message"] = "A ElevenLabs não respondeu o estado da assinatura."
+        payload["layer"] = "unknown"
+        return payload, 200
+    used = int(data.get("character_count") or 0)
+    limit = int(data.get("character_limit") or 0)
+    remaining = max(0, limit - used)
+    reset_unix = data.get("next_character_count_reset_unix")
+    reset_iso = ""
+    if isinstance(reset_unix, (int, float)) and reset_unix > 0:
+        reset_iso = datetime.fromtimestamp(float(reset_unix), timezone.utc).isoformat().replace("+00:00", "Z")
+    payload.update({
+        "tier": clean_text(data.get("tier"), 60),
+        "status": clean_text(data.get("status"), 40),
+        "characters_used": used,
+        "characters_limit": limit,
+        "characters_remaining": remaining,
+        "resets_at": reset_iso,
+        "layer": "elevenlabs" if remaining > 0 else ("openai" if openai_ready else "browser"),
+        "message": (
+            f"ElevenLabs com {remaining} caracteres disponíveis de {limit}."
+            if remaining > 0
+            else "ElevenLabs sem créditos. "
+            + ("A voz de reserva da OpenAI está ativa." if openai_ready
+               else "Reponha créditos ou configure a chave da OpenAI no cofre para manter a voz neural.")
+        ),
+    })
+    return payload, 200
+
+
 def openai_speech(body, text):
     """Segunda voz neural: entra quando a ElevenLabs cai, antes da voz do navegador."""
     api_key = client_integration(body, "openai").get("api_key", "") or os.environ.get("OPENAI_API_KEY", "")
@@ -9316,6 +9370,9 @@ class handler(BaseHTTPRequestHandler):
             payload["endpoint"] = f"GET {path}"
             payload["occupancy"] = sync_presence(request_conversation_session_id(self))
             return self.send_json(200, payload)
+        if path == "/voice-status":
+            payload, status = voice_status_payload()
+            return self.send_json(status, payload)
         if path == "/presence":
             return self.send_json(200, {
                 "ok": True,
