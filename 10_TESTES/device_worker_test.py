@@ -42,7 +42,8 @@ class DeviceWorkerTest(unittest.TestCase):
                     # navegador silencia áudio que ninguém pediu com um clique.
                     self.assertEqual(spoken, [MODULE.ARRIVAL_GREETING])
                     self.assertIn("/usr/bin/open", opened[0])
-                    self.assertTrue(opened[0][1].endswith("/?arrival=worker"))
+                    # spoken=1: a aba mostra a saudação sem repetir o áudio.
+                    self.assertTrue(opened[0][1].endswith("/?arrival=worker&spoken=1"), opened[0][1])
                     spoken.clear()
                     # Dentro do cooldown não abre de novo.
                     self.assertFalse(MODULE.announce_arrival(10_600.0))

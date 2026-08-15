@@ -4393,6 +4393,26 @@ São Paulo - SP
         self.assertEqual(catalog["active"], "afiado")
         self.assertTrue(any(row["active"] for row in catalog["styles"]))
 
+        # O que importa de verdade: a diretiva chega ao modelo, não só ao painel.
+        captured = {}
+
+        def capture(request, *_args, **_kwargs):
+            payload = json.loads(request.data.decode("utf-8"))
+            captured["system"] = payload["messages"][0]["content"]
+            raise MODULE.URLError("sem provedor no teste")
+
+        base = {"messages": [{"role": "user", "content": "e aí"}]}
+        with patch.dict(MODULE.os.environ, {"OPENROUTER_API_KEY": "teste-chave"}), \
+                patch.object(MODULE, "urlopen", capture):
+            MODULE.assistant_response({**base, "persona_style": "direto"})
+            direto = captured.get("system", "")
+            MODULE.assistant_response({**base, "persona_style": "padrao"})
+            padrao = captured.get("system", "")
+        self.assertIn("ESTILO PEDIDO PELO THEO (Direto)", direto)
+        self.assertIn("uma frase", direto)
+        # O padrão não injeta nada: nenhum estilo pendurado no prompt.
+        self.assertNotIn("ESTILO PEDIDO PELO THEO", padrao)
+
         # O briefing conta que o estilo troca — ele nunca pode dizer que é fixo.
         briefing = MODULE.capability_briefing(owner_authenticated=True)
         self.assertIn("personalidade", briefing.casefold())

@@ -581,7 +581,10 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("watchArrival();", self.app_js)
         # O worker abre o cockpit com ?arrival=worker; aí a saudação é imediata.
         self.assertIn('params.get("arrival")', self.app_js)
-        self.assertIn("greetOnArrival({ requested: true, reason: arrival })", self.app_js)
+        self.assertIn("greetOnArrival({ requested: true, reason: arrival, silent })", self.app_js)
+        # A aba não repete o que o alto-falante do Mac já disse.
+        self.assertIn('params.get("spoken") === "1"', self.app_js)
+        self.assertIn("if (!silent) speak(welcome)", self.app_js)
 
     def test_voice_never_falls_back_to_the_flat_default(self):
         """ElevenLabs sem crédito não pode devolver a voz robótica padrão."""

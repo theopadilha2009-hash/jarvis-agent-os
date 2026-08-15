@@ -2405,7 +2405,7 @@
     } catch { /* sem storage, o cooldown vale só nesta aba */ }
   }
 
-  async function greetOnArrival({ requested = false, reason = "" } = {}) {
+  async function greetOnArrival({ requested = false, reason = "", silent = false } = {}) {
     if (session.working || session.listening) return;
     if (!requested && !arrivalAllowed()) return;
     markArrival();
@@ -2413,7 +2413,7 @@
     if (reason === "boot") {
       const welcome = "Bem-vindo, Theo. Sistemas no ar. O que vamos fazer hoje?";
       addMessage(welcome, "jarvis");
-      speak(welcome);
+      if (!silent) speak(welcome);
       if (session.paired) await sendCommand("me dê um resumo operacional do meu dia", { source: "arrival" });
       return;
     }
@@ -2425,7 +2425,7 @@
     const greeting = hour < 5 ? "Boa madrugada" : hour < 12 ? "Bom dia" : hour < 19 ? "Boa tarde" : "Boa noite";
     const line = `${greeting}, Theo. Estava aqui. Diga o que precisa.`;
     addMessage(line, "jarvis");
-    speak(line);
+    if (!silent) speak(line);
   }
 
   function watchArrival() {
@@ -2434,8 +2434,10 @@
       const params = new URLSearchParams(window.location.search);
       const arrival = params.get("arrival");
       if (arrival) {
+        // O worker já falou pelo alto-falante do Mac: aqui só o texto.
+        const silent = params.get("spoken") === "1";
         history.replaceState(null, "", window.location.pathname);
-        window.setTimeout(() => greetOnArrival({ requested: true, reason: arrival }), 900);
+        window.setTimeout(() => greetOnArrival({ requested: true, reason: arrival, silent }), 900);
       }
     } catch { /* sem query string, segue o fluxo normal */ }
     const leaving = () => {

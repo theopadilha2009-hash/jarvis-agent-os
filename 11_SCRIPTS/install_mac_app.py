@@ -24,7 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 LOGO = ROOT / "web" / "jarvis-logo.png"
 APP_NAME = "JARVIS"
 BUNDLE_ID = "ai.theopadilha.jarvis.cockpit"
-DEFAULT_URL = "https://jarvis-agent-os-delta.vercel.app"
+# Origem única do cockpit. Permissão de microfone, escuta pelo nome e estilo
+# ficam presos ao domínio: dois endereços significam duas configurações.
+DEFAULT_URL = "https://jarvis-theo.vercel.app"
 # Fundo do cockpit: o ícone fica quadrado sem esticar o logo.
 ICON_BACKGROUND = "130824"
 ICON_SIZES = (16, 32, 64, 128, 256, 512, 1024)
