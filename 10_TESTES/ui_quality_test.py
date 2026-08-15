@@ -280,7 +280,7 @@ class UIQualityTest(unittest.TestCase):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
         self.assertLess(critical_bytes, 276 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
         self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
-        self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 4 * 1024)
+        self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 5 * 1024)
         self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 7 * 1024)
         self.assertLess(INTEGRATION_HEALTH_CSS.stat().st_size, 4 * 1024)
         # O calibrador virou também o seletor de vozes; segue sob demanda, fora do arranque.

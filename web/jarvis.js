@@ -2241,6 +2241,9 @@
     if (data.client_action === "open_voice_panel") {
       import("/ui/voice-calibrator.js?v=20260815-vozes2").catch(() => null);
     }
+    if (data.client_action === "open_persona_panel") {
+      openPersonaPanel();
+    }
     session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
     stage.classList.add("spatial-result");
@@ -2506,6 +2509,7 @@
         input_mode: options.source || "text",
         attachments,
         strength: session.strength,
+        persona_style: window.JarvisPersonaPanel?.current() || personaStyleFallback(),
         client_integrations: clientIntegrations,
       };
       let data = await request("/command", {
@@ -2612,6 +2616,22 @@
     voiceButton.title = "Clique, fale normalmente e o comando será enviado quando você terminar.";
     byId("voiceValue").textContent = "ouvir e responder";
     installWakeWord(recognition);
+  }
+
+  // Personalidade: o painel é carregado sob demanda, mas o estilo escolhido
+  // precisa viajar em todo pedido mesmo antes de alguém abrir o painel.
+  function personaStyleFallback() {
+    try {
+      return localStorage.getItem("jarvis-persona-style-v1") || "padrao";
+    } catch {
+      return "padrao";
+    }
+  }
+
+  function openPersonaPanel() {
+    import("/ui/persona-panel.js?v=20260815-persona1")
+      .then(() => window.JarvisPersonaPanel?.open())
+      .catch(() => null);
   }
 
   // Chamar pelo nome, como a Siri: "oi jarvis", "bom dia jarvis", "fala ultron".
