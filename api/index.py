@@ -150,7 +150,7 @@ CREATOR_PROFILE = {
     "linkedin": "https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/",
     "github": "https://github.com/theopadilha2009-hash/jarvis-agent-os",
     "page": "/theo",
-    "photo": "/ui/theo-avatar.jpg?v=20260815-vozes1",
+    "photo": "/ui/theo-avatar.jpg?v=20260815-vozes2",
     "headline": "Full Stack Developer · AI-First Systems, Automation & Production Infrastructure — Vamoo AI",
     "current": "Vamooai — programador full stack em sistemas AI-first, automações e dashboards.",
     "stack": (
@@ -5476,18 +5476,27 @@ def voice_status_payload():
     return payload, 200
 
 
-def self_hosted_speech(text):
+def self_hosted_speech(text, body=None):
     """Voz própria: servidor neural do Theo, sem cota e sem chave de terceiro."""
     url = clean_text(os.environ.get("SELF_HOSTED_TTS_URL"), 400)
     if not url.startswith(("http://", "https://")):
         return None
+    timbre = body.get("voice_profile") if isinstance(body, dict) else None
+    timbre = timbre if isinstance(timbre, dict) else {}
+    payload = {"text": text}
+    for name, low, high in (("pitch", 0.70, 1.10), ("tempo", 0.80, 1.40)):
+        try:
+            if timbre.get(name) is not None:
+                payload[name] = max(low, min(float(timbre[name]), high))
+        except (TypeError, ValueError):
+            continue
     headers = {"Content-Type": "application/json"}
     token = clean_text(os.environ.get("SELF_HOSTED_TTS_TOKEN"), 400)
     if token:
         headers["X-Jarvis-Voice-Token"] = token
     request = Request(
         url,
-        data=json.dumps({"text": text}, ensure_ascii=False).encode("utf-8"),
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers=headers,
         method="POST",
     )
@@ -5535,7 +5544,7 @@ def elevenlabs_speech(body):
         return {"ok": False, "error": "Não envio credenciais para síntese de voz."}, 400
     api_keys = elevenlabs_api_keys(body)
     if not api_keys:
-        rescue = openai_speech(body, text) or self_hosted_speech(text)
+        rescue = openai_speech(body, text) or self_hosted_speech(text, body)
         if rescue:
             return rescue, 200
         return {
@@ -5583,7 +5592,7 @@ def elevenlabs_speech(body):
         except (URLError, TimeoutError, ValueError) as error:
             last_error = error
             continue
-    rescue = openai_speech(body, text) or self_hosted_speech(text)
+    rescue = openai_speech(body, text) or self_hosted_speech(text, body)
     if rescue:
         return rescue, 200
     if isinstance(last_error, HTTPError):

@@ -3,17 +3,18 @@
 window.JarvisVoiceCalibrator = (() => {
   const STORAGE_KEY = "jarvis-voice-profile-v1";
   const PRESETS = Object.freeze({
-    natural: { label: "Natural", stability: 0.64, similarity_boost: 0.82, speed: 0.93 },
-    serious: { label: "Sério", stability: 0.74, similarity_boost: 0.86, speed: 0.89 },
-    calm: { label: "Tranquilo", stability: 0.80, similarity_boost: 0.80, speed: 0.86 },
-    direct: { label: "Direto", stability: 0.58, similarity_boost: 0.84, speed: 1.00 },
+    natural: { label: "Natural", stability: 0.64, similarity_boost: 0.82, speed: 0.93, pitch: 0.92, tempo: 1.04 },
+    serious: { label: "Sério", stability: 0.74, similarity_boost: 0.86, speed: 0.89, pitch: 0.88, tempo: 1.08 },
+    calm: { label: "Tranquilo", stability: 0.80, similarity_boost: 0.80, speed: 0.86, pitch: 0.90, tempo: 1.06 },
+    direct: { label: "Direto", stability: 0.58, similarity_boost: 0.84, speed: 1.00, pitch: 0.94, tempo: 1.02 },
+    command: { label: "Comando", stability: 0.78, similarity_boost: 0.88, speed: 0.88, pitch: 0.82, tempo: 1.14 },
   });
   let state = load();
 
   if (!document.querySelector("link[data-jarvis-voice-calibrator]")) {
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "/ui/voice-calibrator.css?v=20260815-vozes1";
+    stylesheet.href = "/ui/voice-calibrator.css?v=20260815-vozes2";
     stylesheet.dataset.jarvisVoiceCalibrator = "true";
     document.head.appendChild(stylesheet);
   }
@@ -32,6 +33,9 @@ window.JarvisVoiceCalibrator = (() => {
       stability: Number(state.stability),
       similarity_boost: Number(state.similarity_boost),
       speed: Number(state.speed),
+      // Timbre da voz própria: grave e ritmo, aplicados no servidor local.
+      pitch: Number(state.pitch ?? 0.92),
+      tempo: Number(state.tempo ?? 1.04),
     };
   }
 
@@ -40,7 +44,8 @@ window.JarvisVoiceCalibrator = (() => {
   }
 
   function valueLabel(name, value) {
-    if (name === "speed") return `${Number(value).toFixed(2)}×`;
+    if (name === "speed" || name === "tempo") return `${Number(value).toFixed(2)}×`;
+    if (name === "pitch") return `${Number(value).toFixed(2)}× grave`;
     return `${Math.round(Number(value) * 100)}%`;
   }
 
@@ -72,6 +77,8 @@ window.JarvisVoiceCalibrator = (() => {
           <label><span>Seriedade <output data-voice-output="stability"></output></span><input type="range" min="0.35" max="0.90" step="0.01" data-voice-setting="stability"></label>
           <label><span>Presença <output data-voice-output="similarity_boost"></output></span><input type="range" min="0.55" max="0.95" step="0.01" data-voice-setting="similarity_boost"></label>
           <label><span>Velocidade <output data-voice-output="speed"></output></span><input type="range" min="0.75" max="1.10" step="0.01" data-voice-setting="speed"></label>
+          <label><span>Gravidade <output data-voice-output="pitch"></output></span><input type="range" min="0.70" max="1.10" step="0.01" data-voice-setting="pitch"></label>
+          <label><span>Cadência <output data-voice-output="tempo"></output></span><input type="range" min="0.80" max="1.40" step="0.01" data-voice-setting="tempo"></label>
         </div>
         <div class="voice-picker">
           <div class="voice-picker-head"><span><small>VOZ ATIVA</small><strong id="voiceActiveName">carregando…</strong></span><button id="voiceReloadButton" type="button">Atualizar</button></div>
@@ -82,6 +89,7 @@ window.JarvisVoiceCalibrator = (() => {
             <button type="submit">Adicionar</button>
           </form>
         </div>
+        <label class="voice-wake"><input type="checkbox" id="voiceWakeToggle"><span><b>Atender pelo nome</b><small>"fala jarvis", "e aí ultron" e variações, com o microfone sempre pronto.</small></span></label>
         <div class="voice-calibrator-actions"><button id="voiceResetButton" type="button">Restaurar natural</button><button id="voicePreviewButton" type="button">Ouvir teste</button></div>
         <p class="voice-calibrator-note" id="voiceCalibratorNote">As escolhas ficam somente neste dispositivo e valem a partir da próxima fala.</p>
       </section>`;
@@ -107,6 +115,12 @@ window.JarvisVoiceCalibrator = (() => {
     });
     document.getElementById("voiceTuningClose").addEventListener("click", close);
     document.getElementById("voiceReloadButton").addEventListener("click", () => loadVoices(true));
+    const wake = document.getElementById("voiceWakeToggle");
+    wake.checked = window.JarvisWakeWord ? window.JarvisWakeWord.enabled() : true;
+    wake.addEventListener("change", () => {
+      window.JarvisWakeWord?.set(wake.checked);
+      note(wake.checked ? "Pode me chamar pelo nome." : "Só respondo ao botão do microfone agora.");
+    });
     document.getElementById("voiceAddForm").addEventListener("submit", (event) => {
       event.preventDefault();
       const id = document.getElementById("voiceAddId").value.trim();
