@@ -149,10 +149,10 @@ html[data-persona="ultron"] .starter-actions button {
 html[data-persona="ultron"] .new-conversation-button,
 html[data-persona="ultron"] .new-conversation-button:hover,
 html[data-persona="ultron"] .new-conversation-button:focus-visible {
-  border-color: #c084fc;
-  background: linear-gradient(145deg, #8b5cf6, #6d28d9);
-  color: #fff7ff;
-  box-shadow: 0 0 16px rgba(139, 92, 246, 0.45);
+  border-color: #fca5a5;
+  background: linear-gradient(145deg, #ef4444, #991b1b);
+  color: #fff7f7;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.45);
 }
 .conversation-channel {
   max-width: 180px;

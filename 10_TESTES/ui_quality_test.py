@@ -362,8 +362,15 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn(".integration-tabs button[aria-selected=\"true\"]", self.ultron_completion_css)
         self.assertIn('document.documentElement.dataset.persona === "ultron"', self.presence_js)
         self.assertIn('"rgba(239,68,68,', self.presence_js)
-        self.assertIn("wireMaterial.color.setHex(ultron ? 0xef4444 : 0x8b5cf6)", self.presence_js)
-        self.assertIn("soulMaterial.color.setHex(ultron ? 0xf87171 : 0xc084fc)", self.presence_js)
+        self.assertIn("wireMaterial.color.setHex(ultron ? (options.ultronWire ?? 0xef4444)", self.presence_js)
+        self.assertIn("soulMaterial.color.setHex(ultron ? (options.ultronSoul ?? 0xf87171)", self.presence_js)
+        # As miniaturas também viram vermelhas no Ultron: nada de roxo/laranja/ciano.
+        self.assertIn("ultronSoul: 0xfca5a5", self.presence_js)
+        self.assertIn("ultronSoul: 0xef4444", self.presence_js)
+        self.assertNotIn("if (!always) {", self.presence_js)
+        self.assertIn('html[data-persona="ultron"] .nucleus-legend span', self.ultron_completion_css)
+        self.assertIn('html[data-persona="ultron"] .conversation-move', self.ultron_completion_css)
+        self.assertIn("background: linear-gradient(145deg, #ef4444, #991b1b)", self.ui_repair_css)
 
     def test_final_responsive_guardrails_cover_real_viewports(self):
         css = RESPONSIVE_POLISH_CSS.read_text(encoding="utf-8")

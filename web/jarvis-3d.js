@@ -542,14 +542,12 @@ function makeCoreEntity(scene, options = {}) {
 
   let alpha = 0;
   function update(time, visibility, deltaSeconds = 0) {
-    if (!always) {
-      const ultron = document.documentElement.dataset.persona === "ultron";
-      obsidianMaterial.color.setHex(ultron ? 0x220305 : 0x120825);
-      obsidianMaterial.emissive.setHex(ultron ? 0x7f1d1d : 0x3b1675);
-      soulMaterial.color.setHex(ultron ? 0xf87171 : 0xc084fc);
-      wireMaterial.color.setHex(ultron ? 0xef4444 : 0x8b5cf6);
-      shardMaterial.color.setHex(ultron ? 0xfca5a5 : 0xc084fc);
-    }
+    const ultron = document.documentElement.dataset.persona === "ultron";
+    obsidianMaterial.color.setHex(ultron ? 0x220305 : 0x120825);
+    obsidianMaterial.emissive.setHex(ultron ? (options.ultronEmissive ?? 0x7f1d1d) : (options.emissive ?? 0x3b1675));
+    soulMaterial.color.setHex(ultron ? (options.ultronSoul ?? 0xf87171) : (options.soul ?? 0xc084fc));
+    wireMaterial.color.setHex(ultron ? (options.ultronWire ?? 0xef4444) : (options.wire ?? 0x8b5cf6));
+    shardMaterial.color.setHex(ultron ? (options.ultronSoul ?? 0xfca5a5) : (options.soul ?? 0xc084fc));
     const transitionEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);
     alpha += (Math.max(0, Math.min(1, always ? 1 : visibility)) - alpha) * transitionEase;
     group.visible = alpha > 0.01;
@@ -645,9 +643,9 @@ async function start() {
   const coreEntity = makeCoreEntity(scene);
   const MINI_PLANE_Z = 1.35;
   const miniNuclei = [
-    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xc084fc, wire: 0xa855f7, emissive: 0x3b1675 }),
-    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xfb923c, wire: 0xf97316, emissive: 0x9a3412 }),
-    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0x67e8f9, wire: 0x22d3ee, emissive: 0x0e7490 }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xc084fc, wire: 0xa855f7, emissive: 0x3b1675, ultronSoul: 0xfca5a5, ultronWire: 0xf87171, ultronEmissive: 0x991b1b }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xfb923c, wire: 0xf97316, emissive: 0x9a3412, ultronSoul: 0xf87171, ultronWire: 0xef4444, ultronEmissive: 0x7f1d1d }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0x67e8f9, wire: 0x22d3ee, emissive: 0x0e7490, ultronSoul: 0xef4444, ultronWire: 0xdc2626, ultronEmissive: 0x641414 }),
   ];
   stage.dataset.nuclei = "3d";
 

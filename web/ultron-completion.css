@@ -49,6 +49,12 @@ html[data-persona="ultron"] :is(
   color: #fff;
   box-shadow: 0 9px 26px rgba(127, 29, 29, .42), inset 0 1px rgba(255, 255, 255, .18);
 }
+html[data-persona="ultron"] .nucleus-legend span { color: rgba(254, 202, 202, .78); }
+html[data-persona="ultron"] .nucleus-legend span:nth-child(2) { color: rgba(248, 113, 113, .82); }
+html[data-persona="ultron"] .nucleus-legend span:nth-child(3) { color: rgba(239, 68, 68, .82); }
+html[data-persona="ultron"] .conversation { border-color: rgba(248, 113, 113, .28); }
+html[data-persona="ultron"] .conversation-move { background: rgba(252, 165, 165, .34); }
+
 html[data-persona="ultron"] .github-star-button {
   border-color: rgba(248, 113, 113, .34);
   background: rgba(60, 8, 12, .55);
