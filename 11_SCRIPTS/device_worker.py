@@ -214,9 +214,14 @@ def mark_boot_greeting(booted: float) -> None:
         pass
 
 
-def arrival_allowed(now: float) -> bool:
+def arrival_allowed(now: float, reason: str = "worker") -> bool:
     if os.environ.get("JARVIS_ARRIVAL") == "0":
         return False
+    # O boot já tem a própria trava (uma por ligada); passar pelo cooldown de
+    # chegada faria a saudação sumir quando o Mac reinicia logo depois de um
+    # desbloqueio — sem erro nenhum, que é o pior jeito de falhar.
+    if reason == "boot":
+        return True
     try:
         last = float(ARRIVAL_STATE.read_text().strip() or 0)
     except (OSError, ValueError):
@@ -269,7 +274,7 @@ def speak_on_mac(text: str) -> str:
 
 def announce_arrival(now: float, reason: str = "worker") -> bool:
     """Theo chegou: falar com ele e abrir o cockpit."""
-    if not arrival_allowed(now):
+    if not arrival_allowed(now, reason):
         return False
     spoken = speak_on_mac(BOOT_GREETING if reason == "boot" else ARRIVAL_GREETING)
     # A aba não repete o que o alto-falante já disse.
@@ -1005,8 +1010,10 @@ def main() -> int:
                 while running:
                     wall_now = time.time()
                     if boot_greeting_due(wall_now):
-                        mark_boot_greeting(machine_booted_at())
+                        # Só marca depois de falar: marcar antes perde a
+                        # saudação inteira se o anúncio não acontecer.
                         if announce_arrival(wall_now, "boot"):
+                            mark_boot_greeting(machine_booted_at())
                             print("Chegada: Mac ligado, cockpit aberto com a saudação de boas-vindas.", flush=True)
                     if screen_is_locked():
                         if not locked_since:

@@ -68,6 +68,34 @@ class DeviceWorkerTest(unittest.TestCase):
         loop = source[source.index("while running:"):]
         self.assertLess(loop.index("screen_is_locked()"), loop.index("heartbeat()"))
 
+    def test_boot_greeting_survives_a_recent_arrival(self):
+        """Reiniciar logo depois de um desbloqueio não pode engolir o bem-vindo."""
+        with tempfile.TemporaryDirectory() as folder:
+            arrival = Path(folder) / "last-arrival"
+            boot = Path(folder) / "last-boot"
+            arrival.write_text("10000.0")  # saudou há um minuto
+            spoken = []
+            with patch.object(MODULE, "ARRIVAL_STATE", arrival), \
+                    patch.object(MODULE, "BOOT_STATE", boot), \
+                    patch.object(MODULE, "speak_on_mac", lambda text: spoken.append(text) or "say"), \
+                    patch.object(MODULE.subprocess, "run", lambda *a, **k: None):
+                # Chegada comum continua respeitando o cooldown de uma hora.
+                self.assertFalse(MODULE.announce_arrival(10_060.0))
+                # O boot tem a própria trava e não passa pelo cooldown.
+                self.assertTrue(MODULE.announce_arrival(10_060.0, "boot"))
+                self.assertEqual(spoken, [MODULE.BOOT_GREETING])
+                # Desligar a chegada continua desligando tudo.
+                with patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "0"}):
+                    self.assertFalse(MODULE.announce_arrival(20_000.0, "boot"))
+
+        # A marca do boot só é escrita depois de a saudação acontecer.
+        source = Path(MODULE.__file__).read_text(encoding="utf-8")
+        loop = source[source.index("while running:"):]
+        self.assertLess(
+            loop.index('announce_arrival(wall_now, "boot")'),
+            loop.index("mark_boot_greeting("),
+        )
+
     def test_speak_on_mac_prefers_own_voice_and_falls_back_to_say(self):
         """A saudação sai do alto-falante mesmo sem o servidor de voz de pé."""
         calls = []
