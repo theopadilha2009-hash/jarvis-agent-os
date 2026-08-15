@@ -49,8 +49,11 @@ uma voz compacta. Registre como serviço:
 ```bash
 python3 11_SCRIPTS/local_tts_server.py \
   --voice ~/Library/Application\ Support/JARVIS/voices/cadu.onnx \
-  --pitch 0.86 --tempo 1.12 --install-agent
+  --install-agent
 ```
+
+O timbre padrão (`--pitch 0.90 --tempo 1.06`, voz `cadu`) foi escolhido pelo Theo
+numa comparação às cegas entre quatro combinações de voz e gravidade.
 
 Guarde o modelo fora do repositório e fora de `/tmp` — um `.onnx` num diretório
 temporário desaparece e leva a voz junto. `~/Library/Application Support/JARVIS/voices/`

@@ -22,6 +22,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 import wave
 
 
@@ -74,9 +75,28 @@ def install_agent(args) -> Path:
     LAUNCH_AGENT.write_bytes(plistlib.dumps(payload, fmt=plistlib.FMT_XML, sort_keys=True))
     domain = f"gui/{os.getuid()}"
     subprocess.run(["launchctl", "bootout", f"{domain}/{LAUNCH_LABEL}"], capture_output=True, check=False)
+    # bootout é assíncrono: sem esperar o serviço sumir, o bootstrap seguinte
+    # falha em silêncio e a voz não sobe.
+    for _ in range(20):
+        gone = subprocess.run(
+            ["launchctl", "print", f"{domain}/{LAUNCH_LABEL}"],
+            capture_output=True,
+            check=False,
+        )
+        if gone.returncode != 0:
+            break
+        time.sleep(0.25)
     subprocess.run(["launchctl", "bootstrap", domain, str(LAUNCH_AGENT)], capture_output=True, check=False)
-    subprocess.run(["launchctl", "kickstart", "-k", f"{domain}/{LAUNCH_LABEL}"], capture_output=True, check=False)
-    return LAUNCH_AGENT
+    for _ in range(20):
+        alive = subprocess.run(
+            ["launchctl", "print", f"{domain}/{LAUNCH_LABEL}"],
+            capture_output=True,
+            check=False,
+        )
+        if alive.returncode == 0:
+            return LAUNCH_AGENT
+        time.sleep(0.25)
+    raise RuntimeError(f"launchd não aceitou {LAUNCH_LABEL}; verifique {LAUNCH_AGENT}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -86,8 +106,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8123)
     parser.add_argument("--token", default="", help="exigido no header X-Jarvis-Voice-Token quando definido")
-    parser.add_argument("--pitch", type=float, default=0.92, help="<1 deixa a voz mais grave")
-    parser.add_argument("--tempo", type=float, default=1.04, help="compensa a duração após o pitch")
+    parser.add_argument("--pitch", type=float, default=0.90, help="<1 deixa a voz mais grave")
+    parser.add_argument("--tempo", type=float, default=1.06, help="compensa a duração após o pitch")
     parser.add_argument("--raw", action="store_true", help="devolve o Piper puro, sem o timbre do cockpit")
     return parser
 
@@ -193,7 +213,11 @@ def main() -> int:
         print(f"FALHA: modelo não encontrado em {model}")
         return 1
     if args.install_agent:
-        agent = install_agent(args)
+        try:
+            agent = install_agent(args)
+        except RuntimeError as error:
+            print(f"FALHA: {error}")
+            return 1
         print(f"Voz registrada no boot: {agent}")
         print(f"Status real: {LAUNCH_LABEL} ativo; a saudação de boas-vindas usa esta voz.")
         return 0
