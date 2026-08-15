@@ -4251,5 +4251,34 @@ São Paulo - SP
         self.assertFalse(payload["ok"])
 
 
+    def test_jarvis_lights_its_own_nucleus_and_knows_what_it_is(self):
+        """Pedir o núcleo acende a cena; o prompt sabe que os núcleos são dele."""
+        for command, nucleus, visual in (
+            ("abre o núcleo de forja", "forge", "forge"),
+            ("mostre o núcleo", "core", "thinking"),
+        ):
+            payload, _status = MODULE.dispatch_intent(command, "scene_show")
+            self.assertTrue(payload["ok"], command)
+            self.assertEqual(payload["nucleus"], nucleus)
+            self.assertEqual(payload["visual_state"], visual)
+            self.assertFalse(payload["action_executed"])
+        self.assertEqual(
+            [route for pattern, route in MODULE.LOCAL_INTENTS if pattern.search("abre o núcleo de forja")][:1],
+            ["scene_show"],
+        )
+        # Memória continua abrindo a constelação real, não só a cena.
+        self.assertEqual(
+            MODULE.dispatch_intent("mostra o núcleo de memória", "memory_view")[0]["visual_state"],
+            "memory",
+        )
+        guest = MODULE.capability_briefing(False)
+        owner = MODULE.capability_briefing(True)
+        for briefing in (guest, owner):
+            self.assertIn("NÚCLEO pensa", briefing)
+            self.assertIn("FORJA constrói", briefing)
+            self.assertIn("MEMÓRIA guarda", briefing)
+        self.assertIn("Supabase", guest)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
