@@ -2021,8 +2021,8 @@
     synth.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "pt-BR";
-    utterance.rate = 0.97;
-    utterance.pitch = 1.02;
+    utterance.rate = 0.95;
+    utterance.pitch = 0.72;
     utterance.onstart = () => {
       if (generation === speechGeneration) beginSpeaking(text);
     };
@@ -2032,16 +2032,22 @@
     utterance.onerror = () => {
       if (generation === speechGeneration) finishSpeaking();
     };
+    // O JARVIS é voz masculina, grave e firme: nada de voz feminina por acaso.
+    const FEMALE_VOICES = /luciana|joana|maria|fernanda|catarina|helena|francisca|sandy|shelley|flo|grandma|karen|paulina|m[oó]nica|female|mulher/i;
+    const MALE_VOICES = /reed|rocko|eddy|grandpa|felix|daniel|ricardo|felipe|jo[aã]o|carlos|thiago|male|homem/i;
     const pickVoice = () => {
-      // Última linha: ainda assim, a melhor voz instalada — nunca a compacta padrão.
       const voices = (synth.getVoices() || []).filter((voice) => /pt.?BR|portuguese/i.test(`${voice.lang} ${voice.name}`));
       const rank = (voice) => {
         const name = voice.name || "";
-        if (/google/i.test(name)) return 5;
-        if (/premium|enhanced|siri|neural/i.test(name)) return 4;
-        if (!voice.localService) return 3;
-        if (/luciana|francisca|f[eé]lix/i.test(name)) return 2;
-        return 1;
+        const female = FEMALE_VOICES.test(name);
+        const male = MALE_VOICES.test(name);
+        let score = 0;
+        if (male) score += 10;
+        if (female) score -= 12;
+        if (/premium|enhanced|siri|neural/i.test(name)) score += 4;
+        if (/google/i.test(name)) score += 2;
+        if (!voice.localService) score += 1;
+        return score;
       };
       const best = voices.sort((a, b) => rank(b) - rank(a))[0];
       if (best) utterance.voice = best;
@@ -2233,7 +2239,7 @@
       return;
     }
     if (data.client_action === "open_voice_panel") {
-      import("/ui/voice-calibrator.js?v=20260815-vozes1").catch(() => null);
+      import("/ui/voice-calibrator.js?v=20260815-vozes2").catch(() => null);
     }
     session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
@@ -2605,6 +2611,84 @@
     });
     voiceButton.title = "Clique, fale normalmente e o comando será enviado quando você terminar.";
     byId("voiceValue").textContent = "ouvir e responder";
+    installWakeWord(recognition);
+  }
+
+  // Chamar pelo nome: "fala jarvis", "e aí jarvis", "oi ultron" e variações.
+  const WAKE_WORD = /\b(?:ei|ai|a[ií]|oi|ol[aá]|fala|falae|e\s*a[ií]|opa|escuta|acorda|acorde|desperta|desperte)\s*[, ]*\s*(jarvis|j[aá]rvis|ultron)\b|\b(jarvis|j[aá]rvis|ultron)\b[^.?!]{0,20}?\b(?:t[aá]\s+a[ií]|est[aá]\s+a[ií]|a[ií]\?|acordado|escutando|me\s+ouve|me\s+escuta)/i;
+  const WAKE_KEY = "jarvis-wake-word";
+
+  function wakeWordEnabled() {
+    try {
+      return localStorage.getItem(WAKE_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  }
+
+  function setWakeWord(enabled) {
+    try {
+      localStorage.setItem(WAKE_KEY, enabled ? "1" : "0");
+    } catch { /* vale só nesta aba */ }
+  }
+
+  function installWakeWord(commandRecognition) {
+    if (!Recognition) return;
+    const listener = new Recognition();
+    listener.lang = "pt-BR";
+    listener.interimResults = true;
+    listener.continuous = true;
+    let running = false;
+    let restartTimer = 0;
+
+    const restart = (delay = 900) => {
+      window.clearTimeout(restartTimer);
+      restartTimer = window.setTimeout(() => {
+        if (!wakeWordEnabled() || session.listening || session.working) return;
+        try {
+          listener.start();
+        } catch { /* já em execução */ }
+      }, delay);
+    };
+
+    listener.onstart = () => { running = true; };
+    listener.onend = () => {
+      running = false;
+      if (wakeWordEnabled()) restart(1_200);
+    };
+    listener.onerror = (event) => {
+      // Sem microfone liberado não adianta insistir.
+      if (event.error === "not-allowed") setWakeWord(false);
+    };
+    listener.onresult = (event) => {
+      const heard = Array.from(event.results).map((row) => row[0].transcript).join(" ");
+      if (!WAKE_WORD.test(heard)) return;
+      listener.stop();
+      const rest = heard.replace(WAKE_WORD, " ").replace(/\s+/g, " ").trim();
+      pulseNucleus("core", "chamado");
+      if (rest.length > 3) {
+        sendCommand(rest, { source: "voice" });
+        return;
+      }
+      const reply = session.paired ? "Às ordens, Theo." : "Estou aqui.";
+      addMessage(reply, "jarvis");
+      speak(reply);
+      stopSpeechOutput();
+      try {
+        commandRecognition.start();
+      } catch { /* o clique no microfone continua valendo */ }
+    };
+
+    window.addEventListener("jarvis-wake-word", (event) => {
+      setWakeWord(Boolean(event.detail?.enabled));
+      if (event.detail?.enabled) restart(300);
+      else if (running) listener.stop();
+    });
+    if (wakeWordEnabled()) restart(2_500);
+    window.JarvisWakeWord = Object.freeze({
+      enabled: wakeWordEnabled,
+      set: (value) => window.dispatchEvent(new CustomEvent("jarvis-wake-word", { detail: { enabled: value } })),
+    });
   }
 
   async function boot() {

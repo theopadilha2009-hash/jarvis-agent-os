@@ -47,3 +47,9 @@
 .voice-add { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 6px; }
 .voice-add input { min-width: 0; padding: 7px 9px; font-size: 11px; }
 .voice-add button { padding: 7px 12px; font-size: 11px; }
+
+.voice-wake { display: flex; gap: 9px; align-items: flex-start; margin-top: 10px; cursor: pointer; }
+.voice-wake input { margin-top: 3px; }
+.voice-wake span { display: grid; gap: 2px; }
+.voice-wake b { font-size: 12px; }
+.voice-wake small { font-size: 10px; opacity: .68; }

@@ -119,13 +119,22 @@ def make_handler(voice, args, sample_rate: int):
             text = str(body.get("text") or body.get("message") or "").strip()[:MAX_TEXT]
             if not text:
                 return self._json(400, {"ok": False, "error": "texto vazio"})
+
+            def bounded(name, default, low, high):
+                try:
+                    return max(low, min(float(body.get(name, default)), high))
+                except (TypeError, ValueError):
+                    return default
+
+            pitch = bounded("pitch", args.pitch, 0.70, 1.10)
+            tempo = bounded("tempo", args.tempo, 0.80, 1.40)
             try:
                 audio = synthesize_wav(voice, text)
             except Exception as error:  # o servidor não pode morrer por uma frase
                 return self._json(500, {"ok": False, "error": f"falha na síntese: {error}"})
             if args.raw:
                 return self._send(200, audio, "audio/wav")
-            processed, content_type = apply_profile(audio, sample_rate, args.pitch, args.tempo)
+            processed, content_type = apply_profile(audio, sample_rate, pitch, tempo)
             return self._send(200, processed, content_type)
 
     return VoiceHandler

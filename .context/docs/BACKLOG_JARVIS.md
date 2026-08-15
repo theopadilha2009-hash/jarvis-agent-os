@@ -27,14 +27,27 @@ validado**; quem terminar marca o estado e cola a evidência real.
 - "salva isso" sem mais contexto deve gravar quando ele for o dono.
 - Estado: **parcial** — briefing existe, cobertura de voz/estilo/persona pendente.
 
-### 4. Estilos e personalidade sob comando
+### 4. Atender pelo nome (wake word)
+- "fala jarvis", "e aí jarvis", "oi jarvis", "opa ultron" e variações, com o
+  microfone sempre pronto; vale para as duas personas.
+- Estado: **feito** — escuta contínua leve, toggle no painel de voz, e o resto
+  da frase vira comando quando vem junto.
+
+### 5. Estilos e personalidade sob comando
 - Painel e comandos para trocar estilo de resposta e personalidade (JARVIS,
   ULTRON, e variações que o Theo pedir).
 - Estado: **pendente**.
 
+### 5b. Voz masculina, forte e de autoridade — regra permanente
+- A voz do JARVIS é masculina e grave. O fallback do navegador ranqueia vozes
+  masculinas e rejeita femininas; a voz própria sai com pitch abaixado.
+- Timbre configurável pelo painel: gravidade e cadência viajam no
+  `voice_profile` até o servidor de voz.
+- Estado: **feito**, mas a qualidade final depende da camada disponível.
+
 ## P0 — Presença no boot
 
-### 5. Falar quando o Mac liga por completo
+### 6. Falar quando o Mac liga por completo
 - Hoje a chegada dispara no **desbloqueio de tela** (10 min) e ao voltar para a
   aba (25 min). Falta o caso do boot: ligar a máquina e abrir algo já ouvir
   "Bem-vindo, Theo. O que vamos fazer hoje?".
@@ -42,7 +55,7 @@ validado**; quem terminar marca o estado e cola a evidência real.
   é o gatilho natural.
 - Estado: **feito** — saudação de boot no worker, com marca de sessão.
 
-### 6. Ele na tela inicial do Mac
+### 7. Ele na tela inicial do Mac
 - O Theo quer ver o JARVIS "do lado, falando comigo" na tela inicial, com um
   botão **Entrar no sistema**.
 - Opções: app de tela cheia (PWA já instalável), janela sempre-visível pelo

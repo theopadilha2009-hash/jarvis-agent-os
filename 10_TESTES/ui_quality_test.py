@@ -252,7 +252,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('data-voice-setting="speed"', voice_calibrator)
         self.assertIn("sem aplicar pitch artificial", voice_calibrator)
         self.assertIn("voice_profile: window.JarvisVoiceCalibrator?.profile()", self.app_js)
-        self.assertIn("voice-calibrator.js?v=20260815-vozes1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
+        self.assertIn("voice-calibrator.js?v=20260815-vozes2", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
         self.assertIn("n8n-template-pack.js?v=20260813-ultronfix1", INTEGRATION_HISTORY_JS.read_text(encoding="utf-8"))
         memory_explorer = MEMORY_EXPLORER_JS.read_text(encoding="utf-8")
         self.assertIn('name="q"', memory_explorer)
@@ -335,7 +335,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-vozes1")', self.presence_loader_js)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-vozes2")', self.presence_loader_js)
         self.assertIn("always: true", self.presence_js)
         self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
@@ -352,7 +352,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
-        self.assertGreaterEqual(self.html.count("20260815-vozes1"), 5)
+        self.assertGreaterEqual(self.html.count("20260815-vozes2"), 5)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -586,7 +586,6 @@ class UIQualityTest(unittest.TestCase):
     def test_voice_never_falls_back_to_the_flat_default(self):
         """ElevenLabs sem crédito não pode devolver a voz robótica padrão."""
         self.assertIn("VOZ RESERVA", self.app_js)
-        self.assertIn('/google/i.test(name)) return 5', self.app_js)
         self.assertIn("premium|enhanced|siri|neural", self.app_js)
         self.assertIn('data.client_action === "clear_chat"', self.app_js)
         self.assertIn(".author-card", self.shell_css)
@@ -600,6 +599,17 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('api("/voice-select"', calibrator)
         self.assertIn('data.client_action === "open_voice_panel"', self.app_js)
         self.assertIn("Bem-vindo, Theo", self.app_js)
+        # Chamar pelo nome, para JARVIS e ULTRON.
+        self.assertIn("const WAKE_WORD", self.app_js)
+        self.assertIn("installWakeWord", self.app_js)
+        self.assertIn("JarvisWakeWord", self.app_js)
+        self.assertIn("voiceWakeToggle", calibrator)
+        # Timbre da voz própria sai do mesmo painel.
+        self.assertIn('data-voice-setting="pitch"', calibrator)
+        self.assertIn('data-voice-setting="tempo"', calibrator)
+        # A voz do navegador nunca pode ser feminina por acaso.
+        self.assertIn("FEMALE_VOICES", self.app_js)
+        self.assertIn("MALE_VOICES", self.app_js)
         self.assertIn('request("/voice-status")', self.app_js)
         self.assertNotIn("group.position.y = 0.02 + Math.sin", self.presence_js)
 
