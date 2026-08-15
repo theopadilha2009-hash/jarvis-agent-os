@@ -910,6 +910,15 @@ def main() -> int:
                 signal.signal(signal.SIGTERM, stop)
                 signal.signal(signal.SIGINT, stop)
                 while running:
+                    wall_now = time.time()
+                    if screen_is_locked():
+                        if not locked_since:
+                            locked_since = wall_now
+                    elif locked_since:
+                        away = wall_now - locked_since
+                        locked_since = 0.0
+                        if away >= ARRIVAL_MIN_LOCKED_SECONDS and announce_arrival(wall_now):
+                            print(f"Chegada: cockpit aberto após {int(away // 60)} min de tela bloqueada.", flush=True)
                     try:
                         monotonic_now = time.monotonic()
                         if monotonic_now - last_heartbeat >= HEARTBEAT_INTERVAL_SECONDS:
@@ -929,15 +938,6 @@ def main() -> int:
                             if removed:
                                 print(f"Retenção: {removed} preview(s) remoto(s) antigo(s) removido(s).", flush=True)
                             last_retention = monotonic_now
-                        wall_now = time.time()
-                        if screen_is_locked():
-                            if not locked_since:
-                                locked_since = wall_now
-                        elif locked_since:
-                            away = wall_now - locked_since
-                            locked_since = 0.0
-                            if away >= ARRIVAL_MIN_LOCKED_SECONDS and announce_arrival(wall_now):
-                                print(f"Chegada: cockpit aberto após {int(away // 60)} min de tela bloqueada.", flush=True)
                         message = run_once()
                         if not message.startswith("Fila vazia"):
                             print(message, flush=True)

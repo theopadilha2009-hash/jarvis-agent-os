@@ -39,6 +39,11 @@ class DeviceWorkerTest(unittest.TestCase):
                     self.assertTrue(MODULE.announce_arrival(10_000.0 + MODULE.ARRIVAL_COOLDOWN_SECONDS + 1))
                 with patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "0"}):
                     self.assertFalse(MODULE.announce_arrival(99_999.0))
+        # A chegada roda antes do heartbeat: Supabase fora do ar não impede
+        # receber Theo (o except do heartbeat pularia o resto do ciclo).
+        source = Path(MODULE.__file__).read_text(encoding="utf-8")
+        loop = source[source.index("while running:"):]
+        self.assertLess(loop.index("screen_is_locked()"), loop.index("heartbeat()"))
 
     def test_command_argv_maps_only_explicit_actions(self):
         opened = MODULE.command_argv({"action": "open_application", "target": "Calculator"})
