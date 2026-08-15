@@ -677,13 +677,14 @@ async function start() {
   const legendItems = Array.from(document.querySelectorAll(".nucleus-legend span"));
   const nucleusRay = new THREE.Vector3();
   function placeMiniNuclei() {
-    const compact = canvasWidth < 760;
-    // Miniatura de verdade: dá para reconhecer o núcleo, não é um pontinho.
-    const diameter = Math.min(compact ? 76 : 130, Math.max(60, canvasHeight * 0.17), canvasWidth * 0.22);
-    const centerX = Math.round(18 + diameter / 2);
-    const step = Math.max(diameter * 1.14, canvasHeight * 0.145);
-    const first = Math.min(canvasHeight * 0.46, canvasHeight - diameter / 2 - 8 - step * 2);
-    const rows = [first, first + step, first + step * 2];
+    // A coluna tem três células iguais; o raio é o que cabe numa célula sem
+    // encostar na borda esquerda, senão a forja e a memória saem cortadas.
+    const cell = Math.max(90, (canvasHeight - 96) / 3);
+    const radius = Math.min(cell * 0.44, canvasWidth * 0.13, 118);
+    const centerX = Math.round(14 + radius);
+    const middle = Math.min(Math.max(canvasHeight * 0.52, radius + cell + 8), canvasHeight - radius - cell - 8);
+    const rows = [middle - cell, middle, middle + cell];
+    const diameter = radius * 1.6;
     camera.updateMatrixWorld(true);
     const depth = camera.position.z - MINI_PLANE_Z;
     const viewHeight = 2 * Math.tan((camera.fov * Math.PI) / 180 / 2) * depth;
@@ -695,7 +696,7 @@ async function start() {
         .normalize();
       const distance = (MINI_PLANE_Z - camera.position.z) / nucleusRay.z;
       const world = camera.position.clone().addScaledVector(nucleusRay, distance);
-      nucleusSlots.push({ centerX, centerY: pixelY, span: diameter * 2.2, mini: true });
+      nucleusSlots.push({ centerX, centerY: pixelY, span: radius / 0.55, mini: true });
       if (index === 0) {
         miniCore.group.position.set(world.x, world.y, MINI_PLANE_Z);
         miniCore.group.userData.baseY = world.y;
@@ -704,7 +705,7 @@ async function start() {
       }
       const label = legendItems[index];
       if (!label) return;
-      label.style.setProperty("--nucleus-x", `${Math.round(centerX + diameter / 2)}px`);
+      label.style.setProperty("--nucleus-x", `${Math.round(centerX + radius * 0.86)}px`);
       label.style.setProperty("--nucleus-y", `${Math.round(pixelY)}px`);
     });
   }
