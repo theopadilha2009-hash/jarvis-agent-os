@@ -150,7 +150,7 @@ CREATOR_PROFILE = {
     "linkedin": "https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/",
     "github": "https://github.com/theopadilha2009-hash/jarvis-agent-os",
     "page": "/theo",
-    "photo": "/ui/theo-avatar.jpg?v=20260815-voz2",
+    "photo": "/ui/theo-avatar.jpg?v=20260815-voz3",
     "headline": "Full Stack Developer · AI-First Systems, Automation & Production Infrastructure — Vamoo AI",
     "current": "Vamooai — programador full stack em sistemas AI-first, automações e dashboards.",
     "stack": (
@@ -5301,6 +5301,15 @@ def elevenlabs_provider_error(error):
     }, 502
 
 
+# O timbre do cockpit: mordomo britânico em português — barítono quente,
+# ritmo medido, dicção precisa, humor seco em micro-inflexões, nunca apressado.
+VOICE_DIRECTION = (
+    "Português do Brasil nativo, com a compostura de um mordomo britânico. Barítono quente e calmo, "
+    "ritmo medido e constante, dicção precisa, articulação limpa. Autoridade serena em vez de entusiasmo; "
+    "humor seco aparece só numa leve inflexão antes de uma observação irônica. Nunca apressado, nunca "
+    "cantado, nunca locutor de propaganda. Pausas curtas entre orações, final de frase descendente."
+)
+SELF_HOSTED_TTS_TIMEOUT = 20
 OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech"
 DEFAULT_OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
 DEFAULT_OPENAI_TTS_VOICE = "onyx"
@@ -5339,9 +5348,11 @@ def voice_status_payload():
     """Estado real da voz: quanto sobrou em cada chave e qual camada está no ar."""
     keys = elevenlabs_api_keys()
     openai_ready = bool(clean_text(os.environ.get("OPENAI_API_KEY"), 200))
+    self_hosted_ready = clean_text(os.environ.get("SELF_HOSTED_TTS_URL"), 400).startswith(("http://", "https://"))
     payload = {
         "ok": True,
         "endpoint": "GET /voice-status",
+        "self_hosted_ready": self_hosted_ready,
         "status_real": "voice_status",
         "provider": "elevenlabs",
         "elevenlabs_configured": bool(keys),
@@ -5350,7 +5361,12 @@ def voice_status_payload():
         "layer": "browser",
     }
     if not keys:
-        payload["message"] = "ElevenLabs não está configurada; a voz sai pelo navegador."
+        payload["layer"] = "self_hosted" if self_hosted_ready else "browser"
+        payload["message"] = (
+            "ElevenLabs não está configurada; a voz própria do servidor local responde."
+            if self_hosted_ready
+            else "ElevenLabs não está configurada; a voz sai pelo navegador."
+        )
         return payload, 200
     pool = [elevenlabs_key_status(key) for key in keys]
     payload["pool"] = [
@@ -5363,7 +5379,7 @@ def voice_status_payload():
     payload.update({
         "characters_remaining": remaining,
         "resets_at": soonest[0] if soonest else "",
-        "layer": "elevenlabs" if live else ("openai" if openai_ready else "browser"),
+        "layer": "elevenlabs" if live else ("openai" if openai_ready else ("self_hosted" if self_hosted_ready else "browser")),
     })
     if live:
         payload.update({k: live[k] for k in ("tier", "status", "characters_used", "characters_limit") if k in live})
@@ -5375,9 +5391,33 @@ def voice_status_payload():
         payload["message"] = (
             ("Todas as chaves da ElevenLabs estão sem créditos. " if len(keys) > 1 else "ElevenLabs sem créditos. ")
             + ("A voz de reserva da OpenAI está ativa." if openai_ready
+               else "A voz própria do servidor local está ativa." if self_hosted_ready
                else "Reponha créditos ou configure a chave da OpenAI no cofre para manter a voz neural.")
         )
     return payload, 200
+
+
+def self_hosted_speech(text):
+    """Voz própria: servidor neural do Theo, sem cota e sem chave de terceiro."""
+    url = clean_text(os.environ.get("SELF_HOSTED_TTS_URL"), 400)
+    if not url.startswith(("http://", "https://")):
+        return None
+    headers = {"Content-Type": "application/json"}
+    token = clean_text(os.environ.get("SELF_HOSTED_TTS_TOKEN"), 400)
+    if token:
+        headers["X-Jarvis-Voice-Token"] = token
+    request = Request(
+        url,
+        data=json.dumps({"text": text}, ensure_ascii=False).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=SELF_HOSTED_TTS_TIMEOUT) as response:
+            audio = response.read(8_000_000)
+        return audio or None
+    except (HTTPError, URLError, TimeoutError, ValueError):
+        return None
 
 
 def openai_speech(body, text):
@@ -5390,8 +5430,7 @@ def openai_speech(body, text):
         "voice": os.environ.get("OPENAI_TTS_VOICE", DEFAULT_OPENAI_TTS_VOICE),
         "input": text,
         "response_format": "mp3",
-        "instructions": "Português do Brasil nativo. Assistente pessoal calmo, preciso e discretamente "
-                        "espirituoso. Frases declarativas, cadência serena, sem pressa e sem locução robótica.",
+        "instructions": VOICE_DIRECTION,
     }, ensure_ascii=False).encode("utf-8")
     request = Request(
         OPENAI_TTS_URL,
@@ -5417,7 +5456,7 @@ def elevenlabs_speech(body):
         return {"ok": False, "error": "Não envio credenciais para síntese de voz."}, 400
     api_keys = elevenlabs_api_keys(body)
     if not api_keys:
-        rescue = openai_speech(body, text)
+        rescue = openai_speech(body, text) or self_hosted_speech(text)
         if rescue:
             return rescue, 200
         return {
@@ -5465,7 +5504,7 @@ def elevenlabs_speech(body):
         except (URLError, TimeoutError, ValueError) as error:
             last_error = error
             continue
-    rescue = openai_speech(body, text)
+    rescue = openai_speech(body, text) or self_hosted_speech(text)
     if rescue:
         return rescue, 200
     if isinstance(last_error, HTTPError):
