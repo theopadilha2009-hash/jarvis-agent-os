@@ -40,6 +40,22 @@ Ajustes úteis: `--pitch 0.90` deixa mais grave, `--tempo 1.06` compensa a
 duração, `--raw` devolve o Piper puro para comparar, `--token` exige
 `X-Jarvis-Voice-Token` em cada chamada.
 
+## Deixar a voz de pé desde o boot
+
+A saudação de boas-vindas sai pelo alto-falante do Mac, e quem sintetiza é este
+servidor. Se ele não estiver rodando, a fala cai para o `say` do sistema, que é
+uma voz compacta. Registre como serviço:
+
+```bash
+python3 11_SCRIPTS/local_tts_server.py \
+  --voice ~/Library/Application\ Support/JARVIS/voices/cadu.onnx \
+  --pitch 0.86 --tempo 1.12 --install-agent
+```
+
+Guarde o modelo fora do repositório e fora de `/tmp` — um `.onnx` num diretório
+temporário desaparece e leva a voz junto. `~/Library/Application Support/JARVIS/voices/`
+é o lugar. Logs em `09_LOGS/voice-server.log`.
+
 Medido num MacBook: 0,46 s para carregar o modelo e 0,55 s para sintetizar uma
 frase — mais rápido que a chamada remunerada.
 
@@ -57,6 +73,14 @@ alcançável. Duas saídas:
   projeto da Vercel.
 - **Túnel** (para testar): `cloudflared tunnel --url http://127.0.0.1:8123`
   devolve uma URL HTTPS temporária.
+
+## O teto desta voz
+
+O pt-BR do Piper só existe em `medium` (e um `low`): não há modelo `high` para
+subir de nível, e o Mac tem apenas vozes compactas instaladas. Nenhum ajuste de
+timbre transforma isso em voz humana — é o teto do que roda de graça nesta
+máquina. Passar desse ponto depende de `OPENAI_API_KEY` (a cadeia
+`gpt-4o-mini-tts` já está pronta) ou de um plano pago da ElevenLabs.
 
 ## O que esta voz não é
 
