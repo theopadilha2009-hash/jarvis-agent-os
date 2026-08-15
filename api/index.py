@@ -150,7 +150,7 @@ CREATOR_PROFILE = {
     "linkedin": "https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/",
     "github": "https://github.com/theopadilha2009-hash/jarvis-agent-os",
     "page": "/theo",
-    "photo": "/ui/theo-avatar.jpg?v=20260815-voz1",
+    "photo": "/ui/theo-avatar.jpg?v=20260815-voz2",
     "headline": "Full Stack Developer · AI-First Systems, Automation & Production Infrastructure — Vamoo AI",
     "current": "Vamooai — programador full stack em sistemas AI-first, automações e dashboards.",
     "stack": (
@@ -395,6 +395,23 @@ def openrouter_api_keys():
     keys = []
     for name in ("OPENROUTER_API_KEY", "OPENROUTER_FALLBACK_API_KEY"):
         value = str(os.environ.get(name) or "").strip()
+        if value and value not in keys:
+            keys.append(value)
+    return keys
+
+
+def elevenlabs_api_keys(body=None):
+    """Chaves de voz em ordem de failover — mesma ideia já usada no OpenRouter."""
+    keys = []
+    browser_key = clean_text(client_integration(body or {}, "elevenlabs").get("api_key", ""), 400)
+    if browser_key:
+        keys.append(browser_key)
+    for name in ("ELEVENLABS_API_KEY", "ELEVENLABS_FALLBACK_API_KEY"):
+        value = str(os.environ.get(name) or "").strip()
+        if value and value not in keys:
+            keys.append(value)
+    for value in str(os.environ.get("ELEVENLABS_API_KEYS") or "").split(","):
+        value = value.strip()
         if value and value not in keys:
             keys.append(value)
     return keys
@@ -5289,22 +5306,8 @@ DEFAULT_OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
 DEFAULT_OPENAI_TTS_VOICE = "onyx"
 
 
-def voice_status_payload():
-    """Estado real da voz: quanto sobrou, quando reseta e qual camada está no ar."""
-    api_key = clean_text(os.environ.get("ELEVENLABS_API_KEY"), 2_000)
-    openai_ready = bool(clean_text(os.environ.get("OPENAI_API_KEY"), 200))
-    payload = {
-        "ok": True,
-        "endpoint": "GET /voice-status",
-        "status_real": "voice_status",
-        "provider": "elevenlabs",
-        "elevenlabs_configured": bool(api_key),
-        "openai_backup_ready": openai_ready,
-        "layer": "elevenlabs" if api_key else "browser",
-    }
-    if not api_key:
-        payload["message"] = "ElevenLabs não está configurada; a voz sai pelo navegador."
-        return payload, 200
+def elevenlabs_key_status(api_key):
+    """Saldo de uma chave, sem jamais devolver a chave."""
     request = Request(
         "https://api.elevenlabs.io/v1/user/subscription",
         headers={"xi-api-key": api_key},
@@ -5314,32 +5317,66 @@ def voice_status_payload():
         with urlopen(request, timeout=15) as response:
             data = json.loads(response.read(200_000).decode("utf-8", "replace"))
     except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
-        payload["message"] = "A ElevenLabs não respondeu o estado da assinatura."
-        payload["layer"] = "unknown"
-        return payload, 200
+        return {"reachable": False, "characters_remaining": 0}
     used = int(data.get("character_count") or 0)
     limit = int(data.get("character_limit") or 0)
-    remaining = max(0, limit - used)
     reset_unix = data.get("next_character_count_reset_unix")
     reset_iso = ""
     if isinstance(reset_unix, (int, float)) and reset_unix > 0:
         reset_iso = datetime.fromtimestamp(float(reset_unix), timezone.utc).isoformat().replace("+00:00", "Z")
-    payload.update({
+    return {
+        "reachable": True,
         "tier": clean_text(data.get("tier"), 60),
         "status": clean_text(data.get("status"), 40),
         "characters_used": used,
         "characters_limit": limit,
-        "characters_remaining": remaining,
+        "characters_remaining": max(0, limit - used),
         "resets_at": reset_iso,
-        "layer": "elevenlabs" if remaining > 0 else ("openai" if openai_ready else "browser"),
-        "message": (
-            f"ElevenLabs com {remaining} caracteres disponíveis de {limit}."
-            if remaining > 0
-            else "ElevenLabs sem créditos. "
+    }
+
+
+def voice_status_payload():
+    """Estado real da voz: quanto sobrou em cada chave e qual camada está no ar."""
+    keys = elevenlabs_api_keys()
+    openai_ready = bool(clean_text(os.environ.get("OPENAI_API_KEY"), 200))
+    payload = {
+        "ok": True,
+        "endpoint": "GET /voice-status",
+        "status_real": "voice_status",
+        "provider": "elevenlabs",
+        "elevenlabs_configured": bool(keys),
+        "elevenlabs_keys": len(keys),
+        "openai_backup_ready": openai_ready,
+        "layer": "browser",
+    }
+    if not keys:
+        payload["message"] = "ElevenLabs não está configurada; a voz sai pelo navegador."
+        return payload, 200
+    pool = [elevenlabs_key_status(key) for key in keys]
+    payload["pool"] = [
+        {key: row[key] for key in ("reachable", "tier", "characters_remaining", "characters_limit", "resets_at") if key in row}
+        for row in pool
+    ]
+    live = next((row for row in pool if row.get("reachable") and row.get("characters_remaining", 0) > 0), None)
+    remaining = sum(row.get("characters_remaining", 0) for row in pool if row.get("reachable"))
+    soonest = sorted({row.get("resets_at") for row in pool if row.get("resets_at")})
+    payload.update({
+        "characters_remaining": remaining,
+        "resets_at": soonest[0] if soonest else "",
+        "layer": "elevenlabs" if live else ("openai" if openai_ready else "browser"),
+    })
+    if live:
+        payload.update({k: live[k] for k in ("tier", "status", "characters_used", "characters_limit") if k in live})
+        payload["message"] = (
+            f"ElevenLabs com {remaining} caracteres disponíveis"
+            + (f" em {len(keys)} chaves." if len(keys) > 1 else ".")
+        )
+    else:
+        payload["message"] = (
+            ("Todas as chaves da ElevenLabs estão sem créditos. " if len(keys) > 1 else "ElevenLabs sem créditos. ")
             + ("A voz de reserva da OpenAI está ativa." if openai_ready
                else "Reponha créditos ou configure a chave da OpenAI no cofre para manter a voz neural.")
-        ),
-    })
+        )
     return payload, 200
 
 
@@ -5378,9 +5415,8 @@ def elevenlabs_speech(body):
         return {"ok": False, "error": "Texto vazio para síntese de voz."}, 400
     if any(has_secret_like_text(item) for item in (text, previous_text, next_text)):
         return {"ok": False, "error": "Não envio credenciais para síntese de voz."}, 400
-    browser_key = client_integration(body, "elevenlabs").get("api_key", "")
-    api_key = browser_key or os.environ.get("ELEVENLABS_API_KEY")
-    if not api_key:
+    api_keys = elevenlabs_api_keys(body)
+    if not api_keys:
         rescue = openai_speech(body, text)
         if rescue:
             return rescue, 200
@@ -5406,28 +5442,35 @@ def elevenlabs_speech(body):
         speech_payload["next_text"] = next_text
     payload = json.dumps(speech_payload, ensure_ascii=False).encode("utf-8")
     url = f"{ELEVENLABS_URL}/{quote(voice_id)}?output_format=mp3_44100_128"
-    headers = {
-        "xi-api-key": api_key,
-        "Content-Type": "application/json",
-        "Accept": "audio/mpeg",
-    }
-    try:
-        req = Request(url, data=payload, headers=headers, method="POST")
-        with urlopen(req, timeout=25) as response:
-            audio = response.read(8_000_000)
-        if not audio:
-            raise ValueError("empty audio")
-        return audio, 200
-    except HTTPError as error:
-        rescue = openai_speech(body, text)
-        if rescue:
-            return rescue, 200
-        return elevenlabs_provider_error(error)
-    except (URLError, TimeoutError, ValueError):
-        rescue = openai_speech(body, text)
-        if rescue:
-            return rescue, 200
-        return {"ok": False, "error": "ElevenLabs não respondeu com áudio válido.", "fallback": "text_only"}, 504
+    last_error = None
+    for api_key in api_keys:
+        headers = {
+            "xi-api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        }
+        try:
+            req = Request(url, data=payload, headers=headers, method="POST")
+            with urlopen(req, timeout=25) as response:
+                audio = response.read(8_000_000)
+            if not audio:
+                raise ValueError("empty audio")
+            return audio, 200
+        except HTTPError as error:
+            last_error = error
+            # Chave sem crédito ou recusada: tenta a próxima do pool.
+            if getattr(error, "code", 0) in {401, 402, 403, 429}:
+                continue
+            break
+        except (URLError, TimeoutError, ValueError) as error:
+            last_error = error
+            continue
+    rescue = openai_speech(body, text)
+    if rescue:
+        return rescue, 200
+    if isinstance(last_error, HTTPError):
+        return elevenlabs_provider_error(last_error)
+    return {"ok": False, "error": "ElevenLabs não respondeu com áudio válido.", "fallback": "text_only"}, 504
 
 
 def normalize_messages(body):
