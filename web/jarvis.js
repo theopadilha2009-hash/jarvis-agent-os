@@ -1377,12 +1377,30 @@
     }, 4200);
   }
 
+  function pulseForWorkingState(state) {
+    if (state === "forge") return pulseNucleus("forge", "trabalho iniciado");
+    if (state === "memory") return pulseNucleus("memory", "gravando");
+    return pulseNucleus("core", "pensando");
+  }
+
   function workingStateFor(command) {
     const text = String(command || "");
     if (/\b(?:guard(?:a|e|ar)|salv(?:a|e|ar)|memor(?:ize|izar)|lembre)\b.{0,80}\bmem[oó]ria\b|\bmem[oó]ria\b.{0,80}\b(?:guard(?:a|e|ar)|salv(?:a|e|ar))\b/i.test(text)) return "memory";
     if (/\b(?:pesquis\w*|busc\w*|procur\w*|investig\w*|not[ií]cias?|cota[cç][aã]o|mais recente)\b/i.test(text)) return "research";
     if (/\b(?:cri(?:a|e|ar)|constru(?:a|ir)|implement(?:a|e|ar)|edit(?:a|e|ar)|corrig(?:e|ir)|arrum(?:a|e|ar)|deploy|public(?:a|ar)|sub(?:a|ir)|automatiz(?:a|e|ar))\b/i.test(text)) return "forge";
     return "thinking";
+  }
+
+  // A coluna de núcleos é telemetria: cada um acende quando o evento dele
+  // acontece de verdade — gravou memória, começou um deploy, está pensando.
+  function pulseNucleus(nucleus, reason) {
+    window.dispatchEvent(new CustomEvent("jarvis-nucleus-pulse", { detail: { nucleus, reason } }));
+  }
+
+  function nucleusForResult(data) {
+    if (data?.intent === "memory_save" || data?.intent === "memory_view" || data?.mode === "memory") return "memory";
+    if (data?.job?.id || data?.run?.id || data?.executed_locally || data?.provider === "n8n") return "forge";
+    return "";
   }
 
   function responseVisualState(data) {
@@ -2301,6 +2319,8 @@
       monitorDeviceCommand(data.job.id, message);
     }
     if (session.responseState === "memory") window.dispatchEvent(new CustomEvent("jarvis-memory-refresh"));
+    const pulsed = nucleusForResult(data);
+    if (pulsed) pulseNucleus(pulsed, data.intent || data.status_real || "resultado");
     settleState();
     speak(answer);
   }
@@ -2343,6 +2363,7 @@
     const workingState = workingStateFor(command);
     const reflectionStartedAt = performance.now();
     beginRequestProgress(workingState);
+    pulseForWorkingState(workingState);
     setWorking(true, workingState);
     try {
       const clientIntegrations = await runtimeClientIntegrations(command);
