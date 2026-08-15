@@ -1792,6 +1792,53 @@ button {
   background: rgba(124, 58, 237, 0.16);
 }
 
+/* Estado da escuta pelo nome: o Theo precisa ver num relance se está armado. */
+.wake-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  height: 30px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.42);
+  color: rgba(203, 213, 225, 0.86);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.wake-indicator i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.wake-indicator[data-state="on"] {
+  border-color: rgba(94, 234, 212, 0.46);
+  color: #ccfbf1;
+}
+
+.wake-indicator[data-state="on"] i {
+  background: #2dd4bf;
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.9);
+  animation: wake-breath 2.4s ease-in-out infinite;
+}
+
+.wake-indicator[data-state="arming"] i { background: rgba(250, 204, 21, 0.8); }
+.wake-indicator[data-state="blocked"] { border-color: rgba(248, 113, 113, 0.44); color: #fecaca; }
+.wake-indicator[data-state="blocked"] i { background: #f87171; }
+
+@keyframes wake-breath {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wake-indicator[data-state="on"] i { animation: none; }
+}
+
 .voice-button.speaking {
   border-color: rgba(192, 132, 252, 0.78);
   background: rgba(192, 132, 252, 0.13);

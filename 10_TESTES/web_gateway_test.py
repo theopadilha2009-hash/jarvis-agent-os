@@ -4365,6 +4365,39 @@ São Paulo - SP
         opened, _ = MODULE.dispatch_intent("lista as vozes", "voice_settings")
         self.assertEqual(opened["client_action"], "open_voice_panel")
 
+    def test_persona_style_changes_the_prompt_and_opens_the_panel(self):
+        """O jeito de responder é do Theo: ele troca por comando e a diretiva chega ao modelo."""
+        for phrase in ("muda sua personalidade", "troca o estilo de resposta", "responde mais direto", "ajusta seu tom"):
+            self.assertEqual(
+                [route for pattern, route in MODULE.LOCAL_INTENTS if pattern.search(phrase)][:1],
+                ["persona_settings"],
+                phrase,
+            )
+        # "muda sua voz" continua na voz, não vaza para a personalidade.
+        self.assertEqual(
+            [route for pattern, route in MODULE.LOCAL_INTENTS if pattern.search("muda sua voz")][:1],
+            ["voice_settings"],
+        )
+        opened, code = MODULE.dispatch_intent("muda sua personalidade", "persona_settings")
+        self.assertEqual(code, 200)
+        self.assertEqual(opened["client_action"], "open_persona_panel")
+        self.assertTrue(any(row["id"] == "mordomo" for row in opened["styles"]))
+
+        # Estilo desconhecido não vira injeção: cai no padrão, que não dita nada.
+        self.assertEqual(MODULE.persona_style_id({"persona_style": "inventado"}), "padrao")
+        self.assertEqual(MODULE.persona_style_id({"persona_style": "  DIRETO "}), "direto")
+        self.assertEqual(MODULE.persona_style_directive({}), "")
+        self.assertIn("uma frase", MODULE.persona_style_directive({"persona_style": "direto"}))
+
+        catalog = MODULE.persona_styles_payload({"persona_style": "afiado"})
+        self.assertEqual(catalog["active"], "afiado")
+        self.assertTrue(any(row["active"] for row in catalog["styles"]))
+
+        # O briefing conta que o estilo troca — ele nunca pode dizer que é fixo.
+        briefing = MODULE.capability_briefing(owner_authenticated=True)
+        self.assertIn("personalidade", briefing.casefold())
+        self.assertIn("pelo nome", briefing.casefold())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

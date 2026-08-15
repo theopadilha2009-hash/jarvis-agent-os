@@ -12,8 +12,10 @@ from pathlib import Path
 import platform
 import plistlib
 import re
+import shutil
 import signal
 import subprocess
+import tempfile
 import sys
 import time
 from urllib.error import HTTPError, URLError
@@ -44,6 +46,11 @@ BOOT_STATE = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "last-boot"
 )
 BOOT_QUIET_SECONDS = 180.0
+# A saudação sai pelo alto-falante do Mac: o navegador cala áudio sem clique.
+LOCAL_TTS_URL = os.environ.get("JARVIS_LOCAL_TTS_URL", "http://127.0.0.1:8123/speech")
+LOCAL_SAY_VOICE = os.environ.get("JARVIS_SAY_VOICE", "Reed")
+BOOT_GREETING = "Bem-vindo, Theo. Sistemas no ar. O que vamos fazer hoje?"
+ARRIVAL_GREETING = "Bem-vindo de volta, Theo. Estou pronto."
 LAUNCH_LABEL = "ai.theopadilha.jarvis-device-worker"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = ROOT / "09_LOGS"
@@ -217,10 +224,54 @@ def arrival_allowed(now: float) -> bool:
     return now - last >= ARRIVAL_COOLDOWN_SECONDS
 
 
+def speak_on_mac(text: str) -> str:
+    """Fala pelo alto-falante da máquina, sem depender de aba aberta.
+
+    A voz própria do cockpit vem primeiro; o `say` do macOS é a rede de
+    segurança para quando o servidor local não está de pé.
+    """
+    text = (text or "").strip()
+    if not text or os.environ.get("JARVIS_LOCAL_VOICE") == "0":
+        return "skipped"
+    if shutil.which("afplay"):
+        try:
+            request = Request(
+                LOCAL_TTS_URL,
+                data=json.dumps({"text": text}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urlopen(request, timeout=20) as response:
+                audio = response.read()
+            if audio:
+                suffix = ".wav" if audio[:4] == b"RIFF" else ".mp3"
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
+                    handle.write(audio)
+                    path = handle.name
+                try:
+                    subprocess.run(["/usr/bin/afplay", path], capture_output=True, timeout=90, check=False)
+                    return "local_tts"
+                finally:
+                    Path(path).unlink(missing_ok=True)
+        except (URLError, OSError, subprocess.TimeoutExpired, ValueError):
+            pass
+    try:
+        subprocess.run(
+            ["/usr/bin/say", "-v", LOCAL_SAY_VOICE, "-r", "180", text],
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+        return "say"
+    except (OSError, subprocess.TimeoutExpired):
+        return "failed"
+
+
 def announce_arrival(now: float, reason: str = "worker") -> bool:
-    """Theo chegou: abrir o cockpit já falando com ele."""
+    """Theo chegou: falar com ele e abrir o cockpit."""
     if not arrival_allowed(now):
         return False
+    speak_on_mac(BOOT_GREETING if reason == "boot" else ARRIVAL_GREETING)
     url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/?arrival={reason}"
     try:
         subprocess.run(["/usr/bin/open", url], capture_output=True, timeout=15, check=False)

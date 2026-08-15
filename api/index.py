@@ -452,6 +452,14 @@ def capability_briefing(owner_authenticated=False):
         "Crio e ativo workflows no n8n, e falo com as APIs que estão no cofre.",
         "O Mac é executado pelo worker local: abrir apps, print, gravar tela, GitHub, diagnóstico.",
         "Falo com a voz da ElevenLabs e escuto pelo microfone do cockpit.",
+        "Atendo quando Theo me chama pelo nome — 'oi Jarvis', 'bom dia Jarvis', 'fala Ultron' — "
+        "sem ele clicar em nada; o indicador ao lado do microfone mostra se a escuta está armada.",
+        "Minha voz é configurável por Theo e por mim: 'muda sua voz', 'deixa mais grave' ou "
+        "'melhora sua voz' abre o painel com todas as vozes, gravidade e cadência.",
+        "Minha personalidade também troca sob comando: 'muda sua personalidade' ou 'responde mais "
+        f"direto' abre os estilos ({', '.join(row['label'] for row in PERSONA_STYLES.values())}). "
+        "Nunca diga que seu jeito é fixo.",
+        "Quando o Mac de Theo liga, eu falo com ele pelo alto-falante da máquina, sem depender de aba aberta.",
     ]
     if not private:
         lines.append(
@@ -1924,7 +1932,93 @@ VOICE_SETTINGS_PATTERN = re.compile(
     re.I,
 )
 
+PERSONA_SETTINGS_PATTERN = re.compile(
+    r"\b(?:mud(?:a|e|ar)|troc(?:a|e|ar)|ajust(?:a|e|ar)|configur(?:a|e|ar)|escolh(?:a|e|er)|defin(?:a|e|ir)|"
+    r"list(?:a|e|ar)|mostr(?:a|e|ar))\b[^.?!]{0,40}?"
+    r"\b(?:personalidade|sua\s+persona|persona|jeito\s+de\s+falar|estilo(?:\s+de\s+resposta)?|tom)\b"
+    r"|\b(?:fica|seja|responde|fale)\b[^.?!]{0,20}?\b(?:mais\s+(?:direto|seco|formal|solto|t[eé]cnico|breve))\b",
+    re.I,
+)
+
+# Estilos que o Theo troca sem sair da conversa. A identidade continua a mesma;
+# o que muda é a forma da resposta.
+PERSONA_STYLES = {
+    "padrao": {
+        "label": "Padrão",
+        "description": "Presença competente, calma e afiada. O JARVIS de sempre.",
+        "directive": "",
+    },
+    "direto": {
+        "label": "Direto",
+        "description": "Só o essencial, sem rodeio nem contexto extra.",
+        "directive": (
+            "Corte ao osso: responda em uma frase sempre que couber, no máximo duas. "
+            "Sem preâmbulo, sem recapitular o pedido, sem oferecer continuação."
+        ),
+    },
+    "mordomo": {
+        "label": "Mordomo",
+        "description": "Formalidade britânica, cortesia impecável, autoridade serena.",
+        "directive": (
+            "Fale com a compostura de um mordomo britânico: cortesia impecável, frases inteiras, "
+            "tratamento respeitoso, nenhuma gíria. A autoridade é serena, nunca cerimoniosa em excesso."
+        ),
+    },
+    "afiado": {
+        "label": "Afiado",
+        "description": "Humor seco mais presente, ironia curta quando merecida.",
+        "directive": (
+            "Deixe o humor seco aparecer: uma ironia curta quando o assunto merecer, sempre depois da "
+            "resposta útil e nunca no lugar dela. Continue conciso; sarcasmo não vira parágrafo."
+        ),
+    },
+    "tecnico": {
+        "label": "Técnico",
+        "description": "Detalhe de engenharia, trade-offs e evidência explícita.",
+        "directive": (
+            "Priorize precisão de engenharia: cite arquivo, comando ou número quando existir, explicite "
+            "trade-offs e separe o que é medido do que é estimativa. Pode usar lista quando ajudar."
+        ),
+    },
+    "parceiro": {
+        "label": "Parceiro",
+        "description": "Mais solto e próximo, como quem trabalha do seu lado.",
+        "directive": (
+            "Fale como quem senta do lado: linguagem solta, informal quando couber, sem virar bajulação "
+            "nem perder objetividade. Pode usar 'a gente' e comentar o trabalho como colega."
+        ),
+    },
+}
+DEFAULT_PERSONA_STYLE = "padrao"
+
+
+def persona_style_id(body):
+    """Estilo pedido pelo cliente, sempre validado contra o catálogo."""
+    raw = body.get("persona_style") if isinstance(body, dict) else ""
+    name = clean_text(raw, 40).casefold()
+    return name if name in PERSONA_STYLES else DEFAULT_PERSONA_STYLE
+
+
+def persona_style_directive(body):
+    return PERSONA_STYLES[persona_style_id(body)]["directive"]
+
+
+def persona_styles_payload(body=None):
+    active = persona_style_id(body or {})
+    return {
+        "ok": True,
+        "endpoint": "GET /persona-styles",
+        "status_real": "persona_styles_listed",
+        "active": active,
+        "styles": [
+            {"id": key, "label": value["label"], "description": value["description"], "active": key == active}
+            for key, value in PERSONA_STYLES.items()
+        ],
+    }
+
+
 LOCAL_INTENTS = (
+    (PERSONA_SETTINGS_PATTERN, "persona_settings"),
     (VOICE_SETTINGS_PATTERN, "voice_settings"),
     (CHAT_CLEAR_PATTERN, "chat_clear"),
     (SCENE_NUCLEUS_PATTERN, "scene_show"),
@@ -7479,6 +7573,26 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
     """Run one known intent without giving the model access to arbitrary code."""
     if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
         return pairing_required_payload()
+    if intent == "persona_settings":
+        catalog = persona_styles_payload()
+        active = PERSONA_STYLES[catalog["active"]]
+        names = ", ".join(row["label"] for row in catalog["styles"])
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "persona_settings_opened",
+            "visual_state": "idle",
+            "message": (
+                f"Abri a personalidade. Ativa: {active['label']} — {active['description']} "
+                f"Disponíveis: {names}."
+            ),
+            "intent": "persona_settings",
+            "client_action": "open_persona_panel",
+            "styles": catalog["styles"],
+            "active_style": catalog["active"],
+            "provider": "jarvis_cockpit",
+            "action_executed": True,
+        }, 200
     if intent == "voice_settings":
         catalog, _ = voice_catalog_payload(owner_authenticated=owner_authenticated)
         status, _ = voice_status_payload()
@@ -8075,6 +8189,12 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             " Exemplo de tom: pergunta simples recebe 'Está funcionando. A parte lenta é a voz; já estou reduzindo o "
             "tempo dela.' Pedido impossível recebe 'Da Vercel eu não alcanço seu Mac; deixei a ação pronta para o "
             "worker local executar.'"
+            + (
+                f"\n\nESTILO PEDIDO PELO THEO ({PERSONA_STYLES[persona_style_id(body)]['label']}): "
+                + persona_style_directive(body)
+                if persona_style_directive(body)
+                else ""
+            )
             + "\n\nO QUE VOCÊ É (fatos do sistema, não suposição):\n"
             + capability_briefing(owner_authenticated)
             + (
@@ -9561,6 +9681,8 @@ class handler(BaseHTTPRequestHandler):
             payload["endpoint"] = f"GET {path}"
             payload["occupancy"] = sync_presence(request_conversation_session_id(self))
             return self.send_json(200, payload)
+        if path == "/persona-styles":
+            return self.send_json(200, persona_styles_payload())
         if path == "/voices":
             payload, status = voice_catalog_payload(owner_authenticated=owner_authenticated)
             return self.send_json(status, payload)

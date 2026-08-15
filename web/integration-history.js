@@ -92,6 +92,11 @@ window.JarvisIntegrationHistory = (() => {
   document.getElementById("voiceTuningButton")?.addEventListener("click", () => {
     import("/ui/voice-calibrator.js?v=20260815-vozes2").catch(() => null);
   }, { once: true });
+  document.getElementById("personaPanelButton")?.addEventListener("click", () => {
+    import("/ui/persona-panel.js?v=20260815-persona1")
+      .then(() => window.JarvisPersonaPanel?.open())
+      .catch(() => null);
+  });
   document.querySelector('[data-integration-tab="workflows"]')?.addEventListener("click", () => {
     import("/ui/n8n-template-pack.js?v=20260813-ultronfix1").catch(() => null);
   }, { once: true });
