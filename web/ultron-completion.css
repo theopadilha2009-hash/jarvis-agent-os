@@ -145,3 +145,12 @@ html[data-persona="ultron"] :is(
   .author-link span { display: none; }
   .author-link { padding-inline: 8px; }
 }
+
+html[data-persona="ultron"] .wake-indicator[data-state="on"] {
+  border-color: rgba(248, 113, 113, .5);
+  color: #fee2e2;
+}
+html[data-persona="ultron"] .wake-indicator[data-state="on"] i {
+  background: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, .9);
+}

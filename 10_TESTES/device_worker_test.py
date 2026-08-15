@@ -19,6 +19,10 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
+def _boom(*_args, **_kwargs):
+    raise OSError("servidor de voz fora do ar")
+
+
 class DeviceWorkerTest(unittest.TestCase):
     def test_screen_lock_detection_and_arrival_cooldown(self):
         """Desbloqueou o Mac depois de um tempo: abre o cockpit, uma vez por hora."""
@@ -30,10 +34,16 @@ class DeviceWorkerTest(unittest.TestCase):
             state = Path(folder) / "last-arrival"
             with patch.object(MODULE, "ARRIVAL_STATE", state):
                 opened = []
-                with patch.object(MODULE.subprocess, "run", lambda *a, **k: opened.append(a[0]) or None):
+                spoken = []
+                with patch.object(MODULE, "speak_on_mac", lambda text: spoken.append(text) or "say"), \
+                        patch.object(MODULE.subprocess, "run", lambda *a, **k: opened.append(a[0]) or None):
                     self.assertTrue(MODULE.announce_arrival(10_000.0))
+                    # Ele fala pelo alto-falante antes de abrir a aba: o
+                    # navegador silencia áudio que ninguém pediu com um clique.
+                    self.assertEqual(spoken, [MODULE.ARRIVAL_GREETING])
                     self.assertIn("/usr/bin/open", opened[0])
                     self.assertTrue(opened[0][1].endswith("/?arrival=worker"))
+                    spoken.clear()
                     # Dentro do cooldown não abre de novo.
                     self.assertFalse(MODULE.announce_arrival(10_600.0))
                     self.assertTrue(MODULE.announce_arrival(10_000.0 + MODULE.ARRIVAL_COOLDOWN_SECONDS + 1))
@@ -56,6 +66,42 @@ class DeviceWorkerTest(unittest.TestCase):
         source = Path(MODULE.__file__).read_text(encoding="utf-8")
         loop = source[source.index("while running:"):]
         self.assertLess(loop.index("screen_is_locked()"), loop.index("heartbeat()"))
+
+    def test_speak_on_mac_prefers_own_voice_and_falls_back_to_say(self):
+        """A saudação sai do alto-falante mesmo sem o servidor de voz de pé."""
+        calls = []
+
+        class FakeResponse:
+            def read(self):
+                return b"ID3fake-mp3"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        with patch.object(MODULE.shutil, "which", lambda name: f"/usr/bin/{name}"), \
+                patch.object(MODULE, "urlopen", lambda *a, **k: FakeResponse()), \
+                patch.object(MODULE.subprocess, "run", lambda *a, **k: calls.append(a[0]) or None):
+            self.assertEqual(MODULE.speak_on_mac("Bem-vindo, Theo."), "local_tts")
+            self.assertEqual(calls[0][0], "/usr/bin/afplay")
+
+        # Servidor local fora do ar: o macOS assume com voz masculina.
+        calls.clear()
+        with patch.object(MODULE.shutil, "which", lambda name: f"/usr/bin/{name}"), \
+                patch.object(MODULE, "urlopen", _boom), \
+                patch.object(MODULE.subprocess, "run", lambda *a, **k: calls.append(a[0]) or None):
+            self.assertEqual(MODULE.speak_on_mac("Bem-vindo, Theo."), "say")
+            self.assertEqual(calls[0][:3], ["/usr/bin/say", "-v", MODULE.LOCAL_SAY_VOICE])
+
+        # Texto vazio e desligamento explícito não fazem barulho nenhum.
+        calls.clear()
+        with patch.object(MODULE.subprocess, "run", lambda *a, **k: calls.append(a[0]) or None):
+            self.assertEqual(MODULE.speak_on_mac("   "), "skipped")
+            with patch.dict(MODULE.os.environ, {"JARVIS_LOCAL_VOICE": "0"}):
+                self.assertEqual(MODULE.speak_on_mac("oi"), "skipped")
+        self.assertEqual(calls, [])
 
     def test_command_argv_maps_only_explicit_actions(self):
         opened = MODULE.command_argv({"action": "open_application", "target": "Calculator"})

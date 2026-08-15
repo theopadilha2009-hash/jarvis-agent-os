@@ -109,3 +109,7 @@ supabase/.temp/
 !05_EXECUCAO/62_RESEARCH_DIGEST/.gitkeep
 .vercel
 .env*
+
+# AI context — cache/sessão local (não versionar)
+.context/cache/
+.context/runtime/

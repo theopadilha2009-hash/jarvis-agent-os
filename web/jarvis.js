@@ -2614,9 +2614,17 @@
     installWakeWord(recognition);
   }
 
-  // Chamar pelo nome: "fala jarvis", "e aí jarvis", "oi ultron" e variações.
-  const WAKE_WORD = /\b(?:ei|ai|a[ií]|oi|ol[aá]|fala|falae|e\s*a[ií]|opa|escuta|acorda|acorde|desperta|desperte)\s*[, ]*\s*(jarvis|j[aá]rvis|ultron)\b|\b(jarvis|j[aá]rvis|ultron)\b[^.?!]{0,20}?\b(?:t[aá]\s+a[ií]|est[aá]\s+a[ií]|a[ií]\?|acordado|escutando|me\s+ouve|me\s+escuta)/i;
-  const WAKE_KEY = "jarvis-wake-word";
+  // Chamar pelo nome, como a Siri: "oi jarvis", "bom dia jarvis", "fala ultron".
+  const WAKE_CALL = "ei|ai|a[ií]|oi|ol[aá]|al[oô]|fala|falae|opa|psiu|escuta|escute|acorda|acorde|desperta|desperte|bom\\s*dia|boa\\s*tarde|boa\\s*noite|beleza|qual\\s*foi|e\\s*a[eií]|eae";
+  const WAKE_NAME = "jarvis|j[aá]rvis|jarves|jarvi[sz]|ultron|ultr[oó]n";
+  const WAKE_WORD = new RegExp(
+    `\\b(?:${WAKE_CALL})\\s*[,!.]*\\s*(?:${WAKE_NAME})\\b`
+    + `|^\\s*(?:${WAKE_NAME})\\b(?=[\\s,!?]|$)`
+    + `|\\b(?:${WAKE_NAME})\\b[^.?!]{0,20}?\\b(?:t[aá]\\s+a[ií]|est[aá]\\s+a[ií]|acordado|escutando|me\\s+ouve|me\\s+escuta)`,
+    "i",
+  );
+  // v2: a chave antiga ficou envenenada com "0" na primeira negativa do microfone.
+  const WAKE_KEY = "jarvis-wake-word-v2";
 
   function wakeWordEnabled() {
     try {
@@ -2632,61 +2640,156 @@
     } catch { /* vale só nesta aba */ }
   }
 
+  async function microphoneGranted() {
+    try {
+      const status = await navigator.permissions.query({ name: "microphone" });
+      return status.state === "granted";
+    } catch {
+      return false;
+    }
+  }
+
+  async function askMicrophone() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function installWakeWord(commandRecognition) {
     if (!Recognition) return;
+    const badge = byId("wakeIndicator");
     const listener = new Recognition();
     listener.lang = "pt-BR";
     listener.interimResults = true;
     listener.continuous = true;
     let running = false;
+    let blocked = false;
     let restartTimer = 0;
+    let afterEnd = null;
 
-    const restart = (delay = 900) => {
+    const paint = () => {
+      if (!badge) return;
+      const state = !wakeWordEnabled() ? "off" : blocked ? "blocked" : running ? "on" : "arming";
+      badge.hidden = false;
+      badge.dataset.state = state;
+      badge.title = {
+        on: "Escutando pelo nome. Diga \"oi Jarvis\" sem clicar em nada.",
+        arming: "Preparando a escuta pelo nome…",
+        blocked: "Microfone bloqueado. Clique para liberar e atender pelo nome.",
+        off: "Escuta pelo nome desligada. Clique para ligar.",
+      }[state];
+    };
+
+    // Nunca devolve sem reagendar: um ciclo ocupado não pode matar a escuta.
+    const arm = (delay = 900) => {
       window.clearTimeout(restartTimer);
-      restartTimer = window.setTimeout(() => {
-        if (!wakeWordEnabled() || session.listening || session.working) return;
+      restartTimer = window.setTimeout(async () => {
+        if (!wakeWordEnabled()) return paint();
+        if (running || session.listening || session.working) return arm(1_500);
+        if (!(await microphoneGranted())) {
+          blocked = true;
+          return paint();
+        }
+        blocked = false;
         try {
           listener.start();
-        } catch { /* já em execução */ }
+        } catch {
+          arm(1_500);
+        }
+        paint();
       }, delay);
     };
 
-    listener.onstart = () => { running = true; };
+    listener.onstart = () => { running = true; paint(); };
     listener.onend = () => {
       running = false;
-      if (wakeWordEnabled()) restart(1_200);
+      const pending = afterEnd;
+      afterEnd = null;
+      if (pending) pending();
+      else if (wakeWordEnabled()) arm(1_200);
+      paint();
     };
     listener.onerror = (event) => {
-      // Sem microfone liberado não adianta insistir.
-      if (event.error === "not-allowed") setWakeWord(false);
+      // Negativa do microfone não desliga o recurso: ela só pede um clique.
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") blocked = true;
+      paint();
     };
     listener.onresult = (event) => {
-      const heard = Array.from(event.results).map((row) => row[0].transcript).join(" ");
+      const heard = Array.from(event.results)
+        .slice(event.resultIndex)
+        .map((row) => row[0].transcript)
+        .join(" ")
+        .trim();
       if (!WAKE_WORD.test(heard)) return;
-      listener.stop();
       const rest = heard.replace(WAKE_WORD, " ").replace(/\s+/g, " ").trim();
       pulseNucleus("core", "chamado");
       if (rest.length > 3) {
-        sendCommand(rest, { source: "voice" });
+        afterEnd = () => sendCommand(rest, { source: "voice" });
+        listener.stop();
         return;
       }
       const reply = session.paired ? "Às ordens, Theo." : "Estou aqui.";
       addMessage(reply, "jarvis");
       speak(reply);
-      stopSpeechOutput();
-      try {
-        commandRecognition.start();
-      } catch { /* o clique no microfone continua valendo */ }
+      // stop() é assíncrono: só devolvemos o microfone ao comando depois do onend.
+      afterEnd = () => {
+        try {
+          commandRecognition.start();
+        } catch { /* o clique no microfone continua valendo */ }
+      };
+      listener.stop();
     };
+
+    badge?.addEventListener("click", async () => {
+      if (!wakeWordEnabled()) {
+        setWakeWord(true);
+        blocked = false;
+        paint();
+        arm(200);
+        return;
+      }
+      if (blocked) {
+        blocked = !(await askMicrophone());
+        paint();
+        if (!blocked) arm(200);
+        return;
+      }
+      setWakeWord(false);
+      if (running) listener.stop();
+      paint();
+    });
 
     window.addEventListener("jarvis-wake-word", (event) => {
       setWakeWord(Boolean(event.detail?.enabled));
-      if (event.detail?.enabled) restart(300);
+      if (event.detail?.enabled) arm(300);
       else if (running) listener.stop();
+      paint();
     });
-    if (wakeWordEnabled()) restart(2_500);
+
+    (async () => {
+      paint();
+      if (!wakeWordEnabled()) return;
+      if (await microphoneGranted()) return arm(1_500);
+      // Sem permissão ainda: o primeiro gesto na página serve de autorização.
+      blocked = true;
+      paint();
+      const onGesture = async () => {
+        if (await askMicrophone()) {
+          blocked = false;
+          arm(300);
+        }
+        paint();
+      };
+      window.addEventListener("pointerdown", onGesture, { once: true });
+    })();
+
     window.JarvisWakeWord = Object.freeze({
       enabled: wakeWordEnabled,
+      test: (phrase) => WAKE_WORD.test(String(phrase || "")),
       set: (value) => window.dispatchEvent(new CustomEvent("jarvis-wake-word", { detail: { enabled: value } })),
     });
   }
