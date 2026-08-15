@@ -9,7 +9,7 @@ const loadStyle = (id, href) => {
   document.head.appendChild(link);
 };
 
-loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260815-voz2");
+loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260815-voz3");
 
 function ensureDialog(id, className, titleId, title, mountId) {
   if (document.getElementById(id)) return;
