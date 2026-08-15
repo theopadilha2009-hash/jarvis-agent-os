@@ -44,6 +44,8 @@ __pycache__/
 supabase/.temp/
 09_LOGS/device-worker.log
 09_LOGS/device-worker-error.log
+09_LOGS/voice-server.log
+09_LOGS/voice-server-error.log
 
 # JARVIS old generated/runtime folders
 05_EXECUCAO/21_CLAUDE_MISSIONS/
