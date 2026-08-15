@@ -189,8 +189,8 @@
   transition: opacity 420ms ease;
 }
 .stage[data-nuclei="3d"] .nucleus-legend span { opacity: 1; }
-.nucleus-legend span:nth-child(2) { color: rgba(253, 186, 116, 0.78); }
-.nucleus-legend span:nth-child(3) { color: rgba(165, 243, 252, 0.78); }
+.nucleus-legend span:nth-child(2) { color: rgba(216, 180, 254, 0.78); }
+.nucleus-legend span:nth-child(3) { color: rgba(183, 148, 244, 0.78); }
 .stage:not([data-nuclei="3d"]) .nucleus-legend { display: none; }
 
 /* Visitante só vê o essencial; o ícone de troca abre o acesso. */

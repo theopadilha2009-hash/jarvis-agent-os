@@ -35,9 +35,9 @@
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
-  // v2: as janelas salvas antes disso ficaram achatadas (240px de altura num
-  // painel de 720 de largura). Trocar a chave devolve todo mundo ao default.
-  const CHAT_RECT_KEY = "jarvis-chat-rect-v2";
+  // v3: a janela nasce como painel à direita. Trocar a chave descarta as
+  // geometrias salvas antes disso (achatadas, ou centradas no rodapé).
+  const CHAT_RECT_KEY = "jarvis-chat-rect-v3";
   const MAX_VISIBLE_MESSAGES = 24;
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
@@ -2614,13 +2614,14 @@
   }
 
   function defaultConversationRect() {
-    const width = Math.min(660, window.innerWidth - 32);
-    const height = Math.min(Math.max(440, Math.round(window.innerHeight * 0.62)), 620, window.innerHeight - 96);
+    // Painel à direita: o busto e os núcleos ficam livres à esquerda.
+    const width = Math.min(Math.max(360, Math.round(window.innerWidth * 0.26)), 480, window.innerWidth - 32);
+    const height = Math.min(Math.max(440, Math.round(window.innerHeight * 0.66)), 700, window.innerHeight - 96);
     return {
       width,
       height,
-      left: Math.round((window.innerWidth - width) / 2),
-      top: window.innerHeight - height - 16,
+      left: Math.max(16, window.innerWidth - width - 28),
+      top: Math.max(64, Math.round(window.innerHeight * 0.13)),
     };
   }
 

@@ -643,9 +643,11 @@ async function start() {
   const coreEntity = makeCoreEntity(scene);
   const MINI_PLANE_Z = 1.35;
   const miniNuclei = [
-    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xc084fc, wire: 0xa855f7, emissive: 0x3b1675, ultronSoul: 0xfca5a5, ultronWire: 0xf87171, ultronEmissive: 0x991b1b }),
-    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0xfb923c, wire: 0xf97316, emissive: 0x9a3412, ultronSoul: 0xf87171, ultronWire: 0xef4444, ultronEmissive: 0x7f1d1d }),
-    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: 0x67e8f9, wire: 0x22d3ee, emissive: 0x0e7490, ultronSoul: 0xef4444, ultronWire: 0xdc2626, ultronEmissive: 0x641414 }),
+    // Os três são o mesmo núcleo, cada um no tom que a cena assume naquele
+    // modo: pedir memória tem que acender exatamente esta cor.
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: COLORS.thinking, wire: 0xa855f7, emissive: 0x3b1675, ultronSoul: 0xfca5a5, ultronWire: 0xf87171, ultronEmissive: 0x991b1b }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: COLORS.forge, wire: 0xa855f7, emissive: 0x3b1675, ultronSoul: 0xf87171, ultronWire: 0xef4444, ultronEmissive: 0x7f1d1d }),
+    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: COLORS.memory, wire: 0xa855f7, emissive: 0x3b1675, ultronSoul: 0xef4444, ultronWire: 0xdc2626, ultronEmissive: 0x641414 }),
   ];
   stage.dataset.nuclei = "3d";
 

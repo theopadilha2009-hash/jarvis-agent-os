@@ -335,7 +335,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260814-nucleus2")', self.presence_loader_js)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-nucleus3")', self.presence_loader_js)
         self.assertIn("always: true", self.presence_js)
         self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
@@ -352,7 +352,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
-        self.assertGreaterEqual(self.html.count("20260814-nucleus2"), 5)
+        self.assertGreaterEqual(self.html.count("20260815-nucleus3"), 5)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -365,6 +365,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("wireMaterial.color.setHex(ultron ? (options.ultronWire ?? 0xef4444)", self.presence_js)
         self.assertIn("soulMaterial.color.setHex(ultron ? (options.ultronSoul ?? 0xf87171)", self.presence_js)
         # As miniaturas também viram vermelhas no Ultron: nada de roxo/laranja/ciano.
+        self.assertIn("soul: COLORS.forge", self.presence_js)
+        self.assertIn("soul: COLORS.memory", self.presence_js)
         self.assertIn("ultronSoul: 0xfca5a5", self.presence_js)
         self.assertIn("ultronSoul: 0xef4444", self.presence_js)
         self.assertNotIn("if (!always) {", self.presence_js)
@@ -533,12 +535,15 @@ class UIQualityTest(unittest.TestCase):
 
     def test_chat_window_opens_tall_and_drops_the_squashed_saved_rect(self):
         """A janela salva antes da v2 abria 720x240; a chave nova descarta isso."""
-        self.assertIn('const CHAT_RECT_KEY = "jarvis-chat-rect-v2"', self.app_js)
+        self.assertIn('const CHAT_RECT_KEY = "jarvis-chat-rect-v3"', self.app_js)
         self.assertIn('localStorage.removeItem("jarvis-chat-rect")', self.html)
-        self.assertIn('localStorage.getItem("jarvis-chat-rect-v2")', self.html)
+        self.assertIn('localStorage.getItem("jarvis-chat-rect-v3")', self.html)
+        self.assertIn('localStorage.removeItem("jarvis-chat-rect-v2")', self.html)
         self.assertNotIn("jarvis-chat-height", self.app_js)
         self.assertIn("const minH = 340", self.app_js)
-        self.assertIn("Math.max(440, Math.round(window.innerHeight * 0.62))", self.app_js)
+        self.assertIn("Math.max(440, Math.round(window.innerHeight * 0.66))", self.app_js)
+        # Nasce como painel à direita, com o busto e os núcleos livres à esquerda.
+        self.assertIn("window.innerWidth - width - 28", self.app_js)
 
     def test_mini_nuclei_are_anchored_to_the_legend(self):
         """Núcleo, Forja e Memória: cada nome encosta na sua própria miniatura."""
