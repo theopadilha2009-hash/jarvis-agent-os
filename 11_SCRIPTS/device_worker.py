@@ -34,6 +34,12 @@ STALE_AFTER_SECONDS = 300
 RETENTION_INTERVAL_SECONDS = 21_600.0
 ARTIFACT_KEEP_COUNT = 20
 ARTIFACT_MAX_AGE_DAYS = 30
+ARRIVAL_COCKPIT_URL = os.environ.get("JARVIS_COCKPIT_URL", "https://jarvis-theo.vercel.app")
+ARRIVAL_MIN_LOCKED_SECONDS = 600.0
+ARRIVAL_COOLDOWN_SECONDS = 3_600.0
+ARRIVAL_STATE = (
+    Path.home() / "Library" / "Application Support" / "JARVIS" / "last-arrival"
+)
 LAUNCH_LABEL = "ai.theopadilha.jarvis-device-worker"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = ROOT / "09_LOGS"
@@ -139,6 +145,53 @@ def keychain_value(service: str) -> str:
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def screen_locked_flag(ioreg_output: str) -> bool:
+    """A chave só existe quando a sessão está bloqueada; ausência é tela livre."""
+    match = re.search(r'"CGSSessionScreenIsLocked"\s*=\s*(Yes|No|true|false|1|0)', ioreg_output, re.I)
+    return bool(match) and match.group(1).lower() in {"yes", "true", "1"}
+
+
+def screen_is_locked() -> bool:
+    try:
+        result = subprocess.run(
+            ["/usr/sbin/ioreg", "-n", "Root", "-d1", "-k", "CGSSessionScreenIsLocked"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return screen_locked_flag(result.stdout or "")
+
+
+def arrival_allowed(now: float) -> bool:
+    if os.environ.get("JARVIS_ARRIVAL") == "0":
+        return False
+    try:
+        last = float(ARRIVAL_STATE.read_text().strip() or 0)
+    except (OSError, ValueError):
+        last = 0.0
+    return now - last >= ARRIVAL_COOLDOWN_SECONDS
+
+
+def announce_arrival(now: float) -> bool:
+    """Theo desbloqueou o Mac: abrir o cockpit já falando com ele."""
+    if not arrival_allowed(now):
+        return False
+    url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/?arrival=worker"
+    try:
+        subprocess.run(["/usr/bin/open", url], capture_output=True, timeout=15, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    try:
+        ARRIVAL_STATE.parent.mkdir(parents=True, exist_ok=True)
+        ARRIVAL_STATE.write_text(str(now))
+    except OSError:
+        pass
+    return True
 
 
 def configuration() -> tuple[str, str]:
@@ -845,6 +898,7 @@ def main() -> int:
                 print("Preview: consultaria a fila continuamente; nenhum heartbeat ou comando foi gravado.")
             else:
                 running = True
+                locked_since = 0.0
                 last_heartbeat = 0.0
                 last_recovery = 0.0
                 last_retention = 0.0
@@ -875,6 +929,15 @@ def main() -> int:
                             if removed:
                                 print(f"Retenção: {removed} preview(s) remoto(s) antigo(s) removido(s).", flush=True)
                             last_retention = monotonic_now
+                        wall_now = time.time()
+                        if screen_is_locked():
+                            if not locked_since:
+                                locked_since = wall_now
+                        elif locked_since:
+                            away = wall_now - locked_since
+                            locked_since = 0.0
+                            if away >= ARRIVAL_MIN_LOCKED_SECONDS and announce_arrival(wall_now):
+                                print(f"Chegada: cockpit aberto após {int(away // 60)} min de tela bloqueada.", flush=True)
                         message = run_once()
                         if not message.startswith("Fila vazia"):
                             print(message, flush=True)
