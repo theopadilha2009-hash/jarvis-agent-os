@@ -260,14 +260,14 @@ window.addEventListener("jarvis-state", (event) => {
 });
 applyVisualMode(visualState);
 
-function makeEffectCanvas() {
+function makeEffectCanvas(layer = "effects", zIndex = "0") {
   const canvas = document.createElement("canvas");
   canvas.className = "effect-canvas";
   canvas.style.position = "absolute";
   canvas.style.inset = "0";
-  canvas.style.zIndex = "0";
+  canvas.style.zIndex = zIndex;
   canvas.style.pointerEvents = "none";
-  canvas.dataset.visualLayer = "effects";
+  canvas.dataset.visualLayer = layer;
   mount.appendChild(canvas);
   return canvas;
 }
@@ -291,11 +291,12 @@ async function loadMemoryLabels() {
   }
 }
 
-function drawMemory(ctx, width, height, time, labels, opacity = 1) {
-  const centerX = width * (compactViewport ? 0.62 : 0.66);
-  const centerY = height * 0.43;
-  const span = Math.min(width, height);
-  const visibleLabels = labels.slice(0, 16);
+function drawMemory(ctx, width, height, time, labels, opacity = 1, layout = null) {
+  const mini = Boolean(layout?.mini);
+  const centerX = layout?.centerX ?? width * (compactViewport ? 0.62 : 0.66);
+  const centerY = layout?.centerY ?? height * 0.43;
+  const span = layout?.span ?? Math.min(width, height);
+  const visibleLabels = labels.slice(0, mini ? 9 : 16);
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
   const aura = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, span * 0.42);
@@ -303,7 +304,9 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
   aura.addColorStop(0.5, personaColor("rgba(139,92,246,.055)", "rgba(239,68,68,.065)"));
   aura.addColorStop(1, personaColor("rgba(91,33,182,0)", "rgba(127,29,29,0)"));
   ctx.fillStyle = aura;
-  ctx.fillRect(0, 0, width, height);
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, span * 0.42, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.lineWidth = 1;
   for (let ring = 1; ring <= 4; ring += 1) {
@@ -336,7 +339,7 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
     ctx.arc(x, y, 2 + (index % 3) * 0.7, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    if (index < 10) {
+    if (index < 10 && !mini) {
       ctx.fillStyle = personaColor("rgba(204,251,241,.66)", "rgba(255,245,245,.72)");
       ctx.textAlign = x < centerX ? "right" : "left";
       ctx.fillText(label, x + (x < centerX ? -7 : 7), y + 3);
@@ -361,18 +364,20 @@ function drawMemory(ctx, width, height, time, labels, opacity = 1) {
   ctx.shadowColor = personaColor("#a78bfa", "#ef4444");
   ctx.shadowBlur = 28;
   ctx.beginPath();
-  ctx.arc(centerX, centerY, 7 + Math.sin(time * 2) * 1.5, 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, span * 0.018 + Math.sin(time * 2) * span * 0.004, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.fillStyle = personaColor("rgba(220,252,248,.92)", "rgba(255,245,245,.94)");
-  ctx.textAlign = "center";
-  ctx.font = "700 18px ui-sans-serif, system-ui";
-  ctx.fillText(String(labels.length), centerX, centerY - 18);
-  ctx.font = "8px ui-monospace, Menlo, monospace";
-  ctx.fillText("MEMÓRIA · REGISTRO CONFIRMADO", centerX, centerY + 26);
-  ctx.textAlign = "right";
-  ctx.fillStyle = personaColor("rgba(221,214,254,.45)", "rgba(254,202,202,.48)");
-  ctx.fillText("CONTEXTO · ÍNDICE PERSISTENTE", width - 24, height - 28);
+  if (!mini) {
+    ctx.fillStyle = personaColor("rgba(220,252,248,.92)", "rgba(255,245,245,.94)");
+    ctx.textAlign = "center";
+    ctx.font = "700 18px ui-sans-serif, system-ui";
+    ctx.fillText(String(labels.length), centerX, centerY - 18);
+    ctx.font = "8px ui-monospace, Menlo, monospace";
+    ctx.fillText("MEMÓRIA · REGISTRO CONFIRMADO", centerX, centerY + 26);
+    ctx.textAlign = "right";
+    ctx.fillStyle = personaColor("rgba(221,214,254,.45)", "rgba(254,202,202,.48)");
+    ctx.fillText("CONTEXTO · ÍNDICE PERSISTENTE", width - 24, height - 28);
+  }
   ctx.restore();
 }
 
@@ -383,10 +388,11 @@ const FORGE_COMPONENTS = Array.from({ length: 20 }, (_, index) => ({
   size: 5 + (index % 4) * 2,
 }));
 
-function drawForge(ctx, width, height, time, opacity = 1) {
-  const centerX = width * (compactViewport ? 0.62 : 0.66);
-  const centerY = height * 0.43;
-  const span = Math.min(width, height);
+function drawForge(ctx, width, height, time, opacity = 1, layout = null) {
+  const mini = Boolean(layout?.mini);
+  const centerX = layout?.centerX ?? width * (compactViewport ? 0.62 : 0.66);
+  const centerY = layout?.centerY ?? height * 0.43;
+  const span = layout?.span ?? Math.min(width, height);
   const assembly = 0.5 + 0.5 * Math.sin(time * 0.92);
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
@@ -395,7 +401,9 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   aura.addColorStop(0.48, personaColor("rgba(192,132,252,.045)", "rgba(248,113,113,.055)"));
   aura.addColorStop(1, personaColor("rgba(109,40,217,0)", "rgba(127,29,29,0)"));
   ctx.fillStyle = aura;
-  ctx.fillRect(0, 0, width, height);
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, span * 0.42, 0, Math.PI * 2);
+  ctx.fill();
 
   for (let ring = 1; ring <= 3; ring += 1) {
     const radius = ring * span * 0.09;
@@ -437,14 +445,15 @@ function drawForge(ctx, width, height, time, opacity = 1) {
       ? personaColor("rgba(109,40,217,.12)", "rgba(127,29,29,.14)")
       : personaColor("rgba(168,85,247,.13)", "rgba(239,68,68,.15)");
     ctx.lineWidth = 1;
+    const size = component.size * (span / 620);
     ctx.beginPath();
-    ctx.roundRect(-component.size, -component.size * 0.55, component.size * 2, component.size * 1.1, 2);
+    ctx.roundRect(-size, -size * 0.55, size * 2, size * 1.1, 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
   });
 
-  const coreRadius = 12 + assembly * 14;
+  const coreRadius = span * (0.019 + assembly * 0.023);
   const glow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius * 2.4);
   glow.addColorStop(0, personaColor(`rgba(243,232,255,${0.7 + assembly * 0.24})`, `rgba(255,245,245,${0.72 + assembly * 0.24})`));
   glow.addColorStop(0.42, personaColor(`rgba(168, 85, 247,${0.24 + assembly * 0.18})`, `rgba(239,68,68,${0.28 + assembly * 0.2})`));
@@ -457,6 +466,10 @@ function drawForge(ctx, width, height, time, opacity = 1) {
   ctx.beginPath();
   ctx.arc(centerX, centerY, coreRadius * 0.35, 0, Math.PI * 2);
   ctx.fill();
+  if (mini) {
+    ctx.restore();
+    return;
+  }
   ctx.strokeStyle = personaColor("rgba(168,85,247,.5)", "rgba(248,113,113,.58)");
   ctx.strokeRect(centerX - span * 0.105, centerY - span * 0.06, span * 0.21, span * 0.12);
   ctx.fillStyle = personaColor("rgba(233,213,255,.75)", "rgba(254,226,226,.8)");
@@ -622,6 +635,9 @@ async function start() {
 
   const effectCanvas = makeEffectCanvas();
   const effectContext = effectCanvas.getContext("2d");
+  // As miniaturas ficam na frente do busto; os efeitos de tela cheia, atrás.
+  const thumbCanvas = makeEffectCanvas("nuclei", "2");
+  const thumbContext = thumbCanvas.getContext("2d");
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   camera.position.set(0, 0.02, 5.1);
@@ -642,14 +658,99 @@ async function start() {
   scene.add(lowerFill);
   const coreEntity = makeCoreEntity(scene);
   const MINI_PLANE_Z = 1.35;
-  const miniNuclei = [
-    // Os três são o mesmo núcleo, cada um no tom que a cena assume naquele
-    // modo: pedir memória tem que acender exatamente esta cor.
-    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: COLORS.thinking, wire: 0xa855f7, emissive: 0x3b1675, ultronSoul: 0xfca5a5, ultronWire: 0xf87171, ultronEmissive: 0x991b1b }),
-    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: COLORS.forge, wire: 0xa855f7, emissive: 0x3b1675, ultronSoul: 0xf87171, ultronWire: 0xef4444, ultronEmissive: 0x7f1d1d }),
-    makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: COLORS.memory, wire: 0xa855f7, emissive: 0x3b1675, ultronSoul: 0xef4444, ultronWire: 0xdc2626, ultronEmissive: 0x641414 }),
-  ];
+  // Cada linha da coluna é o visual real daquele modo: o núcleo 3D, a forja
+  // que monta as peças e a árvore de memória. Pedir memória acende na cena
+  // exatamente o que a miniatura mostra.
+  const miniCore = makeCoreEntity(scene, { always: true, z: MINI_PLANE_Z, soul: COLORS.thinking, wire: 0xa855f7, emissive: 0x3b1675 });
+  const nucleusSlots = [];
   stage.dataset.nuclei = "3d";
+
+  let canvasWidth = 1;
+  let canvasHeight = 1;
+  // Declarados aqui porque as miniaturas desenham antes do loop principal.
+  let memoryLabels = ["DECISIONS", "LEARNINGS", "PROJECTS", "CONTEXT", "TASKS", "ACTIONS", "THEO"];
+  const modeBlend = { core: 0, forge: 0, memory: 0 };
+
+  // As miniaturas vivem na coluna esquerda do palco: a posição é decidida em
+  // pixels e convertida para o mundo, então a legenda encosta nelas em
+  // qualquer proporção de tela.
+  const legendItems = Array.from(document.querySelectorAll(".nucleus-legend span"));
+  const nucleusRay = new THREE.Vector3();
+  function placeMiniNuclei() {
+    const compact = canvasWidth < 760;
+    // Miniatura de verdade: dá para reconhecer o núcleo, não é um pontinho.
+    const diameter = Math.min(compact ? 76 : 130, Math.max(60, canvasHeight * 0.17), canvasWidth * 0.22);
+    const centerX = Math.round(18 + diameter / 2);
+    const step = Math.max(diameter * 1.14, canvasHeight * 0.145);
+    const first = Math.min(canvasHeight * 0.46, canvasHeight - diameter / 2 - 8 - step * 2);
+    const rows = [first, first + step, first + step * 2];
+    camera.updateMatrixWorld(true);
+    const depth = camera.position.z - MINI_PLANE_Z;
+    const viewHeight = 2 * Math.tan((camera.fov * Math.PI) / 180 / 2) * depth;
+    nucleusSlots.length = 0;
+    rows.forEach((pixelY, index) => {
+      nucleusRay.set((centerX / canvasWidth) * 2 - 1, -((pixelY / canvasHeight) * 2 - 1), 0.5)
+        .unproject(camera)
+        .sub(camera.position)
+        .normalize();
+      const distance = (MINI_PLANE_Z - camera.position.z) / nucleusRay.z;
+      const world = camera.position.clone().addScaledVector(nucleusRay, distance);
+      nucleusSlots.push({ centerX, centerY: pixelY, span: diameter * 2.2, mini: true });
+      if (index === 0) {
+        miniCore.group.position.set(world.x, world.y, MINI_PLANE_Z);
+        miniCore.group.userData.baseY = world.y;
+        // 1.5 é o raio do halo de estilhaços, o contorno mais largo do núcleo.
+        miniCore.group.scale.setScalar((diameter / 2 / canvasHeight) * viewHeight / 1.5);
+      }
+      const label = legendItems[index];
+      if (!label) return;
+      label.style.setProperty("--nucleus-x", `${Math.round(centerX + diameter / 2)}px`);
+      label.style.setProperty("--nucleus-y", `${Math.round(pixelY)}px`);
+    });
+  }
+
+  function resize() {
+    const rect = mount.getBoundingClientRect();
+    canvasWidth = Math.max(rect.width, 1);
+    canvasHeight = Math.max(rect.height, 1);
+    camera.aspect = canvasWidth / canvasHeight;
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, QUALITY_PROFILES[graphicsQuality].pixelRatio));
+    renderer.setSize(canvasWidth, canvasHeight, false);
+    const density = Math.min(window.devicePixelRatio || 1, 1.5);
+    [[effectCanvas, effectContext], [thumbCanvas, thumbContext]].forEach(([canvas, context]) => {
+      canvas.width = Math.round(canvasWidth * density);
+      canvas.height = Math.round(canvasHeight * density);
+      canvas.style.width = `${canvasWidth}px`;
+      canvas.style.height = `${canvasHeight}px`;
+      context.setTransform(density, 0, 0, density, 0, 0);
+    });
+    placeMiniNuclei();
+  }
+  // Os visuais de forja e memória foram desenhados para ocupar a tela toda;
+  // em miniatura eles somem no fundo, então a luz é acumulada em passadas.
+  function drawNucleusThumbnails(time) {
+    thumbContext.clearRect(0, 0, canvasWidth, canvasHeight);
+    if (!nucleusSlots[1] || !nucleusSlots[2]) return;
+    thumbContext.save();
+    thumbContext.globalCompositeOperation = "lighter";
+    for (let pass = 0; pass < 3; pass += 1) {
+      drawForge(thumbContext, canvasWidth, canvasHeight, time, 0.72 + modeBlend.forge * 0.28, nucleusSlots[1]);
+      drawMemory(thumbContext, canvasWidth, canvasHeight, time, memoryLabels, 0.72 + modeBlend.memory * 0.28, nucleusSlots[2]);
+    }
+    thumbContext.restore();
+  }
+
+  const resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(mount);
+  resize();
+
+  // As miniaturas não esperam o busto de 3 MB: elas já desenham enquanto
+  // o modelo carrega, e o loop principal assume quando entra em cena.
+  let thumbnailTicker = requestAnimationFrame(function tick(now) {
+    drawNucleusThumbnails(now / 1000);
+    thumbnailTicker = requestAnimationFrame(tick);
+  });
 
   const root = new THREE.Group();
   scene.add(root);
@@ -751,7 +852,6 @@ async function start() {
   const particles = new THREE.Points(particleGeometry, particleMaterial);
   scene.add(particles);
 
-  let memoryLabels = ["DECISIONS", "LEARNINGS", "PROJECTS", "CONTEXT", "TASKS", "ACTIONS", "THEO"];
   let memoryLabelsLoaded = false;
   async function refreshMemoryLabels() {
     memoryLabels = await loadMemoryLabels();
@@ -788,63 +888,6 @@ async function start() {
   };
   window.addEventListener("jarvis-voice-level", onVoiceLevel);
 
-  let canvasWidth = 1;
-  let canvasHeight = 1;
-
-  // As miniaturas vivem na coluna esquerda do palco: a posição é decidida em
-  // pixels e convertida para o mundo, então a legenda encosta nelas em
-  // qualquer proporção de tela.
-  const legendItems = Array.from(document.querySelectorAll(".nucleus-legend span"));
-  const nucleusRay = new THREE.Vector3();
-  function placeMiniNuclei() {
-    const compact = canvasWidth < 760;
-    // Miniatura de verdade: dá para reconhecer o núcleo, não é um pontinho.
-    const diameter = Math.min(compact ? 76 : 130, Math.max(60, canvasHeight * 0.17), canvasWidth * 0.22);
-    const centerX = Math.round(18 + diameter / 2);
-    const step = Math.max(diameter * 1.14, canvasHeight * 0.145);
-    const first = Math.min(canvasHeight * 0.46, canvasHeight - diameter / 2 - 8 - step * 2);
-    const rows = [first, first + step, first + step * 2];
-    camera.updateMatrixWorld(true);
-    const depth = camera.position.z - MINI_PLANE_Z;
-    const viewHeight = 2 * Math.tan((camera.fov * Math.PI) / 180 / 2) * depth;
-    miniNuclei.forEach((nucleus, index) => {
-      const pixelY = rows[index];
-      nucleusRay.set((centerX / canvasWidth) * 2 - 1, -((pixelY / canvasHeight) * 2 - 1), 0.5)
-        .unproject(camera)
-        .sub(camera.position)
-        .normalize();
-      const distance = (MINI_PLANE_Z - camera.position.z) / nucleusRay.z;
-      const world = camera.position.clone().addScaledVector(nucleusRay, distance);
-      nucleus.group.position.set(world.x, world.y, MINI_PLANE_Z);
-      nucleus.group.userData.baseY = world.y;
-      // 1.5 é o raio do halo de estilhaços, o contorno mais largo do núcleo.
-      nucleus.group.scale.setScalar((diameter / 2 / canvasHeight) * viewHeight / 1.5);
-      const label = legendItems[index];
-      if (!label) return;
-      label.style.setProperty("--nucleus-x", `${Math.round(centerX + diameter / 2)}px`);
-      label.style.setProperty("--nucleus-y", `${Math.round(pixelY)}px`);
-    });
-  }
-
-  function resize() {
-    const rect = mount.getBoundingClientRect();
-    canvasWidth = Math.max(rect.width, 1);
-    canvasHeight = Math.max(rect.height, 1);
-    camera.aspect = canvasWidth / canvasHeight;
-    camera.updateProjectionMatrix();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, QUALITY_PROFILES[graphicsQuality].pixelRatio));
-    renderer.setSize(canvasWidth, canvasHeight, false);
-    const density = Math.min(window.devicePixelRatio || 1, 1.5);
-    effectCanvas.width = Math.round(canvasWidth * density);
-    effectCanvas.height = Math.round(canvasHeight * density);
-    effectCanvas.style.width = `${canvasWidth}px`;
-    effectCanvas.style.height = `${canvasHeight}px`;
-    effectContext.setTransform(density, 0, 0, density, 0, 0);
-    placeMiniNuclei();
-  }
-  const resizeObserver = new ResizeObserver(resize);
-  resizeObserver.observe(mount);
-  resize();
 
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
@@ -852,7 +895,6 @@ async function start() {
   presenceValue.textContent = "Busto visitante roxo · volume facial · malha sutil";
 
   let previousFrameMs = performance.now();
-  let effectVisible = false;
   let currentScale = 1;
   let sampledFrames = 0;
   let fpsWindowStart = performance.now();
@@ -865,7 +907,6 @@ async function start() {
   let disposed = false;
   let lastRenderTargetFps = 0;
   let lastRenderProfile = "";
-  const modeBlend = { core: 0, forge: 0, memory: 0 };
 
   const activeStates = new Set(["listening", "thinking", "planning", "research", "forge", "speaking", "preview", "memory", "local"]);
   function requestedTargetFps() {
@@ -1057,19 +1098,16 @@ async function start() {
     particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
     particles.rotation.y += deltaSeconds * (isWorking ? 0.022 : 0.008);
     coreEntity.update(time, modeBlend.core, deltaSeconds);
-    miniNuclei.forEach((nucleus, index) => nucleus.update(time + index * 0.55, 1, deltaSeconds));
+    miniCore.update(time, 1, deltaSeconds);
 
     const effectFrameDue = timeMs - effectLastFrameMs >= 1000 / EFFECT_TARGET_FPS;
-    const effectBlend = Math.max(modeBlend.memory, modeBlend.forge);
-    if (effectBlend > 0.01 && effectFrameDue) {
+    if (effectFrameDue) {
       effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
+      drawNucleusThumbnails(time);
+
       if (modeBlend.memory > 0.01) drawMemory(effectContext, canvasWidth, canvasHeight, time, memoryLabels, modeBlend.memory);
       if (modeBlend.forge > 0.01) drawForge(effectContext, canvasWidth, canvasHeight, time, modeBlend.forge);
-      effectVisible = true;
       effectLastFrameMs = timeMs;
-    } else if (effectVisible && effectBlend <= 0.01) {
-      effectContext.clearRect(0, 0, canvasWidth, canvasHeight);
-      effectVisible = false;
     }
 
     renderer.render(scene, camera);
@@ -1079,6 +1117,7 @@ async function start() {
     if (!reducedMotion) scheduleRender(frameIntervalMs);
   }
 
+  cancelAnimationFrame(thumbnailTicker);
   render(performance.now());
 
   window.addEventListener("pagehide", (event) => {
