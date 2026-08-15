@@ -14,7 +14,7 @@ const loadPresence = async () => {
   const [auroraModule, strandsModule] = await Promise.all([
     import("/ui/aurora.js?v=20260813-apitools1"),
     import("/ui/strands.js?v=20260813-apitools1"),
-    import("/ui/jarvis-3d.js?v=20260815-chegada1"),
+    import("/ui/jarvis-3d.js?v=20260815-chegada2"),
   ]);
   const initialPalette = paletteForPersona();
   const aurora = auroraModule.createAurora(document.getElementById("auroraVisual"), {

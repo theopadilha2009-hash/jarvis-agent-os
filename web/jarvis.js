@@ -2347,8 +2347,9 @@
     } catch { /* sem storage, o cooldown vale só nesta aba */ }
   }
 
-  async function greetOnArrival() {
-    if (session.working || session.listening || !arrivalAllowed()) return;
+  async function greetOnArrival({ requested = false } = {}) {
+    if (session.working || session.listening) return;
+    if (!requested && !arrivalAllowed()) return;
     markArrival();
     pulseNucleus("core", "chegada");
     if (session.paired) {
@@ -2363,6 +2364,14 @@
   }
 
   function watchArrival() {
+    // O worker abre o cockpit com ?arrival=worker quando você desbloqueia o Mac.
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("arrival")) {
+        history.replaceState(null, "", window.location.pathname);
+        window.setTimeout(() => greetOnArrival({ requested: true }), 900);
+      }
+    } catch { /* sem query string, segue o fluxo normal */ }
     const leaving = () => {
       if (!awaySince) awaySince = Date.now();
     };

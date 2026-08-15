@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 import importlib.util
 import json
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -19,6 +20,26 @@ SPEC.loader.exec_module(MODULE)
 
 
 class DeviceWorkerTest(unittest.TestCase):
+    def test_screen_lock_detection_and_arrival_cooldown(self):
+        """Desbloqueou o Mac depois de um tempo: abre o cockpit, uma vez por hora."""
+        self.assertTrue(MODULE.screen_locked_flag('    "CGSSessionScreenIsLocked" = Yes'))
+        self.assertFalse(MODULE.screen_locked_flag('    "CGSSessionScreenIsLocked" = No'))
+        # A chave só existe quando bloqueado; ausência é tela livre.
+        self.assertFalse(MODULE.screen_locked_flag("ioreg sem a chave"))
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder) / "last-arrival"
+            with patch.object(MODULE, "ARRIVAL_STATE", state):
+                opened = []
+                with patch.object(MODULE.subprocess, "run", lambda *a, **k: opened.append(a[0]) or None):
+                    self.assertTrue(MODULE.announce_arrival(10_000.0))
+                    self.assertIn("/usr/bin/open", opened[0])
+                    self.assertTrue(opened[0][1].endswith("/?arrival=worker"))
+                    # Dentro do cooldown não abre de novo.
+                    self.assertFalse(MODULE.announce_arrival(10_600.0))
+                    self.assertTrue(MODULE.announce_arrival(10_000.0 + MODULE.ARRIVAL_COOLDOWN_SECONDS + 1))
+                with patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "0"}):
+                    self.assertFalse(MODULE.announce_arrival(99_999.0))
+
     def test_command_argv_maps_only_explicit_actions(self):
         opened = MODULE.command_argv({"action": "open_application", "target": "Calculator"})
         closed = MODULE.command_argv({"action": "close_application", "target": "Spotify"})
