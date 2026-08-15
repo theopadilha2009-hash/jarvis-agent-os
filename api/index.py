@@ -150,6 +150,8 @@ CREATOR_PROFILE = {
     "linkedin": "https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/",
     "github": "https://github.com/theopadilha2009-hash/jarvis-agent-os",
     "page": "/theo",
+    "photo": "/ui/theo-avatar.jpg?v=20260815-chegada3",
+    "headline": "Full Stack Developer · AI-First Systems, Automation & Production Infrastructure — Vamoo AI",
     "current": "Vamooai — programador full stack em sistemas AI-first, automações e dashboards.",
     "stack": (
         "React, Next.js, TypeScript, Node.js, Python, SQL, n8n, APIs REST, webhooks, OAuth, "
@@ -1893,7 +1895,14 @@ SCENE_NUCLEUS_PATTERN = re.compile(
     re.I,
 )
 
+CHAT_CLEAR_PATTERN = re.compile(
+    r"\b(?:limp(?:a|e|ar)|apag(?:a|e|ar)|zer(?:a|e|ar)|reset(?:a|e|ar)|começ(?:a|e|ar)\s+de\s+novo)\b"
+    r"[^.?!]{0,30}?\b(?:chat|conversa|hist[oó]rico|tela|papo)\b",
+    re.I,
+)
+
 LOCAL_INTENTS = (
+    (CHAT_CLEAR_PATTERN, "chat_clear"),
     (SCENE_NUCLEUS_PATTERN, "scene_show"),
     (SELF_EDIT_PATTERN, "self_edit"),
     (SPOTIFY_CONTROL_PATTERN, "spotify_control"),
@@ -5275,6 +5284,38 @@ def elevenlabs_provider_error(error):
     }, 502
 
 
+OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech"
+DEFAULT_OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
+DEFAULT_OPENAI_TTS_VOICE = "onyx"
+
+
+def openai_speech(body, text):
+    """Segunda voz neural: entra quando a ElevenLabs cai, antes da voz do navegador."""
+    api_key = client_integration(body, "openai").get("api_key", "") or os.environ.get("OPENAI_API_KEY", "")
+    if not clean_text(api_key, 200):
+        return None
+    payload = json.dumps({
+        "model": os.environ.get("OPENAI_TTS_MODEL", DEFAULT_OPENAI_TTS_MODEL),
+        "voice": os.environ.get("OPENAI_TTS_VOICE", DEFAULT_OPENAI_TTS_VOICE),
+        "input": text,
+        "response_format": "mp3",
+        "instructions": "Português do Brasil nativo. Assistente pessoal calmo, preciso e discretamente "
+                        "espirituoso. Frases declarativas, cadência serena, sem pressa e sem locução robótica.",
+    }, ensure_ascii=False).encode("utf-8")
+    request = Request(
+        OPENAI_TTS_URL,
+        data=payload,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=25) as response:
+            audio = response.read(8_000_000)
+        return audio or None
+    except (HTTPError, URLError, TimeoutError, ValueError):
+        return None
+
+
 def elevenlabs_speech(body):
     text = clean_text(body.get("text") or body.get("message"), 2_200)
     previous_text = clean_text(body.get("previous_text"), 1_200)
@@ -5286,6 +5327,9 @@ def elevenlabs_speech(body):
     browser_key = client_integration(body, "elevenlabs").get("api_key", "")
     api_key = browser_key or os.environ.get("ELEVENLABS_API_KEY")
     if not api_key:
+        rescue = openai_speech(body, text)
+        if rescue:
+            return rescue, 200
         return {
             "ok": False,
             "status_real": "elevenlabs_key_required",
@@ -5321,8 +5365,14 @@ def elevenlabs_speech(body):
             raise ValueError("empty audio")
         return audio, 200
     except HTTPError as error:
+        rescue = openai_speech(body, text)
+        if rescue:
+            return rescue, 200
         return elevenlabs_provider_error(error)
     except (URLError, TimeoutError, ValueError):
+        rescue = openai_speech(body, text)
+        if rescue:
+            return rescue, 200
         return {"ok": False, "error": "ElevenLabs não respondeu com áudio válido.", "fallback": "text_only"}, 504
 
 
@@ -5428,6 +5478,13 @@ def creator_profile_payload(kind="full"):
         "visual_state": "idle",
         "message": message,
         "creator": profile,
+        "author_card": {
+            "name": profile["name"],
+            "headline": profile["headline"],
+            "photo": profile["photo"],
+            "url": profile["linkedin"],
+            "city": profile["city"],
+        },
         "sources": [
             {"title": "LinkedIn · Theo Lorentz Padilha", "url": profile["linkedin"], "domain": "linkedin.com"},
             {"title": "JARVIS no GitHub", "url": profile["github"], "domain": "github.com"},
@@ -7198,6 +7255,19 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
     """Run one known intent without giving the model access to arbitrary code."""
     if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
         return pairing_required_payload()
+    if intent == "chat_clear":
+        # Quem limpa é a interface; aqui só devolvemos a ordem e a evidência.
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "chat_clear_requested",
+            "visual_state": "idle",
+            "message": "Limpei a conversa. Suas memórias confirmadas continuam guardadas.",
+            "intent": "chat_clear",
+            "client_action": "clear_chat",
+            "provider": "jarvis_cockpit",
+            "action_executed": True,
+        }, 200
     if intent == "scene_show":
         return scene_nucleus_payload(command, owner_authenticated=owner_authenticated)
     if intent == "memory_view":

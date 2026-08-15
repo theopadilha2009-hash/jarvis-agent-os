@@ -55,6 +55,11 @@ html[data-persona="ultron"] .nucleus-legend span:nth-child(3) { color: rgba(239,
 html[data-persona="ultron"] .conversation { border-color: rgba(248, 113, 113, .28); }
 html[data-persona="ultron"] .conversation-move { background: rgba(252, 165, 165, .34); }
 
+html[data-persona="ultron"] .author-card {
+  border-color: rgba(248, 113, 113, .3);
+  background: rgba(60, 8, 12, .5);
+}
+
 html[data-persona="ultron"] .author-link {
   border-color: rgba(248, 113, 113, .34);
   background: rgba(60, 8, 12, .55);
