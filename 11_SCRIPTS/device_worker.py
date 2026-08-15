@@ -40,6 +40,10 @@ ARRIVAL_COOLDOWN_SECONDS = 3_600.0
 ARRIVAL_STATE = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "last-arrival"
 )
+BOOT_STATE = (
+    Path.home() / "Library" / "Application Support" / "JARVIS" / "last-boot"
+)
+BOOT_QUIET_SECONDS = 180.0
 LAUNCH_LABEL = "ai.theopadilha.jarvis-device-worker"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = ROOT / "09_LOGS"
@@ -167,6 +171,42 @@ def screen_is_locked() -> bool:
     return screen_locked_flag(result.stdout or "")
 
 
+def machine_booted_at() -> float:
+    """Momento do último boot, para saudar uma vez por ligada do Mac."""
+    try:
+        result = subprocess.run(
+            ["/usr/sbin/sysctl", "-n", "kern.boottime"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 0.0
+    match = re.search(r"sec\s*=\s*(\d+)", result.stdout or "")
+    return float(match.group(1)) if match else 0.0
+
+
+def boot_greeting_due(now: float) -> bool:
+    """Uma saudação por boot, e só depois do sistema terminar de subir."""
+    booted = machine_booted_at()
+    if not booted or now - booted < BOOT_QUIET_SECONDS:
+        return False
+    try:
+        last = float(BOOT_STATE.read_text().strip() or 0)
+    except (OSError, ValueError):
+        last = 0.0
+    return last < booted
+
+
+def mark_boot_greeting(booted: float) -> None:
+    try:
+        BOOT_STATE.parent.mkdir(parents=True, exist_ok=True)
+        BOOT_STATE.write_text(str(booted))
+    except OSError:
+        pass
+
+
 def arrival_allowed(now: float) -> bool:
     if os.environ.get("JARVIS_ARRIVAL") == "0":
         return False
@@ -177,11 +217,11 @@ def arrival_allowed(now: float) -> bool:
     return now - last >= ARRIVAL_COOLDOWN_SECONDS
 
 
-def announce_arrival(now: float) -> bool:
-    """Theo desbloqueou o Mac: abrir o cockpit já falando com ele."""
+def announce_arrival(now: float, reason: str = "worker") -> bool:
+    """Theo chegou: abrir o cockpit já falando com ele."""
     if not arrival_allowed(now):
         return False
-    url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/?arrival=worker"
+    url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/?arrival={reason}"
     try:
         subprocess.run(["/usr/bin/open", url], capture_output=True, timeout=15, check=False)
     except (OSError, subprocess.TimeoutExpired):
@@ -911,6 +951,10 @@ def main() -> int:
                 signal.signal(signal.SIGINT, stop)
                 while running:
                     wall_now = time.time()
+                    if boot_greeting_due(wall_now):
+                        mark_boot_greeting(machine_booted_at())
+                        if announce_arrival(wall_now, "boot"):
+                            print("Chegada: Mac ligado, cockpit aberto com a saudação de boas-vindas.", flush=True)
                     if screen_is_locked():
                         if not locked_since:
                             locked_since = wall_now

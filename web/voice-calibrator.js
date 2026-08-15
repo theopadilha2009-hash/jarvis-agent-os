@@ -13,7 +13,7 @@ window.JarvisVoiceCalibrator = (() => {
   if (!document.querySelector("link[data-jarvis-voice-calibrator]")) {
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "/ui/voice-calibrator.css?v=20260813-ultronfix1";
+    stylesheet.href = "/ui/voice-calibrator.css?v=20260815-vozes1";
     stylesheet.dataset.jarvisVoiceCalibrator = "true";
     document.head.appendChild(stylesheet);
   }
@@ -73,6 +73,15 @@ window.JarvisVoiceCalibrator = (() => {
           <label><span>Presença <output data-voice-output="similarity_boost"></output></span><input type="range" min="0.55" max="0.95" step="0.01" data-voice-setting="similarity_boost"></label>
           <label><span>Velocidade <output data-voice-output="speed"></output></span><input type="range" min="0.75" max="1.10" step="0.01" data-voice-setting="speed"></label>
         </div>
+        <div class="voice-picker">
+          <div class="voice-picker-head"><span><small>VOZ ATIVA</small><strong id="voiceActiveName">carregando…</strong></span><button id="voiceReloadButton" type="button">Atualizar</button></div>
+          <div class="voice-list" id="voiceList" aria-live="polite"><p class="voice-empty">Buscando vozes disponíveis…</p></div>
+          <form class="voice-add" id="voiceAddForm">
+            <input id="voiceAddId" type="text" placeholder="Voice ID da ElevenLabs" aria-label="Voice ID" autocomplete="off">
+            <input id="voiceAddName" type="text" placeholder="Nome" aria-label="Nome da voz" autocomplete="off">
+            <button type="submit">Adicionar</button>
+          </form>
+        </div>
         <div class="voice-calibrator-actions"><button id="voiceResetButton" type="button">Restaurar natural</button><button id="voicePreviewButton" type="button">Ouvir teste</button></div>
         <p class="voice-calibrator-note" id="voiceCalibratorNote">As escolhas ficam somente neste dispositivo e valem a partir da próxima fala.</p>
       </section>`;
@@ -97,7 +106,67 @@ window.JarvisVoiceCalibrator = (() => {
       window.JarvisVoicePreview?.();
     });
     document.getElementById("voiceTuningClose").addEventListener("click", close);
+    document.getElementById("voiceReloadButton").addEventListener("click", () => loadVoices(true));
+    document.getElementById("voiceAddForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const id = document.getElementById("voiceAddId").value.trim();
+      const name = document.getElementById("voiceAddName").value.trim() || "Voz adicionada";
+      if (id) selectVoice(id, name);
+    });
     sync();
+    loadVoices();
+  }
+
+  async function api(path, options) {
+    const token = (() => {
+      try { return localStorage.getItem("jarvis-owner-token-v1") || ""; } catch { return ""; }
+    })();
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["X-Jarvis-Owner-Token"] = token;
+    const response = await fetch(path, { headers, ...options });
+    return response.json().catch(() => ({ ok: false, error: "Resposta inválida." }));
+  }
+
+  function note(text) {
+    const target = document.getElementById("voiceCalibratorNote");
+    if (target) target.textContent = text;
+  }
+
+  async function selectVoice(voiceId, name) {
+    note(`Trocando para ${name}…`);
+    try {
+      const data = await api("/voice-select", { method: "POST", body: JSON.stringify({ voice_id: voiceId, name }) });
+      note(data.ok ? data.message : (data.error || "A troca de voz não foi confirmada."));
+      if (data.ok) loadVoices(true);
+    } catch {
+      note("Não consegui falar com o servidor para trocar a voz.");
+    }
+  }
+
+  async function loadVoices(force = false) {
+    const list = document.getElementById("voiceList");
+    if (!list) return;
+    if (force) list.innerHTML = '<p class="voice-empty">Atualizando…</p>';
+    try {
+      const data = await api("/voices");
+      const active = document.getElementById("voiceActiveName");
+      if (active) active.textContent = data.active?.name || "padrão";
+      const rows = Array.isArray(data.voices) ? data.voices : [];
+      if (!rows.length) {
+        list.innerHTML = '<p class="voice-empty">Nenhuma voz disponível: configure a ElevenLabs, a OpenAI ou a voz própria.</p>';
+        return;
+      }
+      list.innerHTML = rows.map((voice) => `
+        <button type="button" class="voice-row" data-voice-id="${voice.id}" data-voice-name="${(voice.name || "").replace(/"/g, "&quot;")}" data-active="${Boolean(voice.active)}" ${data.can_change ? "" : "disabled"}>
+          <span><b>${voice.name || "Voz"}</b><small>${voice.provider}${voice.category ? ` · ${voice.category}` : ""}</small></span>
+          <em>${voice.active ? "ativa" : (data.can_change ? "usar" : "bloqueada")}</em>
+        </button>`).join("");
+      list.querySelectorAll("[data-voice-id]").forEach((button) => button.addEventListener("click", () => {
+        selectVoice(button.dataset.voiceId, button.dataset.voiceName);
+      }));
+    } catch {
+      list.innerHTML = '<p class="voice-empty">Não consegui listar as vozes agora.</p>';
+    }
   }
 
   function open() {

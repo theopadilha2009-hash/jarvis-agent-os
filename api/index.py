@@ -150,7 +150,7 @@ CREATOR_PROFILE = {
     "linkedin": "https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/",
     "github": "https://github.com/theopadilha2009-hash/jarvis-agent-os",
     "page": "/theo",
-    "photo": "/ui/theo-avatar.jpg?v=20260815-voz3",
+    "photo": "/ui/theo-avatar.jpg?v=20260815-vozes1",
     "headline": "Full Stack Developer · AI-First Systems, Automation & Production Infrastructure — Vamoo AI",
     "current": "Vamooai — programador full stack em sistemas AI-first, automações e dashboards.",
     "stack": (
@@ -1918,7 +1918,14 @@ CHAT_CLEAR_PATTERN = re.compile(
     re.I,
 )
 
+VOICE_SETTINGS_PATTERN = re.compile(
+    r"\b(?:mud(?:a|e|ar)|troc(?:a|e|ar)|melhor(?:a|e|ar)|ajust(?:a|e|ar)|configur(?:a|e|ar)|escolh(?:a|e|er)|"
+    r"list(?:a|e|ar)|mostr(?:a|e|ar))\b[^.?!]{0,40}?\b(?:sua\s+voz|a\s+voz|voz|vozes)\b",
+    re.I,
+)
+
 LOCAL_INTENTS = (
+    (VOICE_SETTINGS_PATTERN, "voice_settings"),
     (CHAT_CLEAR_PATTERN, "chat_clear"),
     (SCENE_NUCLEUS_PATTERN, "scene_show"),
     (SELF_EDIT_PATTERN, "self_edit"),
@@ -5344,6 +5351,78 @@ def elevenlabs_key_status(api_key):
     }
 
 
+def voice_catalog_payload(owner_authenticated=False):
+    """Todas as vozes disponíveis, com a ativa marcada — sem expor chave."""
+    active = active_voice_setting()
+    voices = []
+    keys = elevenlabs_api_keys()
+    if keys:
+        request = Request("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": keys[0]}, method="GET")
+        try:
+            with urlopen(request, timeout=15) as response:
+                data = json.loads(response.read(500_000).decode("utf-8", "replace"))
+            for row in (data.get("voices") or [])[:60]:
+                voice_id = clean_text(row.get("voice_id"), 100)
+                if not voice_id:
+                    continue
+                voices.append({
+                    "id": voice_id,
+                    "name": clean_text(row.get("name"), 120) or "Voz",
+                    "provider": "elevenlabs",
+                    "category": clean_text(row.get("category"), 60),
+                    "preview_url": clean_text(row.get("preview_url"), 500),
+                    "active": voice_id == active.get("voice_id"),
+                })
+        except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+            pass
+    if clean_text(os.environ.get("SELF_HOSTED_TTS_URL"), 400).startswith(("http://", "https://")):
+        voices.append({"id": "self_hosted", "name": "Voz própria (servidor local)", "provider": "self_hosted", "active": False})
+    if clean_text(os.environ.get("OPENAI_API_KEY"), 200):
+        voices.append({"id": "openai", "name": "OpenAI · reserva neural", "provider": "openai", "active": False})
+    return {
+        "ok": True,
+        "endpoint": "GET /voices",
+        "status_real": "voice_catalog",
+        "active": {"voice_id": active.get("voice_id"), "name": active.get("name"), "source": active.get("source")},
+        "voices": voices,
+        "can_change": bool(owner_authenticated or not owner_pairing_required()),
+        "count": len(voices),
+    }, 200
+
+
+def voice_select_payload(body, owner_authenticated=False):
+    """Trocar a voz ativa é ação de dono e precisa de gravação confirmada."""
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    voice_id = clean_text(body.get("voice_id"), 100)
+    name = clean_text(body.get("name"), 120) or "Voz do JARVIS"
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,100}", voice_id):
+        return {"ok": False, "endpoint": "POST /voice-select", "error": "Voice ID inválido."}, 400
+    if not supabase_configured():
+        return {
+            "ok": False,
+            "endpoint": "POST /voice-select",
+            "status_real": "voice_select_unavailable",
+            "error": "Sem Supabase configurado eu não consigo guardar a voz escolhida.",
+        }, 503
+    try:
+        persist_active_voice(voice_id, name, clean_text(body.get("description"), 1_000))
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "POST /voice-select",
+            "status_real": "voice_select_failed",
+            "error": "A troca de voz não foi confirmada pelo Supabase.",
+        }, 502
+    return {
+        "ok": True,
+        "endpoint": "POST /voice-select",
+        "status_real": "voice_selected",
+        "message": f"Voz trocada para {name}. A próxima fala já sai com ela.",
+        "active": {"voice_id": voice_id, "name": name},
+    }, 200
+
+
 def voice_status_payload():
     """Estado real da voz: quanto sobrou em cada chave e qual camada está no ar."""
     keys = elevenlabs_api_keys()
@@ -7391,6 +7470,27 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
     """Run one known intent without giving the model access to arbitrary code."""
     if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
         return pairing_required_payload()
+    if intent == "voice_settings":
+        catalog, _ = voice_catalog_payload(owner_authenticated=owner_authenticated)
+        status, _ = voice_status_payload()
+        names = ", ".join(row["name"] for row in catalog["voices"][:6]) or "nenhuma voz listada"
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "voice_settings_opened",
+            "visual_state": "idle",
+            "message": (
+                f"Abri a configuração de voz. Ativa: {catalog['active']['name'] or 'padrão'}. "
+                f"Disponíveis: {names}. {status.get('message', '')}"
+            ).strip(),
+            "intent": "voice_settings",
+            "client_action": "open_voice_panel",
+            "voices": catalog["voices"],
+            "active_voice": catalog["active"],
+            "voice_layer": status.get("layer"),
+            "provider": "jarvis_cockpit",
+            "action_executed": True,
+        }, 200
     if intent == "chat_clear":
         # Quem limpa é a interface; aqui só devolvemos a ordem e a evidência.
         return {
@@ -9452,6 +9552,9 @@ class handler(BaseHTTPRequestHandler):
             payload["endpoint"] = f"GET {path}"
             payload["occupancy"] = sync_presence(request_conversation_session_id(self))
             return self.send_json(200, payload)
+        if path == "/voices":
+            payload, status = voice_catalog_payload(owner_authenticated=owner_authenticated)
+            return self.send_json(status, payload)
         if path == "/voice-status":
             payload, status = voice_status_payload()
             return self.send_json(status, payload)
@@ -9702,6 +9805,9 @@ class handler(BaseHTTPRequestHandler):
             else:
                 payload, status = clear_conversation_history(request_conversation_session_id(self, body))
                 payload["endpoint"] = "POST /conversation-clear"
+            return self.send_json(status, payload)
+        if path == "/voice-select":
+            payload, status = voice_select_payload(body, owner_authenticated=owner_authenticated)
             return self.send_json(status, payload)
         if path == "/integrations/test":
             payload, status = integration_test_payload(body, owner_authenticated=owner_authenticated)
