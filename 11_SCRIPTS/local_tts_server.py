@@ -4,33 +4,17 @@
 Mantém a API local estável em ``POST /speech`` e escolhe o melhor motor
 disponível:
 
-    Chatterbox Multilingual V3 -> Piper -> falha explícita
+    Chatterbox Multilingual -> Piper -> falha explícita
 
-Chatterbox é o motor principal por naturalidade e clonagem zero-shot. O Piper
-continua como fallback leve para não deixar a saudação do Mac sem voz.
-
-Exemplos:
-
-    # Chatterbox V3, voz padrão do modelo
-    python3 11_SCRIPTS/local_tts_server.py --engine chatterbox
-
-    # Chatterbox V3 com uma referência de voz que você tem direito de usar
-    python3 11_SCRIPTS/local_tts_server.py \
-      --engine chatterbox \
-      --reference ~/Library/Application\ Support/JARVIS/voices/jarvis-reference.wav
-
-    # Piper legado/fallback
-    python3 11_SCRIPTS/local_tts_server.py \
-      --engine piper \
-      --voice 05_EXECUCAO/voices/pt_BR-cadu-medium.onnx
-
-A primeira carga do Chatterbox baixa os pesos; depois a síntese roda localmente.
+O código aceita tanto o pacote PyPI 0.1.7 (API sem seletor ``t3_model``) quanto
+o Chatterbox oficial atual, que expõe o modelo Multilingual V3.
 """
 
 from __future__ import annotations
 
 import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import inspect
 import io
 import json
 import os
@@ -73,7 +57,7 @@ class PiperEngine(VoiceEngine):
         try:
             from piper import PiperVoice
         except ImportError as error:
-            raise RuntimeError("Piper ausente; instale com `pip3 install piper-tts`.") from error
+            raise RuntimeError("Piper ausente; instale com `pip install piper-tts`.") from error
         if not model_path.is_file():
             raise RuntimeError(f"modelo Piper não encontrado em {model_path}")
         self._voice = PiperVoice.load(str(model_path))
@@ -88,7 +72,6 @@ class PiperEngine(VoiceEngine):
 
 
 class ChatterboxEngine(VoiceEngine):
-    name = "chatterbox-v3"
     natural_audio = True
 
     def __init__(
@@ -118,15 +101,37 @@ class ChatterboxEngine(VoiceEngine):
             raise RuntimeError(f"referência de voz não encontrada em {reference}")
 
         self._torch = torch
-        self._model = ChatterboxMultilingualTTS.from_pretrained(
-            device=device,
-            t3_model=t3_model,
-        )
+        loader = ChatterboxMultilingualTTS.from_pretrained
+        try:
+            loader_parameters = inspect.signature(loader).parameters
+        except (TypeError, ValueError):
+            loader_parameters = {}
+
+        load_kwargs = {"device": device}
+        supports_model_selector = "t3_model" in loader_parameters
+        if supports_model_selector:
+            load_kwargs["t3_model"] = t3_model
+
+        self._model = loader(**load_kwargs)
         self.reference = reference
         self.language = language
         self.device = device
-        self.model_name = f"Chatterbox-Multilingual-{t3_model}"
         self.sample_rate = int(getattr(self._model, "sr", 24_000))
+
+        if supports_model_selector:
+            self.name = "chatterbox-v3" if str(t3_model).lower() == "v3" else "chatterbox"
+            self.model_name = f"Chatterbox-Multilingual-{t3_model}"
+            self.api_generation = "current"
+        else:
+            # PyPI 0.1.7 ainda não aceita t3_model. Não derrubamos o JARVIS:
+            # carregamos o multilingual padrão e deixamos explícito no health.
+            self.name = "chatterbox"
+            self.model_name = "Chatterbox-Multilingual-default"
+            self.api_generation = "pypi-0.1.7-compatible"
+            print(
+                "AVISO: este Chatterbox não expõe `t3_model`; usando o multilingual padrão. "
+                "Para V3 explícito, instale o repositório oficial atual."
+            )
 
     def synthesize(self, text: str, options: dict) -> bytes:
         kwargs = {
@@ -154,6 +159,7 @@ class FallbackEngine(VoiceEngine):
         self.sample_rate = current.sample_rate
         self.device = current.device
         self.natural_audio = current.natural_audio
+        self.api_generation = getattr(current, "api_generation", "n/a")
 
     def synthesize(self, text: str, options: dict) -> bytes:
         errors: list[str] = []
@@ -171,7 +177,6 @@ class FallbackEngine(VoiceEngine):
 
 
 def _tensor_to_wav(tensor, sample_rate: int, torch_module) -> bytes:
-    """Serializa a saída float do Chatterbox sem depender de codec externo."""
     pcm = tensor.detach().to("cpu").float()
     while pcm.ndim > 1:
         pcm = pcm[0]
@@ -195,25 +200,14 @@ def _bounded(payload: dict, name: str, default: float, low: float, high: float) 
 
 
 def apply_profile(audio: bytes, rate: int, pitch: float, tempo: float) -> tuple[bytes, str]:
-    """Perfil legado do Piper. Voz neural natural fica crua por padrão."""
     if not shutil.which("ffmpeg"):
         return audio, "audio/wav"
     chain = VOICE_PROFILE.format(rate=rate, pitch=pitch, tempo=tempo)
     try:
         result = subprocess.run(
             [
-                "ffmpeg",
-                "-loglevel",
-                "error",
-                "-i",
-                "pipe:0",
-                "-af",
-                chain,
-                "-f",
-                "mp3",
-                "-b:a",
-                "128k",
-                "pipe:1",
+                "ffmpeg", "-loglevel", "error", "-i", "pipe:0",
+                "-af", chain, "-f", "mp3", "-b:a", "128k", "pipe:1",
             ],
             input=audio,
             capture_output=True,
@@ -233,7 +227,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--engine",
         choices=("auto", "chatterbox", "piper"),
         default=os.environ.get("JARVIS_TTS_ENGINE", "auto"),
-        help="auto prefere Chatterbox V3 e preserva Piper como fallback",
+        help="auto prefere Chatterbox e preserva Piper como fallback",
     )
     parser.add_argument(
         "--voice",
@@ -256,19 +250,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("JARVIS_TTS_DEVICE", "auto"),
     )
     parser.add_argument("--chatterbox-model", default="v3")
-    parser.add_argument("--install-agent", action="store_true", help="sobe junto com o Mac, via LaunchAgent")
+    parser.add_argument("--install-agent", action="store_true")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8123)
-    parser.add_argument("--token", default="", help="exigido no header X-Jarvis-Voice-Token quando definido")
-    parser.add_argument("--pitch", type=float, default=0.94, help="perfil legado do Piper")
-    parser.add_argument("--tempo", type=float, default=1.02, help="perfil legado do Piper")
+    parser.add_argument("--token", default="")
+    parser.add_argument("--pitch", type=float, default=0.94)
+    parser.add_argument("--tempo", type=float, default=1.02)
     parser.add_argument(
         "--profile",
         choices=("auto", "raw", "cockpit"),
         default="auto",
-        help="auto preserva Chatterbox cru e aplica cockpit somente ao Piper",
     )
-    parser.add_argument("--raw", action="store_true", help="compatibilidade: igual a --profile raw")
+    parser.add_argument("--raw", action="store_true")
     return parser
 
 
@@ -308,30 +301,20 @@ def build_engine(args) -> FallbackEngine:
 
 
 def install_agent(args) -> Path:
-    """Registra o servidor local sem colocar modelo/pesos dentro do Git."""
     import plistlib
 
     program = [
         sys.executable,
         str(Path(__file__).resolve()),
-        "--engine",
-        args.engine,
-        "--host",
-        args.host,
-        "--port",
-        str(args.port),
-        "--language",
-        args.language,
-        "--device",
-        args.device,
-        "--chatterbox-model",
-        args.chatterbox_model,
-        "--profile",
-        "raw" if args.raw else args.profile,
-        "--pitch",
-        str(args.pitch),
-        "--tempo",
-        str(args.tempo),
+        "--engine", args.engine,
+        "--host", args.host,
+        "--port", str(args.port),
+        "--language", args.language,
+        "--device", args.device,
+        "--chatterbox-model", args.chatterbox_model,
+        "--profile", "raw" if args.raw else args.profile,
+        "--pitch", str(args.pitch),
+        "--tempo", str(args.tempo),
     ]
     if args.voice:
         program.extend(["--voice", str(Path(args.voice).expanduser().resolve())])
@@ -414,10 +397,10 @@ def make_handler(engine: FallbackEngine, args):
                 "application/json; charset=utf-8",
             )
 
-        def do_OPTIONS(self):  # noqa: N802
+        def do_OPTIONS(self):
             self._send(204, b"", "text/plain")
 
-        def do_GET(self):  # noqa: N802
+        def do_GET(self):
             if self.path.rstrip("/") in {"", "/health"}:
                 return self._json(
                     200,
@@ -430,6 +413,7 @@ def make_handler(engine: FallbackEngine, args):
                         "device": engine.device,
                         "language": args.language,
                         "reference": bool(args.reference),
+                        "chatterbox_api": getattr(engine, "api_generation", "n/a"),
                         "fallbacks": [item.name for item in engine.engines[1:]],
                         "profile": (
                             "raw"
@@ -442,7 +426,7 @@ def make_handler(engine: FallbackEngine, args):
                 )
             return self._json(404, {"ok": False, "error": "rota desconhecida"})
 
-        def do_POST(self):  # noqa: N802
+        def do_POST(self):
             if self.path.rstrip("/") != "/speech":
                 return self._json(404, {"ok": False, "error": "rota desconhecida"})
             if args.token and self.headers.get("X-Jarvis-Voice-Token", "") != args.token:
