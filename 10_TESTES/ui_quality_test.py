@@ -607,6 +607,14 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("installWakeWord", self.app_js)
         self.assertIn("JarvisWakeWord", self.app_js)
         self.assertIn("voiceWakeToggle", calibrator)
+        # Chamar tem que ser instantâneo: depois de acordar, a frase seguinte
+        # vira comando no MESMO microfone — parar e reabrir custava segundos.
+        self.assertIn("commandUntil", self.app_js)
+        self.assertNotIn("commandRecognition.start()", self.app_js)
+        # Resultados parciais repetem o trecho; sem trava, o comando dispara duas vezes.
+        self.assertIn("lastFired", self.app_js)
+        self.assertIn('command: "Te ouvindo', self.app_js)
+        self.assertIn('.wake-indicator[data-state="command"]', self.ultron_completion_css)
         # Timbre da voz própria sai do mesmo painel.
         self.assertIn('data-voice-setting="pitch"', calibrator)
         self.assertIn('data-voice-setting="tempo"', calibrator)

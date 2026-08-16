@@ -3,9 +3,9 @@
 window.JarvisVoiceCalibrator = (() => {
   const STORAGE_KEY = "jarvis-voice-profile-v1";
   const PRESETS = Object.freeze({
-    natural: { label: "Natural", stability: 0.64, similarity_boost: 0.82, speed: 0.93, pitch: 0.90, tempo: 1.06 },
+    natural: { label: "Natural", stability: 0.64, similarity_boost: 0.82, speed: 0.93, pitch: 0.94, tempo: 1.02 },
     serious: { label: "Sério", stability: 0.74, similarity_boost: 0.86, speed: 0.89, pitch: 0.88, tempo: 1.08 },
-    calm: { label: "Tranquilo", stability: 0.80, similarity_boost: 0.80, speed: 0.86, pitch: 0.90, tempo: 1.06 },
+    calm: { label: "Tranquilo", stability: 0.80, similarity_boost: 0.80, speed: 0.86, pitch: 0.94, tempo: 1.02 },
     direct: { label: "Direto", stability: 0.58, similarity_boost: 0.84, speed: 1.00, pitch: 0.94, tempo: 1.02 },
     command: { label: "Comando", stability: 0.78, similarity_boost: 0.88, speed: 0.88, pitch: 0.82, tempo: 1.14 },
   });
@@ -34,8 +34,8 @@ window.JarvisVoiceCalibrator = (() => {
       similarity_boost: Number(state.similarity_boost),
       speed: Number(state.speed),
       // Timbre da voz própria: grave e ritmo, aplicados no servidor local.
-      pitch: Number(state.pitch ?? 0.90),
-      tempo: Number(state.tempo ?? 1.06),
+      pitch: Number(state.pitch ?? 0.94),
+      tempo: Number(state.tempo ?? 1.02),
     };
   }
 
