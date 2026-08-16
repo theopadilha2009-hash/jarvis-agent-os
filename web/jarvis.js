@@ -2617,7 +2617,7 @@
     });
     voiceButton.title = "Clique, fale normalmente e o comando será enviado quando você terminar.";
     byId("voiceValue").textContent = "ouvir e responder";
-    installWakeWord(recognition);
+    installWakeWord();
   }
 
   // Personalidade: o painel é carregado sob demanda, mas o estilo escolhido
@@ -2681,7 +2681,7 @@
     }
   }
 
-  function installWakeWord(commandRecognition) {
+  function installWakeWord() {
     if (!Recognition) return;
     const badge = byId("wakeIndicator");
     const listener = new Recognition();
@@ -2692,14 +2692,17 @@
     let blocked = false;
     let restartTimer = 0;
     let afterEnd = null;
+    let commandUntil = 0;
 
     const paint = () => {
       if (!badge) return;
-      const state = !wakeWordEnabled() ? "off" : blocked ? "blocked" : running ? "on" : "arming";
+      const listening = commandUntil && Date.now() < commandUntil;
+      const state = !wakeWordEnabled() ? "off" : blocked ? "blocked" : listening ? "command" : running ? "on" : "arming";
       badge.hidden = false;
       badge.dataset.state = state;
       badge.title = {
         on: "Escutando pelo nome. Diga \"oi Jarvis\" sem clicar em nada.",
+        command: "Te ouvindo. Fale o pedido.",
         arming: "Preparando a escuta pelo nome…",
         blocked: "Microfone bloqueado. Clique para liberar e atender pelo nome.",
         off: "Escuta pelo nome desligada. Clique para ligar.",
@@ -2711,7 +2714,7 @@
       window.clearTimeout(restartTimer);
       restartTimer = window.setTimeout(async () => {
         if (!wakeWordEnabled()) return paint();
-        if (running || session.listening || session.working) return arm(1_500);
+        if (running || session.listening || session.working) return arm(600);
         if (!(await microphoneGranted())) {
           blocked = true;
           return paint();
@@ -2720,7 +2723,7 @@
         try {
           listener.start();
         } catch {
-          arm(1_500);
+          arm(600);
         }
         paint();
       }, delay);
@@ -2732,7 +2735,7 @@
       const pending = afterEnd;
       afterEnd = null;
       if (pending) pending();
-      else if (wakeWordEnabled()) arm(1_200);
+      else if (wakeWordEnabled()) arm(250);
       paint();
     };
     listener.onerror = (event) => {
@@ -2740,30 +2743,46 @@
       if (event.error === "not-allowed" || event.error === "service-not-allowed") blocked = true;
       paint();
     };
+    // Depois de acordar, a próxima frase já é comando: nada de parar e
+    // reabrir o microfone, que é o que fazia a chamada demorar.
+    let lastFired = "";
+    let lastFiredAt = 0;
+
+    const fire = (text) => {
+      const key = text.toLowerCase();
+      // Resultados parciais repetem o mesmo trecho várias vezes.
+      if (key === lastFired && Date.now() - lastFiredAt < 4_000) return;
+      lastFired = key;
+      lastFiredAt = Date.now();
+      commandUntil = 0;
+      paint();
+      sendCommand(text, { source: "voice" });
+    };
+
     listener.onresult = (event) => {
-      const heard = Array.from(event.results)
-        .slice(event.resultIndex)
-        .map((row) => row[0].transcript)
-        .join(" ")
-        .trim();
-      if (!WAKE_WORD.test(heard)) return;
-      const rest = heard.replace(WAKE_WORD, " ").replace(/\s+/g, " ").trim();
-      pulseNucleus("core", "chamado");
-      if (rest.length > 3) {
-        afterEnd = () => sendCommand(rest, { source: "voice" });
-        listener.stop();
+      const rows = Array.from(event.results).slice(event.resultIndex);
+      const heard = rows.map((row) => row[0].transcript).join(" ").trim();
+      const settled = rows.some((row) => row.isFinal);
+      const strip = (text) => text.replace(WAKE_WORD, " ").replace(/\s+/g, " ").trim();
+
+      if (commandUntil && Date.now() < commandUntil) {
+        const order = strip(heard);
+        if (settled && order.length > 2) fire(order);
         return;
       }
-      const reply = session.paired ? "Às ordens, Theo." : "Estou aqui.";
+      if (!WAKE_WORD.test(heard)) return;
+      pulseNucleus("core", "chamado");
+      const rest = strip(heard);
+      // "oi jarvis, abre o chrome" vai direto, sem esperar o microfone reabrir.
+      if (rest.length > 3) return fire(rest);
+
+      const reply = session.paired ? "Diga, Theo." : "Estou aqui.";
       addMessage(reply, "jarvis");
       speak(reply);
-      // stop() é assíncrono: só devolvemos o microfone ao comando depois do onend.
-      afterEnd = () => {
-        try {
-          commandRecognition.start();
-        } catch { /* o clique no microfone continua valendo */ }
-      };
-      listener.stop();
+      commandUntil = Date.now() + 9_000;
+      lastFired = heard.toLowerCase();
+      lastFiredAt = Date.now();
+      paint();
     };
 
     badge?.addEventListener("click", async () => {
@@ -2795,7 +2814,7 @@
     (async () => {
       paint();
       if (!wakeWordEnabled()) return;
-      if (await microphoneGranted()) return arm(1_500);
+      if (await microphoneGranted()) return arm(500);
       // Sem permissão ainda: o primeiro gesto na página serve de autorização.
       blocked = true;
       paint();

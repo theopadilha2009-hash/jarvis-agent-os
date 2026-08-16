@@ -3850,3 +3850,14 @@ dialog {
     column-gap: 10px;
   }
 }
+
+.wake-indicator[data-state="command"] {
+  border-color: rgba(192, 132, 252, 0.62);
+  color: #f3e8ff;
+}
+
+.wake-indicator[data-state="command"] i {
+  background: #c084fc;
+  box-shadow: 0 0 12px rgba(192, 132, 252, 0.95);
+  animation: wake-breath 0.9s ease-in-out infinite;
+}

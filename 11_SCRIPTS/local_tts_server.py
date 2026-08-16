@@ -26,12 +26,14 @@ import time
 import wave
 
 
-# Perfil sonoro do cockpit: grave sem soar arrastado, com ar de sala.
+# Perfil sonoro do cockpit: grave e limpo. Sem eco e sem corte de agudos —
+# um eco de 24 ms vira filtro de pente e deixa a voz abafada, com a dicção
+# borrada; o lowpass agressivo tirava o resto do brilho das consoantes.
 VOICE_PROFILE = (
     "asetrate={rate}*{pitch},aresample={rate},atempo={tempo},"
-    "highpass=f=75,lowpass=f=8800,"
-    "acompressor=threshold=-18dB:ratio=3:attack=8:release=180,"
-    "aecho=0.88:0.4:24:0.15,volume=1.2"
+    "highpass=f=70,"
+    "acompressor=threshold=-18dB:ratio=2.5:attack=10:release=200,"
+    "volume=1.15"
 )
 MAX_TEXT = 2_200
 
@@ -106,8 +108,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8123)
     parser.add_argument("--token", default="", help="exigido no header X-Jarvis-Voice-Token quando definido")
-    parser.add_argument("--pitch", type=float, default=0.90, help="<1 deixa a voz mais grave")
-    parser.add_argument("--tempo", type=float, default=1.06, help="compensa a duração após o pitch")
+    parser.add_argument("--pitch", type=float, default=0.94, help="<1 deixa a voz mais grave")
+    parser.add_argument("--tempo", type=float, default=1.02, help="compensa a duração após o pitch")
     parser.add_argument("--raw", action="store_true", help="devolve o Piper puro, sem o timbre do cockpit")
     return parser
 

@@ -154,3 +154,12 @@ html[data-persona="ultron"] .wake-indicator[data-state="on"] i {
   background: #ef4444;
   box-shadow: 0 0 10px rgba(239, 68, 68, .9);
 }
+
+html[data-persona="ultron"] .wake-indicator[data-state="command"] {
+  border-color: rgba(254, 202, 202, .68);
+  color: #fff5f5;
+}
+html[data-persona="ultron"] .wake-indicator[data-state="command"] i {
+  background: #fca5a5;
+  box-shadow: 0 0 12px rgba(252, 165, 165, .95);
+}
