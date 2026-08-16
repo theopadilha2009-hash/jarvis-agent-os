@@ -1,93 +1,153 @@
 # Voz própria do JARVIS
 
-A voz paga é a melhor, mas ela acaba: o free tier da ElevenLabs esgota e o
-cockpit cai para a voz do navegador, que é a compacta do sistema. Este é o
-caminho para ter uma voz neural **nossa**, sem cota, sem chave e sem prazo.
+## Estado atual
 
-## Como o cockpit escolhe a voz
+A voz local agora foi preparada para sair do teto do Piper sem mudar a API usada pelo restante do JARVIS.
 
+Ordem local:
+
+```text
+Chatterbox Multilingual V3 -> Piper -> macOS `say`
 ```
-ElevenLabs (pool de chaves)  →  OpenAI TTS  →  voz própria  →  voz do navegador
+
+O servidor continua ouvindo em:
+
+```text
+POST http://127.0.0.1:8123/speech
 ```
 
-Cada camada só entra quando a anterior falha por cota, autorização, rede ou
-ausência de chave. `GET /voice-status` diz qual está no ar e quanto sobrou.
+Portanto `device_worker.py` e o restante do cockpit não precisam conhecer o motor interno.
 
-## O timbre
+## Por que Chatterbox
 
-O alvo é o mordomo britânico falando português: barítono quente, ritmo medido,
-dicção precisa, autoridade serena, humor seco só numa leve inflexão. Isso vive
-em dois lugares — `VOICE_DIRECTION` (instrução enviada ao TTS da OpenAI) e
-`VOICE_PROFILE` (cadeia de áudio aplicada à voz local: pitch para baixo, tempo
-compensado, corte de graves sujos, compressão suave e um eco curto de sala).
+O Piper continua útil como fallback leve, mas o modelo pt-BR disponível é `medium` e soa sintético. O Chatterbox Multilingual V3 é um TTS neural aberto de 500M parâmetros, suporta português, MPS/CPU/CUDA e clonagem zero-shot por áudio de referência.
 
-## Subir a voz própria
+O objetivo não é imitar uma pessoa identificável. A referência deve ser uma voz própria, licenciada ou criada para o projeto.
 
-O modelo não vem no repositório. Baixe uma voz pt-BR do Piper e aponte:
+## Custo
+
+A síntese local não cobra por caractere, minuto ou chamada de API.
+
+O código do Chatterbox é open-source (MIT) e os pesos são baixados localmente na primeira carga. Isso não torna hardware/VPS/energia gratuitos: o custo é apenas de infraestrutura já utilizada, não de TTS por uso.
+
+## Instalação recomendada no Mac
+
+Chatterbox foi desenvolvido/testado em Python 3.11. Instale em ambiente isolado:
 
 ```bash
-pip3 install piper-tts
-
-mkdir -p 05_EXECUCAO/voices && cd 05_EXECUCAO/voices
-curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/cadu/medium/pt_BR-cadu-medium.onnx
-curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/cadu/medium/pt_BR-cadu-medium.onnx.json
-cd -
-
-python3 11_SCRIPTS/local_tts_server.py --voice 05_EXECUCAO/voices/pt_BR-cadu-medium.onnx
+cd ~/CAMINHO/jarvis-agent-os
+python3.11 -m venv .venv-voice
+source .venv-voice/bin/activate
+python -m pip install --upgrade pip
+pip install chatterbox-tts piper-tts
 ```
 
-Ajustes úteis: `--pitch 0.90` deixa mais grave, `--tempo 1.06` compensa a
-duração, `--raw` devolve o Piper puro para comparar, `--token` exige
-`X-Jarvis-Voice-Token` em cada chamada.
-
-## Deixar a voz de pé desde o boot
-
-A saudação de boas-vindas sai pelo alto-falante do Mac, e quem sintetiza é este
-servidor. Se ele não estiver rodando, a fala cai para o `say` do sistema, que é
-uma voz compacta. Registre como serviço:
+O primeiro start baixa os pesos do Chatterbox:
 
 ```bash
-python3 11_SCRIPTS/local_tts_server.py \
+python 11_SCRIPTS/local_tts_server.py --engine chatterbox
+```
+
+Health check:
+
+```bash
+curl -s http://127.0.0.1:8123/health
+```
+
+Teste de fala:
+
+```bash
+curl -s -X POST http://127.0.0.1:8123/speech \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Bem-vindo, Theo. Sistemas no ar."}' \
+  -o /tmp/jarvis-chatterbox.wav
+
+afplay /tmp/jarvis-chatterbox.wav
+```
+
+## Voz de referência
+
+Para aproximar a identidade vocal desejada, use um trecho limpo de aproximadamente 5–15 segundos de uma voz que o projeto tenha direito de utilizar:
+
+```text
+~/Library/Application Support/JARVIS/voices/jarvis-reference.wav
+```
+
+Subir:
+
+```bash
+python 11_SCRIPTS/local_tts_server.py \
+  --engine chatterbox \
+  --reference ~/Library/Application\ Support/JARVIS/voices/jarvis-reference.wav
+```
+
+Controles por requisição:
+
+```json
+{
+  "text": "Senhor, todos os sistemas estão operacionais.",
+  "cfg_weight": 0.35,
+  "exaggeration": 0.5
+}
+```
+
+`cfg_weight` menor tende a preservar uma cadência mais deliberada. O perfil de pitch/FFmpeg usado no Piper não é aplicado ao Chatterbox por padrão porque pode degradar a naturalidade.
+
+## Fallback Piper
+
+O Piper não foi removido. Para forçar:
+
+```bash
+python 11_SCRIPTS/local_tts_server.py \
+  --engine piper \
+  --voice ~/Library/Application\ Support/JARVIS/voices/cadu.onnx
+```
+
+Para modo automático com Chatterbox primeiro e Piper de reserva:
+
+```bash
+python 11_SCRIPTS/local_tts_server.py \
+  --engine auto \
   --voice ~/Library/Application\ Support/JARVIS/voices/cadu.onnx \
+  --reference ~/Library/Application\ Support/JARVIS/voices/jarvis-reference.wav
+```
+
+Se Chatterbox não estiver instalado ou falhar na síntese, o mesmo processo tenta o Piper.
+
+## Iniciar junto com o Mac
+
+Depois que o teste de voz estiver aprovado:
+
+```bash
+python 11_SCRIPTS/local_tts_server.py \
+  --engine auto \
+  --voice ~/Library/Application\ Support/JARVIS/voices/cadu.onnx \
+  --reference ~/Library/Application\ Support/JARVIS/voices/jarvis-reference.wav \
   --install-agent
 ```
 
-O timbre padrão (`--pitch 0.90 --tempo 1.06`, voz `cadu`) foi escolhido pelo Theo
-numa comparação às cegas entre quatro combinações de voz e gravidade.
+O LaunchAgent continua sendo:
 
-Guarde o modelo fora do repositório e fora de `/tmp` — um `.onnx` num diretório
-temporário desaparece e leva a voz junto. `~/Library/Application Support/JARVIS/voices/`
-é o lugar. Logs em `09_LOGS/voice-server.log`.
-
-Medido num MacBook: 0,46 s para carregar o modelo e 0,55 s para sintetizar uma
-frase — mais rápido que a chamada remunerada.
-
-## Ligar no gateway
-
-```bash
-SELF_HOSTED_TTS_URL=http://127.0.0.1:8123/speech python3 api/index.py
+```text
+ai.theopadilha.jarvis-voice
 ```
 
-Em produção a Vercel precisa alcançar o servidor, e o Mac de casa não é
-alcançável. Duas saídas:
+Logs:
 
-- **VPS** (o caminho estável): rode o mesmo script atrás do Traefik com HTTPS e
-  um token, e configure `SELF_HOSTED_TTS_URL` e `SELF_HOSTED_TTS_TOKEN` no
-  projeto da Vercel.
-- **Túnel** (para testar): `cloudflared tunnel --url http://127.0.0.1:8123`
-  devolve uma URL HTTPS temporária.
+```text
+09_LOGS/voice-server.log
+09_LOGS/voice-server-error.log
+```
 
-## O teto desta voz
+## O que ainda precisa de validação real
 
-O pt-BR do Piper só existe em `medium` (e um `low`): não há modelo `high` para
-subir de nível, e o Mac tem apenas vozes compactas instaladas. Nenhum ajuste de
-timbre transforma isso em voz humana — é o teto do que roda de graça nesta
-máquina. Passar desse ponto depende de `OPENAI_API_KEY` (a cadeia
-`gpt-4o-mini-tts` já está pronta) ou de um plano pago da ElevenLabs.
+O código está preparado, mas não chamar de concluído até verificar no Mac:
 
-## O que esta voz não é
+1. `pip install chatterbox-tts` em Python 3.11.
+2. carregamento do modelo em MPS no MacBook.
+3. `/health` retornando `engine=chatterbox-v3`.
+4. WAV gerado e reproduzido pelo `afplay`.
+5. comparação A/B com ElevenLabs e Piper.
+6. reinício do LaunchAgent e saudação real no boot.
 
-Ela não imita o Paul Bettany nem nenhuma pessoa real — clonar a voz de alguém
-identificável sem consentimento não entra aqui. O que replicamos é o *estilo*:
-as características que fazem a voz soar como um mordomo competente. Para clonar
-uma voz, use uma que seja sua ou que você tenha direito de usar.
+Até esses testes acontecerem, o status correto é **integração preparada em branch; runtime Chatterbox ainda não validado no Mac**.
