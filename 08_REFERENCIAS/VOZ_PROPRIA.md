@@ -20,7 +20,7 @@ Portanto `device_worker.py` e o restante do cockpit não precisam conhecer o mot
 
 ## Por que Chatterbox
 
-O Piper continua útil como fallback leve, mas o modelo pt-BR disponível é `medium` e soa sintético. O Chatterbox Multilingual V3 é um TTS neural aberto de 500M parâmetros, suporta português, MPS/CPU/CUDA e clonagem zero-shot por áudio de referência.
+O Piper continua útil como fallback leve, mas o modelo pt-BR disponível é `medium` e soa sintético. O Chatterbox Multilingual é um TTS neural aberto, suporta português, MPS/CPU/CUDA e clonagem zero-shot por áudio de referência.
 
 O objetivo não é imitar uma pessoa identificável. A referência deve ser uma voz própria, licenciada ou criada para o projeto.
 
@@ -32,20 +32,31 @@ O código do Chatterbox é open-source (MIT) e os pesos são baixados localmente
 
 ## Instalação recomendada no Mac
 
-Chatterbox foi desenvolvido/testado em Python 3.11. Instale em ambiente isolado:
+Chatterbox requer Python 3.10+; no JARVIS usamos Python 3.11 em ambiente isolado:
 
 ```bash
 cd ~/CAMINHO/jarvis-agent-os
 python3.11 -m venv .venv-voice
 source .venv-voice/bin/activate
 python -m pip install --upgrade pip
-pip install chatterbox-tts piper-tts
+pip install piper-tts
+```
+
+### Importante: PyPI 0.1.7 x Multilingual V3
+
+Em 16/08/2026 foi validado no Mac do Theo que `pip install chatterbox-tts` instala a versão 0.1.7 cuja API publicada ainda não aceita o argumento `t3_model`. O repositório oficial atual já aceita `t3_model="v3"` em `ChatterboxMultilingualTTS.from_pretrained()`.
+
+O servidor do JARVIS é compatível com os dois casos: se a API antiga estiver instalada ele carrega o multilingual padrão e deixa isso explícito no `/health`; para testar V3 explicitamente, instale o código oficial atual:
+
+```bash
+python -m pip install --upgrade --force-reinstall \
+  'chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@master'
 ```
 
 O primeiro start baixa os pesos do Chatterbox:
 
 ```bash
-python 11_SCRIPTS/local_tts_server.py --engine chatterbox
+python 11_SCRIPTS/local_tts_server.py --engine chatterbox --device mps
 ```
 
 Health check:
@@ -139,15 +150,22 @@ Logs:
 09_LOGS/voice-server-error.log
 ```
 
-## O que ainda precisa de validação real
+## Validação real
 
-O código está preparado, mas não chamar de concluído até verificar no Mac:
+Confirmado no Mac do Theo em 16/08/2026:
 
-1. `pip install chatterbox-tts` em Python 3.11.
-2. carregamento do modelo em MPS no MacBook.
-3. `/health` retornando `engine=chatterbox-v3`.
-4. WAV gerado e reproduzido pelo `afplay`.
-5. comparação A/B com ElevenLabs e Piper.
-6. reinício do LaunchAgent e saudação real no boot.
+1. Python 3.11.16 instalado via Homebrew.
+2. `.venv-voice` criado e ativado.
+3. `chatterbox-tts 0.1.7`, PyTorch 2.6 e `piper-tts 1.7.0` instalados.
+4. primeira tentativa com `--device mps` chegou ao carregador do Chatterbox, mas falhou porque a API PyPI 0.1.7 não reconhecia `t3_model`.
+5. compatibilidade corrigida na branch para não derrubar o servidor em versões sem esse seletor.
 
-Até esses testes acontecerem, o status correto é **integração preparada em branch; runtime Chatterbox ainda não validado no Mac**.
+Ainda falta validar:
+
+1. carregar o motor após a correção.
+2. `/health` confirmar engine/model/device real.
+3. gerar e reproduzir WAV real no Mac.
+4. comparar Chatterbox × ElevenLabs × Piper.
+5. reinstalar LaunchAgent e testar saudação no boot.
+
+Até esses testes acontecerem, o status correto é **integração preparada e dependências instaladas; áudio Chatterbox ainda não validado**.
