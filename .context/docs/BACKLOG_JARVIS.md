@@ -43,11 +43,11 @@ validado**; quem terminar marca o estado e cola a evidência real.
   diretiva no prompt, validado contra o catálogo.
 
 ### 5b. Voz masculina, forte e de autoridade — regra permanente
-- A voz do JARVIS é masculina e grave. O fallback do navegador ranqueia vozes
-  masculinas e rejeita femininas; a voz própria sai com pitch abaixado.
-- Timbre configurável pelo painel: gravidade e cadência viajam no
-  `voice_profile` até o servidor de voz.
-- Estado: **feito**, mas a qualidade final depende da camada disponível.
+- A voz do JARVIS é masculina, adulta, firme e de autoridade, sem forçar grave.
+- Referência escolhida pelo Theo em 16/08: `bill_boerst.wav`.
+- Estado: **em validação** — branch `feat/pockettts-bill-voice` prepara Pocket-TTS
+  com clonagem local, português, endpoint `/speech` preservado e Piper fallback.
+  Ainda não chamar de concluído até gerar/escutar Bill falando português no Mac.
 
 ## P0 — Presença no boot
 
@@ -75,16 +75,23 @@ validado**; quem terminar marca o estado e cola a evidência real.
 
 ## Bloqueio aberto — qualidade da voz
 
-O Piper local é masculino e ilimitado, mas é um modelo `medium`: o pt-BR do
-Piper não tem versão `high`, e o Mac só tem vozes compactas instaladas. Nenhum
-ajuste de timbre transforma isso em voz humana. Sair desse patamar depende de
-uma credencial: `OPENAI_API_KEY` (a cadeia `gpt-4o-mini-tts` já está pronta e
-custa centavos por dia) ou ElevenLabs Starter, US$ 5/mês — a cota grátis atual
-zerou e só volta em 07/09/2026.
+O teste Chatterbox de 16/08 foi rejeitado pelo Theo: timbre sem a presença
+masculina desejada, ambiência ruim e geração lenta demais para o JARVIS.
+
+Novo caminho confirmado:
+- referência vocal aprovada: `bill_boerst.wav`;
+- motor candidato: Pocket-TTS local;
+- modelo rápido: `portuguese` (6 layers);
+- opção de comparação: `portuguese_24l` se a qualidade justificar a latência;
+- depois de aprovado, exportar a identidade para `bill_boerst.safetensors` para
+  evitar reprocessar o WAV a cada boot.
+
+Status real: **código preparado em branch; Pocket-TTS/Bill ainda não testado no
+Mac e não está ativo no JARVIS real**.
 
 ## Regras que valem para todos os itens
 
 - Nada entra sem validação real: comando executado de verdade, output colado.
 - A voz nunca cai de nível em silêncio — se cair, o cockpit diz por quê
   (`GET /voice-status`).
-- Não clonamos voz de pessoa real; replicamos estilo.
+- Sem teste real = não concluído; sem merge/deploy = não ativo.
