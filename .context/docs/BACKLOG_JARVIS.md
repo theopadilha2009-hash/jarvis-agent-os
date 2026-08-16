@@ -73,18 +73,34 @@ validado**; quem terminar marca o estado e cola a evidência real.
 - Falta o "ele do lado falando comigo" na área de trabalho: isso é uma janela
   flutuante sempre visível, e precisa de decisão de formato com o Theo.
 
-## Bloqueio aberto — qualidade da voz
+## P0 — Qualidade da voz local
 
-O Piper local é masculino e ilimitado, mas é um modelo `medium`: o pt-BR do
-Piper não tem versão `high`, e o Mac só tem vozes compactas instaladas. Nenhum
-ajuste de timbre transforma isso em voz humana. Sair desse patamar depende de
-uma credencial: `OPENAI_API_KEY` (a cadeia `gpt-4o-mini-tts` já está pronta e
-custa centavos por dia) ou ElevenLabs Starter, US$ 5/mês — a cota grátis atual
-zerou e só volta em 07/09/2026.
+### 8. Substituir o teto do Piper por TTS local neural moderno
+- Diagnóstico confirmado: `local_tts_server.py` usava Piper pt-BR `medium` e
+  filtros de áudio. O Piper continua útil como fallback, mas não chega ao nível
+  humano desejado.
+- Decisão (16/08): preparar **Chatterbox Multilingual V3** como motor local
+  principal, mantendo `POST /speech` em `127.0.0.1:8123` e o Piper como reserva.
+- Branch: `feat/chatterbox-local-voice`.
+- Código: `11_SCRIPTS/local_tts_server.py` agora suporta
+  `auto | chatterbox | piper`, MPS/CPU/CUDA, referência de voz e fallback sem
+  mudar o contrato usado pelo `device_worker.py`.
+- Teste de contrato adicionado em `10_TESTES/local_tts_server_test.py`.
+- Estado: **integração preparada; ainda não validada no runtime do Mac**.
+- Para fechar este item é obrigatório comprovar:
+  1. Python 3.11 + `chatterbox-tts` instalados no Mac;
+  2. modelo V3 carregando em MPS;
+  3. `/health` retornando `engine=chatterbox-v3`;
+  4. áudio real reproduzido pelo `afplay`;
+  5. A/B Chatterbox × ElevenLabs × Piper;
+  6. LaunchAgent reiniciado e saudação real no boot.
+- Referência de voz: somente voz própria/licenciada/criada para o projeto; não
+  clonar pessoa real identificável sem autorização.
 
 ## Regras que valem para todos os itens
 
 - Nada entra sem validação real: comando executado de verdade, output colado.
 - A voz nunca cai de nível em silêncio — se cair, o cockpit diz por quê
   (`GET /voice-status`).
-- Não clonamos voz de pessoa real; replicamos estilo.
+- Não clonamos voz de pessoa real sem autorização; replicamos estilo ou usamos
+  referência que o projeto tem direito de usar.
