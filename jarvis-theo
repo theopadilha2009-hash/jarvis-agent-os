@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Interface pessoal: `jarvis-theo` abre o cérebro JARVIS (OpenRouter).
+set -e
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+ROOT="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+export JARVIS_HOME="$ROOT"
+export JARVIS_USER_CWD="${JARVIS_USER_CWD:-$PWD}"
+exec python3 "$ROOT/11_SCRIPTS/jarvis_theo_chat.py" "$@"

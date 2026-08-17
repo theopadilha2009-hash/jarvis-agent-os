@@ -23,7 +23,20 @@ compensado, corte de graves sujos, compressão suave e um eco curto de sala).
 
 ## Subir a voz própria
 
-O modelo não vem no repositório. Baixe uma voz pt-BR do Piper e aponte:
+O motor principal é o Pocket TTS no catálogo aprovado (`portuguese` +
+`bill_boerst`), no venv `~/.venv-pocket`. Config: env `JARVIS_TTS_ENGINE` /
+`JARVIS_TTS_LANGUAGE` / `JARVIS_TTS_VOICE` ou
+`~/Library/Application Support/JARVIS/voice-lock/VOICE_CONFIG.txt`.
+
+```bash
+python3 11_SCRIPTS/local_tts_server.py
+```
+
+O processo carrega o modelo uma vez e atende `POST /speech` com WAV cru —
+o mesmo comportamento da CLI `pocket-tts generate --language portuguese
+--voice bill_boerst --text "…"`. Sem cloning, sem WAV como `--voice`.
+
+Piper continua como fallback se Pocket falhar. Para forçar só o Piper:
 
 ```bash
 pip3 install piper-tts
@@ -33,12 +46,12 @@ curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/cadu/
 curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/cadu/medium/pt_BR-cadu-medium.onnx.json
 cd -
 
-python3 11_SCRIPTS/local_tts_server.py --voice 05_EXECUCAO/voices/pt_BR-cadu-medium.onnx
+python3 11_SCRIPTS/local_tts_server.py --engine piper --voice 05_EXECUCAO/voices/pt_BR-cadu-medium.onnx
 ```
 
-Ajustes úteis: `--pitch 0.90` deixa mais grave, `--tempo 1.06` compensa a
-duração, `--raw` devolve o Piper puro para comparar, `--token` exige
-`X-Jarvis-Voice-Token` em cada chamada.
+Ajustes úteis no Piper: `--pitch 0.90` deixa mais grave, `--tempo 1.06`
+compensa a duração, `--raw` devolve o Piper puro para comparar, `--token`
+exige `X-Jarvis-Voice-Token` em cada chamada.
 
 ## Deixar a voz de pé desde o boot
 
@@ -47,9 +60,7 @@ servidor. Se ele não estiver rodando, a fala cai para o `say` do sistema, que �
 uma voz compacta. Registre como serviço:
 
 ```bash
-python3 11_SCRIPTS/local_tts_server.py \
-  --voice ~/Library/Application\ Support/JARVIS/voices/cadu.onnx \
-  --install-agent
+python3 11_SCRIPTS/local_tts_server.py --install-agent
 ```
 
 O timbre padrão (`--pitch 0.90 --tempo 1.06`, voz `cadu`) foi escolhido pelo Theo

@@ -68,6 +68,9 @@ uma lista de capacidades.
   contexto. A chave server-side nunca é enviada ao navegador.
 - Com `JARVIS_OWNER_TOKEN`, memória, agenda e comandos do Mac exigem pareamento
   no painel Sistema. O valor fica somente no armazenamento local do navegador.
+  Visitantes criam conta em Sistema; o Theo aprova o modo code na coroa.
+  A conta dono entra no Ultron. Sem `JARVIS_GMAIL_APP_PASSWORD` o envio de
+  e-mail por `theopadilha2009@gmail.com` fica recusado de forma honesta.
 - `./jarvis computer-worker --install` mantém uma ponte leve entre a fila
   privada do Supabase e o Mac. O worker aceita apenas abrir/fechar aplicativo,
   capturar tela, abrir o gravador, analisar Downloads, diagnosticar memória,

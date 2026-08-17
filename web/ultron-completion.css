@@ -147,19 +147,10 @@ html[data-persona="ultron"] :is(
 }
 
 html[data-persona="ultron"] .wake-indicator[data-state="on"] {
-  border-color: rgba(248, 113, 113, .5);
-  color: #fee2e2;
+  background: radial-gradient(ellipse at center, rgba(255, 230, 230, 0.9) 0%, rgba(248, 113, 113, 0.5) 40%, rgba(127, 29, 29, 0) 72%);
+  box-shadow: 0 0 22px rgba(248, 113, 113, 0.7);
 }
-html[data-persona="ultron"] .wake-indicator[data-state="on"] i {
-  background: #ef4444;
-  box-shadow: 0 0 10px rgba(239, 68, 68, .9);
-}
-
 html[data-persona="ultron"] .wake-indicator[data-state="command"] {
-  border-color: rgba(254, 202, 202, .68);
-  color: #fff5f5;
-}
-html[data-persona="ultron"] .wake-indicator[data-state="command"] i {
-  background: #fca5a5;
-  box-shadow: 0 0 12px rgba(252, 165, 165, .95);
+  background: radial-gradient(ellipse at center, #fff 0%, rgba(252, 165, 165, 0.65) 42%, rgba(127, 29, 29, 0) 74%);
+  box-shadow: 0 0 28px rgba(254, 202, 202, 0.8);
 }

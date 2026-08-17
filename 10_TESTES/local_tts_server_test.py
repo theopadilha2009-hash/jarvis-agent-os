@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""Pocket TTS no servidor local: config, reuse em memória, fallback, texto íntegro."""
+
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from urllib.request import Request, urlopen
+import importlib.util
+import json
+import threading
+import unittest
+import wave
+from io import BytesIO
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location(
+    "jarvis_local_tts_server",
+    ROOT / "11_SCRIPTS" / "local_tts_server.py",
+)
+MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MODULE)
+
+PHRASE_A = (
+    "Boa noite, Theo. Todos os sistemas estão operacionais. "
+    "Estou pronto para auxiliá-lo."
+)
+PHRASE_B = "Theo, encontrei uma atualização no sistema. Posso verificar os detalhes para você."
+PHRASE_C = "Theo, o deploy do GitHub terminou e o Supabase está conectado."
+
+
+def silent_wav(sample_rate=24_000, frames=240) -> bytes:
+    buffer = BytesIO()
+    with wave.open(buffer, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        handle.writeframes(b"\x00\x00" * frames)
+    return buffer.getvalue()
+
+
+class FakeModel:
+    def __init__(self):
+        self.sample_rate = 24_000
+        self.generate_calls = []
+
+    def generate_audio(self, state, text, copy_state=True):
+        self.generate_calls.append({"state": state, "text": text, "copy_state": copy_state})
+        return silent_wav(self.sample_rate)
+
+
+class FakePiper:
+    def __init__(self):
+        self.calls = []
+
+    def synthesize_wav(self, text, handle):
+        self.calls.append(text)
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(22_050)
+        handle.writeframes(b"\x00\x00" * 80)
+
+
+class LocalTtsServerTest(unittest.TestCase):
+    def test_voice_config_resolves_from_home_lock_and_env(self):
+        with TemporaryDirectory() as folder:
+            lock_dir = Path(folder) / "Library" / "Application Support" / "JARVIS" / "voice-lock"
+            lock_dir.mkdir(parents=True)
+            (lock_dir / "VOICE_CONFIG.txt").write_text(
+                "JARVIS VOICE LOCK\n"
+                "Python=3.11\n"
+                "Pocket-TTS=2.1.0\n"
+                "Language=portuguese\n"
+                "Voice=bill_boerst\n",
+                encoding="utf-8",
+            )
+            resolved = MODULE.resolve_voice_config(environ={}, home=folder)
+            self.assertEqual(resolved["engine"], "pocket_tts")
+            self.assertEqual(resolved["language"], "portuguese")
+            self.assertEqual(resolved["voice"], "bill_boerst")
+            self.assertFalse(resolved["voice"].endswith(".wav"))
+
+            overridden = MODULE.resolve_voice_config(
+                environ={
+                    "JARVIS_TTS_ENGINE": "pocket-tts",
+                    "JARVIS_TTS_LANGUAGE": "portuguese",
+                    "JARVIS_TTS_VOICE": "bill_boerst",
+                    "HOME": folder,
+                },
+                home=folder,
+            )
+            self.assertEqual(overridden["engine"], "pocket_tts")
+            self.assertEqual(overridden["language"], "portuguese")
+            self.assertEqual(overridden["voice"], "bill_boerst")
+
+    def test_pocket_generate_uses_catalog_voice_and_full_text(self):
+        loads = []
+        model = FakeModel()
+
+        def loader(language):
+            loads.append(("model", language))
+            return model
+
+        def state_loader(loaded, voice):
+            loads.append(("state", voice, loaded is model))
+            return {"voice": voice}
+
+        runtime = MODULE.PocketRuntime("portuguese", "bill_boerst", loader=loader, state_loader=state_loader)
+        audio = runtime.generate(PHRASE_A)
+        self.assertTrue(audio.startswith(b"RIFF"))
+        self.assertGreater(len(audio), 44)
+        self.assertEqual(loads, [("model", "portuguese"), ("state", "bill_boerst", True)])
+        self.assertEqual(model.generate_calls[0]["text"], PHRASE_A)
+        self.assertEqual(model.generate_calls[0]["state"], {"voice": "bill_boerst"})
+        self.assertTrue(model.generate_calls[0]["copy_state"])
+
+    def test_second_synthesis_reuses_loaded_model_and_voice_state(self):
+        loads = []
+        model = FakeModel()
+
+        def loader(language):
+            loads.append(("model", language))
+            return model
+
+        def state_loader(_model, voice):
+            loads.append(("state", voice))
+            return {"voice": voice}
+
+        runtime = MODULE.PocketRuntime("portuguese", "bill_boerst", loader=loader, state_loader=state_loader)
+        first = runtime.generate(PHRASE_A)
+        second = runtime.generate(PHRASE_B)
+        self.assertTrue(first.startswith(b"RIFF"))
+        self.assertTrue(second.startswith(b"RIFF"))
+        self.assertEqual(loads, [("model", "portuguese"), ("state", "bill_boerst")])
+        self.assertEqual(runtime.load_calls, 1)
+        self.assertEqual(runtime.state_load_calls, 1)
+        self.assertEqual([row["text"] for row in model.generate_calls], [PHRASE_A, PHRASE_B])
+
+    def test_pocket_failure_falls_back_to_piper_without_crash(self):
+        class Boom:
+            def generate(self, text):
+                raise RuntimeError("pocket ausente")
+
+        piper = FakePiper()
+        result = MODULE.synthesize_speech(PHRASE_C, pocket=Boom(), piper=piper, piper_opts={"raw": True})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["engine"], "piper")
+        self.assertTrue(result["audio"].startswith(b"RIFF"))
+        self.assertEqual(piper.calls, [PHRASE_C])
+
+        failed = MODULE.synthesize_speech(PHRASE_C, pocket=Boom(), piper=None)
+        self.assertFalse(failed["ok"])
+        self.assertIn("pocket ausente", failed["error"])
+
+    def test_speech_handler_returns_audio_and_keeps_text_intact(self):
+        loads = []
+        model = FakeModel()
+
+        def loader(language):
+            loads.append(("model", language))
+            return model
+
+        def state_loader(_model, voice):
+            loads.append(("state", voice))
+            return {"voice": voice}
+
+        runtime = MODULE.PocketRuntime("portuguese", "bill_boerst", loader=loader, state_loader=state_loader)
+        runtime.load()
+        args = MODULE.build_parser().parse_args(["--engine", "pocket_tts", "--language", "portuguese", "--tts-voice", "bill_boerst"])
+        config = {"engine": "pocket_tts", "language": "portuguese", "voice": "bill_boerst"}
+        server = ThreadingHTTPServer(("127.0.0.1", 0), MODULE.make_handler(args, runtime, None, 24_000, config))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_address[1]
+            spoken = []
+            for phrase in (PHRASE_A, PHRASE_B, PHRASE_C):
+                request = Request(
+                    f"http://127.0.0.1:{port}/speech",
+                    data=json.dumps({"text": phrase}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urlopen(request, timeout=5) as response:
+                    body = response.read()
+                    spoken.append(phrase)
+                    self.assertEqual(response.status, 200)
+                    self.assertTrue(body.startswith(b"RIFF"))
+                    self.assertGreater(len(body), 44)
+            self.assertEqual(spoken, [PHRASE_A, PHRASE_B, PHRASE_C])
+            self.assertEqual(loads, [("model", "portuguese"), ("state", "bill_boerst")])
+            self.assertEqual([row["text"] for row in model.generate_calls], [PHRASE_A, PHRASE_B, PHRASE_C])
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_spoken_text_is_not_rewritten_before_generate(self):
+        model = FakeModel()
+        runtime = MODULE.PocketRuntime(
+            "portuguese",
+            "bill_boerst",
+            loader=lambda _language: model,
+            state_loader=lambda _model, voice: {"voice": voice},
+        )
+        result = MODULE.synthesize_speech(PHRASE_A, pocket=runtime, piper=None)
+        self.assertTrue(result["ok"])
+        self.assertEqual(model.generate_calls[0]["text"], PHRASE_A)
+        self.assertNotIn("--voice", model.generate_calls[0]["text"])
+
+
+if __name__ == "__main__":
+    unittest.main()

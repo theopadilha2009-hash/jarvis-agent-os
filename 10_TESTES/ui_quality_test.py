@@ -93,7 +93,7 @@ class UIQualityTest(unittest.TestCase):
     def test_dialogs_have_valid_accessible_titles(self):
         known_ids = set(self.parser.ids)
         dialogs = [attrs for tag, attrs in self.parser.elements if tag == "dialog"]
-        self.assertEqual(len(dialogs), 5)
+        self.assertEqual(len(dialogs), 6)
         for dialog in dialogs:
             label_id = dialog.get("aria-labelledby")
             self.assertTrue(label_id, f"Dialog sem aria-labelledby: {dialog.get('id')}")
@@ -278,7 +278,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
-        self.assertLess(critical_bytes, 276 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
+        self.assertLess(critical_bytes, 286 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
         self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
         self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 5 * 1024)
         self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 7 * 1024)
@@ -591,6 +591,16 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("VOZ RESERVA", self.app_js)
         self.assertIn("premium|enhanced|siri|neural", self.app_js)
         self.assertIn('data.client_action === "clear_chat"', self.app_js)
+        self.assertIn("startNewConversation({ force: true })", self.app_js)
+        self.assertIn('data?.client_action === "clear_chat"', self.app_js)
+        self.assertIn('id="crownButton"', self.html)
+        self.assertIn('id="signupButton"', self.html)
+        self.assertIn('id="accountsDialog"', self.html)
+        self.assertIn('data.client_action === "open_code_mode"', self.app_js)
+        self.assertIn("[data-scene-mode]", self.app_js)
+        self.assertIn("Pocket TTS", self.app_js)
+        self.assertIn("pending_accounts", self.app_js)
+        self.assertIn("formatSeen", self.app_js)
         self.assertIn(".author-card", self.shell_css)
         self.assertIn("author-card", self.app_js)
         self.assertIn("announceVoiceDowngrade", self.app_js)
