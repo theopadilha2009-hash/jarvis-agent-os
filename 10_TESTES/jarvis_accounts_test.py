@@ -19,7 +19,7 @@ SPEC.loader.exec_module(MODULE)
 class JarvisAccountsTest(unittest.TestCase):
     def test_signup_stays_pending_until_owner_approves(self):
         store = MODULE.empty_store()
-        store, user = MODULE.signup(store, "amigo02", "segredo123", "amigo@example.com")
+        store, user = MODULE.signup(store, "amigo02", "segredo123", "amigo@example.com", accepted_terms=True)
         self.assertEqual(user["role"], "pending")
         self.assertEqual(user["access"], ["jarvis"])
         self.assertNotIn("password_hash", user)
@@ -36,11 +36,13 @@ class JarvisAccountsTest(unittest.TestCase):
 
     def test_reserved_usernames_and_roundtrip_file(self):
         with self.assertRaises(ValueError):
-            MODULE.signup(MODULE.empty_store(), "theo", "segredo123")
+            MODULE.signup(MODULE.empty_store(), "theo", "segredo123", accepted_terms=True)
         with TemporaryDirectory() as folder:
             path = Path(folder) / "accounts.json"
             store = MODULE.empty_store()
-            MODULE.signup(store, "amigo03", "segredo123")
+            MODULE.signup(store, "amigo03", "segredo123", accepted_terms=True)
+            with self.assertRaises(ValueError):
+                MODULE.signup(MODULE.empty_store(), "amigo04", "segredo123", accepted_terms=False)
             MODULE.save_local(store, path)
             loaded = MODULE.load_local(path)
             self.assertTrue(MODULE.password_matches("segredo123", loaded["users"][0]["password_hash"]))

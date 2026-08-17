@@ -595,6 +595,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('data?.client_action === "clear_chat"', self.app_js)
         self.assertIn('id="crownButton"', self.html)
         self.assertIn('id="signupButton"', self.html)
+        self.assertIn('id="signupTerms"', self.html)
+        self.assertIn('accepted_terms', self.app_js)
         self.assertIn('id="accountsDialog"', self.html)
         self.assertIn('data.client_action === "open_code_mode"', self.app_js)
         self.assertIn("[data-scene-mode]", self.app_js)

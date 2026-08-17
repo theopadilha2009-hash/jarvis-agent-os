@@ -95,6 +95,7 @@ def public_user(row: dict) -> dict:
         "disabled": bool(row.get("disabled")),
         "created_at": row.get("created_at") or "",
         "last_seen_at": row.get("last_seen_at") or "",
+        "accepted_terms": bool(row.get("accepted_terms_at")),
     }
 
 
@@ -136,7 +137,7 @@ def signing_secret(store: dict) -> str:
     return str(store.get("signing_secret") or "")
 
 
-def signup(store: dict, username: str, password: str, email: str = "") -> tuple[dict, dict]:
+def signup(store: dict, username: str, password: str, email: str = "", accepted_terms: bool = False) -> tuple[dict, dict]:
     name = normalize_username(username)
     if not USERNAME_RE.fullmatch(name):
         raise ValueError("use um login de 3 a 32 caracteres (letra inicial, sem espaço)")
@@ -147,6 +148,8 @@ def signup(store: dict, username: str, password: str, email: str = "") -> tuple[
         raise ValueError("a senha precisa ter pelo menos 8 caracteres")
     if find_user(store, name):
         raise ValueError("esse login já existe")
+    if not accepted_terms:
+        raise ValueError("aceite os termos de uso para criar a conta")
     row = {
         "id": f"u-{secrets.token_hex(6)}",
         "username": name,
@@ -155,6 +158,7 @@ def signup(store: dict, username: str, password: str, email: str = "") -> tuple[
         "role": "pending",
         "access": ["jarvis"],
         "disabled": False,
+        "accepted_terms_at": now_iso(),
         "created_at": now_iso(),
         "last_seen_at": "",
     }

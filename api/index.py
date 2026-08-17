@@ -2287,28 +2287,83 @@ def pending_account_count():
         return 0
 
 
+def accounts_persistence():
+    if supabase_configured():
+        return "supabase"
+    if os.environ.get("VERCEL"):
+        return "ephemeral"
+    return "local"
+
+
 def save_account_book(book):
+    local_ok = False
+    remote_ok = False
     try:
         accounts_store.save_local(book)
+        local_ok = True
     except OSError:
         pass
-    if not supabase_configured():
-        return
-    try:
-        supabase_request(
-            "POST",
-            query="on_conflict=owner_id,key",
-            body={
-                "owner_id": "theo",
-                "key": "accounts",
-                "value": book,
-                "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            },
-            prefer="resolution=merge-duplicates,return=minimal",
-            table=SUPABASE_SETTINGS_TABLE,
-        )
-    except (HTTPError, URLError, TimeoutError, ValueError):
-        pass
+    if supabase_configured():
+        try:
+            supabase_request(
+                "POST",
+                query="on_conflict=owner_id,key",
+                body={
+                    "owner_id": "theo",
+                    "key": "accounts",
+                    "value": book,
+                    "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                },
+                prefer="resolution=merge-duplicates,return=minimal",
+                table=SUPABASE_SETTINGS_TABLE,
+            )
+            remote_ok = True
+        except (HTTPError, URLError, TimeoutError, ValueError):
+            remote_ok = False
+    if remote_ok:
+        return "supabase"
+    if local_ok and not os.environ.get("VERCEL"):
+        return "local"
+    return "ephemeral"
+
+
+def product_offer_payload():
+    persistence = accounts_persistence()
+    return {
+        "ok": True,
+        "endpoint": "GET /oferta",
+        "status_real": "product_offer",
+        "product": {
+            "name": "JARVIS",
+            "tagline": "Assistente pessoal do Theo. Convite, não SaaS multi-tenant.",
+            "invite_only": True,
+            "billing": "none",
+            "persistence": persistence,
+            "plans": [
+                {
+                    "id": "guest",
+                    "name": "Visitante",
+                    "price": "grátis",
+                    "includes": ["chat", "pesquisa web"],
+                    "excludes": ["Mac", "memória privada", "modo code"],
+                },
+                {
+                    "id": "member",
+                    "name": "Conta JARVIS",
+                    "price": "convite",
+                    "includes": ["chat", "pesquisa web", "modo code após aprovação"],
+                    "excludes": ["Mac do Theo", "Ultron", "self-edit"],
+                },
+                {
+                    "id": "owner",
+                    "name": "Ultron",
+                    "price": "dono",
+                    "includes": ["tudo do JARVIS", "Mac", "memória", "voz Pocket local"],
+                    "excludes": ["revenda", "multi-tenant"],
+                },
+            ],
+        },
+    }
 
 
 def session_signing_secret():
@@ -2503,17 +2558,30 @@ def signup_payload(body):
     username = accounts_store.normalize_username(body.get("username"))
     if auth_rate_limited(f"signup:{username or 'anon'}", limit=5, window=600):
         return {"ok": False, "status_real": "signup_rate_limited", "error": "Muitas contas em pouco tempo. Espere um pouco."}, 429
+    accepted = body.get("accepted_terms") is True
     try:
         book = load_account_book()
-        book, user = accounts_store.signup(book, body.get("username"), body.get("password"), body.get("email") or "")
-        save_account_book(book)
+        book, user = accounts_store.signup(
+            book,
+            body.get("username"),
+            body.get("password"),
+            body.get("email") or "",
+            accepted_terms=accepted,
+        )
+        persisted = save_account_book(book)
     except ValueError as error:
         return {"ok": False, "status_real": "signup_refused", "error": str(error)}, 400
+    note = {
+        "supabase": "Conta gravada. O Theo precisa aprovar o modo code.",
+        "local": "Conta gravada neste Mac. O Theo precisa aprovar o modo code.",
+        "ephemeral": "Conta criada só nesta instância. Sem Supabase ela some no próximo deploy.",
+    }[persisted]
     return {
         "ok": True,
         "status_real": "signup_pending",
-        "message": "Conta criada. O Theo precisa aprovar antes de você usar o modo code.",
+        "message": note,
         "user": user,
+        "persistence": persisted,
     }, 201
 
 
@@ -5051,6 +5119,7 @@ def status_payload(owner_authenticated=False, identity=None):
                 owner_authenticated or (not owner_pairing_required() and not os.environ.get("VERCEL"))
             ),
             "pending_accounts": pending_account_count() if owner_authenticated else 0,
+            "product": product_offer_payload()["product"],
             "public_chat": ai_ready,
             "public_voice": bool(elevenlabs_ready or self_hosted_tts_url()),
             "private_memory": bool(owner_authenticated or not owner_pairing_required()),
@@ -10018,11 +10087,14 @@ class handler(BaseHTTPRequestHandler):
         self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=60")
 
     def serve_creator_page(self):
-        target = WEB_DIR / "theo.html"
+        return self.serve_public_page("theo.html", "perfil do criador indisponível")
+
+    def serve_public_page(self, filename, missing):
+        target = WEB_DIR / filename
         try:
             body = target.read_bytes()
         except OSError:
-            return self.send_json(404, {"ok": False, "error": "perfil do criador indisponível"})
+            return self.send_json(404, {"ok": False, "error": missing})
         return self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=120")
 
     def serve_asset(self, relative):
@@ -10070,6 +10142,15 @@ class handler(BaseHTTPRequestHandler):
             return self.serve_ui()
         if path in {"/theo", "/criador", "/creator"}:
             return self.serve_creator_page()
+        if path in {"/produto", "/oferta.html"}:
+            return self.serve_public_page("produto.html", "página do produto indisponível")
+        if path in {"/termos", "/terms"}:
+            return self.serve_public_page("termos.html", "termos indisponíveis")
+        if path in {"/privacidade", "/privacy"}:
+            return self.serve_public_page("privacidade.html", "privacidade indisponível")
+        if path == "/oferta":
+            payload = product_offer_payload()
+            return self.send_json(200, payload)
         if path == "/creator-profile":
             payload, _status = creator_profile_payload("full")
             payload["endpoint"] = "GET /creator-profile"
