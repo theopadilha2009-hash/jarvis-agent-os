@@ -58,6 +58,8 @@ from spotify_control import (  # noqa: E402
 )
 import task_queue as task_queue_store  # noqa: E402
 import jarvis_accounts as accounts_store  # noqa: E402
+import jarvis_creator_seal as creator_seal  # noqa: E402
+import install_mac_app as mac_app  # noqa: E402
 
 AGENT_RUNS = RunStore()
 LOCAL_MEMORY_INDEX = MemoryIndex()
@@ -392,6 +394,7 @@ ASSET_TYPES = {
     ".svg": "image/svg+xml",
     ".webmanifest": "application/manifest+json; charset=utf-8",
     ".webp": "image/webp",
+    ".zip": "application/zip",
 }
 
 
@@ -2484,10 +2487,29 @@ def admin_password_matches(username, password):
 
 
 _AUTH_HITS = {}
+_PUBLIC_ROUTE_LIMITS = {
+    "/command": (24, 300),
+    "/command-stream": (24, 300),
+    "/speech": (16, 180),
+    "/signup": (6, 600),
+    "/login": (16, 180),
+    "/admin-login": (8, 180),
+    "/download/mac": (8, 600),
+}
+_ALLOWED_PUBLIC_HOSTS = {
+    "localhost",
+    "127.0.0.1",
+    "jarvis-theo.vercel.app",
+    "jarvis-agent-os.vercel.app",
+}
 
 
 def auth_rate_limited(bucket, limit=8, window=180):
     now = time.time()
+    if len(_AUTH_HITS) > 4_000:
+        stale = [key for key, stamps in list(_AUTH_HITS.items()) if not stamps or now - stamps[-1] >= window]
+        for key in stale[:2_000]:
+            _AUTH_HITS.pop(key, None)
     hits = [stamp for stamp in _AUTH_HITS.get(bucket, []) if now - stamp < window]
     if len(hits) >= limit:
         _AUTH_HITS[bucket] = hits
@@ -2495,6 +2517,76 @@ def auth_rate_limited(bucket, limit=8, window=180):
     hits.append(now)
     _AUTH_HITS[bucket] = hits
     return False
+
+
+def public_limits_enabled():
+    flag = clean_text(os.environ.get("JARVIS_PUBLIC_LIMITS"), 8)
+    if flag == "0":
+        return False
+    if flag == "1":
+        return True
+    return bool(os.environ.get("VERCEL"))
+
+
+def _trust_proxy_headers():
+    return bool(os.environ.get("VERCEL")) or clean_text(os.environ.get("JARVIS_TRUST_PROXY"), 8) == "1"
+
+
+def request_client_ip(handler):
+    if _trust_proxy_headers():
+        for header in ("X-Vercel-Forwarded-For", "X-Forwarded-For", "X-Real-IP"):
+            raw = clean_text(handler.headers.get(header), 200)
+            if not raw:
+                continue
+            candidate = raw.split(",")[0].strip()
+            try:
+                ipaddress.ip_address(candidate)
+                return candidate
+            except ValueError:
+                continue
+    return str((handler.client_address or ["unknown"])[0] or "unknown")
+
+
+def request_origin_allowed(handler):
+    origin = clean_text(handler.headers.get("Origin"), 300)
+    if not origin:
+        return True
+    host = (urlparse(origin).hostname or "").lower()
+    if host in _ALLOWED_PUBLIC_HOSTS:
+        return True
+    extra = os.environ.get("JARVIS_PUBLIC_ORIGINS", "")
+    allowed = {item.strip().lower() for item in extra.split(",") if item.strip()}
+    if host in allowed or origin.rstrip("/").lower() in allowed:
+        return True
+    if host.endswith(".vercel.app") and (
+        host.startswith("jarvis-agent-os-") or host.startswith("jarvis-theo-")
+    ):
+        return True
+    return False
+
+
+def public_route_limit_hit(handler, path, identity=None):
+    if not public_limits_enabled():
+        return False, 0
+    if (identity or {}).get("owner"):
+        return False, 0
+    spec = _PUBLIC_ROUTE_LIMITS.get(path)
+    if not spec:
+        return False, 0
+    limit, window = spec
+    bucket = f"ip:{path}:{request_client_ip(handler)}"
+    if auth_rate_limited(bucket, limit=limit, window=window):
+        return True, min(60, window)
+    return False, 0
+
+
+def pack_public_origin(handler):
+    host = clean_text(handler.headers.get("Host"), 200)
+    proto = "https" if (os.environ.get("VERCEL") or handler.headers.get("X-Forwarded-Proto") == "https") else "http"
+    if host.startswith("127.0.0.1") or host.startswith("localhost"):
+        return f"{proto}://{host}"
+    configured = clean_text(os.environ.get("JARVIS_PUBLIC_URL"), 200)
+    return configured or mac_app.DEFAULT_ORIGIN
 
 
 def account_login_payload(body, require_owner=False):
@@ -5125,6 +5217,22 @@ def status_payload(owner_authenticated=False, identity=None):
             "private_memory": bool(owner_authenticated or not owner_pairing_required()),
             "private_device_control": bool(owner_authenticated and supabase_configured()),
         },
+        "public_security": {
+            "csp": True,
+            "frame": "deny",
+            "guest_ip_limits": public_limits_enabled(),
+            "origin_lock": True,
+        },
+        "creator": {
+            "sealed": True,
+            "lock": creator_seal.fingerprint(),
+            "page": "/theo",
+        },
+        "mac_app": {
+            "download": "/download/mac",
+            "page": "/app",
+            "overlay": "/fala",
+        },
         "agent_runtime": {
             "tool_calling": ai_ready,
             "available_tools": len(agent_tool_definitions()) if ai_ready else 0,
@@ -6213,9 +6321,12 @@ def is_identity_question(prompt):
 
 def creator_name():
     try:
-        return base64.b64decode(CREATOR_MARK).decode("utf-8")
+        return creator_seal.creator_name()
     except (ValueError, UnicodeError, binascii.Error):
-        return CREATOR_PROFILE["name"]
+        try:
+            return base64.b64decode(CREATOR_MARK).decode("utf-8")
+        except (ValueError, UnicodeError, binascii.Error):
+            return CREATOR_PROFILE["name"]
 
 
 def creator_profile_payload(kind="full"):
@@ -9971,6 +10082,31 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-Permitted-Cross-Domain-Policies", "none")
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(self), geolocation=(), payment=(), usb=()")
+        self.send_header("X-Jarvis-Creator-Lock", creator_seal.fingerprint())
+        csp = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "media-src 'self' blob:; "
+            "connect-src 'self'; "
+            "font-src 'self' data:; "
+            "worker-src 'self'; "
+            "manifest-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "object-src 'none'"
+        )
+        https = bool(os.environ.get("VERCEL")) or self.headers.get("X-Forwarded-Proto") == "https"
+        if https:
+            csp += "; upgrade-insecure-requests"
+            self.send_header("Strict-Transport-Security", "max-age=15552000; includeSubDomains")
+        self.send_header("Content-Security-Policy", csp)
 
     def _write_body(self, body):
         try:
@@ -9979,12 +10115,15 @@ class handler(BaseHTTPRequestHandler):
             # Browsers commonly cancel a large immutable asset when a tab closes.
             return
 
-    def send_json(self, status, payload):
+    def send_json(self, status, payload, extra_headers=None):
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if extra_headers:
+            for name, value in extra_headers.items():
+                self.send_header(name, value)
         self._security_headers()
         self.end_headers()
         self._write_body(body)
@@ -10097,6 +10236,25 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(404, {"ok": False, "error": missing})
         return self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=120")
 
+    def serve_mac_pack(self):
+        limited, retry_after = public_route_limit_hit(self, "/download/mac")
+        if limited:
+            return self.send_json(429, {
+                "ok": False,
+                "status_real": "public_rate_limited",
+                "error": "Muitos downloads deste endereço. Espere um pouco.",
+                "retryable": True,
+            }, extra_headers={"Retry-After": str(retry_after)})
+        body = mac_app.mac_pack_bytes(pack_public_origin(self))
+        self.send_response(200)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", 'attachment; filename="JARVIS.mac.zip"')
+        self.send_header("Cache-Control", "no-store")
+        self._security_headers()
+        self.end_headers()
+        self._write_body(body)
+
     def serve_asset(self, relative):
         try:
             base = UI_ASSET_DIR.resolve()
@@ -10148,6 +10306,12 @@ class handler(BaseHTTPRequestHandler):
             return self.serve_public_page("termos.html", "termos indisponíveis")
         if path in {"/privacidade", "/privacy"}:
             return self.serve_public_page("privacidade.html", "privacidade indisponível")
+        if path in {"/fala", "/corner"}:
+            return self.serve_public_page("fala.html", "app de fala indisponível")
+        if path in {"/app", "/baixar"}:
+            return self.serve_public_page("app.html", "página do app indisponível")
+        if path in {"/download/mac", "/download/JARVIS.mac.zip"}:
+            return self.serve_mac_pack()
         if path == "/oferta":
             payload = product_offer_payload()
             return self.send_json(200, payload)
@@ -10396,13 +10560,28 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path, _ = request_route(self.path)
         started_at = datetime.now(timezone.utc)
+        if not request_origin_allowed(self):
+            return self.send_json(403, {
+                "ok": False,
+                "status_real": "origin_blocked",
+                "error": "Origem não autorizada.",
+            })
+        identity = request_identity(self.headers.get("X-Jarvis-Owner-Token"))
+        limited, retry_after = public_route_limit_hit(self, path, identity)
+        if limited:
+            return self.send_json(429, {
+                "ok": False,
+                "status_real": "public_rate_limited",
+                "error": "Muitos pedidos deste endereço. Espere um pouco.",
+                "retryable": True,
+                "queue": {"retry_after": retry_after},
+            }, extra_headers={"Retry-After": str(retry_after)})
         try:
             body = self.read_json()
         except ValueError as error:
             return self.send_json(400, {"ok": False, "error": str(error)})
 
         origin = clean_text(self.headers.get("Origin") or self.headers.get("Referer"), 200)
-        identity = request_identity(self.headers.get("X-Jarvis-Owner-Token"))
         owner_authenticated = bool(identity.get("owner"))
         code_authenticated = bool(identity.get("code") or identity.get("owner") or not owner_pairing_required())
         client = str((self.client_address or [""])[0]).lower()

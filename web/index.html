@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="/ui/api-panel.css?v=20260813-ultronfix1">
 <link rel="stylesheet" href="/ui/responsive-polish.css?v=20260815-vozes2">
 <link rel="stylesheet" href="/ui/shell.css?v=20260815-vozes2">
+<script src="/ui/creator-seal.js?v=20260817-app1"></script>
 <script>
 (() => {
   try {
@@ -65,6 +66,7 @@
         </button>
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
         <button class="quiet-button" id="tourButton" type="button">Guia</button>
+        <a class="quiet-button" id="macDownloadButton" href="/download/mac">Mac</a>
         <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
         <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir missões · ⌘K">Missões <kbd>⌘K</kbd></button>
         <button class="quiet-button integrations-button" id="integrationsButton" type="button" title="Abrir cofre de APIs">APIs <b id="integrationsCount">0</b></button>
@@ -448,12 +450,14 @@
     <div class="install-guide">
       <span><i>ANDROID</i><strong>Toque em “Instalar aplicativo” no menu do navegador.</strong></span>
       <span><i>IPHONE</i><strong>No Safari, toque em Compartilhar e depois “Adicionar à Tela de Início”.</strong></span>
-      <p>O ícone abre o cockpit em tela cheia. Conversa e voz funcionam pela internet; o controle do Mac depende do worker local online.</p>
+      <span><i>MAC</i><strong>Baixe o ZIP e dê dois cliques em INSTALAR.command.</strong></span>
+      <p>O ícone abre o cockpit em tela cheia. Conversa e voz funcionam pela internet; o controle do Mac depende do worker local online. App de canto: <a href="/download/mac">JARVIS.mac.zip</a> · <a href="/fala">fala</a>.</p>
     </div>
   </dialog>
 
   <footer class="legal-strip">
     <a href="/produto">Produto</a>
+    <a href="/app">App Mac</a>
     <a href="/termos">Termos</a>
     <a href="/privacidade">Privacidade</a>
     <a href="/theo">Criador</a>

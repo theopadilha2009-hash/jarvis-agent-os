@@ -40,6 +40,8 @@ class MacAppTest(unittest.TestCase):
                 self.assertEqual(info["CFBundleIdentifier"], MODULE.BUNDLE_ID)
                 self.assertEqual(info["CFBundleExecutable"], "JARVIS")
                 self.assertTrue(info["NSHighResolutionCapable"])
+                self.assertIn("Theo Lorentz Padilha", info["NSHumanReadableCopyright"])
+                self.assertTrue((app / "Contents" / "Resources" / "NOTICE.txt").is_file())
                 # Sem ícone gerado, o plist não promete um arquivo que não existe.
                 self.assertNotIn("CFBundleIconFile", info)
 
@@ -60,6 +62,34 @@ class MacAppTest(unittest.TestCase):
                 app = MODULE.install("https://cockpit.exemplo/", system_wide=False)
             info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
             self.assertEqual(info["CFBundleIconFile"], "jarvis")
+
+    def test_downloadable_pack_has_app_installer_and_creator_lock(self):
+        packed = MODULE.build_mac_pack(MODULE.DEFAULT_ORIGIN)
+        self.assertGreater(len(packed), 200)
+        with tempfile.TemporaryDirectory() as folder:
+            zip_path = Path(folder) / "JARVIS.mac.zip"
+            zip_path.write_bytes(packed)
+            import zipfile
+            with zipfile.ZipFile(zip_path) as archive:
+                names = set(archive.namelist())
+                self.assertIn("JARVIS.app/Contents/MacOS/JARVIS", names)
+                self.assertIn("JARVIS.app/Contents/Info.plist", names)
+                self.assertIn("INSTALAR.command", names)
+                self.assertIn("LER-ME.txt", names)
+                launcher = archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8")
+                self.assertIn("/fala", launcher)
+                self.assertIn("lock:", launcher)
+                self.assertIn("Theo Lorentz Padilha", archive.read("NOTICE.txt").decode("utf-8"))
+                self.assertTrue(archive.comment.decode("ascii").startswith("lock:"))
+                info = plistlib.loads(archive.read("JARVIS.app/Contents/Info.plist"))
+                self.assertEqual(info["CFBundleIdentifier"], MODULE.BUNDLE_ID)
+                self.assertIn("Theo Lorentz Padilha", info["NSHumanReadableCopyright"])
+                installer = archive.getinfo("INSTALAR.command")
+                launcher = archive.getinfo("JARVIS.app/Contents/MacOS/JARVIS")
+                self.assertEqual(installer.external_attr >> 16, 0o100755)
+                self.assertEqual(launcher.external_attr >> 16, 0o100755)
+                self.assertIn("--window-size=", archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8"))
+                self.assertIn("com.apple.quarantine", archive.read("INSTALAR.command").decode("utf-8"))
 
 
 if __name__ == "__main__":

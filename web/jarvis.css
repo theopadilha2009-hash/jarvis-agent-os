@@ -214,6 +214,8 @@ button {
 }
 
 .quiet-button {
+  display: inline-flex;
+  align-items: center;
   margin-left: 8px;
   min-height: 30px;
   padding: 5px 9px;
@@ -222,6 +224,7 @@ button {
   background: transparent;
   color: var(--muted);
   cursor: pointer;
+  text-decoration: none;
 }
 
 .mobile-label,
