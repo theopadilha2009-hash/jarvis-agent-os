@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """Voz própria do JARVIS: síntese neural local, sem cota e sem chave.
 
-Sobe um HTTP mínimo que fala português com o Piper e aplica o timbre do
-cockpit — barítono calmo, cadência medida, sem pressa. O gateway web chama
-este servidor quando a voz paga não está disponível.
+Motor principal: Pocket TTS (portuguese + bill_boerst), o mesmo catálogo da
+CLI aprovada `pocket-tts generate --language portuguese --voice bill_boerst`.
+O modelo e o voice state ficam em memória; cada /speech só gera a frase
+inteira e devolve WAV cru — sem cloning, sem WAV como --voice, sem pitch.
 
-    python3 11_SCRIPTS/local_tts_server.py --voice 05_EXECUCAO/voices/pt_BR-cadu-medium.onnx
+Piper continua como fallback se Pocket falhar. O gateway web chama este
+servidor quando a voz paga não está disponível.
 
-O modelo não vem no repositório: baixe uma voz do Piper (rhasspy/piper-voices)
-e aponte com --voice.
+    # Pocket (padrão; usa ~/.venv-pocket se o python atual não tiver o pacote)
+    python3 11_SCRIPTS/local_tts_server.py
+
+    # Piper só, se quiser o motor antigo
+    python3 11_SCRIPTS/local_tts_server.py --engine piper --voice ~/.…/cadu.onnx
 """
 
 from __future__ import annotations
@@ -20,15 +25,15 @@ import json
 import os
 from pathlib import Path
 import shutil
+import struct
 import subprocess
 import sys
+import threading
 import time
 import wave
 
 
-# Perfil sonoro do cockpit: grave e limpo. Sem eco e sem corte de agudos —
-# um eco de 24 ms vira filtro de pente e deixa a voz abafada, com a dicção
-# borrada; o lowpass agressivo tirava o resto do brilho das consoantes.
+# Perfil sonoro do cockpit: só no fallback Piper. Pocket sai cru, como a CLI.
 VOICE_PROFILE = (
     "asetrate={rate}*{pitch},aresample={rate},atempo={tempo},"
     "highpass=f=70,"
@@ -36,28 +41,270 @@ VOICE_PROFILE = (
     "volume=1.15"
 )
 MAX_TEXT = 2_200
-
+DEFAULT_ENGINE = "pocket_tts"
+DEFAULT_LANGUAGE = "portuguese"
+DEFAULT_VOICE = "bill_boerst"
+DEFAULT_POCKET_PYTHON = Path(".venv-pocket") / "bin" / "python"
 
 LAUNCH_LABEL = "ai.theopadilha.jarvis-voice"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = Path(__file__).resolve().parents[1] / "09_LOGS"
 
 
-def install_agent(args) -> Path:
+def voice_lock_dir(home=None, environ=None) -> Path:
+    env = environ if environ is not None else os.environ
+    override = (env.get("JARVIS_VOICE_LOCK_DIR") or "").strip()
+    if override:
+        return Path(override).expanduser()
+    root = Path(home) if home else Path(env.get("HOME") or Path.home())
+    return root / "Library" / "Application Support" / "JARVIS" / "voice-lock"
+
+
+def parse_voice_lock(text: str) -> dict:
+    parsed = {}
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip().casefold().replace(" ", "_").replace("-", "_")
+        value = value.strip()
+        if key in {"language", "voice", "engine"} and value:
+            parsed[key] = value
+    return parsed
+
+
+def normalize_engine(value: str) -> str:
+    engine = (value or "").strip().casefold().replace("-", "_").replace(" ", "_")
+    if engine in {"pocket", "pockettts"}:
+        return "pocket_tts"
+    return engine or DEFAULT_ENGINE
+
+
+def resolve_voice_config(environ=None, home=None) -> dict:
+    """engine/language/voice: env > VOICE_CONFIG do HOME > defaults aprovados."""
+    env = environ if environ is not None else os.environ
+    lock_path = voice_lock_dir(home=home, environ=env) / "VOICE_CONFIG.txt"
+    lock = {}
+    try:
+        lock = parse_voice_lock(lock_path.read_text(encoding="utf-8"))
+    except OSError:
+        lock = {}
+    engine = normalize_engine(env.get("JARVIS_TTS_ENGINE") or lock.get("engine") or DEFAULT_ENGINE)
+    language = (env.get("JARVIS_TTS_LANGUAGE") or lock.get("language") or DEFAULT_LANGUAGE).strip()
+    voice = (env.get("JARVIS_TTS_VOICE") or lock.get("voice") or DEFAULT_VOICE).strip()
+    return {
+        "engine": engine,
+        "language": language or DEFAULT_LANGUAGE,
+        "voice": voice or DEFAULT_VOICE,
+        "lock_path": str(lock_path),
+    }
+
+
+def pocket_python(home=None) -> Path:
+    root = Path(home) if home else Path.home()
+    return root / DEFAULT_POCKET_PYTHON
+
+
+def default_piper_voice(home=None) -> Path | None:
+    root = Path(home) if home else Path.home()
+    candidates = (
+        root / "Library" / "Application Support" / "JARVIS" / "voices" / "cadu.onnx",
+        Path(__file__).resolve().parents[1] / "05_EXECUCAO" / "voices" / "pt_BR-cadu-medium.onnx",
+    )
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
+def maybe_reexec_pocket_python(engine: str) -> None:
+    """Pocket vive no venv aprovado; sem isso o processo longo não carrega o modelo."""
+    if engine != "pocket_tts":
+        return
+    if os.environ.get("JARVIS_TTS_NO_REEXEC") == "1":
+        return
+    try:
+        import pocket_tts  # noqa: F401
+        return
+    except ImportError:
+        pass
+    candidate = pocket_python()
+    if not candidate.is_file():
+        return
+    current = Path(sys.executable).resolve()
+    if current == candidate.resolve():
+        return
+    os.execv(str(candidate), [str(candidate), *sys.argv])
+
+
+def pcm16_wav(frames: bytes, sample_rate: int, channels: int = 1) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as handle:
+        handle.setnchannels(channels)
+        handle.setsampwidth(2)
+        handle.setframerate(int(sample_rate) or 24_000)
+        handle.writeframes(frames)
+    return buffer.getvalue()
+
+
+def tensor_to_wav(audio, sample_rate: int) -> bytes:
+    """Converte o tensor do Pocket (ou WAV já pronto) em WAV PCM16, sem ffmpeg."""
+    if isinstance(audio, (bytes, bytearray)) and audio[:4] == b"RIFF":
+        return bytes(audio)
+    if hasattr(audio, "detach"):
+        audio = audio.detach()
+    if hasattr(audio, "cpu"):
+        audio = audio.cpu()
+    if hasattr(audio, "clamp"):
+        audio = audio.clamp(-1, 1)
+        if int(getattr(audio, "ndim", 1) or 1) > 1:
+            audio = audio.reshape(-1)
+        pcm = (audio * 32767).short() if hasattr(audio, "short") else audio
+        frames = pcm.numpy().tobytes() if hasattr(pcm, "numpy") else bytes(pcm)
+        return pcm16_wav(frames, sample_rate)
+    if isinstance(audio, (bytes, bytearray)):
+        return pcm16_wav(bytes(audio), sample_rate)
+    samples = list(audio)
+    packed = b"".join(
+        struct.pack("<h", max(-32768, min(32767, int(float(sample) * 32767))))
+        for sample in samples
+    )
+    return pcm16_wav(packed, sample_rate)
+
+
+def default_load_model(language: str):
+    from pocket_tts import TTSModel
+
+    return TTSModel.load_model(language=language)
+
+
+def default_load_voice_state(model, voice: str):
+    return model.get_state_for_audio_prompt(voice)
+
+
+class PocketRuntime:
+    """Um load do modelo + voice state; generate_audio reutiliza os dois."""
+
+    def __init__(self, language: str, voice: str, loader=None, state_loader=None):
+        self.language = language
+        self.voice = voice
+        self._loader = loader or default_load_model
+        self._state_loader = state_loader or default_load_voice_state
+        self.model = None
+        self.voice_state = None
+        self.sample_rate = 24_000
+        self.load_calls = 0
+        self.state_load_calls = 0
+        self._lock = threading.Lock()
+
+    def load(self):
+        if self.model is not None and self.voice_state is not None:
+            return self
+        with self._lock:
+            if self.model is None:
+                self.model = self._loader(self.language)
+                self.load_calls += 1
+                self.sample_rate = int(getattr(self.model, "sample_rate", 24_000) or 24_000)
+            if self.voice_state is None:
+                self.voice_state = self._state_loader(self.model, self.voice)
+                self.state_load_calls += 1
+        return self
+
+    def generate(self, text: str) -> bytes:
+        self.load()
+        with self._lock:
+            audio = self.model.generate_audio(self.voice_state, text, copy_state=True)
+        return tensor_to_wav(audio, self.sample_rate)
+
+
+def synthesize_wav(voice, text: str) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as handle:
+        voice.synthesize_wav(text, handle)
+    return buffer.getvalue()
+
+
+def apply_profile(audio: bytes, rate: int, pitch: float, tempo: float) -> tuple[bytes, str]:
+    """Aplica o timbre e entrega mp3; sem ffmpeg, devolve o wav como veio."""
+    if not shutil.which("ffmpeg"):
+        return audio, "audio/wav"
+    chain = VOICE_PROFILE.format(rate=rate, pitch=pitch, tempo=tempo)
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-af", chain, "-f", "mp3", "-b:a", "128k", "pipe:1"],
+            input=audio,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return audio, "audio/wav"
+    if result.returncode != 0 or not result.stdout:
+        return audio, "audio/wav"
+    return result.stdout, "audio/mpeg"
+
+
+def synthesize_speech(text: str, pocket=None, piper=None, piper_opts=None) -> dict:
+    """Gera áudio sem derrubar o processo. Pocket primeiro; Piper só se Pocket falhar."""
+    opts = piper_opts or {}
+    if pocket is not None:
+        try:
+            audio = pocket.generate(text)
+            if audio:
+                return {"ok": True, "audio": audio, "content_type": "audio/wav", "engine": "pocket_tts"}
+        except Exception as error:
+            if piper is None:
+                return {"ok": False, "error": f"falha na síntese: {error}", "engine": "pocket_tts"}
+    if piper is not None:
+        try:
+            audio = synthesize_wav(piper, text)
+            if opts.get("raw"):
+                return {"ok": True, "audio": audio, "content_type": "audio/wav", "engine": "piper"}
+            processed, content_type = apply_profile(
+                audio,
+                int(opts.get("sample_rate") or 22_050),
+                float(opts.get("pitch") or 0.94),
+                float(opts.get("tempo") or 1.02),
+            )
+            return {"ok": True, "audio": processed, "content_type": content_type, "engine": "piper"}
+        except Exception as error:
+            return {"ok": False, "error": f"falha na síntese: {error}", "engine": "piper"}
+    return {"ok": False, "error": "nenhum motor de voz disponível", "engine": "none"}
+
+
+def agent_program_args(args, config: dict) -> list[str]:
+    python = sys.executable
+    if config.get("engine") == "pocket_tts":
+        candidate = pocket_python()
+        if candidate.is_file():
+            python = str(candidate)
+    command = [
+        python,
+        str(Path(__file__).resolve()),
+        "--host", args.host,
+        "--port", str(args.port),
+        "--engine", config["engine"],
+        "--language", config["language"],
+        "--tts-voice", config["voice"],
+        "--pitch", str(args.pitch),
+        "--tempo", str(args.tempo),
+    ]
+    if getattr(args, "voice", ""):
+        command.extend(["--voice", str(Path(args.voice).expanduser().resolve())])
+    if getattr(args, "raw", False):
+        command.append("--raw")
+    return command
+
+
+def install_agent(args, config=None) -> Path:
     """Deixa a voz de pé desde o boot: sem ela a saudação cai para o `say`."""
     import plistlib
 
+    config = config or resolve_voice_config()
     payload = {
         "Label": LAUNCH_LABEL,
-        "ProgramArguments": [
-            sys.executable,
-            str(Path(__file__).resolve()),
-            "--voice", str(Path(args.voice).expanduser().resolve()),
-            "--host", args.host,
-            "--port", str(args.port),
-            "--pitch", str(args.pitch),
-            "--tempo", str(args.tempo),
-        ],
+        "ProgramArguments": agent_program_args(args, config),
         "RunAtLoad": True,
         "KeepAlive": True,
         "ThrottleInterval": 10,
@@ -66,8 +313,10 @@ def install_agent(args) -> Path:
             "PYTHONUNBUFFERED": "1",
             "PATH": (
                 f"{Path.home() / '.local' / 'bin'}:"
+                f"{Path.home() / '.venv-pocket' / 'bin'}:"
                 "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
             ),
+            "HOME": str(Path.home()),
         },
         "StandardOutPath": str(LOG_DIR / "voice-server.log"),
         "StandardErrorPath": str(LOG_DIR / "voice-server-error.log"),
@@ -103,57 +352,47 @@ def install_agent(args) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="JARVIS local neural voice")
-    parser.add_argument("--voice", required=True, help="caminho do modelo .onnx do Piper")
+    parser.add_argument("--voice", default="", help="caminho do modelo .onnx do Piper (fallback)")
+    parser.add_argument("--engine", default="", help="pocket_tts (padrão) ou piper")
+    parser.add_argument("--language", default="", help="idioma Pocket (padrão: portuguese)")
+    parser.add_argument("--tts-voice", default="", dest="tts_voice", help="voz de catálogo Pocket (padrão: bill_boerst)")
     parser.add_argument("--install-agent", action="store_true", help="sobe junto com o Mac, via LaunchAgent")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8123)
     parser.add_argument("--token", default="", help="exigido no header X-Jarvis-Voice-Token quando definido")
-    parser.add_argument("--pitch", type=float, default=0.94, help="<1 deixa a voz mais grave")
-    parser.add_argument("--tempo", type=float, default=1.02, help="compensa a duração após o pitch")
+    parser.add_argument("--pitch", type=float, default=0.94, help="<1 deixa a voz mais grave (só Piper)")
+    parser.add_argument("--tempo", type=float, default=1.02, help="compensa a duração após o pitch (só Piper)")
     parser.add_argument("--raw", action="store_true", help="devolve o Piper puro, sem o timbre do cockpit")
     return parser
 
 
-def synthesize_wav(voice, text: str) -> bytes:
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as handle:
-        voice.synthesize_wav(text, handle)
-    return buffer.getvalue()
+def apply_cli_overrides(config: dict, args) -> dict:
+    if args.engine:
+        config["engine"] = normalize_engine(args.engine)
+    if args.language:
+        config["language"] = args.language.strip()
+    if args.tts_voice:
+        config["voice"] = args.tts_voice.strip()
+    return config
 
 
-def apply_profile(audio: bytes, rate: int, pitch: float, tempo: float) -> tuple[bytes, str]:
-    """Aplica o timbre e entrega mp3; sem ffmpeg, devolve o wav como veio."""
-    if not shutil.which("ffmpeg"):
-        return audio, "audio/wav"
-    chain = VOICE_PROFILE.format(rate=rate, pitch=pitch, tempo=tempo)
-    try:
-        result = subprocess.run(
-            ["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-af", chain, "-f", "mp3", "-b:a", "128k", "pipe:1"],
-            input=audio,
-            capture_output=True,
-            timeout=30,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return audio, "audio/wav"
-    if result.returncode != 0 or not result.stdout:
-        return audio, "audio/wav"
-    return result.stdout, "audio/mpeg"
-
-
-def make_handler(voice, args, sample_rate: int):
+def make_handler(args, pocket, piper, sample_rate: int, config: dict):
     class VoiceHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
         def log_message(self, *_args):  # silêncio: quem fala é o JARVIS
             return
 
-        def _send(self, status: int, body: bytes, content_type: str):
+        def _send(self, status: int, body: bytes, content_type: str, engine: str = ""):
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Jarvis-Voice-Token")
+            self.send_header(
+                "X-Jarvis-Voice-Engine",
+                engine or ("pocket_tts" if pocket is not None else "piper" if piper is not None else "none"),
+            )
             self.end_headers()
             self.wfile.write(body)
 
@@ -168,9 +407,14 @@ def make_handler(voice, args, sample_rate: int):
                 return self._json(200, {
                     "ok": True,
                     "status_real": "local_voice_ready",
-                    "voice": Path(args.voice).name,
+                    "engine": config.get("engine"),
+                    "language": config.get("language"),
+                    "voice": config.get("voice"),
+                    "pocket_loaded": pocket is not None,
+                    "piper_loaded": piper is not None,
+                    "piper_voice": Path(args.voice).name if piper is not None and args.voice else "",
                     "sample_rate": sample_rate,
-                    "profile": "raw" if args.raw else "cockpit",
+                    "profile": "raw" if pocket is not None or args.raw else "cockpit",
                 })
             return self._json(404, {"ok": False, "error": "rota desconhecida"})
 
@@ -194,45 +438,98 @@ def make_handler(voice, args, sample_rate: int):
                 except (TypeError, ValueError):
                     return default
 
-            pitch = bounded("pitch", args.pitch, 0.70, 1.10)
-            tempo = bounded("tempo", args.tempo, 0.80, 1.40)
-            try:
-                audio = synthesize_wav(voice, text)
-            except Exception as error:  # o servidor não pode morrer por uma frase
-                return self._json(500, {"ok": False, "error": f"falha na síntese: {error}"})
-            if args.raw:
-                return self._send(200, audio, "audio/wav")
-            processed, content_type = apply_profile(audio, sample_rate, pitch, tempo)
-            return self._send(200, processed, content_type)
+            result = synthesize_speech(
+                text,
+                pocket=pocket,
+                piper=piper,
+                piper_opts={
+                    "raw": args.raw,
+                    "sample_rate": sample_rate,
+                    "pitch": bounded("pitch", args.pitch, 0.70, 1.10),
+                    "tempo": bounded("tempo", args.tempo, 0.80, 1.40),
+                },
+            )
+            if not result.get("ok"):
+                return self._json(500, {
+                    "ok": False,
+                    "error": result.get("error") or "falha na síntese",
+                    "engine": result.get("engine"),
+                })
+            return self._send(200, result["audio"], result["content_type"], result.get("engine") or "")
 
     return VoiceHandler
 
 
-def main() -> int:
-    args = build_parser().parse_args()
-    model = Path(args.voice).expanduser()
+def load_piper(path: str):
+    try:
+        from piper import PiperVoice
+    except ImportError:
+        return None
+    model = Path(path).expanduser()
     if not model.is_file():
-        print(f"FALHA: modelo não encontrado em {model}")
-        return 1
+        return None
+    return PiperVoice.load(str(model))
+
+
+def main(argv=None) -> int:
+    args = build_parser().parse_args(argv)
+    config = apply_cli_overrides(resolve_voice_config(), args)
     if args.install_agent:
         try:
-            agent = install_agent(args)
+            agent = install_agent(args, config)
         except RuntimeError as error:
             print(f"FALHA: {error}")
             return 1
         print(f"Voz registrada no boot: {agent}")
-        print(f"Status real: {LAUNCH_LABEL} ativo; a saudação de boas-vindas usa esta voz.")
+        print(
+            f"Status real: {LAUNCH_LABEL} ativo; engine={config['engine']} "
+            f"language={config['language']} voice={config['voice']}."
+        )
         return 0
-    try:
-        from piper import PiperVoice
-    except ImportError:
-        print("FALHA: instale o Piper com `pip3 install piper-tts`.")
+
+    maybe_reexec_pocket_python(config["engine"])
+
+    pocket = None
+    pocket_error = ""
+    if config["engine"] == "pocket_tts":
+        try:
+            pocket = PocketRuntime(config["language"], config["voice"])
+            pocket.load()
+        except Exception as error:
+            pocket = None
+            pocket_error = str(error)
+            print(f"AVISO: Pocket TTS indisponível ({error}); tentando fallback.")
+
+    piper_path = (args.voice or "").strip()
+    if not piper_path:
+        found = default_piper_voice()
+        piper_path = str(found) if found else ""
+        args.voice = piper_path
+    piper = None
+    if piper_path:
+        try:
+            piper = load_piper(piper_path)
+        except Exception as error:
+            piper = None
+            print(f"AVISO: Piper indisponível ({error}).")
+        if piper is None and config["engine"] == "piper":
+            print(f"FALHA: modelo Piper não encontrado em {piper_path}")
+            return 1
+
+    if pocket is None and piper is None and config["engine"] == "piper":
+        print("FALHA: instale o Piper com `pip3 install piper-tts` ou use --engine pocket_tts.")
         return 1
-    voice = PiperVoice.load(str(model))
-    sample_rate = getattr(getattr(voice, "config", None), "sample_rate", 22_050)
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(voice, args, sample_rate))
+
+    sample_rate = getattr(pocket, "sample_rate", None) or getattr(getattr(piper, "config", None), "sample_rate", 22_050)
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(args, pocket, piper, int(sample_rate), config))
+    engine_label = "pocket_tts" if pocket is not None else "piper" if piper is not None else "indisponível"
     print("JARVIS — voz local")
-    print(f"Status real: {model.name} em http://{args.host}:{args.port}/speech")
+    print(
+        f"Status real: engine={engine_label} language={config['language']} "
+        f"voice={config['voice']} em http://{args.host}:{args.port}/speech"
+    )
+    if pocket_error and piper is not None:
+        print(f"Fallback: Piper em {Path(piper_path).name}")
     print("Produção: nada alterado; a síntese acontece nesta máquina.")
     try:
         server.serve_forever()

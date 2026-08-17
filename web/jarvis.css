@@ -1792,51 +1792,58 @@ button {
   background: rgba(124, 58, 237, 0.16);
 }
 
-/* Estado da escuta pelo nome: o Theo precisa ver num relance se está armado. */
+/* Escuta pelo nome: só o brilho. Sem pílula, sem texto aparente. */
 .wake-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 9px;
-  height: 30px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  position: relative;
+  width: 52px;
+  height: 22px;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.42);
-  color: rgba(203, 213, 225, 0.86);
-  font-size: 11px;
-  letter-spacing: 0.02em;
+  background: radial-gradient(ellipse at center, rgba(255, 248, 255, 0.92) 0%, rgba(216, 180, 254, 0.55) 38%, rgba(88, 28, 135, 0) 72%);
+  box-shadow: 0 0 16px rgba(192, 132, 252, 0.35);
+  color: transparent;
   cursor: pointer;
+  flex: 0 0 auto;
 }
-
+.wake-indicator b {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
 .wake-indicator i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(148, 163, 184, 0.5);
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: inherit;
 }
 
 .wake-indicator[data-state="on"] {
-  border-color: rgba(94, 234, 212, 0.46);
-  color: #ccfbf1;
+  box-shadow: 0 0 22px rgba(192, 132, 252, 0.7);
+  animation: wake-flare 2.6s ease-in-out infinite;
 }
-
-.wake-indicator[data-state="on"] i {
-  background: #2dd4bf;
-  box-shadow: 0 0 10px rgba(45, 212, 191, 0.9);
-  animation: wake-breath 2.4s ease-in-out infinite;
+.wake-indicator[data-state="command"] {
+  box-shadow: 0 0 28px rgba(244, 232, 255, 0.85);
+  animation: wake-flare 0.9s ease-in-out infinite;
 }
+.wake-indicator[data-state="arming"] { opacity: 0.55; }
+.wake-indicator[data-state="blocked"] {
+  background: radial-gradient(ellipse at center, rgba(254, 202, 202, 0.7) 0%, rgba(127, 29, 29, 0) 70%);
+  box-shadow: 0 0 14px rgba(248, 113, 113, 0.45);
+}
+.wake-indicator[data-state="off"] { opacity: 0.28; filter: grayscale(0.4); }
 
-.wake-indicator[data-state="arming"] i { background: rgba(250, 204, 21, 0.8); }
-.wake-indicator[data-state="blocked"] { border-color: rgba(248, 113, 113, 0.44); color: #fecaca; }
-.wake-indicator[data-state="blocked"] i { background: #f87171; }
-
-@keyframes wake-breath {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+@keyframes wake-flare {
+  0%, 100% { opacity: 0.78; transform: scaleX(1); }
+  50% { opacity: 1; transform: scaleX(1.08); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wake-indicator[data-state="on"] i { animation: none; }
+  .wake-indicator[data-state="on"],
+  .wake-indicator[data-state="command"] { animation: none; }
 }
 
 .voice-button.speaking {
@@ -2042,6 +2049,87 @@ dialog::backdrop {
 }
 
 .leave-owner-mode[hidden] { display: none; }
+
+.crown-button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.08);
+  color: #facc15;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.crown-button svg { width: 16px; height: 16px; }
+.crown-button[hidden] { display: none; }
+.crown-button:hover { background: rgba(250, 204, 21, 0.16); }
+.crown-button[data-count]:not([data-count=""]) { position: relative; }
+.crown-button[data-count]:not([data-count=""])::after {
+  content: attr(data-count);
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #1c1503;
+  font: 700 9px/14px ui-sans-serif, system-ui, sans-serif;
+}
+
+.account-signup {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(140px, 1fr) auto;
+  gap: 7px;
+}
+.account-signup input {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: 0;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.account-signup button {
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 10px;
+}
+.account-signup[hidden] { display: none; }
+
+.accounts-dialog { width: min(520px, calc(100vw - 24px)); }
+.accounts-hint { margin: 0 16px 10px; color: var(--faint); font-size: 11px; }
+.accounts-list { display: grid; gap: 8px; padding: 0 16px 16px; max-height: 50vh; overflow: auto; }
+.account-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.account-row b { display: block; font-size: 12px; }
+.account-row small { color: var(--faint); }
+.account-row menu { display: flex; gap: 6px; margin: 0; padding: 0; }
+.account-row button {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 5px 8px;
+}
 
 .advanced-pairing { margin-top: 2px; }
 .advanced-pairing summary { color: var(--faint); cursor: pointer; font-size: 9px; }
@@ -3851,13 +3939,4 @@ dialog {
   }
 }
 
-.wake-indicator[data-state="command"] {
-  border-color: rgba(192, 132, 252, 0.62);
-  color: #f3e8ff;
-}
 
-.wake-indicator[data-state="command"] i {
-  background: #c084fc;
-  box-shadow: 0 0 12px rgba(192, 132, 252, 0.95);
-  animation: wake-breath 0.9s ease-in-out infinite;
-}

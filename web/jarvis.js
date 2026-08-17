@@ -32,6 +32,7 @@
   };
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
+  const LAST_LOGIN_KEY = "jarvis-last-login";
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
@@ -145,6 +146,7 @@
     working: false,
     workingState: "thinking",
     elevenlabs: false,
+    localVoice: false,
     voiceError: "",
     voiceFirstAudioMs: 0,
     muted: (() => {
@@ -157,6 +159,9 @@
     responseState: "",
     history: [],
     paired: false,
+    codeMode: false,
+    accountName: "",
+    canManageAccounts: false,
     deviceOnline: false,
     deviceBridge: false,
     canceledJobs: new Set(),
@@ -803,6 +808,16 @@
     window.dispatchEvent(new CustomEvent("jarvis-persona", { detail: { persona: ultron ? "ultron" : "jarvis" } }));
   }
 
+  function formatSeen(value) {
+    const stamp = Date.parse(value || "");
+    if (!stamp) return "";
+    const delta = Math.max(0, Date.now() - stamp);
+    if (delta < 60_000) return "agora";
+    if (delta < 3_600_000) return `${Math.floor(delta / 60_000)} min`;
+    if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)} h`;
+    return `${Math.floor(delta / 86_400_000)} d`;
+  }
+
   function ownerToken() {
     try {
       return localStorage.getItem(OWNER_TOKEN_KEY) || "";
@@ -841,6 +856,9 @@
     }
     byId("ownerTokenInput").value = "";
     session.paired = false;
+    session.codeMode = false;
+    session.accountName = "";
+    session.canManageAccounts = false;
     applyIdentityMode();
     session.history = [];
     session.historyRestored = false;
@@ -894,6 +912,11 @@
       ["Quem te criou?", "quem criou você"],
       ["Copiar relatório", "__copy_bug_report__"],
     ],
+    code: [
+      ["Abrir modo code", "abre o modo code"],
+      ["Explicar este pedido", "explique como você construiria isso passo a passo, sem editar o Mac"],
+      ["Limpar o chat", "limpa o chat"],
+    ],
     owner: [
       ["Melhorar você", "melhore a interface e o modo visitante do jarvis e corrija o que estiver confuso"],
       ["Deploy e merge", "faça deploy e merge do que você melhorou no jarvis"],
@@ -904,7 +927,7 @@
   function renderStarterActions() {
     const target = byId("starterActions");
     if (!target) return;
-    const actions = session.paired ? STARTER_ACTIONS.owner : STARTER_ACTIONS.guest;
+    const actions = session.paired ? STARTER_ACTIONS.owner : session.codeMode ? STARTER_ACTIONS.code : STARTER_ACTIONS.guest;
     target.innerHTML = actions.map(([label, command]) => (
       `<button type="button" data-starter-command="${escapeHtml(command)}">${escapeHtml(label)}</button>`
     )).join("");
@@ -922,7 +945,9 @@
   function renderWelcomeState(note = "") {
     const defaultHint = session.paired
       ? "Dê a ordem. Eu escolho a rota mais forte disponível."
-      : "Visitante: converse e pesquise. Sem Mac e sem memória do Theo. Achou um bug? use Copiar relatório.";
+      : session.codeMode
+        ? "Modo code ativo. Peça para construir; o Mac do Theo continua fechado."
+        : "Visitante: converse e pesquise. Sem Mac e sem memória do Theo. Achou um bug? use Copiar relatório.";
     feed.innerHTML = (
       `<div class="welcome" id="welcomeMessage">`
       + `<strong>${session.paired ? "Diga. Eu assumo daqui." : "Estou aqui."}</strong>`
@@ -936,8 +961,8 @@
     renderStarterActions();
   }
 
-  async function startNewConversation() {
-    if (session.working || newConversationButton?.disabled) return;
+  async function startNewConversation(options = {}) {
+    if (!options.force && (session.working || newConversationButton?.disabled)) return;
     stopSpeechOutput();
     if (newConversationButton) {
       newConversationButton.disabled = true;
@@ -2089,7 +2114,9 @@
           : null;
         const chunkPlayed = await playSpeechChunk(result.blob, chunks[index], generation, index === 0 ? () => {
           session.voiceFirstAudioMs = Math.max(1, Math.round(performance.now() - voiceRequestedAt));
-          byId("voiceValue").textContent = `ElevenLabs · voz em ${session.voiceFirstAudioMs} ms`;
+          byId("voiceValue").textContent = session.localVoice
+            ? `Pocket TTS · voz em ${session.voiceFirstAudioMs} ms`
+            : `ElevenLabs · voz em ${session.voiceFirstAudioMs} ms`;
         } : null);
         if (generation !== speechGeneration) return false;
         played = played || chunkPlayed;
@@ -2235,7 +2262,7 @@
     }
 
     if (data.client_action === "clear_chat") {
-      startNewConversation();
+      await startNewConversation({ force: true });
       return;
     }
     if (data.client_action === "open_voice_panel") {
@@ -2243,6 +2270,10 @@
     }
     if (data.client_action === "open_persona_panel") {
       openPersonaPanel();
+    }
+    if (data.client_action === "open_code_mode") {
+      session.responseState = "forge";
+      stage.classList.add("spatial-result");
     }
     session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
@@ -2546,6 +2577,7 @@
       session.lastResponseOk = data?.ok !== false;
       renderOccupancy(data.occupancy);
       showResponse(data);
+      if (data?.client_action === "clear_chat") return;
       const answer = data.message || data.summary;
       if (answer) {
         session.history.push({ role: "assistant", content: answer });
@@ -2638,7 +2670,7 @@
 
   // Chamar pelo nome, como a Siri: "oi jarvis", "bom dia jarvis", "fala ultron".
   const WAKE_CALL = "ei|ai|a[ií]|oi|ol[aá]|al[oô]|fala|falae|opa|psiu|escuta|escute|acorda|acorde|desperta|desperte|bom\\s*dia|boa\\s*tarde|boa\\s*noite|beleza|qual\\s*foi|e\\s*a[eií]|eae";
-  const WAKE_NAME = "jarvis|j[aá]rvis|jarves|jarvi[sz]|ultron|ultr[oó]n";
+  const WAKE_NAME = "jarvis|j[aá]rvis|jarves|jarvi[sz]|javis|jarbis|ultron|ultr[oó]n|jar\\s*is";
   const WAKE_WORD = new RegExp(
     `\\b(?:${WAKE_CALL})\\s*[,!.]*\\s*(?:${WAKE_NAME})\\b`
     + `|^\\s*(?:${WAKE_NAME})\\b(?=[\\s,!?]|$)`
@@ -2845,7 +2877,17 @@
       byId("serviceValue").textContent = status.service || "jarvis-web";
       byId("modelValue").textContent = status.ai?.model || "—";
       session.paired = Boolean(status.owner_pairing?.authenticated || !status.owner_pairing?.required);
+      session.codeMode = Boolean(status.access?.code || session.paired);
+      session.accountName = status.access?.username || "";
+      session.canManageAccounts = Boolean(status.access?.can_manage_accounts);
       if (session.paired) touchOwnerActivity();
+      const crown = byId("crownButton");
+      if (crown) {
+        crown.hidden = !session.canManageAccounts;
+        const pending = Number(status.access?.pending_accounts || 0);
+        crown.dataset.count = pending > 0 ? String(pending) : "";
+        crown.title = pending > 0 ? `${pending} conta(s) esperando aprovação` : "Contas do JARVIS";
+      }
       const browserProviders = renderIntegrationRegistry();
       const browserOpenRouter = browserProviders.includes("openrouter");
       const browserN8n = browserProviders.includes("n8n");
@@ -2856,36 +2898,50 @@
       byId("sceneBrain").textContent = status.ai?.configured || browserOpenRouter
         ? status.ai?.deep_model ? "IA adaptativa online" : "IA online"
         : "IA offline";
-      const accessMode = session.paired ? "owner" : "guest";
+      const accessMode = session.paired ? "owner" : session.codeMode ? "member" : "guest";
       stage.dataset.access = accessMode;
       applyIdentityMode();
-      const canLeaveOwnerMode = Boolean(session.paired && status.owner_pairing?.required);
-      byId("accessModeLabel").textContent = canLeaveOwnerMode ? "Sair do Ultron" : session.paired ? "Theo · modo Ultron" : "visitante";
+      const canLeaveOwnerMode = Boolean((session.paired || session.codeMode) && status.owner_pairing?.required);
+      byId("accessModeLabel").textContent = canLeaveOwnerMode
+        ? (session.paired ? "Sair do Ultron" : "Sair da conta")
+        : session.paired
+          ? "Theo · modo Ultron"
+          : session.codeMode
+            ? `${session.accountName || "conta"} · code`
+            : "visitante";
       byId("accessMode").dataset.action = canLeaveOwnerMode ? "logout" : "details";
       byId("accessMode").title = canLeaveOwnerMode
         ? "Voltar ao modo visitante"
-        : session.paired ? "Ver detalhes do modo Ultron" : "Entrar no modo Ultron";
+        : session.paired ? "Ver detalhes do modo Ultron" : session.codeMode ? "Conta JARVIS · modo code" : "Entrar no modo Ultron";
       byId("leaveOwnerMode").hidden = !canLeaveOwnerMode;
+      byId("leaveOwnerMode").textContent = session.paired ? "Sair do modo Ultron" : "Sair da conta";
       byId("accessValue").textContent = session.paired
         ? "Modo Ultron · memória, GitHub e Mac privados disponíveis"
-        : status.access?.public_chat
-          ? "Visitante · conversa liberada, memória e Mac privados"
-          : "Visitante · conversa aguarda OpenRouter";
+        : session.codeMode
+          ? "Conta JARVIS · modo code ativo. Mac e memória do Theo bloqueados."
+          : status.access?.public_chat
+            ? "Visitante · conversa liberada, memória e Mac privados"
+            : "Visitante · conversa aguarda OpenRouter";
       const welcomeHint = byId("welcomeHint");
       if (welcomeHint) {
         welcomeHint.textContent = session.paired
           ? "Dê a ordem. Eu escolho a rota mais forte disponível."
-          : "Visitante: converse e pesquise. Sem Mac e sem memória do Theo.";
+          : session.codeMode
+            ? "Modo code ativo. Peça para construir; o Mac do Theo continua fechado."
+            : "Visitante: converse e pesquise. Sem Mac e sem memória do Theo.";
       }
       renderStarterActions();
       session.deviceBridge = Boolean(status.device_bridge?.configured);
       session.elevenlabs = Boolean(status.voice?.configured || browserProviders.includes("elevenlabs"));
+      session.localVoice = status.voice?.provider === "pocket_tts" || status.voice?.source === "self_hosted" || status.voice?.fallback === "self_hosted";
       session.voiceError = "";
-      byId("voiceValue").textContent = session.elevenlabs
+      byId("voiceValue").textContent = status.voice?.provider === "elevenlabs"
         ? `ElevenLabs${voiceSupport.input ? " + microfone" : ""}`
-        : voiceSupport.input
-          ? "microfone ativo · saída aguarda ElevenLabs"
-          : "ElevenLabs aguarda chave";
+        : session.localVoice
+          ? `Pocket TTS · ${status.voice?.name || "bill_boerst"}`
+          : voiceSupport.input
+            ? "microfone ativo · saída aguarda voz"
+            : "voz aguarda motor local ou ElevenLabs";
       const ready = [
         status.ai?.configured || browserOpenRouter ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
         session.elevenlabs ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
@@ -2907,7 +2963,15 @@
       byId("runtimeLabel").textContent = status.runtime === "local_web_preview" ? "Mac local" : "Vercel";
       const tokenInput = byId("ownerTokenInput");
       tokenInput.value = ownerToken();
-      byId("adminUsername").closest(".admin-login").hidden = session.paired;
+      try {
+        const remembered = localStorage.getItem(LAST_LOGIN_KEY);
+        if (remembered && byId("adminUsername") && !session.paired && !session.codeMode) {
+          byId("adminUsername").value = remembered;
+        }
+      } catch { /* ignore */ }
+      byId("adminUsername").closest(".admin-login").hidden = session.paired || session.codeMode;
+      const signupBox = byId("accountSignup");
+      if (signupBox) signupBox.hidden = session.paired || session.codeMode;
       document.querySelector(".advanced-pairing").hidden = !status.owner_pairing?.required;
       byId("pairingHint").textContent = session.paired
         ? "Modo Ultron ativo neste navegador. A sessão é temporária e pode ser encerrada em Sair."
@@ -3188,35 +3252,105 @@
     const username = byId("adminUsername").value.trim();
     const password = byId("adminPassword").value;
     if (!username || !password) {
-      byId("pairingHint").textContent = "Informe login e senha para entrar no modo Ultron.";
+      byId("pairingHint").textContent = "Informe login e senha.";
       return;
     }
     byId("adminLoginButton").disabled = true;
-    byId("pairingHint").textContent = "Ativando modo Ultron…";
+    byId("pairingHint").textContent = "Validando login…";
     try {
-      const data = await request("/admin-login", {
+      const data = await request("/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
       if (!data.ok || !data.session_token) {
-        byId("pairingHint").textContent = identityText(data.error || "Acesso ao modo Ultron recusado.");
+        byId("pairingHint").textContent = identityText(data.error || "Login recusado.");
         return;
       }
       localStorage.setItem(OWNER_TOKEN_KEY, data.session_token);
+      try { localStorage.setItem(LAST_LOGIN_KEY, username); } catch { /* ignore */ }
       touchOwnerActivity();
       byId("adminPassword").value = "";
       session.historyRestored = false;
       await boot();
-      if (session.paired) dialog.close();
+      if (session.paired || session.codeMode) dialog.close();
     } catch {
       byId("pairingHint").textContent = "Não consegui validar o login agora.";
     } finally {
       byId("adminLoginButton").disabled = false;
     }
   });
+  byId("signupButton")?.addEventListener("click", async () => {
+    const username = byId("signupUsername")?.value.trim();
+    const password = byId("signupPassword")?.value;
+    const email = byId("signupEmail")?.value.trim();
+    if (!username || !password) {
+      byId("pairingHint").textContent = "Crie um login e uma senha com pelo menos 8 caracteres.";
+      return;
+    }
+    byId("signupButton").disabled = true;
+    byId("pairingHint").textContent = "Criando conta…";
+    try {
+      const data = await request("/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, email }),
+      });
+      byId("pairingHint").textContent = identityText(data.error || data.message || "Conta enviada.");
+      if (data.ok) {
+        byId("signupPassword").value = "";
+        byId("adminUsername").value = username;
+      }
+    } catch {
+      byId("pairingHint").textContent = "Não consegui criar a conta agora.";
+    } finally {
+      byId("signupButton").disabled = false;
+    }
+  });
+
+  async function refreshAccountsPanel() {
+    const list = byId("accountsList");
+    if (!list) return;
+    const data = await request("/accounts");
+    if (!data.ok) {
+      list.innerHTML = `<small>${escapeHtml(data.error || "Não consegui ler as contas.")}</small>`;
+      return;
+    }
+    list.innerHTML = (data.users || []).map((user) => {
+      const actions = user.role === "owner"
+        ? ""
+        : `${user.role === "pending" ? `<button type="button" data-account-action="approve" data-username="${escapeHtml(user.username)}">Aprovar code</button>` : ""}`
+          + `<button type="button" data-account-action="${user.disabled ? "enable" : "disable"}" data-username="${escapeHtml(user.username)}">${user.disabled ? "Ativar" : "Pausar"}</button>`
+          + `<button type="button" data-account-action="delete" data-username="${escapeHtml(user.username)}">Apagar</button>`;
+      return `<article class="account-row"><div><b>${escapeHtml(user.username)}</b><small>${escapeHtml(user.role)} · ${(user.access || []).join(", ") || "sem acesso"}${user.disabled ? " · pausada" : ""}${user.last_seen_at ? ` · visto ${escapeHtml(formatSeen(user.last_seen_at))}` : ""}</small></div><menu>${actions}</menu></article>`;
+    }).join("") || "<small>Nenhuma conta ainda.</small>";
+  }
+
+  byId("crownButton")?.addEventListener("click", async () => {
+    const panel = byId("accountsDialog");
+    if (!panel) return;
+    panel.showModal();
+    await refreshAccountsPanel();
+  });
+  byId("closeAccountsDialog")?.addEventListener("click", () => byId("accountsDialog")?.close());
+  byId("accountsList")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-account-action]");
+    if (!button) return;
+    const data = await request("/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: button.dataset.accountAction, username: button.dataset.username }),
+    });
+    byId("accountsHint").textContent = identityText(data.error || data.status_real || "Conta atualizada.");
+    await refreshAccountsPanel();
+  });
   byId("adminPassword").addEventListener("keydown", (event) => {
     if (event.key === "Enter") byId("adminLoginButton").click();
+  });
+  ["signupUsername", "signupPassword", "signupEmail"].forEach((id) => {
+    byId(id)?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") byId("signupButton")?.click();
+    });
   });
   byId("saveOwnerToken").addEventListener("click", async () => {
     const token = byId("ownerTokenInput").value.trim();
@@ -3239,6 +3373,34 @@
   byId("leaveOwnerMode").addEventListener("click", () => exitOwnerMode(byId("leaveOwnerMode")));
   actionHubButton.addEventListener("click", () => setActionHub(actionHub.hidden));
   newConversationButton?.addEventListener("click", startNewConversation);
+  document.querySelectorAll("[data-scene-mode]").forEach((item) => {
+    item.setAttribute("role", "button");
+    item.tabIndex = 0;
+    const openScene = () => {
+      const mode = item.dataset.sceneMode;
+      if (mode === "forge" && !session.paired && !session.codeMode) {
+        byId("pairingHint").textContent = "Entre com o login do Ultron ou crie conta para o modo code.";
+        dialog.showModal();
+        window.setTimeout(() => byId("adminPassword").focus(), 30);
+        return;
+      }
+      if (mode === "memory" && !session.paired) {
+        byId("pairingHint").textContent = "A memória privada pede o modo Ultron.";
+        dialog.showModal();
+        window.setTimeout(() => byId("adminPassword").focus(), 30);
+        return;
+      }
+      const command = mode === "forge" ? "abre a forja" : mode === "memory" ? "abre a memória" : "abre o núcleo";
+      sendCommand(command);
+    };
+    item.addEventListener("click", openScene);
+    item.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openScene();
+      }
+    });
+  });
   byId("sceneCommandButton")?.addEventListener("click", () => setActionHub(true));
   mobileChatToggle?.addEventListener("click", () => {
     setMobileChatExpanded(mobileChatToggle.getAttribute("aria-expanded") !== "true");

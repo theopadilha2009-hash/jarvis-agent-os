@@ -57,6 +57,7 @@ from spotify_control import (  # noqa: E402
     public_target as spotify_public_target,
 )
 import task_queue as task_queue_store  # noqa: E402
+import jarvis_accounts as accounts_store  # noqa: E402
 
 AGENT_RUNS = RunStore()
 LOCAL_MEMORY_INDEX = MemoryIndex()
@@ -318,6 +319,10 @@ COMPOUND_ACTION_START_PATTERN = re.compile(
     re.I,
 )
 
+CODE_INTENTS = {
+    "code_session",
+}
+
 PRIVATE_INTENTS = {
     "daily_brief",
     "memory_save",
@@ -395,6 +400,10 @@ def openrouter_api_keys():
     keys = []
     for name in ("OPENROUTER_API_KEY", "OPENROUTER_FALLBACK_API_KEY"):
         value = str(os.environ.get(name) or "").strip()
+        if value and value not in keys:
+            keys.append(value)
+    for value in str(os.environ.get("OPENROUTER_API_KEYS") or "").split(","):
+        value = value.strip()
         if value and value not in keys:
             keys.append(value)
     return keys
@@ -1911,6 +1920,13 @@ SPOTIFY_CONTROL_PATTERN = re.compile(
     re.I,
 )
 
+CODE_SESSION_PATTERN = re.compile(
+    r"\b(?:modo\s+code|code\s+mode|abrir?\s+(?:o\s+)?c[oó]digo|"
+    r"abr(?:a|e|ir)\s+a\s+forja|entr(?:a|e|ar)\s+na\s+forja|"
+    r"quero\s+programar|vamos\s+codar)\b",
+    re.I,
+)
+
 SCENE_NUCLEUS_PATTERN = re.compile(
     r"\b(?:mostr(?:a|e|ar)|abr(?:a|e|ir)|acend(?:a|e|er)|ativ(?:a|e|ar)|ver|exib(?:a|e|ir)|entr(?:a|e|ar)\s+no)\b"
     r"[^.?!]{0,40}?(?:"
@@ -2018,6 +2034,7 @@ def persona_styles_payload(body=None):
 
 
 LOCAL_INTENTS = (
+    (CODE_SESSION_PATTERN, "code_session"),
     (PERSONA_SETTINGS_PATTERN, "persona_settings"),
     (VOICE_SETTINGS_PATTERN, "voice_settings"),
     (CHAT_CLEAR_PATTERN, "chat_clear"),
@@ -2165,16 +2182,166 @@ def supabase_configured():
     return bool(parsed.scheme == "https" and parsed.netloc and key)
 
 
+LOCAL_SECRET_KEYS = {
+    "OPENROUTER_API_KEY",
+    "OPENROUTER_FALLBACK_API_KEY",
+    "OPENROUTER_API_KEYS",
+    "OPENROUTER_MODEL",
+    "OPENROUTER_MODEL_POOL",
+    "OPENROUTER_DEEP_MODEL_POOL",
+    "OPENROUTER_ATTACHMENT_MODEL",
+    "ELEVENLABS_API_KEY",
+    "ELEVENLABS_FALLBACK_API_KEY",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "JARVIS_OWNER_TOKEN",
+    "JARVIS_ADMIN_USERNAME",
+    "JARVIS_ADMIN_PASSWORD_HASH",
+    "JARVIS_GMAIL_APP_PASSWORD",
+    "SELF_HOSTED_TTS_URL",
+}
+
+
+def local_secret_files():
+    override = clean_text(os.environ.get("JARVIS_SECRETS_FILE"), 400)
+    candidates = []
+    if override:
+        candidates.append(Path(override).expanduser())
+    candidates.append(Path.home() / "Library" / "Application Support" / "JARVIS" / "secrets.env")
+    return [path for path in candidates if path.is_file()]
+
+
+def hydrate_local_secrets(environ=None):
+    """Carrega só chaves allowlist do secrets.env local. Nunca imprime valores."""
+    env = environ if environ is not None else os.environ
+    if env.get("VERCEL") or env.get("JARVIS_SKIP_LOCAL_SECRETS") == "1":
+        return []
+    loaded = []
+    for path in local_secret_files():
+        used = False
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if key.startswith("export "):
+                key = key[7:].strip()
+            if key not in LOCAL_SECRET_KEYS:
+                continue
+            value = value.strip().strip("'").strip('"')
+            if not value or str(env.get(key) or "").strip():
+                continue
+            env[key] = value
+            used = True
+        if used:
+            loaded.append(str(path))
+    return loaded
+
+
+def self_hosted_tts_url():
+    explicit = clean_text(os.environ.get("SELF_HOSTED_TTS_URL"), 400)
+    if explicit.startswith(("http://", "https://")):
+        return explicit
+    if os.environ.get("VERCEL"):
+        return ""
+    return "http://127.0.0.1:8123/speech"
+
+
 def owner_pairing_required():
     return bool(clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000))
 
 
+def load_account_book():
+    book = None
+    if supabase_configured():
+        try:
+            rows = supabase_request(
+                query="select=value&owner_id=eq.theo&key=eq.accounts&limit=1",
+                table=SUPABASE_SETTINGS_TABLE,
+            )
+            value = rows[0].get("value") if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+            if isinstance(value, dict) and isinstance(value.get("users"), list):
+                book = value
+        except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+            book = None
+    if book is None:
+        book = accounts_store.load_local()
+    env_user = clean_text(os.environ.get("JARVIS_ADMIN_USERNAME") or "theo", 80)
+    env_hash = clean_text(os.environ.get("JARVIS_ADMIN_PASSWORD_HASH"), 2_000)
+    before = len(book.get("users") or [])
+    accounts_store.ensure_owner_from_env(book, env_user, env_hash)
+    if len(book.get("users") or []) > before:
+        save_account_book(book)
+    return book
+
+
+def pending_account_count():
+    try:
+        return sum(1 for row in accounts_store.list_public(load_account_book()) if row.get("role") == "pending")
+    except Exception:
+        return 0
+
+
+def save_account_book(book):
+    try:
+        accounts_store.save_local(book)
+    except OSError:
+        pass
+    if not supabase_configured():
+        return
+    try:
+        supabase_request(
+            "POST",
+            query="on_conflict=owner_id,key",
+            body={
+                "owner_id": "theo",
+                "key": "accounts",
+                "value": book,
+                "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            },
+            prefer="resolution=merge-duplicates,return=minimal",
+            table=SUPABASE_SETTINGS_TABLE,
+        )
+    except (HTTPError, URLError, TimeoutError, ValueError):
+        pass
+
+
+def session_signing_secret():
+    env = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
+    if env:
+        return env
+    return accounts_store.signing_secret(load_account_book())
+
+
 def admin_login_configured():
-    return bool(owner_pairing_required() and clean_text(os.environ.get("JARVIS_ADMIN_PASSWORD_HASH"), 2_000))
+    if clean_text(os.environ.get("JARVIS_ADMIN_PASSWORD_HASH"), 2_000):
+        return True
+    try:
+        return bool(accounts_store.list_public(load_account_book()))
+    except (OSError, ValueError):
+        return False
+
+
+def issue_session_token(role="owner", username="admin", expires_in=OWNER_SESSION_SECONDS):
+    secret = session_signing_secret()
+    if not secret:
+        raise ValueError("owner token not configured")
+    expires_at = int(time.time()) + max(900, min(int(expires_in), OWNER_SESSION_SECONDS))
+    safe_role = role if role in {"owner", "member"} else "member"
+    safe_user = re.sub(r"[^a-z0-9._-]", "", accounts_store.normalize_username(username) or "user")[:32] or "user"
+    nonce = secrets.token_urlsafe(12)
+    body = f"v2.{expires_at}.{safe_role}.{safe_user}.{nonce}"
+    signature = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{body}.{signature}", expires_at
 
 
 def owner_session_token(expires_in=OWNER_SESSION_SECONDS):
-    secret = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
+    secret = session_signing_secret()
     if not secret:
         raise ValueError("owner token not configured")
     expires_at = int(time.time()) + max(900, min(int(expires_in), OWNER_SESSION_SECONDS))
@@ -2183,35 +2350,68 @@ def owner_session_token(expires_in=OWNER_SESSION_SECONDS):
     return f"{body}.{signature}", expires_at
 
 
-def owner_session_matches(value):
-    secret = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
+def read_session_identity(value):
+    secret = session_signing_secret()
     provided = clean_text(value, 2_000)
+    if not secret or not provided:
+        return None
     parts = provided.split(".")
-    if not secret or len(parts) != 4 or parts[0] != "v1" or not parts[1].isdigit():
-        return False
-    if int(parts[1]) < int(time.time()):
-        return False
-    body = ".".join(parts[:3])
-    expected = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, parts[3])
+    if len(parts) == 4 and parts[0] == "v1" and parts[1].isdigit():
+        if int(parts[1]) < int(time.time()):
+            return None
+        body = ".".join(parts[:3])
+        expected = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, parts[3]):
+            return None
+        return {"role": "owner", "username": "admin", "owner": True, "code": True}
+    if len(parts) == 6 and parts[0] == "v2" and parts[1].isdigit():
+        if int(parts[1]) < int(time.time()):
+            return None
+        body = ".".join(parts[:5])
+        expected = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, parts[5]):
+            return None
+        role = parts[2] if parts[2] in {"owner", "member"} else "member"
+        return {
+            "role": role,
+            "username": parts[3],
+            "owner": role == "owner",
+            "code": True,
+        }
+    return None
+
+
+def owner_session_matches(value):
+    identity = read_session_identity(value)
+    return bool(identity and identity.get("owner"))
 
 
 def owner_token_matches(value):
     expected = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
     provided = clean_text(value, 2_000)
-    return bool(
-        expected
-        and provided
-        and (hmac.compare_digest(expected, provided) or owner_session_matches(provided))
-    )
+    if expected and provided and hmac.compare_digest(expected, provided):
+        return True
+    return owner_session_matches(provided)
+
+
+def request_identity(token):
+    expected = clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000)
+    provided = clean_text(token, 2_000)
+    if expected and provided and hmac.compare_digest(expected, provided):
+        return {"role": "owner", "username": "theo", "owner": True, "code": True}
+    parsed = read_session_identity(provided)
+    if parsed:
+        return parsed
+    return {"role": "guest", "username": "", "owner": False, "code": False}
 
 
 def admin_password_matches(username, password):
-    expected_username = clean_text(os.environ.get("JARVIS_ADMIN_USERNAME") or "admin", 80)
+    expected_username = clean_text(os.environ.get("JARVIS_ADMIN_USERNAME") or "theo", 80)
     encoded = clean_text(os.environ.get("JARVIS_ADMIN_PASSWORD_HASH"), 2_000)
-    provided_username = clean_text(username, 80)
+    provided_username = accounts_store.normalize_username(username)
     provided_password = str(password or "")[:512]
-    if not encoded or not hmac.compare_digest(expected_username, provided_username):
+    aliases = {expected_username, "theo", "admin", "ultron"}
+    if not encoded or provided_username not in aliases:
         return False
     try:
         algorithm, iterations_raw, salt_hex, digest_hex = encoded.split("$", 3)
@@ -2228,27 +2428,168 @@ def admin_password_matches(username, password):
         return False
 
 
+_AUTH_HITS = {}
+
+
+def auth_rate_limited(bucket, limit=8, window=180):
+    now = time.time()
+    hits = [stamp for stamp in _AUTH_HITS.get(bucket, []) if now - stamp < window]
+    if len(hits) >= limit:
+        _AUTH_HITS[bucket] = hits
+        return True
+    hits.append(now)
+    _AUTH_HITS[bucket] = hits
+    return False
+
+
+def account_login_payload(body, require_owner=False):
+    username = clean_text(body.get("username"), 80)
+    password = str(body.get("password") or "")[:512]
+    if not username or not password:
+        return {"ok": False, "status_real": "login_refused", "error": "Informe login e senha."}, 400
+    if auth_rate_limited(f"login:{accounts_store.normalize_username(username)}"):
+        return {"ok": False, "status_real": "login_rate_limited", "error": "Muitas tentativas. Espere um pouco."}, 429
+    book = load_account_book()
+    try:
+        row = accounts_store.authenticate(book, username, password)
+    except ValueError as error:
+        return {"ok": False, "status_real": "login_refused", "error": str(error)}, 403
+    if row is None and admin_password_matches(username, password):
+        row = {
+            "username": accounts_store.normalize_username(username) or "admin",
+            "role": "owner",
+            "access": ["jarvis", "ultron", "code"],
+        }
+    if row is None:
+        return {
+            "ok": False,
+            "status_real": "admin_login_refused" if require_owner else "login_refused",
+            "error": "Acesso ao modo Ultron inválido." if require_owner else "Login ou senha inválidos.",
+        }, 401
+    if require_owner and row.get("role") != "owner":
+        return {
+            "ok": False,
+            "status_real": "admin_login_refused",
+            "error": "Essa conta não entra no modo Ultron. Use o login de conta JARVIS.",
+        }, 403
+    if row.get("id"):
+        save_account_book(book)
+    role = "owner" if row.get("role") == "owner" else "member"
+    token, expires_at = issue_session_token(role=role, username=row.get("username") or username)
+    return {
+        "ok": True,
+        "status_real": "admin_session_issued" if role == "owner" else "member_session_issued",
+        "message": "Modo Ultron ativado neste navegador." if role == "owner" else "Conta JARVIS ativa. Modo code liberado.",
+        "session_token": token,
+        "expires_at": datetime.fromtimestamp(expires_at, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "access": "owner_master" if role == "owner" else "member_code",
+        "role": role,
+        "username": row.get("username") or username,
+        "code": True,
+    }, 200
+
+
 def admin_login_payload(body):
-    if not admin_login_configured():
+    if not admin_login_configured() and not accounts_store.list_public(load_account_book()):
         return {
             "ok": False,
             "status_real": "admin_login_not_configured",
             "error": "O login do modo Ultron ainda não foi configurado.",
         }, 503
-    if not admin_password_matches(body.get("username"), body.get("password")):
-        return {
-            "ok": False,
-            "status_real": "admin_login_refused",
-            "error": "Acesso ao modo Ultron inválido.",
-        }, 401
-    token, expires_at = owner_session_token()
+    return account_login_payload(body, require_owner=True)
+
+
+def signup_payload(body):
+    username = accounts_store.normalize_username(body.get("username"))
+    if auth_rate_limited(f"signup:{username or 'anon'}", limit=5, window=600):
+        return {"ok": False, "status_real": "signup_rate_limited", "error": "Muitas contas em pouco tempo. Espere um pouco."}, 429
+    try:
+        book = load_account_book()
+        book, user = accounts_store.signup(book, body.get("username"), body.get("password"), body.get("email") or "")
+        save_account_book(book)
+    except ValueError as error:
+        return {"ok": False, "status_real": "signup_refused", "error": str(error)}, 400
     return {
         "ok": True,
-        "status_real": "admin_session_issued",
-        "message": "Modo Ultron ativado neste navegador.",
-        "session_token": token,
-        "expires_at": datetime.fromtimestamp(expires_at, timezone.utc).isoformat().replace("+00:00", "Z"),
-        "access": "owner_master",
+        "status_real": "signup_pending",
+        "message": "Conta criada. O Theo precisa aprovar antes de você usar o modo code.",
+        "user": user,
+    }, 201
+
+
+def accounts_list_payload(identity):
+    if not identity.get("owner"):
+        return pairing_required_payload()
+    users = accounts_store.list_public(load_account_book())
+    return {
+        "ok": True,
+        "endpoint": "GET /accounts",
+        "status_real": "accounts_listed",
+        "users": users,
+        "count": len(users),
+        "pending": sum(1 for row in users if row.get("role") == "pending"),
+    }, 200
+
+
+def accounts_manage_payload(body, identity):
+    if not identity.get("owner"):
+        return pairing_required_payload()
+    action = clean_text(body.get("action"), 20)
+    username = clean_text(body.get("username"), 80)
+    try:
+        book = load_account_book()
+        result = accounts_store.manage(book, action, username)
+        save_account_book(book)
+    except ValueError as error:
+        return {"ok": False, "status_real": "account_manage_refused", "error": str(error)}, 400
+    return {
+        "ok": True,
+        "endpoint": "POST /accounts",
+        "status_real": "account_updated",
+        "user": result,
+        "users": accounts_store.list_public(load_account_book()),
+    }, 200
+
+
+def mail_send_payload(body, identity):
+    if not identity.get("owner"):
+        return pairing_required_payload()
+    to_addr = clean_text(body.get("to") or body.get("email"), 160)
+    subject = clean_text(body.get("subject") or "JARVIS", 160)
+    text = clean_text(body.get("text") or body.get("message"), 8_000)
+    if not to_addr or "@" not in to_addr or not text:
+        return {"ok": False, "status_real": "mail_invalid", "error": "Informe destinatário e texto."}, 400
+    app_password = clean_text(
+        os.environ.get("JARVIS_GMAIL_APP_PASSWORD") or os.environ.get("GMAIL_APP_PASSWORD"),
+        200,
+    )
+    sender = clean_text(os.environ.get("JARVIS_GMAIL_FROM") or "theopadilha2009@gmail.com", 160)
+    if not app_password:
+        return {
+            "ok": False,
+            "status_real": "mail_not_configured",
+            "error": "E-mail ainda não configurado. Defina JARVIS_GMAIL_APP_PASSWORD (senha de app do Gmail).",
+        }, 503
+    import smtplib
+    from email.message import EmailMessage
+
+    message = EmailMessage()
+    message["From"] = sender
+    message["To"] = to_addr
+    message["Subject"] = subject
+    message.set_content(text)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20) as smtp:
+            smtp.login(sender, app_password)
+            smtp.send_message(message)
+    except (OSError, smtplib.SMTPException) as error:
+        return {"ok": False, "status_real": "mail_failed", "error": "O Gmail recusou o envio.", "detail": type(error).__name__}, 502
+    return {
+        "ok": True,
+        "status_real": "mail_sent",
+        "message": f"E-mail enviado para {to_addr}.",
+        "from": sender,
+        "to": to_addr,
     }, 200
 
 
@@ -2263,6 +2604,21 @@ def pairing_required_payload():
         "action_executed": False,
         "pairing_required": True,
     }, 401
+
+
+def login_required_payload(kind="ultron"):
+    if kind == "code":
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "code_login_required",
+            "visual_state": "error",
+            "error": "O modo code pede login. Crie uma conta ou entre com o mesmo usuário do Ultron.",
+            "next_action": "Abra Sistema, entre ou crie conta, e peça de novo.",
+            "action_executed": False,
+            "pairing_required": True,
+        }, 401
+    return pairing_required_payload()
 
 
 def memory_candidate(value):
@@ -4605,7 +4961,7 @@ def daily_brief_payload(owner_authenticated=False):
     return overview, 200
 
 
-def status_payload(owner_authenticated=False):
+def status_payload(owner_authenticated=False, identity=None):
     ai_ready = bool(openrouter_api_keys())
     elevenlabs_ready = bool(os.environ.get("ELEVENLABS_API_KEY"))
     n8n_ready = bool(os.environ.get("N8N_WEBHOOK_URL"))
@@ -4641,13 +4997,19 @@ def status_payload(owner_authenticated=False):
             "claim_policy": "cite_or_refuse",
         },
         "voice": {
-            "provider": "elevenlabs" if elevenlabs_ready else "browser",
-            "configured": elevenlabs_ready,
+            "provider": (
+                "elevenlabs" if elevenlabs_ready
+                else "pocket_tts" if self_hosted_tts_url()
+                else "browser"
+            ),
+            "configured": bool(elevenlabs_ready or self_hosted_tts_url()),
             "voice_id": active_voice.get("voice_id"),
-            "name": active_voice.get("name"),
-            "source": active_voice.get("source"),
+            "name": active_voice.get("name") if elevenlabs_ready else ("bill_boerst" if self_hosted_tts_url() else ""),
+            "source": active_voice.get("source") if elevenlabs_ready else ("self_hosted" if self_hosted_tts_url() else "browser"),
             "model": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
-            "fallback": "text_only",
+            "engine": "pocket_tts" if self_hosted_tts_url() and not elevenlabs_ready else "",
+            "language": "portuguese" if self_hosted_tts_url() else "",
+            "fallback": "self_hosted" if self_hosted_tts_url() else "text_only",
         },
         "automations": {
             "n8n": {"configured": n8n_ready, "agenda": n8n_ready},
@@ -4678,9 +5040,19 @@ def status_payload(owner_authenticated=False):
             "session_duration_seconds": OWNER_SESSION_SECONDS,
         },
         "access": {
-            "mode": "owner" if owner_authenticated or not owner_pairing_required() else "guest",
+            "mode": (
+                "owner" if owner_authenticated or not owner_pairing_required()
+                else "member" if (identity or {}).get("code")
+                else "guest"
+            ),
+            "username": clean_text((identity or {}).get("username"), 80),
+            "code": bool(owner_authenticated or (identity or {}).get("code") or not owner_pairing_required()),
+            "can_manage_accounts": bool(
+                owner_authenticated or (not owner_pairing_required() and not os.environ.get("VERCEL"))
+            ),
+            "pending_accounts": pending_account_count() if owner_authenticated else 0,
             "public_chat": ai_ready,
-            "public_voice": elevenlabs_ready,
+            "public_voice": bool(elevenlabs_ready or self_hosted_tts_url()),
             "private_memory": bool(owner_authenticated or not owner_pairing_required()),
             "private_device_control": bool(owner_authenticated and supabase_configured()),
         },
@@ -5469,7 +5841,7 @@ def voice_catalog_payload(owner_authenticated=False):
                 })
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
             pass
-    if clean_text(os.environ.get("SELF_HOSTED_TTS_URL"), 400).startswith(("http://", "https://")):
+    if self_hosted_tts_url().startswith(("http://", "https://")):
         voices.append({"id": "self_hosted", "name": "Voz própria (servidor local)", "provider": "self_hosted", "active": False})
     if clean_text(os.environ.get("OPENAI_API_KEY"), 200):
         voices.append({"id": "openai", "name": "OpenAI · reserva neural", "provider": "openai", "active": False})
@@ -5521,7 +5893,7 @@ def voice_status_payload():
     """Estado real da voz: quanto sobrou em cada chave e qual camada está no ar."""
     keys = elevenlabs_api_keys()
     openai_ready = bool(clean_text(os.environ.get("OPENAI_API_KEY"), 200))
-    self_hosted_ready = clean_text(os.environ.get("SELF_HOSTED_TTS_URL"), 400).startswith(("http://", "https://"))
+    self_hosted_ready = self_hosted_tts_url().startswith(("http://", "https://"))
     payload = {
         "ok": True,
         "endpoint": "GET /voice-status",
@@ -5570,9 +5942,16 @@ def voice_status_payload():
     return payload, 200
 
 
+def speech_content_type(payload):
+    """WAV do Pocket/Piper cru vs MPEG das camadas pagas — o blob do browser precisa bater."""
+    if isinstance(payload, (bytes, bytearray)) and payload[:4] == b"RIFF":
+        return "audio/wav"
+    return "audio/mpeg"
+
+
 def self_hosted_speech(text, body=None):
     """Voz própria: servidor neural do Theo, sem cota e sem chave de terceiro."""
-    url = clean_text(os.environ.get("SELF_HOSTED_TTS_URL"), 400)
+    url = self_hosted_tts_url()
     if not url.startswith(("http://", "https://")):
         return None
     timbre = body.get("voice_profile") if isinstance(body, dict) else None
@@ -7569,10 +7948,29 @@ def scene_nucleus_payload(command, owner_authenticated=False):
     }, 200
 
 
-def dispatch_intent(command, intent, local_execute=False, owner_authenticated=False):
+def dispatch_intent(command, intent, local_execute=False, owner_authenticated=False, code_authenticated=False):
     """Run one known intent without giving the model access to arbitrary code."""
     if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
         return pairing_required_payload()
+    if owner_pairing_required() and not (owner_authenticated or code_authenticated) and intent in CODE_INTENTS:
+        return login_required_payload("code")
+    if intent == "code_session":
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "code_mode_opened",
+            "visual_state": "forge",
+            "message": (
+                "Forja aberta. Posso construir e, no Ultron, editar o próprio JARVIS."
+                if owner_authenticated
+                else "Modo code ativo. Posso projetar e escrever código aqui. O Mac do Theo continua bloqueado."
+            ),
+            "intent": "code_session",
+            "client_action": "open_code_mode",
+            "provider": "jarvis_cockpit",
+            "action_executed": True,
+            "code": True,
+        }, 200
     if intent == "persona_settings":
         catalog = persona_styles_payload()
         active = PERSONA_STYLES[catalog["active"]]
@@ -8683,7 +9081,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         }, 502
 
 
-def dispatch_command_payload(body, origin="", local_execute=False, owner_authenticated=False):
+def dispatch_command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False):
     command = clean_text(body.get("command") or body.get("prompt"))
     if not command:
         return {"ok": False, "error": "Comando vazio."}, 400
@@ -8758,6 +9156,7 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
             "memory_view",
             local_execute=local_execute,
             owner_authenticated=owner_authenticated,
+            code_authenticated=code_authenticated,
         )
 
     for pattern, intent in LOCAL_INTENTS:
@@ -8767,6 +9166,7 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
                 intent,
                 local_execute=local_execute,
                 owner_authenticated=owner_authenticated,
+                code_authenticated=code_authenticated,
             )
 
     clean = command.lstrip("/").strip()
@@ -9033,11 +9433,13 @@ def mission_control_payload(limit=12):
     }
 
 
-def command_payload(body, origin="", local_execute=False, owner_authenticated=False):
+def command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False):
     """Run the legacy dispatcher behind the durable JARVIS run contract."""
     command = clean_text(body.get("command") or body.get("prompt"))
     if not command:
-        return dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+        return dispatch_command_payload(
+            body, origin, local_execute, owner_authenticated, code_authenticated=code_authenticated
+        )
     intent = command_intent(command)
     action_name = action_name_for_command(command, intent)
     action = ACTION_REGISTRY[action_name]
@@ -9045,7 +9447,9 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
 
     # Pairing is checked before recording a private confirmation request.
     if action.private and owner_pairing_required() and not owner_authenticated:
-        return dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+        return dispatch_command_payload(
+            body, origin, local_execute, owner_authenticated, code_authenticated=code_authenticated
+        )
 
     if intent == "message_send" and not message_send_details(command):
         alias_shape = re.search(
@@ -9054,7 +9458,9 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             command,
         )
         if not alias_shape:
-            return dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+            return dispatch_command_payload(
+            body, origin, local_execute, owner_authenticated, code_authenticated=code_authenticated
+        )
 
     if intent == "memory_search":
         query = re.sub(r"(?i)^.*?\bmem[oó]ria\b\s*(?:por|sobre|de|:)?\s*", "", command).strip() or command
@@ -9091,7 +9497,9 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         payload.update(run_public_payload(record))
         return payload, 202
     else:
-        payload, status = dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+        payload, status = dispatch_command_payload(
+            body, origin, local_execute, owner_authenticated, code_authenticated=code_authenticated
+        )
     pending = bool(
         isinstance(payload.get("run"), dict) and not payload["run"].get("terminal")
         or isinstance(payload.get("job"), dict) and payload["job"].get("status") in {"pending", "running"}
@@ -9530,7 +9938,7 @@ class handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             return False
 
-    def send_command_stream(self, body, started_at, origin, local_execute, owner_authenticated):
+    def send_command_stream(self, body, started_at, origin, local_execute, owner_authenticated, code_authenticated=False):
         """Stream honest lifecycle events, progressive text, then the canonical payload."""
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
@@ -9563,6 +9971,7 @@ class handler(BaseHTTPRequestHandler):
                     origin=origin,
                     local_execute=local_execute,
                     owner_authenticated=owner_authenticated,
+                    code_authenticated=code_authenticated,
                 )
             finally:
                 end_session_turn(session_id)
@@ -9655,7 +10064,8 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path, query = request_route(self.path)
-        owner_authenticated = owner_token_matches(self.headers.get("X-Jarvis-Owner-Token"))
+        identity = request_identity(self.headers.get("X-Jarvis-Owner-Token"))
+        owner_authenticated = bool(identity.get("owner"))
         if path == "/":
             return self.serve_ui()
         if path in {"/theo", "/criador", "/creator"}:
@@ -9677,10 +10087,13 @@ class handler(BaseHTTPRequestHandler):
         if path.startswith("/asset/"):
             return self.serve_asset(path[len("/asset/"):])
         if path in {"/health", "/status", "/runtime"}:
-            payload = status_payload(owner_authenticated=owner_authenticated)
+            payload = status_payload(owner_authenticated=owner_authenticated, identity=identity)
             payload["endpoint"] = f"GET {path}"
             payload["occupancy"] = sync_presence(request_conversation_session_id(self))
             return self.send_json(200, payload)
+        if path == "/accounts":
+            payload, status = accounts_list_payload(identity)
+            return self.send_json(status, payload)
         if path == "/persona-styles":
             return self.send_json(200, persona_styles_payload())
         if path == "/voices":
@@ -9908,7 +10321,9 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(400, {"ok": False, "error": str(error)})
 
         origin = clean_text(self.headers.get("Origin") or self.headers.get("Referer"), 200)
-        owner_authenticated = owner_token_matches(self.headers.get("X-Jarvis-Owner-Token"))
+        identity = request_identity(self.headers.get("X-Jarvis-Owner-Token"))
+        owner_authenticated = bool(identity.get("owner"))
+        code_authenticated = bool(identity.get("code") or identity.get("owner") or not owner_pairing_required())
         client = str((self.client_address or [""])[0]).lower()
         local_execute = (
             not bool(os.environ.get("VERCEL"))
@@ -9917,6 +10332,18 @@ class handler(BaseHTTPRequestHandler):
         )
         if path == "/admin-login":
             payload, status = admin_login_payload(body)
+            return self.send_json(status, payload)
+        if path == "/login":
+            payload, status = account_login_payload(body, require_owner=False)
+            return self.send_json(status, payload)
+        if path == "/signup":
+            payload, status = signup_payload(body)
+            return self.send_json(status, payload)
+        if path == "/accounts":
+            payload, status = accounts_manage_payload(body, identity)
+            return self.send_json(status, payload)
+        if path == "/mail":
+            payload, status = mail_send_payload(body, identity)
             return self.send_json(status, payload)
         if path == "/conversation-sync":
             if owner_pairing_required() and not owner_authenticated:
@@ -9997,6 +10424,7 @@ class handler(BaseHTTPRequestHandler):
                 origin,
                 local_execute,
                 owner_authenticated,
+                code_authenticated,
             )
         if path == "/command":
             session_id = request_conversation_session_id(self, body)
@@ -10010,6 +10438,7 @@ class handler(BaseHTTPRequestHandler):
                     origin=origin,
                     local_execute=local_execute,
                     owner_authenticated=owner_authenticated,
+                    code_authenticated=code_authenticated,
                 )
             finally:
                 end_session_turn(session_id)
@@ -10098,7 +10527,7 @@ class handler(BaseHTTPRequestHandler):
         if path == "/speech":
             payload, status = elevenlabs_speech(body)
             if isinstance(payload, bytes):
-                return self.send_bytes(status, payload, "audio/mpeg", "no-store")
+                return self.send_bytes(status, payload, speech_content_type(payload), "no-store")
             return self.send_json(status, payload)
         if path in {"/owner-dev/on", "/owner-dev/off", "/owner-dev/toggle"}:
             payload = owner_mode_payload()
@@ -10185,6 +10614,7 @@ def main():
         print("FALHA: cockpit incompleto: " + ", ".join(missing))
         print("Produção: nada alterado.")
         return 1
+    hydrate_local_secrets()
     server = ThreadingHTTPServer((args.host, args.port), handler)
     url = f"http://{args.host}:{args.port}"
     print("JARVIS web gateway")

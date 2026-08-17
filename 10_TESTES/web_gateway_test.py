@@ -37,7 +37,9 @@ class WebGatewayTest(unittest.TestCase):
         cls.previous_agent_runs = MODULE.AGENT_RUNS
         cls.previous_memory_index = MODULE.LOCAL_MEMORY_INDEX
         cls.previous_agent_run_dir = os.environ.get("JARVIS_AGENT_RUN_DIR")
+        cls.previous_accounts_path = os.environ.get("JARVIS_ACCOUNTS_PATH")
         os.environ["JARVIS_AGENT_RUN_DIR"] = str(runtime_root / "runs")
+        os.environ["JARVIS_ACCOUNTS_PATH"] = str(runtime_root / "accounts.json")
         MODULE.AGENT_RUNS = MODULE.RunStore(runtime_root / "runs")
         MODULE.LOCAL_MEMORY_INDEX = MODULE.MemoryIndex(runtime_root / "memory.sqlite3")
         os.environ["JARVIS_WEB_LOCAL_EXEC"] = "0"
@@ -67,6 +69,10 @@ class WebGatewayTest(unittest.TestCase):
             os.environ.pop("JARVIS_AGENT_RUN_DIR", None)
         else:
             os.environ["JARVIS_AGENT_RUN_DIR"] = cls.previous_agent_run_dir
+        if cls.previous_accounts_path is None:
+            os.environ.pop("JARVIS_ACCOUNTS_PATH", None)
+        else:
+            os.environ["JARVIS_ACCOUNTS_PATH"] = cls.previous_accounts_path
         cls.runtime_temp.cleanup()
 
     def request(self, path, method="GET", payload=None):
@@ -92,7 +98,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["service"], "jarvis-web")
         self.assertIn("voice", payload)
-        self.assertEqual(payload["voice"]["fallback"], "text_only")
+        self.assertIn(payload["voice"]["fallback"], {"text_only", "self_hosted"})
+        self.assertIn("pending_accounts", payload["access"])
         self.assertIn("n8n", payload["automations"])
         self.assertIn("access", payload)
         self.assertIn("public_chat", payload["access"])
@@ -169,6 +176,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="actionHub"', html)
         self.assertIn(b'id="tourDialog"', html)
         self.assertIn(b'id="adminLoginButton"', html)
+        self.assertIn(b'id="crownButton"', html)
+        self.assertIn(b'id="signupButton"', html)
+        self.assertIn(b'id="accountsDialog"', html)
         self.assertIn(b'id="requestProgress"', html)
         self.assertIn(b'id="shimmerLoader"', html)
         self.assertIn(b'id="starterActions"', html)
@@ -229,7 +239,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"showAttachmentPreview", app_js)
         self.assertIn("Esta é uma prévia do arquivo que estou analisando.".encode(), app_js)
         self.assertIn(b"exitOwnerMode", app_js)
-        self.assertIn(b'"/admin-login"', app_js)
+        self.assertIn(b'"/login"', app_js)
+        self.assertIn(b'"/signup"', app_js)
+        self.assertIn(b'"/accounts"', app_js)
         self.assertIn(b"ElevenLabs sem cr\xc3\xa9ditos", app_js)
         self.assertIn(b"new AbortController()", app_js)
         self.assertIn(b"signal: controller.signal", app_js)
@@ -1328,6 +1340,118 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(status_payload["owner_pairing"]["admin_login_configured"])
         self.assertEqual(status_payload["owner_pairing"]["session_duration_seconds"], MODULE.OWNER_SESSION_SECONDS)
 
+    def test_signup_login_and_owner_can_approve_code_account(self):
+        env = {
+            "JARVIS_OWNER_TOKEN": "owner-session-signing-secret",
+            "JARVIS_ADMIN_USERNAME": "theo",
+            "JARVIS_ADMIN_PASSWORD_HASH": "",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            created, created_status = MODULE.signup_payload({
+                "username": "amigo01",
+                "password": "segredo123",
+                "email": "amigo@example.com",
+            })
+            pending_login, pending_status = MODULE.account_login_payload({
+                "username": "amigo01",
+                "password": "segredo123",
+            })
+            book = MODULE.load_account_book()
+            MODULE.accounts_store.ensure_owner_from_env(
+                book,
+                "theo",
+                MODULE.accounts_store.hash_password("dono-secreto"),
+            )
+            MODULE.save_account_book(book)
+            owner, owner_status = MODULE.account_login_payload({
+                "username": "theo",
+                "password": "dono-secreto",
+            }, require_owner=True)
+            identity = MODULE.request_identity(owner["session_token"])
+            approved, approved_status = MODULE.accounts_manage_payload(
+                {"action": "approve", "username": "amigo01"},
+                identity,
+            )
+            member, member_status = MODULE.account_login_payload({
+                "username": "amigo01",
+                "password": "segredo123",
+            })
+            listed, listed_status = MODULE.accounts_list_payload(identity)
+            member_identity = MODULE.request_identity(member["session_token"])
+            member_is_owner = MODULE.owner_token_matches(member["session_token"])
+        self.assertEqual(created_status, 201)
+        self.assertEqual(created["user"]["role"], "pending")
+        self.assertEqual(pending_status, 403)
+        self.assertEqual(owner_status, 200)
+        self.assertTrue(identity["owner"])
+        self.assertEqual(approved_status, 200)
+        self.assertEqual(approved["user"]["role"], "member")
+        self.assertIn("code", approved["user"]["access"])
+        self.assertEqual(member_status, 200)
+        self.assertEqual(member["access"], "member_code")
+        self.assertFalse(member_is_owner)
+        self.assertTrue(member_identity["code"])
+        self.assertEqual(listed_status, 200)
+        self.assertGreaterEqual(listed["count"], 2)
+        self.assertNotIn("password_hash", json.dumps(listed))
+        self.assertNotIn("segredo123", json.dumps(listed))
+
+    def test_ultron_password_accepts_theo_alias_and_code_needs_login(self):
+        salt = bytes.fromhex("00112233445566778899aabbccddeeff")
+        digest = hashlib.pbkdf2_hmac("sha256", b"ultron-secret", salt, 120_000).hex()
+        encoded = f"pbkdf2_sha256$120000${salt.hex()}${digest}"
+        env = {
+            "JARVIS_OWNER_TOKEN": "owner-session-signing-secret",
+            "JARVIS_ADMIN_USERNAME": "admin",
+            "JARVIS_ADMIN_PASSWORD_HASH": encoded,
+        }
+        with patch.dict(os.environ, env, clear=False):
+            self.assertTrue(MODULE.admin_password_matches("theo", "ultron-secret"))
+            self.assertTrue(MODULE.admin_password_matches("admin", "ultron-secret"))
+            owner, owner_status = MODULE.account_login_payload({
+                "username": "theo",
+                "password": "ultron-secret",
+            })
+            refused, refused_status = MODULE.dispatch_intent(
+                "abre o modo code",
+                "code_session",
+                owner_authenticated=False,
+                code_authenticated=False,
+            )
+            opened, opened_status = MODULE.dispatch_intent(
+                "abre o modo code",
+                "code_session",
+                owner_authenticated=False,
+                code_authenticated=True,
+            )
+            blocked, blocked_status = MODULE.dispatch_intent(
+                "melhore a interface",
+                "self_edit",
+                owner_authenticated=False,
+                code_authenticated=True,
+            )
+        self.assertEqual(owner_status, 200)
+        self.assertEqual(owner["access"], "owner_master")
+        self.assertEqual(refused_status, 401)
+        self.assertEqual(refused["status_real"], "code_login_required")
+        self.assertEqual(opened_status, 200)
+        self.assertEqual(opened["client_action"], "open_code_mode")
+        self.assertEqual(blocked_status, 401)
+        self.assertEqual(blocked["status_real"], "owner_pairing_required")
+
+    def test_login_rate_limit_trips_after_repeated_failures(self):
+        MODULE._AUTH_HITS.clear()
+        env = {"JARVIS_OWNER_TOKEN": "owner-session-signing-secret"}
+        with patch.dict(os.environ, env, clear=False):
+            last_status = 401
+            for _ in range(9):
+                _, last_status = MODULE.account_login_payload({
+                    "username": "naoexiste",
+                    "password": "errada123",
+                })
+        self.assertEqual(last_status, 429)
+        MODULE._AUTH_HITS.clear()
+
     def test_pairing_refusal_never_implies_that_a_device_action_ran(self):
         payload, status = MODULE.pairing_required_payload()
         self.assertEqual(status, 401)
@@ -1966,6 +2090,18 @@ class WebGatewayTest(unittest.TestCase):
             MODULE.assistant_response_profile("oi", strength="strong")["name"],
             "balanced",
         )
+
+    def test_openrouter_api_keys_rotates_extra_pool(self):
+        env = {
+            "OPENROUTER_API_KEY": "primary-test-key",
+            "OPENROUTER_FALLBACK_API_KEY": "fallback-test-key",
+            "OPENROUTER_API_KEYS": "extra-one,fallback-test-key,extra-two",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            self.assertEqual(
+                MODULE.openrouter_api_keys(),
+                ["primary-test-key", "fallback-test-key", "extra-one", "extra-two"],
+            )
 
     def test_openrouter_uses_fallback_key_when_primary_is_not_configured(self):
         class FakeResponse:
@@ -3221,10 +3357,23 @@ São Paulo - SP
         self.assertEqual(sent_payload["voice_settings"]["speed"], 0.93)
 
     def test_missing_elevenlabs_key_stays_text_only(self):
-        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}, clear=False):
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "", "SELF_HOSTED_TTS_URL": "", "VERCEL": "1"}, clear=False):
             payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
         self.assertEqual(status, 503)
         self.assertEqual(payload["fallback"], "text_only")
+
+    def test_local_self_hosted_url_defaults_off_vercel(self):
+        with patch.dict(os.environ, {"SELF_HOSTED_TTS_URL": "", "VERCEL": ""}, clear=False):
+            os.environ.pop("VERCEL", None)
+            os.environ.pop("SELF_HOSTED_TTS_URL", None)
+            self.assertEqual(MODULE.self_hosted_tts_url(), "http://127.0.0.1:8123/speech")
+        with patch.dict(os.environ, {"VERCEL": "1", "SELF_HOSTED_TTS_URL": ""}, clear=False):
+            self.assertEqual(MODULE.self_hosted_tts_url(), "")
+
+    def test_speech_content_type_keeps_wav_from_local_voice(self):
+        self.assertEqual(MODULE.speech_content_type(b"RIFF____WAVE"), "audio/wav")
+        self.assertEqual(MODULE.speech_content_type(b"ID3fake-mp3"), "audio/mpeg")
+        self.assertEqual(MODULE.speech_content_type(b""), "audio/mpeg")
 
     def test_voice_calibrator_is_bounded_and_keeps_non_exaggerated_style(self):
         profile = MODULE.voice_profile({
@@ -4325,8 +4474,9 @@ São Paulo - SP
                 {"client_integrations": {"elevenlabs": {"api_key": "do-navegador"}}}
             )
             self.assertEqual(browser_first[0], "do-navegador")
-        # Voz própria: sem URL não inventa áudio; com URL entra na cadeia.
-        self.assertIsNone(MODULE.self_hosted_speech("teste"))
+        # Voz própria: URL vazia no Vercel não inventa áudio; URL local fechada também não.
+        with patch.dict(MODULE.os.environ, {"SELF_HOSTED_TTS_URL": "", "VERCEL": "1"}):
+            self.assertIsNone(MODULE.self_hosted_speech("teste"))
         with patch.dict(MODULE.os.environ, {"SELF_HOSTED_TTS_URL": "http://127.0.0.1:9/speech"}):
             self.assertIsNone(MODULE.self_hosted_speech("porta fechada não vira áudio"))
             voice_own, _ = MODULE.voice_status_payload()
@@ -4334,7 +4484,7 @@ São Paulo - SP
         # O estado da voz é consultável em vez de degradar em silêncio.
         voice, voice_status = MODULE.voice_status_payload()
         self.assertEqual(voice_status, 200)
-        self.assertIn(voice["layer"], {"elevenlabs", "openai", "browser", "unknown"})
+        self.assertIn(voice["layer"], {"elevenlabs", "openai", "browser", "self_hosted", "unknown"})
         self.assertIn("message", voice)
         code, _headers, body = self.request("/voice-status")
         self.assertEqual(code, 200)

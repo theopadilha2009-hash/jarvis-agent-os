@@ -54,6 +54,9 @@
       <div class="connection">
         <span class="connection-dot" id="connectionDot"></span>
         <span id="connectionText">acordando</span>
+        <button class="crown-button" id="crownButton" type="button" hidden title="Contas do JARVIS" aria-label="Abrir contas">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 18h18v2H3zm1.2-3 3.1-8.4 3.7 5.1L12 6l1 5.7 3.7-5.1L19.8 15z"></path></svg>
+        </button>
         <button class="access-mode" id="accessMode" type="button" title="Ver acesso atual">
           <svg class="access-swap" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M16.5 4.5 20 8l-3.5 3.5M20 8H9.5A5.5 5.5 0 0 0 4 13.5M7.5 19.5 4 16l3.5-3.5M4 16h10.5A5.5 5.5 0 0 0 20 10.5"></path>
@@ -262,12 +265,18 @@
         <span>Conexão privada</span>
         <strong id="workerValue">verificando worker do Mac</strong>
         <div class="admin-login">
-          <input id="adminUsername" autocomplete="username" value="admin" placeholder="Login" aria-label="Login do modo Ultron">
-          <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha do modo Ultron">
-          <button id="adminLoginButton" type="button">Entrar no modo Ultron</button>
+          <input id="adminUsername" autocomplete="username" value="theo" placeholder="Login Ultron" aria-label="Login Ultron">
+          <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha">
+          <button id="adminLoginButton" type="button">Entrar</button>
+        </div>
+        <div class="account-signup" id="accountSignup">
+          <input id="signupUsername" autocomplete="username" placeholder="Novo login" aria-label="Criar login">
+          <input id="signupPassword" type="password" autocomplete="new-password" placeholder="Nova senha" aria-label="Criar senha">
+          <input id="signupEmail" type="email" autocomplete="email" placeholder="E-mail (opcional)" aria-label="E-mail da conta">
+          <button id="signupButton" type="button">Criar conta JARVIS</button>
         </div>
         <button class="leave-owner-mode" id="leaveOwnerMode" type="button" hidden>Sair do modo Ultron</button>
-        <small id="pairingHint">A senha é validada no servidor; este navegador recebe apenas uma sessão temporária.</small>
+        <small id="pairingHint">Seu login do Ultron entra no JARVIS e no Ultron. Contas novas só usam o JARVIS + modo code depois da aprovação.</small>
         <details class="advanced-pairing">
           <summary>Pareamento avançado</summary>
           <div class="pairing-controls">
@@ -284,6 +293,15 @@
         <div class="history-list" id="actionHistory"><small>Nenhuma ação carregada.</small></div>
       </section>
     </div>
+  </dialog>
+
+  <dialog id="accountsDialog" class="accounts-dialog" aria-labelledby="accountsDialogTitle">
+    <div class="dialog-head">
+      <b id="accountsDialogTitle">CONTAS</b>
+      <button id="closeAccountsDialog" type="button" aria-label="Fechar contas">×</button>
+    </div>
+    <p class="accounts-hint" id="accountsHint">Só o dono vê quem entrou. Contas novas esperam aprovação para o modo code.</p>
+    <div class="accounts-list" id="accountsList"></div>
   </dialog>
 
   <dialog id="voiceTuningDialog" class="voice-calibrator-dialog" aria-labelledby="voiceTuningMount">
