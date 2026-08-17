@@ -14,11 +14,11 @@
 <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-apitools1">
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260815-vozes2">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260817-move1">
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260815-vozes2">
 <link rel="stylesheet" href="/ui/api-panel.css?v=20260813-ultronfix1">
 <link rel="stylesheet" href="/ui/responsive-polish.css?v=20260815-vozes2">
-<link rel="stylesheet" href="/ui/shell.css?v=20260815-vozes2">
+<link rel="stylesheet" href="/ui/shell.css?v=20260817-move1">
 <script src="/ui/creator-seal.js?v=20260817-app1"></script>
 <script>
 (() => {
@@ -26,7 +26,8 @@
     localStorage.removeItem("jarvis-chat-rect");
     localStorage.removeItem("jarvis-chat-height");
     localStorage.removeItem("jarvis-chat-rect-v2");
-    const rect = JSON.parse(localStorage.getItem("jarvis-chat-rect-v3") || "null");
+    localStorage.removeItem("jarvis-chat-rect-v3");
+    const rect = JSON.parse(localStorage.getItem("jarvis-chat-rect-v4") || "null");
     if (!rect || !rect.width || !rect.height) return;
     const root = document.documentElement.style;
     root.setProperty("--conversation-left", `${rect.left}px`);
@@ -192,7 +193,7 @@
       </section>
 
       <section class="conversation" id="conversationPanel" aria-label="Conversa com JARVIS">
-        <div class="conversation-move" id="conversationMove" title="Arrastar o chat"></div>
+        <button class="conversation-move" id="conversationMove" type="button" title="Arrastar o chat" aria-label="Arrastar o chat">arrastar</button>
         <div class="conversation-edges" aria-hidden="true">
           <i data-edge="n" id="conversationResize"></i>
           <i data-edge="s"></i>
@@ -216,7 +217,8 @@
         <div class="conversation-feed" id="conversationFeed" aria-live="polite">
           <div class="welcome" id="welcomeMessage">
             <strong>Estou aqui.</strong>
-            <span id="welcomeHint">Escreva ou fale naturalmente.</span>
+            <span id="welcomeHint">Escreva ou fale naturalmente. Arraste a barra de cima para mover o chat.</span>
+            <a class="welcome-mac" href="/download/mac">Baixar no Mac</a>
             <div class="starter-actions" id="starterActions" aria-label="Sugestões para começar"></div>
           </div>
         </div>
@@ -467,7 +469,7 @@
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/feature-loader.js?v=20260815-vozes2" defer></script>
 <script src="/ui/device-feedback.js?v=20260813-device1" defer></script>
-<script src="/ui/jarvis.js?v=20260815-vozes2" defer></script>
+<script src="/ui/jarvis.js?v=20260817-move1" defer></script>
 <script type="module" src="/ui/presence-loader.js?v=20260813-ultronfix1"></script>
 </body>
 </html>

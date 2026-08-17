@@ -41,7 +41,7 @@
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   // v3: a janela nasce como painel à direita. Trocar a chave descarta as
   // geometrias salvas antes disso (achatadas, ou centradas no rodapé).
-  const CHAT_RECT_KEY = "jarvis-chat-rect-v3";
+  const CHAT_RECT_KEY = "jarvis-chat-rect-v4";
   const MAX_VISIBLE_MESSAGES = 24;
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceSupport = {
@@ -3100,19 +3100,28 @@
       applyConversationRect(next);
       event.preventDefault();
     };
-    const onEnd = () => {
+    const onEnd = (event) => {
+      panel.classList.remove("is-dragging");
+      if (event?.pointerId != null) {
+        try { event.target?.releasePointerCapture?.(event.pointerId); } catch { /* already released */ }
+      }
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onEnd);
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
     };
     const begin = (nextEdge, event) => {
+      if (event.button != null && event.button !== 0) return;
       const point = pointOf(event);
       const box = panel.getBoundingClientRect();
       edge = nextEdge;
       startX = point.clientX;
       startY = point.clientY;
       start = { left: box.left, top: box.top, width: box.width, height: box.height };
+      panel.classList.add("is-dragging");
+      if (event.pointerId != null) {
+        try { event.currentTarget?.setPointerCapture?.(event.pointerId); } catch { /* Safari */ }
+      }
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onEnd);
       window.addEventListener("touchmove", onMove, { passive: false });
@@ -3120,7 +3129,7 @@
       event.preventDefault();
     };
     const startMove = (event) => {
-      if (event.target.closest("button, a, input, textarea")) return;
+      if (event.target.closest("a, input, textarea, .new-conversation-button, .mobile-chat-toggle")) return;
       begin("move", event);
     };
     panel.querySelector(".conversation-head")?.addEventListener("pointerdown", startMove);

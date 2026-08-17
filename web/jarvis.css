@@ -1403,6 +1403,20 @@ button {
   font-size: 12px;
 }
 
+.welcome-mac {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  margin: 10px auto 0;
+  padding: 0 14px;
+  border: 1px solid rgba(216, 180, 254, 0.28);
+  border-radius: 999px;
+  color: #f6eefe;
+  text-decoration: none;
+  font-size: 12px;
+}
+
 .starter-actions {
   display: flex;
   justify-content: center;
@@ -2329,7 +2343,6 @@ dialog::backdrop {
 .ui-card[data-type="memory"] { border-color: rgba(167, 139, 250, 0.3); }
 
 .presence,
-.conversation,
 .action-hub {
   contain: layout paint;
 }
