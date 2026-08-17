@@ -121,6 +121,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertTrue(payload["creator"]["sealed"])
         self.assertEqual(payload["mac_app"]["download"], "/download/mac")
         self.assertIn("guest_ip_limits", payload["public_security"])
+        self.assertEqual(payload["public_security"]["guest_daily_command"], 36)
+        self.assertEqual(payload["public_security"]["guest_speech_max_chars"], 240)
 
     def test_fala_app_and_mac_download_pack(self):
         status, headers, html = self.request("/fala")
@@ -192,6 +194,28 @@ class WebGatewayTest(unittest.TestCase):
             self.assertEqual(MODULE.request_client_ip(FakeHandler()), "203.0.113.9")
         with patch.dict(os.environ, {"VERCEL": "1"}, clear=False):
             self.assertEqual(MODULE.request_client_ip(FakeHandler()), "198.51.100.20")
+
+    def test_head_does_not_return_not_implemented(self):
+        request = Request(self.base_url + "/", method="HEAD")
+        with urlopen(request, timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(len(response.read()), 0)
+
+    def test_guest_daily_budget_trips_after_cap(self):
+        previous = dict(MODULE._AUTH_HITS)
+        try:
+            MODULE._AUTH_HITS.clear()
+            with patch.dict(os.environ, {"JARVIS_PUBLIC_LIMITS": "1"}, clear=False), \
+                    patch.object(MODULE, "GUEST_DAILY_COMMAND", 1):
+                first, _, first_payload = self.json_request("/command", "POST", {"command": "quem criou você"})
+                self.assertEqual(first, 200)
+                self.assertEqual(first_payload["intent"], "creator_profile")
+                second, _, second_payload = self.json_request("/command", "POST", {"command": "quem criou você"})
+                self.assertEqual(second, 429)
+                self.assertEqual(second_payload["status_real"], "guest_budget_limited")
+        finally:
+            MODULE._AUTH_HITS.clear()
+            MODULE._AUTH_HITS.update(previous)
 
     def test_client_disconnect_during_asset_write_is_ignored(self):
         class ClosedPipe:

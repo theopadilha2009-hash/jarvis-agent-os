@@ -42,8 +42,11 @@ class MacAppTest(unittest.TestCase):
                 self.assertTrue(info["NSHighResolutionCapable"])
                 self.assertIn("Theo Lorentz Padilha", info["NSHumanReadableCopyright"])
                 self.assertTrue((app / "Contents" / "Resources" / "NOTICE.txt").is_file())
-                # Sem ícone gerado, o plist não promete um arquivo que não existe.
-                self.assertNotIn("CFBundleIconFile", info)
+                if MODULE.ICON_ICNS.is_file():
+                    self.assertEqual(info["CFBundleIconFile"], "jarvis")
+                    self.assertTrue((app / "Contents" / "Resources" / "jarvis.icns").is_file())
+                else:
+                    self.assertNotIn("CFBundleIconFile", info)
 
                 # Reinstalar por cima não deixa restos da versão anterior.
                 (app / "Contents" / "sujeira.txt").write_text("resto")
@@ -88,8 +91,15 @@ class MacAppTest(unittest.TestCase):
                 launcher = archive.getinfo("JARVIS.app/Contents/MacOS/JARVIS")
                 self.assertEqual(installer.external_attr >> 16, 0o100755)
                 self.assertEqual(launcher.external_attr >> 16, 0o100755)
-                self.assertIn("--window-size=", archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8"))
+                script = archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8")
+                self.assertIn("--window-size=", script)
+                self.assertIn("--window-position=", script)
                 self.assertIn("com.apple.quarantine", archive.read("INSTALAR.command").decode("utf-8"))
+                self.assertIn("LaunchAgents", archive.read("INSTALAR.command").decode("utf-8"))
+                self.assertIn("ai.theopadilha.jarvis.fala.plist", names)
+                if MODULE.ICON_ICNS.is_file():
+                    self.assertIn("JARVIS.app/Contents/Resources/jarvis.icns", names)
+                    self.assertEqual(info["CFBundleIconFile"], "jarvis")
 
 
 if __name__ == "__main__":
