@@ -297,7 +297,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(UI_REPAIR_CSS.stat().st_size, 12 * 1024)
         self.assertLess(API_PANEL_CSS.stat().st_size, 20 * 1024)
         self.assertLess(RESPONSIVE_POLISH_CSS.stat().st_size, 12 * 1024)
-        self.assertLess(SHELL_CSS.stat().st_size, 8 * 1024)
+        self.assertLess(SHELL_CSS.stat().st_size, 9 * 1024)
         self.assertLess(PRESENCE_JS.stat().st_size, 64 * 1024)
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
@@ -352,7 +352,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
-        self.assertGreaterEqual(self.html.count("20260815-vozes2"), 5)
+        self.assertGreaterEqual(self.html.count("20260815-vozes2"), 3)
+        self.assertGreaterEqual(self.html.count("20260817-move1"), 3)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -525,6 +526,9 @@ class UIQualityTest(unittest.TestCase):
             self.assertIn(f'data-edge="{edge}"', self.html)
         self.assertIn(".conversation-head {", self.shell_css)
         self.assertIn("cursor: grab", self.shell_css)
+        self.assertIn(">arrastar</button>", self.html)
+        self.assertIn('href="/download/mac"', self.html)
+        self.assertIn("setPointerCapture", self.app_js)
         self.assertIn('placeholder="Escreva ou fale comigo"', self.html)
         self.assertIn(".composer textarea::-webkit-scrollbar", self.shell_css)
         self.assertIn("scrollbar-width: none", self.shell_css)
@@ -535,9 +539,10 @@ class UIQualityTest(unittest.TestCase):
 
     def test_chat_window_opens_tall_and_drops_the_squashed_saved_rect(self):
         """A janela salva antes da v2 abria 720x240; a chave nova descarta isso."""
-        self.assertIn('const CHAT_RECT_KEY = "jarvis-chat-rect-v3"', self.app_js)
+        self.assertIn('const CHAT_RECT_KEY = "jarvis-chat-rect-v4"', self.app_js)
         self.assertIn('localStorage.removeItem("jarvis-chat-rect")', self.html)
-        self.assertIn('localStorage.getItem("jarvis-chat-rect-v3")', self.html)
+        self.assertIn('localStorage.getItem("jarvis-chat-rect-v4")', self.html)
+        self.assertIn('localStorage.removeItem("jarvis-chat-rect-v3")', self.html)
         self.assertIn('localStorage.removeItem("jarvis-chat-rect-v2")', self.html)
         self.assertNotIn("jarvis-chat-height", self.app_js)
         self.assertIn("const minH = 340", self.app_js)
