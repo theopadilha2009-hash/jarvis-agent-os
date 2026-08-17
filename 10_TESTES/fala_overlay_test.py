@@ -36,6 +36,14 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn('id="orb"', FALA_HTML)
         self.assertIn("/download/mac", FALA_HTML)
         self.assertIn("creator-seal.js", FALA_HTML)
+        self.assertIn('id="loginForm"', FALA_HTML)
+        self.assertIn('id="accessLine"', FALA_HTML)
+
+    def test_wake_loop_listens_for_oi_jarvis(self):
+        self.assertIn("startWakeLoop", FALA_JS)
+        self.assertIn("keepListening", FALA_JS)
+        self.assertIn("continuous = true", FALA_JS)
+        self.assertIn("/login", FALA_JS)
 
 
 if __name__ == "__main__":

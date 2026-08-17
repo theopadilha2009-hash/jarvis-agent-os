@@ -2496,6 +2496,9 @@ _PUBLIC_ROUTE_LIMITS = {
     "/admin-login": (8, 180),
     "/download/mac": (8, 600),
 }
+GUEST_DAILY_COMMAND = 36
+GUEST_DAILY_SPEECH = 18
+GUEST_SPEECH_MAX_CHARS = 240
 _ALLOWED_PUBLIC_HOSTS = {
     "localhost",
     "127.0.0.1",
@@ -2577,6 +2580,24 @@ def public_route_limit_hit(handler, path, identity=None):
     bucket = f"ip:{path}:{request_client_ip(handler)}"
     if auth_rate_limited(bucket, limit=limit, window=window):
         return True, min(60, window)
+    return False, 0
+
+
+def guest_budget_hit(handler, path, identity=None):
+    if not public_limits_enabled():
+        return False, 0
+    if (identity or {}).get("owner"):
+        return False, 0
+    kind = "speech" if path == "/speech" else "command" if path in {"/command", "/command-stream"} else ""
+    if not kind:
+        return False, 0
+    daily = GUEST_DAILY_SPEECH if kind == "speech" else GUEST_DAILY_COMMAND
+    if (identity or {}).get("code"):
+        daily *= 3
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    bucket = f"day:{kind}:{day}:{request_client_ip(handler)}"
+    if auth_rate_limited(bucket, limit=daily, window=86_400):
+        return True, 180
     return False, 0
 
 
@@ -5222,6 +5243,9 @@ def status_payload(owner_authenticated=False, identity=None):
             "frame": "deny",
             "guest_ip_limits": public_limits_enabled(),
             "origin_lock": True,
+            "guest_daily_command": GUEST_DAILY_COMMAND,
+            "guest_daily_speech": GUEST_DAILY_SPEECH,
+            "guest_speech_max_chars": GUEST_SPEECH_MAX_CHARS,
         },
         "creator": {
             "sealed": True,
@@ -10109,11 +10133,20 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", csp)
 
     def _write_body(self, body):
+        if getattr(self, "_omit_body", False):
+            return
         try:
             self.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError):
             # Browsers commonly cancel a large immutable asset when a tab closes.
             return
+
+    def do_HEAD(self):
+        self._omit_body = True
+        try:
+            self.do_GET()
+        finally:
+            self._omit_body = False
 
     def send_json(self, status, payload, extra_headers=None):
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -10576,6 +10609,15 @@ class handler(BaseHTTPRequestHandler):
                 "retryable": True,
                 "queue": {"retry_after": retry_after},
             }, extra_headers={"Retry-After": str(retry_after)})
+        budget, budget_retry = guest_budget_hit(self, path, identity)
+        if budget:
+            return self.send_json(429, {
+                "ok": False,
+                "status_real": "guest_budget_limited",
+                "error": "Visitante chegou no limite do dia. Entre com a conta ou volte amanhã.",
+                "retryable": True,
+                "queue": {"retry_after": budget_retry},
+            }, extra_headers={"Retry-After": str(budget_retry)})
         try:
             body = self.read_json()
         except ValueError as error:
@@ -10785,6 +10827,10 @@ class handler(BaseHTTPRequestHandler):
             payload = attach_execution_events(payload, started_at, status)
             return self.send_json(status, payload)
         if path == "/speech":
+            if not owner_authenticated and not code_authenticated:
+                text = clean_text(body.get("text") or body.get("message"), GUEST_SPEECH_MAX_CHARS)
+                body = dict(body)
+                body["text"] = text
             payload, status = elevenlabs_speech(body)
             if isinstance(payload, bytes):
                 return self.send_bytes(status, payload, speech_content_type(payload), "no-store")

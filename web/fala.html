@@ -7,7 +7,7 @@
   <meta name="creator-seal" content="ggCZbZFBcds2X3zL5N5jloFWuxA=">
   <title>JARVIS · fala</title>
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
-  <link rel="stylesheet" href="/ui/fala.css?v=20260817-app1">
+  <link rel="stylesheet" href="/ui/fala.css?v=20260817-canto1">
 </head>
 <body>
   <main class="orb-shell">
@@ -16,10 +16,17 @@
       <i></i><i></i><b></b>
     </button>
     <strong id="statusLine">Oi. Eu estou aqui.</strong>
-    <p id="caption">Diga “oi Jarvis” ou toque no brilho.</p>
+    <p id="caption">Toque no brilho e diga “oi Jarvis”.</p>
+    <p id="accessLine">Visitante</p>
     <form id="askForm">
       <input id="askInput" type="text" autocomplete="off" placeholder="Ou escreva…" aria-label="Pedido para o JARVIS">
       <button type="submit">Enviar</button>
+    </form>
+    <form id="loginForm">
+      <input id="loginUser" autocomplete="username" placeholder="Login" aria-label="Login">
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha">
+      <button type="submit">Entrar</button>
+      <button id="logoutButton" type="button" hidden>Sair</button>
     </form>
     <nav class="quick">
       <button type="button" data-open="https://www.google.com">Google</button>
@@ -31,6 +38,6 @@
     <a class="download" href="/download/mac">Baixar no Mac</a>
   </main>
   <script src="/ui/creator-seal.js?v=20260817-app1"></script>
-  <script src="/ui/fala.js?v=20260817-app1"></script>
+  <script src="/ui/fala.js?v=20260817-canto1"></script>
 </body>
 </html>

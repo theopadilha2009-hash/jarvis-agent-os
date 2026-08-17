@@ -2,14 +2,20 @@
   "use strict";
   const statusLine = document.getElementById("statusLine");
   const caption = document.getElementById("caption");
+  const accessLine = document.getElementById("accessLine");
   const orb = document.getElementById("orb");
   const form = document.getElementById("askForm");
+  const loginForm = document.getElementById("loginForm");
   const input = document.getElementById("askInput");
+  const logoutButton = document.getElementById("logoutButton");
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
+  const WAKE = /(?:^|\b)(?:oi|olá|ola)?\s*jarvis\b/i;
   let busy = false;
-  let listening = false;
   let greeted = false;
+  let keepListening = false;
+  let armed = false;
+  let rec = null;
 
   const creator = () => window.JarvisCreator?.name?.() || "Theo Lorentz Padilha";
 
@@ -27,6 +33,29 @@
   function say(title, detail) {
     statusLine.textContent = title;
     if (detail) caption.textContent = detail;
+  }
+
+  function renderAccess(label) {
+    accessLine.textContent = label;
+    const inSession = Boolean(ownerToken());
+    logoutButton.hidden = !inSession;
+    loginForm.querySelector("#loginUser").hidden = inSession;
+    loginForm.querySelector("#loginPass").hidden = inSession;
+    loginForm.querySelector("button[type='submit']").hidden = inSession;
+  }
+
+  async function refreshAccess() {
+    if (!ownerToken()) {
+      renderAccess("Visitante");
+      return;
+    }
+    try {
+      const data = await fetch("/status", { headers: apiHeaders() }).then((row) => row.json());
+      const mode = data.access?.mode;
+      renderAccess(mode === "owner" ? "Ultron" : mode === "member" ? "Conta JARVIS" : "Visitante");
+    } catch {
+      renderAccess("Sessão");
+    }
   }
 
   function speak(text) {
@@ -109,59 +138,124 @@
     }
   }
 
-  function hear() {
-    if (!Recognition) {
-      input.focus();
-      say("Sem microfone neste navegador.", "Escreva o pedido abaixo.");
+  function hearSpoken(spoken) {
+    const text = String(spoken || "").trim();
+    if (!text) return;
+    if (WAKE.test(text)) {
+      const command = text.replace(WAKE, "").replace(/^[,.\s]+/, "").trim();
+      greetOnce();
+      if (command) {
+        armed = false;
+        ask(command);
+      } else {
+        armed = true;
+        say("Pode falar.", "Estou ouvindo o pedido.");
+      }
       return;
     }
-    const rec = new Recognition();
+    if (armed) {
+      armed = false;
+      greetOnce();
+      ask(text);
+    }
+  }
+
+  function listenLoop() {
+    if (!keepListening || !Recognition) return;
+    rec = new Recognition();
     rec.lang = "pt-BR";
+    rec.continuous = true;
     rec.interimResults = false;
-    listening = true;
-    orb.classList.add("listening");
-    say("Estou ouvindo.", "Pode falar.");
     rec.onresult = (event) => {
-      const spoken = event.results?.[0]?.[0]?.transcript || "";
-      const cleaned = spoken.replace(/^(?:oi|olá|ola)\s+/i, "").replace(/^jarvis[,.\s]+/i, "").trim();
-      ask(cleaned || spoken);
+      const last = event.results?.[event.results.length - 1];
+      hearSpoken(last?.[0]?.transcript || "");
     };
-    rec.onerror = () => {
-      listening = false;
-      orb.classList.remove("listening");
-      say("Não ouvi.", "Toque de novo no brilho.");
+    rec.onerror = (event) => {
+      if (event.error === "not-allowed") {
+        keepListening = false;
+        orb.classList.remove("listening");
+        say("Microfone bloqueado.", "Toque no brilho e permita o microfone.");
+        return;
+      }
+      if (keepListening) window.setTimeout(listenLoop, 700);
     };
     rec.onend = () => {
-      listening = false;
-      orb.classList.remove("listening");
+      if (keepListening) window.setTimeout(listenLoop, 220);
     };
     try {
       rec.start();
+      orb.classList.add("listening");
     } catch {
-      listening = false;
-      orb.classList.remove("listening");
-      say("Microfone bloqueado.", "Permita o microfone ou escreva.");
+      if (keepListening) window.setTimeout(listenLoop, 800);
     }
+  }
+
+  function startWakeLoop() {
+    if (!Recognition) {
+      input.focus();
+      say("Sem microfone neste navegador.", "Escreva o pedido ou entre com login.");
+      return;
+    }
+    if (keepListening) return;
+    keepListening = true;
+    say("Pode me chamar.", "Diga “oi Jarvis”.");
+    listenLoop();
   }
 
   orb.addEventListener("click", () => {
     greetOnce(); // user-gesture: só gasta voz depois do toque
-    if (listening) return;
-    hear();
+    startWakeLoop();
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     greetOnce();
+    startWakeLoop();
     const value = input.value;
     input.value = "";
     ask(value);
   });
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const username = document.getElementById("loginUser").value.trim();
+    const password = document.getElementById("loginPass").value;
+    if (!username || !password) {
+      say("Informe login e senha.", "A mesma conta do cockpit.");
+      return;
+    }
+    try {
+      const response = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.session_token) {
+        say("Não entrei.", data.error || "Login inválido.");
+        return;
+      }
+      localStorage.setItem(OWNER_TOKEN_KEY, data.session_token);
+      document.getElementById("loginPass").value = "";
+      await refreshAccess();
+      greetOnce();
+      startWakeLoop();
+      say("Entrou.", data.message || "Sessão ativa neste app.");
+    } catch {
+      say("Falha de rede.", "Tente o login de novo.");
+    }
+  });
+  logoutButton.addEventListener("click", () => {
+    localStorage.removeItem(OWNER_TOKEN_KEY);
+    refreshAccess();
+    say("Saiu.", "Voltou ao modo visitante.");
+  });
   document.querySelectorAll("[data-open]").forEach((button) => {
     button.addEventListener("click", () => {
       greetOnce();
+      startWakeLoop();
       openTarget(button.getAttribute("data-open"));
     });
   });
 
-  say(`Oi. Eu sou o JARVIS de ${creator()}.`, "Diga “oi Jarvis” ou toque no brilho.");
+  say(`Oi. Eu sou o JARVIS de ${creator()}.`, "Toque no brilho e diga “oi Jarvis”.");
+  refreshAccess();
 })();

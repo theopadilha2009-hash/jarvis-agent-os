@@ -31,6 +31,8 @@ import jarvis_creator_seal as creator_seal  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 LOGO = ROOT / "web" / "jarvis-logo.png"
 ICON_PNG = ROOT / "web" / "jarvis-icon-512.png"
+ICON_ICNS = ROOT / "web" / "jarvis.icns"
+LAUNCH_AGENT_LABEL = "ai.theopadilha.jarvis.fala"
 APP_NAME = "JARVIS"
 BUNDLE_ID = "ai.theopadilha.jarvis.cockpit"
 # Origem única do cockpit. Permissão de microfone, escuta pelo nome e estilo
@@ -98,18 +100,53 @@ def app_url(url: str) -> str:
 def launcher_script(url: str) -> str:
     sealed = creator_seal.fingerprint()
     return f"""#!/bin/sh
-# Abre a fala numa janela própria; sem o Chrome, cai no navegador padrão.
+# Abre a fala no canto superior direito; sem o Chrome, cai no navegador padrão.
 # lock:{sealed}
 URL="${{JARVIS_COCKPIT_URL:-{url}}}"
 CHROME="{CHROME}"
+W=380
+H=640
+X=1100
+Y=28
+if command -v osascript >/dev/null 2>&1; then
+  BOUNDS=$(osascript -e 'tell application "Finder" to get bounds of window of desktop' 2>/dev/null || true)
+  if [ -n "$BOUNDS" ]; then
+    SW=$(printf '%s' "$BOUNDS" | awk -F',' '{{gsub(/ /,""); print $3}}')
+    if [ "$SW" -gt "$W" ] 2>/dev/null; then
+      X=$((SW - W - 18))
+    fi
+  fi
+fi
 if [ -x "$CHROME" ]; then
-  exec "$CHROME" --app="$URL" --new-window --window-size=420,720
+  "$CHROME" --app="$URL" --new-window --window-size="$W,$H" --window-position="$X,$Y" >/dev/null 2>&1 &
+  sleep 1.1
+  osascript >/dev/null 2>&1 <<EOF || true
+tell application "System Events"
+  tell process "Google Chrome"
+    set frontmost to true
+    try
+      set position of front window to {{$X, $Y}}
+      set size of front window to {{$W, $H}}
+    end try
+  end tell
+end tell
+EOF
+  wait
+  exit 0
 fi
 exec /usr/bin/open "$URL"
 """
 
 
-def bundle_info(version: str = "1.1") -> dict:
+def launch_agent_plist() -> bytes:
+    return plistlib.dumps({
+        "Label": LAUNCH_AGENT_LABEL,
+        "ProgramArguments": ["/usr/bin/open", "-a", "JARVIS"],
+        "RunAtLoad": True,
+    })
+
+
+def bundle_info(version: str = "1.2") -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
@@ -142,16 +179,23 @@ def build_mac_pack(url: str = DEFAULT_URL) -> bytes:
     target = app_url(url)
     info = bundle_info()
     launcher = launcher_script(target)
-    installer = """#!/bin/bash
+    installer = f"""#!/bin/bash
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-DEST="${HOME}/Applications"
-mkdir -p "$DEST"
+DEST="${{HOME}}/Applications"
+LAUNCH="${{HOME}}/Library/LaunchAgents"
+mkdir -p "$DEST" "$LAUNCH"
 rm -rf "$DEST/JARVIS.app"
 xattr -dr com.apple.quarantine "$HERE/JARVIS.app" 2>/dev/null || true
 cp -R "$HERE/JARVIS.app" "$DEST/JARVIS.app"
 chmod +x "$DEST/JARVIS.app/Contents/MacOS/JARVIS"
 xattr -dr com.apple.quarantine "$DEST/JARVIS.app" 2>/dev/null || true
+if [ -f "$HERE/ai.theopadilha.jarvis.fala.plist" ]; then
+  cp "$HERE/ai.theopadilha.jarvis.fala.plist" "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist"
+  launchctl bootout "gui/$(id -u)/{LAUNCH_AGENT_LABEL}" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" 2>/dev/null || \
+    launchctl load "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" 2>/dev/null || true
+fi
 open "$DEST/JARVIS.app"
 """
     readme = (
@@ -159,9 +203,12 @@ open "$DEST/JARVIS.app"
         "1. Dê dois cliques em INSTALAR.command\n"
         "   Se o Mac recusar, botão direito > Abrir.\n"
         "2. O app vai para ~/Applications e abre a fala no canto\n"
-        "3. Diga \"oi Jarvis\" ou toque no brilho\n\n"
+        "3. Toque no brilho uma vez e diga \"oi Jarvis\"\n"
+        "4. No login do Mac o app sobe sozinho\n\n"
         "Visitante não controla o Mac do dono.\n"
     )
+    if ICON_ICNS.is_file():
+        info["CFBundleIconFile"] = "jarvis"
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         _zip_bytes(archive, "JARVIS.app/Contents/MacOS/JARVIS", launcher.encode("utf-8"), executable=True)
@@ -169,9 +216,12 @@ open "$DEST/JARVIS.app"
         _zip_bytes(archive, "INSTALAR.command", installer.encode("utf-8"), executable=True)
         _zip_bytes(archive, "LER-ME.txt", readme.encode("utf-8"))
         _zip_bytes(archive, "NOTICE.txt", creator_seal.copyright_line().encode("utf-8"))
+        _zip_bytes(archive, f"{LAUNCH_AGENT_LABEL}.plist", launch_agent_plist())
         icon = ICON_PNG if ICON_PNG.is_file() else LOGO
         if icon.is_file() and icon.stat().st_size < 500_000:
             archive.write(icon, "JARVIS.app/Contents/Resources/jarvis-mark.png")
+        if ICON_ICNS.is_file():
+            archive.write(ICON_ICNS, "JARVIS.app/Contents/Resources/jarvis.icns")
         archive.comment = f"lock:{creator_seal.fingerprint()}".encode("ascii")
     return buffer.getvalue()
 
@@ -181,7 +231,8 @@ _PACK_CACHE: dict[tuple, bytes] = {}
 
 def mac_pack_bytes(url: str = DEFAULT_URL) -> bytes:
     stamp = ICON_PNG.stat().st_mtime if ICON_PNG.is_file() else 0
-    key = (app_url(url), stamp)
+    icns = ICON_ICNS.stat().st_mtime if ICON_ICNS.is_file() else 0
+    key = (app_url(url), stamp, icns)
     packed = _PACK_CACHE.get(key)
     if packed is None:
         packed = build_mac_pack(url)
@@ -203,7 +254,10 @@ def install(url: str, system_wide: bool) -> Path:
     binary.chmod(0o755)
 
     info = bundle_info()
-    if build_icon(resources / "jarvis.icns"):
+    if ICON_ICNS.is_file():
+        shutil.copy2(ICON_ICNS, resources / "jarvis.icns")
+        info["CFBundleIconFile"] = "jarvis"
+    elif build_icon(resources / "jarvis.icns"):
         info["CFBundleIconFile"] = "jarvis"
     (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
     (resources / "NOTICE.txt").write_text(creator_seal.copyright_line() + "\n", encoding="utf-8")
