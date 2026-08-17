@@ -13,20 +13,31 @@ modo aplicativo do Chrome, com o navegador padrão como rede de segurança.
 from __future__ import annotations
 
 import argparse
+from io import BytesIO
 from pathlib import Path
 import plistlib
 import shutil
 import subprocess
 import sys
+from urllib.parse import urlparse
+import zipfile
+
+SCRIPTS = Path(__file__).resolve().parent
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+import jarvis_creator_seal as creator_seal  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
 LOGO = ROOT / "web" / "jarvis-logo.png"
+ICON_PNG = ROOT / "web" / "jarvis-icon-512.png"
 APP_NAME = "JARVIS"
 BUNDLE_ID = "ai.theopadilha.jarvis.cockpit"
 # Origem única do cockpit. Permissão de microfone, escuta pelo nome e estilo
 # ficam presos ao domínio: dois endereços significam duas configurações.
-DEFAULT_URL = "https://jarvis-theo.vercel.app"
+DEFAULT_ORIGIN = "https://jarvis-theo.vercel.app"
+DEFAULT_URL = f"{DEFAULT_ORIGIN}/fala"
+PACK_NAME = "JARVIS.mac.zip"
 # Fundo do cockpit: o ícone fica quadrado sem esticar o logo.
 ICON_BACKGROUND = "130824"
 ICON_SIZES = (16, 32, 64, 128, 256, 512, 1024)
@@ -74,16 +85,108 @@ def build_icon(destination: Path) -> bool:
         shutil.rmtree(iconset, ignore_errors=True)
 
 
+def app_url(url: str) -> str:
+    cleaned = (url or DEFAULT_ORIGIN).rstrip("/")
+    if cleaned.endswith("/fala"):
+        return cleaned
+    path = urlparse(cleaned).path
+    if path in {"", "/"}:
+        return f"{cleaned}/fala"
+    return cleaned
+
+
 def launcher_script(url: str) -> str:
+    sealed = creator_seal.fingerprint()
     return f"""#!/bin/sh
-# Abre o cockpit numa janela própria; sem o Chrome, cai no navegador padrão.
+# Abre a fala numa janela própria; sem o Chrome, cai no navegador padrão.
+# lock:{sealed}
 URL="${{JARVIS_COCKPIT_URL:-{url}}}"
 CHROME="{CHROME}"
 if [ -x "$CHROME" ]; then
-  exec "$CHROME" --app="$URL" --new-window
+  exec "$CHROME" --app="$URL" --new-window --window-size=420,720
 fi
 exec /usr/bin/open "$URL"
 """
+
+
+def bundle_info(version: str = "1.1") -> dict:
+    author = creator_seal.creator_name()
+    return {
+        "CFBundleName": APP_NAME,
+        "CFBundleDisplayName": APP_NAME,
+        "CFBundleIdentifier": BUNDLE_ID,
+        "CFBundleVersion": version,
+        "CFBundleShortVersionString": version,
+        "CFBundleExecutable": APP_NAME,
+        "CFBundlePackageType": "APPL",
+        "LSMinimumSystemVersion": "12.0",
+        "NSHighResolutionCapable": True,
+        "NSHumanReadableCopyright": creator_seal.copyright_line(),
+        "CFBundleGetInfoString": f"JARVIS · {author}",
+        "NSMicrophoneUsageDescription": f"O JARVIS de {author} ouve o pedido para responder por voz.",
+    }
+
+
+def _zip_bytes(archive: zipfile.ZipFile, name: str, data: bytes, executable: bool = False) -> None:
+    info = zipfile.ZipInfo(name)
+    info.date_time = (2026, 8, 17, 12, 0, 0)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.create_system = 3
+    mode = 0o100755 if executable else 0o100644
+    info.external_attr = mode << 16
+    archive.writestr(info, data)
+
+
+def build_mac_pack(url: str = DEFAULT_URL) -> bytes:
+    """ZIP instalável sem o repositório: .app + INSTALAR.command."""
+    target = app_url(url)
+    info = bundle_info()
+    launcher = launcher_script(target)
+    installer = """#!/bin/bash
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+DEST="${HOME}/Applications"
+mkdir -p "$DEST"
+rm -rf "$DEST/JARVIS.app"
+xattr -dr com.apple.quarantine "$HERE/JARVIS.app" 2>/dev/null || true
+cp -R "$HERE/JARVIS.app" "$DEST/JARVIS.app"
+chmod +x "$DEST/JARVIS.app/Contents/MacOS/JARVIS"
+xattr -dr com.apple.quarantine "$DEST/JARVIS.app" 2>/dev/null || true
+open "$DEST/JARVIS.app"
+"""
+    readme = (
+        f"JARVIS no Mac\nCriado por {creator_seal.creator_name()}.\n\n"
+        "1. Dê dois cliques em INSTALAR.command\n"
+        "   Se o Mac recusar, botão direito > Abrir.\n"
+        "2. O app vai para ~/Applications e abre a fala no canto\n"
+        "3. Diga \"oi Jarvis\" ou toque no brilho\n\n"
+        "Visitante não controla o Mac do dono.\n"
+    )
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        _zip_bytes(archive, "JARVIS.app/Contents/MacOS/JARVIS", launcher.encode("utf-8"), executable=True)
+        _zip_bytes(archive, "JARVIS.app/Contents/Info.plist", plistlib.dumps(info))
+        _zip_bytes(archive, "INSTALAR.command", installer.encode("utf-8"), executable=True)
+        _zip_bytes(archive, "LER-ME.txt", readme.encode("utf-8"))
+        _zip_bytes(archive, "NOTICE.txt", creator_seal.copyright_line().encode("utf-8"))
+        icon = ICON_PNG if ICON_PNG.is_file() else LOGO
+        if icon.is_file() and icon.stat().st_size < 500_000:
+            archive.write(icon, "JARVIS.app/Contents/Resources/jarvis-mark.png")
+        archive.comment = f"lock:{creator_seal.fingerprint()}".encode("ascii")
+    return buffer.getvalue()
+
+
+_PACK_CACHE: dict[tuple, bytes] = {}
+
+
+def mac_pack_bytes(url: str = DEFAULT_URL) -> bytes:
+    stamp = ICON_PNG.stat().st_mtime if ICON_PNG.is_file() else 0
+    key = (app_url(url), stamp)
+    packed = _PACK_CACHE.get(key)
+    if packed is None:
+        packed = build_mac_pack(url)
+        _PACK_CACHE[key] = packed
+    return packed
 
 
 def install(url: str, system_wide: bool) -> Path:
@@ -99,20 +202,11 @@ def install(url: str, system_wide: bool) -> Path:
     binary.write_text(launcher_script(url), encoding="utf-8")
     binary.chmod(0o755)
 
-    info = {
-        "CFBundleName": APP_NAME,
-        "CFBundleDisplayName": APP_NAME,
-        "CFBundleIdentifier": BUNDLE_ID,
-        "CFBundleVersion": "1.0",
-        "CFBundleShortVersionString": "1.0",
-        "CFBundleExecutable": APP_NAME,
-        "CFBundlePackageType": "APPL",
-        "LSMinimumSystemVersion": "12.0",
-        "NSHighResolutionCapable": True,
-    }
+    info = bundle_info()
     if build_icon(resources / "jarvis.icns"):
         info["CFBundleIconFile"] = "jarvis"
     (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
+    (resources / "NOTICE.txt").write_text(creator_seal.copyright_line() + "\n", encoding="utf-8")
 
     # Sem isso o Finder pode continuar mostrando o ícone genérico.
     subprocess.run(["touch", str(app)], capture_output=True, timeout=10, check=False)

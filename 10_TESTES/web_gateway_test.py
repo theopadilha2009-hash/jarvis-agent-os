@@ -75,13 +75,16 @@ class WebGatewayTest(unittest.TestCase):
             os.environ["JARVIS_ACCOUNTS_PATH"] = cls.previous_accounts_path
         cls.runtime_temp.cleanup()
 
-    def request(self, path, method="GET", payload=None):
+    def request(self, path, method="GET", payload=None, extra_headers=None):
         body = None if payload is None else json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if extra_headers:
+            headers.update(extra_headers)
         request = Request(
             self.base_url + path,
             data=body,
             method=method,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
         try:
             with urlopen(request, timeout=5) as response:
@@ -89,8 +92,8 @@ class WebGatewayTest(unittest.TestCase):
         except HTTPError as error:
             return error.code, error.headers, error.read()
 
-    def json_request(self, path, method="GET", payload=None):
-        status, headers, raw = self.request(path, method, payload)
+    def json_request(self, path, method="GET", payload=None, extra_headers=None):
+        status, headers, raw = self.request(path, method, payload, extra_headers=extra_headers)
         return status, headers, json.loads(raw)
 
     def test_status_and_security_headers(self):
@@ -112,6 +115,83 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["memory"]["index"], "sqlite_runtime_over_markdown")
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["X-Frame-Options"], "DENY")
+        self.assertIn("default-src 'self'", headers["Content-Security-Policy"])
+        self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
+        self.assertEqual(headers["Cross-Origin-Opener-Policy"], "same-origin")
+        self.assertTrue(payload["creator"]["sealed"])
+        self.assertEqual(payload["mac_app"]["download"], "/download/mac")
+        self.assertIn("guest_ip_limits", payload["public_security"])
+
+    def test_fala_app_and_mac_download_pack(self):
+        status, headers, html = self.request("/fala")
+        self.assertEqual(status, 200)
+        self.assertIn(b'id="orb"', html)
+        self.assertIn(b"/download/mac", html)
+        self.assertIn(b"creator-seal.js", html)
+        app_status, _, app_html = self.request("/app")
+        self.assertEqual(app_status, 200)
+        self.assertIn(b"JARVIS.mac.zip", app_html)
+        zip_status, zip_headers, zip_body = self.request("/download/mac")
+        self.assertEqual(zip_status, 200)
+        self.assertEqual(zip_headers.get_content_type(), "application/zip")
+        self.assertIn("JARVIS.mac.zip", zip_headers.get("Content-Disposition", ""))
+        self.assertTrue(zip_body.startswith(b"PK"))
+        self.assertTrue(zip_headers.get("X-Jarvis-Creator-Lock"))
+        import zipfile
+        from io import BytesIO
+        with zipfile.ZipFile(BytesIO(zip_body)) as archive:
+            self.assertIn("INSTALAR.command", archive.namelist())
+            self.assertIn("/fala", archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8"))
+
+    def test_public_origin_lock_and_guest_ip_limit(self):
+        status, _, payload = self.json_request(
+            "/command",
+            "POST",
+            {"command": "quem criou você"},
+            extra_headers={"Origin": "https://evil.example"},
+        )
+        self.assertEqual(status, 403)
+        self.assertEqual(payload["status_real"], "origin_blocked")
+        previous = dict(MODULE._AUTH_HITS)
+        try:
+            MODULE._AUTH_HITS.clear()
+            with patch.dict(os.environ, {"JARVIS_PUBLIC_LIMITS": "1"}, clear=False), \
+                    patch.dict(MODULE._PUBLIC_ROUTE_LIMITS, {"/command": (1, 300)}):
+                first, _, first_payload = self.json_request("/command", "POST", {"command": "quem criou você"})
+                self.assertEqual(first, 200)
+                self.assertEqual(first_payload["intent"], "creator_profile")
+                second, headers, second_payload = self.json_request("/command", "POST", {"command": "quem criou você"})
+                self.assertEqual(second, 429)
+                self.assertEqual(second_payload["status_real"], "public_rate_limited")
+                self.assertEqual(headers.get("Retry-After"), "60")
+        finally:
+            MODULE._AUTH_HITS.clear()
+            MODULE._AUTH_HITS.update(previous)
+
+    def test_origin_lock_rejects_random_jarvis_vercel_preview(self):
+        class FakeHandler:
+            def __init__(self, origin, forwarded=None):
+                self.headers = {"Origin": origin}
+                if forwarded:
+                    self.headers["X-Forwarded-For"] = forwarded
+                self.client_address = ("203.0.113.9", 443)
+
+        self.assertTrue(MODULE.request_origin_allowed(FakeHandler("https://jarvis-theo.vercel.app")))
+        self.assertTrue(MODULE.request_origin_allowed(FakeHandler("https://jarvis-agent-os-git-feat.vercel.app")))
+        self.assertFalse(MODULE.request_origin_allowed(FakeHandler("https://jarvis-phishing.vercel.app")))
+        self.assertFalse(MODULE.request_origin_allowed(FakeHandler("https://evil.example")))
+
+    def test_forwarded_ip_is_ignored_unless_proxy_is_trusted(self):
+        class FakeHandler:
+            headers = {"X-Forwarded-For": "198.51.100.20"}
+            client_address = ("203.0.113.9", 443)
+
+        with patch.dict(os.environ, {"VERCEL": "", "JARVIS_TRUST_PROXY": ""}, clear=False):
+            os.environ.pop("VERCEL", None)
+            os.environ.pop("JARVIS_TRUST_PROXY", None)
+            self.assertEqual(MODULE.request_client_ip(FakeHandler()), "203.0.113.9")
+        with patch.dict(os.environ, {"VERCEL": "1"}, clear=False):
+            self.assertEqual(MODULE.request_client_ip(FakeHandler()), "198.51.100.20")
 
     def test_client_disconnect_during_asset_write_is_ignored(self):
         class ClosedPipe:
@@ -192,6 +272,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="qualityButton"', html)
         self.assertIn(b'id="installButton"', html)
         self.assertIn(b'id="installDialog"', html)
+        self.assertIn(b'id="macDownloadButton"', html)
+        self.assertIn(b'href="/download/mac"', html)
+        self.assertIn(b"creator-seal.js", html)
         self.assertIn(b'id="integrationsButton"', html)
         self.assertIn(b'id="integrationsDialog"', html)
         self.assertIn(b'id="n8nStudio"', html)
@@ -2906,7 +2989,7 @@ São Paulo - SP
             def __exit__(self, *_args):
                 return False
 
-            def read(self):
+            def read(self, _n=None):
                 return json.dumps({
                     "model": "openrouter/free",
                     "choices": [{"message": {"content": "Olá. O modo visitante está funcionando."}}],

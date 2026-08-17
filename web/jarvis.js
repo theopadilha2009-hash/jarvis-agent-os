@@ -28,6 +28,9 @@
   const mobileLayout = window.matchMedia("(max-width: 720px)");
   const CREATOR_MARK = "VGhlbyBMb3JlbnR6IFBhZGlsaGE=";
   const creatorName = () => {
+    if (window.JarvisCreator?.name) {
+      try { return window.JarvisCreator.name(); } catch { /* selo ausente */ }
+    }
     try { return window.atob(CREATOR_MARK); } catch { return "Theo Lorentz Padilha"; }
   };
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
@@ -787,6 +790,7 @@
     byId("identityAssistantName").textContent = name;
     const identityRole = byId("identityCreator") || document.querySelector(".identity-name small");
     if (identityRole) identityRole.textContent = ultron ? `para ${creatorName()}` : `por ${creatorName()}`;
+    window.JarvisCreator?.lock?.();
     byId("conversationAssistantName").textContent = name;
     byId("systemDialogTitle").textContent = `SISTEMA ${name}`;
     byId("installDialogTitle").textContent = `${name} NO CELULAR`;
