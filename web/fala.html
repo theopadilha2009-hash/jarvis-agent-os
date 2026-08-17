@@ -5,39 +5,40 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#130824">
   <meta name="creator-seal" content="ggCZbZFBcds2X3zL5N5jloFWuxA=">
-  <title>JARVIS · fala</title>
+  <title>JARVIS</title>
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
-  <link rel="stylesheet" href="/ui/fala.css?v=20260817-canto1">
+  <link rel="stylesheet" href="/ui/fala.css?v=20260817-widget1">
 </head>
 <body>
   <main class="orb-shell">
-    <p class="eyebrow">FALA</p>
     <button id="orb" type="button" aria-label="Falar com o JARVIS">
       <i></i><i></i><b></b>
     </button>
-    <strong id="statusLine">Oi. Eu estou aqui.</strong>
-    <p id="caption">Toque no brilho e diga “oi Jarvis”.</p>
-    <p id="accessLine">Visitante</p>
+    <strong id="statusLine">Oi.</strong>
+    <p id="caption">Toque e diga “oi Jarvis”.</p>
+    <p id="lastAnswer" hidden></p>
     <form id="askForm">
-      <input id="askInput" type="text" autocomplete="off" placeholder="Ou escreva…" aria-label="Pedido para o JARVIS">
-      <button type="submit">Enviar</button>
+      <input id="askInput" type="text" autocomplete="off" placeholder="Pedido…" aria-label="Pedido para o JARVIS">
     </form>
-    <form id="loginForm">
-      <input id="loginUser" autocomplete="username" placeholder="Login" aria-label="Login">
-      <input id="loginPass" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha">
-      <button type="submit">Entrar</button>
-      <button id="logoutButton" type="button" hidden>Sair</button>
-    </form>
-    <nav class="quick">
-      <button type="button" data-open="https://www.google.com">Google</button>
-      <button type="button" data-open="https://web.whatsapp.com">WhatsApp</button>
-      <button type="button" data-open="https://www.youtube.com">YouTube</button>
-      <a href="/">Cockpit</a>
-    </nav>
-    <p class="by">por <span data-creator-lock>…</span></p>
-    <a class="download" href="/download/mac">Baixar no Mac</a>
+    <button id="moreButton" type="button">conta</button>
+    <div id="extras" hidden>
+      <p id="accessLine">Visitante</p>
+      <form id="loginForm">
+        <input id="loginUser" autocomplete="username" placeholder="Login" aria-label="Login">
+        <input id="loginPass" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha">
+        <button type="submit">Entrar</button>
+        <button id="logoutButton" type="button" hidden>Sair</button>
+      </form>
+      <nav class="quick">
+        <button type="button" data-open="https://www.google.com">Google</button>
+        <button type="button" data-open="https://web.whatsapp.com">WhatsApp</button>
+        <a href="/">Cockpit</a>
+      </nav>
+      <a class="download" href="/download/mac">Baixar no Mac</a>
+      <p class="by">por <span data-creator-lock>…</span></p>
+    </div>
   </main>
   <script src="/ui/creator-seal.js?v=20260817-app1"></script>
-  <script src="/ui/fala.js?v=20260817-canto1"></script>
+  <script src="/ui/fala.js?v=20260817-widget1"></script>
 </body>
 </html>

@@ -2,20 +2,26 @@
   "use strict";
   const statusLine = document.getElementById("statusLine");
   const caption = document.getElementById("caption");
+  const lastAnswer = document.getElementById("lastAnswer");
   const accessLine = document.getElementById("accessLine");
   const orb = document.getElementById("orb");
   const form = document.getElementById("askForm");
+  const extras = document.getElementById("extras");
+  const moreButton = document.getElementById("moreButton");
   const loginForm = document.getElementById("loginForm");
   const input = document.getElementById("askInput");
   const logoutButton = document.getElementById("logoutButton");
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
+  const LISTEN_KEY = "jarvis-fala-listen";
   const WAKE = /(?:^|\b)(?:oi|olá|ola)?\s*jarvis\b/i;
+  const appMode = new URLSearchParams(window.location.search).get("app") === "1"
+    || window.matchMedia("(display-mode: standalone)").matches;
   let busy = false;
-  let greeted = false;
   let keepListening = false;
   let armed = false;
-  let rec = null;
+
+  if (appMode) document.documentElement.classList.add("app-mode");
 
   const creator = () => window.JarvisCreator?.name?.() || "Theo Lorentz Padilha";
 
@@ -32,7 +38,14 @@
 
   function say(title, detail) {
     statusLine.textContent = title;
-    if (detail) caption.textContent = detail;
+    if (detail !== undefined) caption.textContent = detail;
+  }
+
+  function showAnswer(text) {
+    const clean = String(text || "").replace(/\s+/g, " ").trim();
+    if (!clean) return;
+    lastAnswer.hidden = false;
+    lastAnswer.textContent = clean.length > 180 ? `${clean.slice(0, 177)}…` : clean;
   }
 
   function renderAccess(label) {
@@ -58,11 +71,21 @@
     }
   }
 
+  function speakLocal(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "pt-BR";
+    window.speechSynthesis.speak(utterance);
+  }
+
   function speak(text) {
+    const clip = String(text || "").replace(/\s+/g, " ").trim().slice(0, 220);
+    if (!clip) return Promise.resolve();
     return fetch("/speech", {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: clip }),
     }).then((response) => {
       if (!response.ok) throw new Error("speech");
       return response.blob();
@@ -76,18 +99,7 @@
       audio.addEventListener("ended", finish, { once: true });
       audio.addEventListener("error", finish, { once: true });
       audio.play().catch(finish);
-    })).catch(() => {
-      if (!window.speechSynthesis) return;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "pt-BR";
-      window.speechSynthesis.speak(utterance);
-    });
-  }
-
-  function greetOnce() {
-    if (greeted) return;
-    greeted = true;
-    speak(`Oi. Eu sou o JARVIS de ${creator()}.`);
+    })).catch(() => speakLocal(clip));
   }
 
   function openTarget(url) {
@@ -113,10 +125,11 @@
     if (local) {
       local();
       say("Aberto.", command);
+      speakLocal("Aberto");
       return;
     }
     busy = true;
-    say("Pensando…", command);
+    say("…", command);
     try {
       const response = await fetch("/command", {
         method: "POST",
@@ -126,13 +139,14 @@
       const data = await response.json();
       const message = data.message || data.error || "Sem resposta.";
       if (response.status === 429) {
-        say("Fila cheia.", message);
+        say("Limite.", message);
         return;
       }
-      say(data.ok === false ? "Não consegui." : "Pronto.", message);
+      say(data.ok === false ? "Não." : "Pronto.", "");
+      showAnswer(message);
       if (data.ok !== false) speak(message);
     } catch {
-      say("Falha de rede.", "Tente de novo em alguns segundos.");
+      say("Rede.", "Tente de novo.");
     } finally {
       busy = false;
     }
@@ -143,26 +157,24 @@
     if (!text) return;
     if (WAKE.test(text)) {
       const command = text.replace(WAKE, "").replace(/^[,.\s]+/, "").trim();
-      greetOnce();
       if (command) {
         armed = false;
         ask(command);
       } else {
         armed = true;
-        say("Pode falar.", "Estou ouvindo o pedido.");
+        say("Pode falar.", "");
       }
       return;
     }
     if (armed) {
       armed = false;
-      greetOnce();
       ask(text);
     }
   }
 
   function listenLoop() {
     if (!keepListening || !Recognition) return;
-    rec = new Recognition();
+    const rec = new Recognition();
     rec.lang = "pt-BR";
     rec.continuous = true;
     rec.interimResults = false;
@@ -173,42 +185,46 @@
     rec.onerror = (event) => {
       if (event.error === "not-allowed") {
         keepListening = false;
+        try { sessionStorage.removeItem(LISTEN_KEY); } catch { /* private */ }
         orb.classList.remove("listening");
-        say("Microfone bloqueado.", "Toque no brilho e permita o microfone.");
+        say("Mic.", "Toque no brilho e permita.");
         return;
       }
-      if (keepListening) window.setTimeout(listenLoop, 700);
+      if (keepListening) window.setTimeout(listenLoop, 500);
     };
     rec.onend = () => {
-      if (keepListening) window.setTimeout(listenLoop, 220);
+      if (keepListening) window.setTimeout(listenLoop, 180);
     };
     try {
       rec.start();
       orb.classList.add("listening");
     } catch {
-      if (keepListening) window.setTimeout(listenLoop, 800);
+      if (keepListening) window.setTimeout(listenLoop, 600);
     }
   }
 
   function startWakeLoop() {
     if (!Recognition) {
       input.focus();
-      say("Sem microfone neste navegador.", "Escreva o pedido ou entre com login.");
+      say("Escreva.", "Sem microfone aqui.");
       return;
     }
     if (keepListening) return;
     keepListening = true;
-    say("Pode me chamar.", "Diga “oi Jarvis”.");
+    try { sessionStorage.setItem(LISTEN_KEY, "1"); } catch { /* private */ }
+    say("Ouvindo.", "“oi Jarvis”.");
     listenLoop();
   }
 
+  moreButton.addEventListener("click", () => {
+    extras.hidden = !extras.hidden;
+    moreButton.textContent = extras.hidden ? "conta" : "fechar";
+  });
   orb.addEventListener("click", () => {
-    greetOnce(); // user-gesture: só gasta voz depois do toque
-    startWakeLoop();
+    startWakeLoop(); // user-gesture
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    greetOnce();
     startWakeLoop();
     const value = input.value;
     input.value = "";
@@ -219,7 +235,7 @@
     const username = document.getElementById("loginUser").value.trim();
     const password = document.getElementById("loginPass").value;
     if (!username || !password) {
-      say("Informe login e senha.", "A mesma conta do cockpit.");
+      say("Login.", "Mesma conta do cockpit.");
       return;
     }
     try {
@@ -230,32 +246,34 @@
       });
       const data = await response.json();
       if (!response.ok || !data.session_token) {
-        say("Não entrei.", data.error || "Login inválido.");
+        say("Não.", data.error || "Login inválido.");
         return;
       }
       localStorage.setItem(OWNER_TOKEN_KEY, data.session_token);
       document.getElementById("loginPass").value = "";
       await refreshAccess();
-      greetOnce();
       startWakeLoop();
-      say("Entrou.", data.message || "Sessão ativa neste app.");
+      say("Entrou.", "");
     } catch {
-      say("Falha de rede.", "Tente o login de novo.");
+      say("Rede.", "Tente o login de novo.");
     }
   });
   logoutButton.addEventListener("click", () => {
     localStorage.removeItem(OWNER_TOKEN_KEY);
     refreshAccess();
-    say("Saiu.", "Voltou ao modo visitante.");
+    say("Saiu.", "Visitante.");
   });
   document.querySelectorAll("[data-open]").forEach((button) => {
     button.addEventListener("click", () => {
-      greetOnce();
       startWakeLoop();
       openTarget(button.getAttribute("data-open"));
     });
   });
 
-  say(`Oi. Eu sou o JARVIS de ${creator()}.`, "Toque no brilho e diga “oi Jarvis”.");
+  say("Oi.", `Toque e diga “oi Jarvis”.`);
+  caption.textContent = appMode ? "Widget no canto." : `Toque e diga “oi Jarvis”.`;
   refreshAccess();
+  try {
+    if (sessionStorage.getItem(LISTEN_KEY) === "1") startWakeLoop();
+  } catch { /* first visit */ }
 })();

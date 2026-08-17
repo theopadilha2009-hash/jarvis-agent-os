@@ -38,12 +38,21 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("creator-seal.js", FALA_HTML)
         self.assertIn('id="loginForm"', FALA_HTML)
         self.assertIn('id="accessLine"', FALA_HTML)
+        self.assertIn('id="moreButton"', FALA_HTML)
+        self.assertIn('id="extras"', FALA_HTML)
 
     def test_wake_loop_listens_for_oi_jarvis(self):
         self.assertIn("startWakeLoop", FALA_JS)
         self.assertIn("keepListening", FALA_JS)
         self.assertIn("continuous = true", FALA_JS)
         self.assertIn("/login", FALA_JS)
+        self.assertIn("app-mode", FALA_JS)
+        self.assertIn("jarvis-fala-listen", FALA_JS)
+
+    def test_does_not_spend_speech_on_greeting(self):
+        self.assertNotIn("greetOnce", FALA_JS)
+        self.assertIn("speakLocal", FALA_JS)
+        self.assertIn("slice(0, 220)", FALA_JS)
 
 
 if __name__ == "__main__":

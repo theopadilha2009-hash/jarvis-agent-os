@@ -81,6 +81,8 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("LER-ME.txt", names)
                 launcher = archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8")
                 self.assertIn("/fala", launcher)
+                self.assertIn("app=1", launcher)
+                self.assertNotIn("sleep 1.1", launcher)
                 self.assertIn("lock:", launcher)
                 self.assertIn("Theo Lorentz Padilha", archive.read("NOTICE.txt").decode("utf-8"))
                 self.assertTrue(archive.comment.decode("ascii").startswith("lock:"))

@@ -38,7 +38,7 @@ BUNDLE_ID = "ai.theopadilha.jarvis.cockpit"
 # Origem única do cockpit. Permissão de microfone, escuta pelo nome e estilo
 # ficam presos ao domínio: dois endereços significam duas configurações.
 DEFAULT_ORIGIN = "https://jarvis-theo.vercel.app"
-DEFAULT_URL = f"{DEFAULT_ORIGIN}/fala"
+DEFAULT_URL = f"{DEFAULT_ORIGIN}/fala?app=1"
 PACK_NAME = "JARVIS.mac.zip"
 # Fundo do cockpit: o ícone fica quadrado sem esticar o logo.
 ICON_BACKGROUND = "130824"
@@ -89,50 +89,39 @@ def build_icon(destination: Path) -> bool:
 
 def app_url(url: str) -> str:
     cleaned = (url or DEFAULT_ORIGIN).rstrip("/")
-    if cleaned.endswith("/fala"):
-        return cleaned
-    path = urlparse(cleaned).path
-    if path in {"", "/"}:
-        return f"{cleaned}/fala"
+    parsed = urlparse(cleaned)
+    if parsed.path.rstrip("/") in {"", "/"}:
+        return f"{cleaned}/fala?app=1"
+    if parsed.path.rstrip("/").endswith("/fala"):
+        if "app=1" in (parsed.query or ""):
+            return cleaned
+        joiner = "&" if parsed.query else "?"
+        return f"{cleaned}{joiner}app=1"
     return cleaned
 
 
 def launcher_script(url: str) -> str:
     sealed = creator_seal.fingerprint()
     return f"""#!/bin/sh
-# Abre a fala no canto superior direito; sem o Chrome, cai no navegador padrão.
+# Widget no canto: abre na hora, sem espera e sem segunda janela.
 # lock:{sealed}
 URL="${{JARVIS_COCKPIT_URL:-{url}}}"
 CHROME="{CHROME}"
-W=380
-H=640
+W=300
+H=430
 X=1100
-Y=28
+Y=22
 if command -v osascript >/dev/null 2>&1; then
   BOUNDS=$(osascript -e 'tell application "Finder" to get bounds of window of desktop' 2>/dev/null || true)
   if [ -n "$BOUNDS" ]; then
     SW=$(printf '%s' "$BOUNDS" | awk -F',' '{{gsub(/ /,""); print $3}}')
     if [ "$SW" -gt "$W" ] 2>/dev/null; then
-      X=$((SW - W - 18))
+      X=$((SW - W - 12))
     fi
   fi
 fi
 if [ -x "$CHROME" ]; then
-  "$CHROME" --app="$URL" --new-window --window-size="$W,$H" --window-position="$X,$Y" >/dev/null 2>&1 &
-  sleep 1.1
-  osascript >/dev/null 2>&1 <<EOF || true
-tell application "System Events"
-  tell process "Google Chrome"
-    set frontmost to true
-    try
-      set position of front window to {{$X, $Y}}
-      set size of front window to {{$W, $H}}
-    end try
-  end tell
-end tell
-EOF
-  wait
-  exit 0
+  exec "$CHROME" --app="$URL" --new-window --window-size="$W,$H" --window-position="$X,$Y"
 fi
 exec /usr/bin/open "$URL"
 """
@@ -146,7 +135,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "1.2") -> dict:
+def bundle_info(version: str = "1.3") -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
