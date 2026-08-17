@@ -3284,8 +3284,13 @@
     const username = byId("signupUsername")?.value.trim();
     const password = byId("signupPassword")?.value;
     const email = byId("signupEmail")?.value.trim();
+    const accepted = Boolean(byId("signupTerms")?.checked);
     if (!username || !password) {
       byId("pairingHint").textContent = "Crie um login e uma senha com pelo menos 8 caracteres.";
+      return;
+    }
+    if (!accepted) {
+      byId("pairingHint").textContent = "Aceite os termos de uso para criar a conta.";
       return;
     }
     byId("signupButton").disabled = true;
@@ -3294,7 +3299,7 @@
       const data = await request("/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, email }),
+        body: JSON.stringify({ username, password, email, accepted_terms: accepted }),
       });
       byId("pairingHint").textContent = identityText(data.error || data.message || "Conta enviada.");
       if (data.ok) {

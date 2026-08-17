@@ -2106,6 +2106,25 @@ dialog::backdrop {
   font-size: 10px;
 }
 .account-signup[hidden] { display: none; }
+.signup-terms {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--faint);
+  font-size: 11px;
+}
+.signup-terms a { color: inherit; }
+.legal-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  padding: 8px 12px 14px;
+  font-size: 11px;
+  color: var(--faint);
+}
+.legal-strip a { color: inherit; }
 
 .accounts-dialog { width: min(520px, calc(100vw - 24px)); }
 .accounts-hint { margin: 0 16px 10px; color: var(--faint); font-size: 11px; }

@@ -100,6 +100,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("voice", payload)
         self.assertIn(payload["voice"]["fallback"], {"text_only", "self_hosted"})
         self.assertIn("pending_accounts", payload["access"])
+        self.assertTrue(payload["access"]["product"]["invite_only"])
+        self.assertEqual(len(payload["access"]["product"]["plans"]), 3)
         self.assertIn("n8n", payload["automations"])
         self.assertIn("access", payload)
         self.assertIn("public_chat", payload["access"])
@@ -178,6 +180,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'id="adminLoginButton"', html)
         self.assertIn(b'id="crownButton"', html)
         self.assertIn(b'id="signupButton"', html)
+        self.assertIn(b'id="signupTerms"', html)
+        self.assertIn(b'href="/produto"', html)
+        self.assertIn(b'href="/termos"', html)
         self.assertIn(b'id="accountsDialog"', html)
         self.assertIn(b'id="requestProgress"', html)
         self.assertIn(b'id="shimmerLoader"', html)
@@ -1351,6 +1356,7 @@ class WebGatewayTest(unittest.TestCase):
                 "username": "amigo01",
                 "password": "segredo123",
                 "email": "amigo@example.com",
+                "accepted_terms": True,
             })
             pending_login, pending_status = MODULE.account_login_payload({
                 "username": "amigo01",
@@ -1391,10 +1397,29 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(member["access"], "member_code")
         self.assertFalse(member_is_owner)
         self.assertTrue(member_identity["code"])
+        refused_terms, refused_terms_status = MODULE.signup_payload({
+            "username": "amigo09",
+            "password": "segredo123",
+            "accepted_terms": False,
+        })
         self.assertEqual(listed_status, 200)
         self.assertGreaterEqual(listed["count"], 2)
+        self.assertEqual(refused_terms_status, 400)
+        self.assertIn("termos", refused_terms["error"])
         self.assertNotIn("password_hash", json.dumps(listed))
         self.assertNotIn("segredo123", json.dumps(listed))
+
+    def test_product_pages_and_offer_are_public(self):
+        for path in ("/produto", "/termos", "/privacidade"):
+            status, headers, body = self.request(path)
+            self.assertEqual(status, 200, path)
+            self.assertIn("text/html", headers.get_content_type())
+            self.assertGreater(len(body), 400)
+        offer_status, _headers, offer = self.json_request("/oferta")
+        self.assertEqual(offer_status, 200)
+        self.assertTrue(offer["product"]["invite_only"])
+        self.assertEqual(offer["product"]["billing"], "none")
+        self.assertEqual(len(offer["product"]["plans"]), 3)
 
     def test_ultron_password_accepts_theo_alias_and_code_needs_login(self):
         salt = bytes.fromhex("00112233445566778899aabbccddeeff")

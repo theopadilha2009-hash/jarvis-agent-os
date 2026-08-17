@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
   <meta name="theme-color" content="#130824">
-  <meta name="description" content="JARVIS, central pessoal de memória, automação e controle do Mac de Theo.">
+  <meta name="description" content="JARVIS — assistente pessoal por convite. Chat, pesquisa e modo code. Ultron e Mac só do dono.">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -49,7 +49,7 @@
         <span class="identity-mark" aria-hidden="true">
 <img class="identity-logo" src="/ui/jarvis-logo.png?v=20260813-logonative1" alt="">
         </span>
-        <span class="identity-name"><b id="identityAssistantName">JARVIS</b><small><a id="identityCreator" href="/theo">por Theo Padilha</a></small></span>
+        <span class="identity-name"><b id="identityAssistantName">JARVIS</b><small><a id="identityCreator" href="/theo">por Theo Padilha</a> · <a href="/produto">produto</a></small></span>
       </div>
       <div class="connection">
         <span class="connection-dot" id="connectionDot"></span>
@@ -273,6 +273,7 @@
           <input id="signupUsername" autocomplete="username" placeholder="Novo login" aria-label="Criar login">
           <input id="signupPassword" type="password" autocomplete="new-password" placeholder="Nova senha" aria-label="Criar senha">
           <input id="signupEmail" type="email" autocomplete="email" placeholder="E-mail (opcional)" aria-label="E-mail da conta">
+          <label class="signup-terms"><input id="signupTerms" type="checkbox" aria-label="Aceito os termos de uso e a política de privacidade"> Aceito os <a href="/termos" target="_blank" rel="noopener">termos</a> e a <a href="/privacidade" target="_blank" rel="noopener">privacidade</a></label>
           <button id="signupButton" type="button">Criar conta JARVIS</button>
         </div>
         <button class="leave-owner-mode" id="leaveOwnerMode" type="button" hidden>Sair do modo Ultron</button>
@@ -450,6 +451,13 @@
       <p>O ícone abre o cockpit em tela cheia. Conversa e voz funcionam pela internet; o controle do Mac depende do worker local online.</p>
     </div>
   </dialog>
+
+  <footer class="legal-strip">
+    <a href="/produto">Produto</a>
+    <a href="/termos">Termos</a>
+    <a href="/privacidade">Privacidade</a>
+    <a href="/theo">Criador</a>
+  </footer>
 
 <script src="/ui/api-vault.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
