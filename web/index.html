@@ -469,7 +469,17 @@
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/feature-loader.js?v=20260815-vozes2" defer></script>
 <script src="/ui/device-feedback.js?v=20260813-device1" defer></script>
-<script src="/ui/jarvis.js?v=20260817-retry1" defer></script>
+<script>
+window.addEventListener("error", (event) => {
+  const src = String(event.filename || event.target && event.target.src || "");
+  if (!/\/ui\/jarvis\.js/.test(src)) return;
+  const hint = document.getElementById("welcomeHint");
+  const state = document.getElementById("conversationState");
+  if (hint) hint.textContent = "O cockpit não carregou. Recarregue com Cmd+Shift+R.";
+  if (state) state.textContent = "script interrompido";
+}, true);
+</script>
+<script src="/ui/jarvis.js?v=20260818-parse1" defer></script>
 <script type="module" src="/ui/presence-loader.js?v=20260813-ultronfix1"></script>
 </body>
 </html>

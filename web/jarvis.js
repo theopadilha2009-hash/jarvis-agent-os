@@ -2282,7 +2282,9 @@
     }
 
     if (data.client_action === "clear_chat") {
-      await startNewConversation({ force: true });
+      startNewConversation({ force: true }).catch(() => {
+        renderWelcomeState("Nova conversa nesta tela; a limpeza remota não confirmou.");
+      });
       return;
     }
     if (data.client_action === "open_voice_panel") {
