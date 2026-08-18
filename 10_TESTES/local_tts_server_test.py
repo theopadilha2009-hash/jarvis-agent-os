@@ -190,6 +190,21 @@ class LocalTtsServerTest(unittest.TestCase):
             self.assertEqual(spoken, [PHRASE_A, PHRASE_B, PHRASE_C])
             self.assertEqual(loads, [("model", "portuguese"), ("state", "bill_boerst")])
             self.assertEqual([row["text"] for row in model.generate_calls], [PHRASE_A, PHRASE_B, PHRASE_C])
+
+            preflight = Request(
+                f"http://127.0.0.1:{port}/speech",
+                method="OPTIONS",
+                headers={
+                    "Origin": "https://jarvis-theo.vercel.app",
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Private-Network": "true",
+                },
+            )
+            with urlopen(preflight, timeout=5) as response:
+                self.assertIn(response.status, {200, 204})
+                self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), "*")
+                self.assertEqual(response.headers.get("Access-Control-Allow-Private-Network"), "true")
+                self.assertIn("POST", response.headers.get("Access-Control-Allow-Methods") or "")
         finally:
             server.shutdown()
             server.server_close()

@@ -58,6 +58,13 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("speakLocal", FALA_JS)
         self.assertIn("slice(0, 220)", FALA_JS)
 
+    def test_prefers_localhost_pocket_tts_before_browser_voice(self):
+        self.assertIn("JarvisLocalVoice", FALA_JS)
+        self.assertIn("speakBlob", FALA_JS)
+        self.assertIn("local-voice.js", FALA_HTML)
+        self.assertIn("speak(\"Aberto\")", FALA_JS)
+        self.assertNotIn("speakLocal(\"Aberto\")", FALA_JS)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

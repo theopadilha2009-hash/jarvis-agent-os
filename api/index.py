@@ -10117,7 +10117,7 @@ class handler(BaseHTTPRequestHandler):
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: blob:; "
             "media-src 'self' blob:; "
-            "connect-src 'self'; "
+            "connect-src 'self' http://127.0.0.1:8123 http://localhost:8123; "
             "font-src 'self' data:; "
             "worker-src 'self'; "
             "manifest-src 'self'; "
@@ -10128,7 +10128,8 @@ class handler(BaseHTTPRequestHandler):
         )
         https = bool(os.environ.get("VERCEL")) or self.headers.get("X-Forwarded-Proto") == "https"
         if https:
-            csp += "; upgrade-insecure-requests"
+            # Sem upgrade-insecure-requests: essa diretiva vira http://127.0.0.1
+            # em https e mata o Pocket TTS local. O HSTS já fecha o domínio público.
             self.send_header("Strict-Transport-Security", "max-age=15552000; includeSubDomains")
         self.send_header("Content-Security-Policy", csp)
 

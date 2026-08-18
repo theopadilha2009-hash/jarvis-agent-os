@@ -377,9 +377,10 @@ class UIQualityTest(unittest.TestCase):
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
         self.assertGreaterEqual(self.html.count("20260815-vozes2"), 3)
-        self.assertGreaterEqual(self.html.count("20260817-move1") + self.html.count("20260818-parse1"), 3)
-        self.assertIn("20260818-parse1", self.html)
+        self.assertGreaterEqual(self.html.count("20260817-move1") + self.html.count("20260818-voice1"), 3)
+        self.assertIn("20260818-voice1", self.html)
         self.assertIn("script interrompido", self.html)
+        self.assertIn("local-voice.js", self.html)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -637,6 +638,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn('data.client_action === "open_code_mode"', self.app_js)
         self.assertIn("[data-scene-mode]", self.app_js)
         self.assertIn("Pocket TTS", self.app_js)
+        self.assertIn("JarvisLocalVoice", self.app_js)
+        self.assertIn("speakBlob", self.app_js)
         self.assertIn("pending_accounts", self.app_js)
         self.assertIn("formatSeen", self.app_js)
         self.assertIn(".author-card", self.shell_css)
