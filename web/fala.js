@@ -36,6 +36,31 @@
     return headers;
   }
 
+  async function postJson(path, payload) {
+    let lastError = "Sem rede.";
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch(path, {
+          method: "POST",
+          headers: apiHeaders(),
+          body: JSON.stringify(payload),
+          signal: window.AbortSignal?.timeout ? window.AbortSignal.timeout(path === "/command" ? 22000 : 14000) : undefined,
+        });
+        const data = await response.json().catch(() => ({ ok: false, error: "Resposta inválida." }));
+        if (response.status >= 500 && attempt === 0) {
+          lastError = data.error || "Servidor ocupado.";
+          await new Promise((resolve) => window.setTimeout(resolve, 350));
+          continue;
+        }
+        return { response, data };
+      } catch (error) {
+        lastError = navigator.onLine === false ? "Você está offline." : "Falha de rede.";
+        if (attempt === 0) await new Promise((resolve) => window.setTimeout(resolve, 350));
+      }
+    }
+    return { response: { status: 0, ok: false }, data: { ok: false, error: lastError, retryable: true } };
+  }
+
   function say(title, detail) {
     statusLine.textContent = title;
     if (detail !== undefined) caption.textContent = detail;
@@ -106,11 +131,35 @@
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  function localClock() {
+    return new Date().toLocaleString("pt-BR", {
+      weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
+    });
+  }
+
   function localAction(text) {
     const value = String(text || "").toLocaleLowerCase("pt-BR");
     if (/\bwhatsapp\b/.test(value)) return () => openTarget("https://web.whatsapp.com");
     if (/\byoutube\b/.test(value)) return () => openTarget("https://www.youtube.com");
+    if (/\bspotify\b/.test(value)) return () => openTarget("https://open.spotify.com");
+    if (/\b(?:mapa|maps|como chegar)\b/.test(value)) return () => openTarget("https://maps.google.com");
+    if (/\bcalend[aá]rio|agenda\b/.test(value)) return () => openTarget("https://calendar.google.com");
     if (/\b(?:abre|abrir|abra)\s+(?:o\s+)?gmail\b/.test(value)) return () => openTarget("https://mail.google.com");
+    if (/\bhoras?\b|\bque dia\b|\bdata de hoje\b/.test(value)) {
+      return () => {
+        const now = localClock();
+        say("Agora.", now);
+        showAnswer(now);
+        speakLocal(now);
+      };
+    }
+    if (/^copia/.test(value)) {
+      return () => {
+        const textToCopy = lastAnswer.textContent || "";
+        if (textToCopy && navigator.clipboard?.writeText) navigator.clipboard.writeText(textToCopy);
+        say("Copiado.", textToCopy || "Nada ainda.");
+      };
+    }
     const search = value.match(/(?:pesquisa|busca|google)\s+(.+)/);
     if (search) return () => openTarget(`https://www.google.com/search?q=${encodeURIComponent(search[1])}`);
     if (/^(?:abre|abrir|abra)\s+(?:o\s+)?google\b/.test(value)) return () => openTarget("https://www.google.com");
@@ -121,35 +170,39 @@
   async function ask(text) {
     const command = String(text || "").trim();
     if (!command || busy) return;
+    if (navigator.onLine === false) {
+      const local = localAction(command);
+      if (local) {
+        local();
+        return;
+      }
+      say("Offline.", "Sem internet para o restante.");
+      speakLocal("Sem internet");
+      return;
+    }
     const local = localAction(command);
     if (local) {
       local();
-      say("Aberto.", command);
-      speakLocal("Aberto");
+      if (!/\bhoras?\b|\bque dia\b|\bdata de hoje\b|^copia/.test(command.toLocaleLowerCase("pt-BR"))) {
+        say("Aberto.", command);
+        speakLocal("Aberto");
+      }
       return;
     }
     busy = true;
     say("…", command);
-    try {
-      const response = await fetch("/command", {
-        method: "POST",
-        headers: apiHeaders(),
-        body: JSON.stringify({ command }),
-      });
-      const data = await response.json();
-      const message = data.message || data.error || "Sem resposta.";
-      if (response.status === 429) {
-        say("Limite.", message);
-        return;
-      }
-      say(data.ok === false ? "Não." : "Pronto.", "");
-      showAnswer(message);
-      if (data.ok !== false) speak(message);
-    } catch {
-      say("Rede.", "Tente de novo.");
-    } finally {
+    const { response, data } = await postJson("/command", { command, strength: "auto" });
+    const message = data.message || data.error || "Sem resposta.";
+    if (response.status === 429) {
+      say("Limite.", message);
       busy = false;
+      return;
     }
+    say(data.ok === false ? "Não." : "Pronto.", "");
+    showAnswer(message);
+    if (data.ok !== false) speak(message);
+    else speakLocal(message);
+    busy = false;
   }
 
   function hearSpoken(spoken) {
@@ -270,6 +323,18 @@
     });
   });
 
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      extras.hidden = true;
+      moreButton.textContent = "conta";
+    }
+    if (event.key === "/" && document.activeElement !== input && document.activeElement?.tagName !== "INPUT") {
+      event.preventDefault();
+      input.focus();
+    }
+  });
+  window.addEventListener("offline", () => say("Offline.", "Atalhos locais ainda funcionam."));
+  window.addEventListener("online", () => say("Online.", "Pode pedir de novo."));
   say("Oi.", `Toque e diga “oi Jarvis”.`);
   caption.textContent = appMode ? "Widget no canto." : `Toque e diga “oi Jarvis”.`;
   refreshAccess();

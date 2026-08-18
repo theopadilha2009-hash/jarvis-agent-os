@@ -1871,15 +1871,31 @@
     if (!requestOptions.signal && typeof window.AbortSignal?.timeout === "function") {
       requestOptions.signal = window.AbortSignal.timeout(path === "/command" ? 45000 : 20000);
     }
-    const response = await fetch(path, requestOptions);
-    let data;
-    try {
-      data = await response.json();
-    } catch {
-      data = { ok: false, error: "O runtime respondeu em um formato inválido." };
+    let last = { ok: false, error: "Sem rede. Tente de novo.", retryable: true };
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch(path, requestOptions);
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          data = { ok: false, error: "O runtime respondeu em um formato inválido." };
+        }
+        if (!response.ok && data.ok !== false) data.ok = false;
+        if (response.status >= 500 && attempt === 0) {
+          last = data;
+          await new Promise((resolve) => window.setTimeout(resolve, 400));
+          continue;
+        }
+        return data;
+      } catch {
+        if (attempt === 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, 400));
+          continue;
+        }
+      }
     }
-    if (!response.ok && data.ok !== false) data.ok = false;
-    return data;
+    return last;
   }
 
   function beginSpeaking(clean) {

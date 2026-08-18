@@ -353,7 +353,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
         self.assertGreaterEqual(self.html.count("20260815-vozes2"), 3)
-        self.assertGreaterEqual(self.html.count("20260817-move1"), 3)
+        self.assertGreaterEqual(self.html.count("20260817-move1") + self.html.count("20260817-retry1"), 3)
+        self.assertIn("20260817-retry1", self.html)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -529,6 +530,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn(">arrastar</button>", self.html)
         self.assertIn('href="/download/mac"', self.html)
         self.assertIn("setPointerCapture", self.app_js)
+        self.assertIn("response.status >= 500 && attempt === 0", self.app_js)
         self.assertIn('placeholder="Escreva ou fale comigo"', self.html)
         self.assertIn(".composer textarea::-webkit-scrollbar", self.shell_css)
         self.assertIn("scrollbar-width: none", self.shell_css)
