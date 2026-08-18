@@ -4,6 +4,8 @@
 from html.parser import HTMLParser
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import unittest
 
 
@@ -85,6 +87,28 @@ class UIQualityTest(unittest.TestCase):
         cls.ultron_completion_css = ULTRON_COMPLETION_CSS.read_text(encoding="utf-8")
         cls.parser = CockpitParser()
         cls.parser.feed(cls.html)
+
+    def test_first_party_javascript_parses(self):
+        """Um await fora de async derruba o cockpit inteiro. Exige parse real."""
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node não está no PATH")
+        scripts = [
+            path for path in WEB.rglob("*.js")
+            if "vendor" not in path.parts
+        ]
+        self.assertGreaterEqual(len(scripts), 8)
+        failures = []
+        for path in sorted(scripts):
+            result = subprocess.run(
+                [node, "--check", str(path)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                failures.append(f"{path.relative_to(ROOT)}: {(result.stderr or result.stdout).strip()}")
+        self.assertEqual(failures, [], "JavaScript inválido:\n" + "\n".join(failures))
 
     def test_ids_are_unique(self):
         duplicates = sorted({item for item in self.parser.ids if self.parser.ids.count(item) > 1})
@@ -353,8 +377,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
         self.assertGreaterEqual(self.html.count("20260815-vozes2"), 3)
-        self.assertGreaterEqual(self.html.count("20260817-move1") + self.html.count("20260817-retry1"), 3)
-        self.assertIn("20260817-retry1", self.html)
+        self.assertGreaterEqual(self.html.count("20260817-move1") + self.html.count("20260818-parse1"), 3)
+        self.assertIn("20260818-parse1", self.html)
+        self.assertIn("script interrompido", self.html)
         self.assertGreaterEqual(self.html.count("20260813-ultronfix1"), 3)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
@@ -602,6 +627,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("premium|enhanced|siri|neural", self.app_js)
         self.assertIn('data.client_action === "clear_chat"', self.app_js)
         self.assertIn("startNewConversation({ force: true })", self.app_js)
+        self.assertNotIn("await startNewConversation", self.app_js)
         self.assertIn('data?.client_action === "clear_chat"', self.app_js)
         self.assertIn('id="crownButton"', self.html)
         self.assertIn('id="signupButton"', self.html)
