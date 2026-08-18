@@ -96,6 +96,8 @@ class MacAppTest(unittest.TestCase):
                 script = archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8")
                 self.assertIn("--window-size=", script)
                 self.assertIn("--window-position=", script)
+                self.assertIn("Brave Browser", script)
+                self.assertIn("Microsoft Edge", script)
                 self.assertIn("com.apple.quarantine", archive.read("INSTALAR.command").decode("utf-8"))
                 self.assertIn("LaunchAgents", archive.read("INSTALAR.command").decode("utf-8"))
                 self.assertIn("ai.theopadilha.jarvis.fala.plist", names)

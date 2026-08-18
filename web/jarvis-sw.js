@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260817-move1";
+const CACHE_VERSION = "jarvis-mobile-shell-20260817-retry1";
 const SHELL = [
   "/",
   "/ui/manifest.webmanifest?v=20260813-apitools1",
@@ -26,7 +26,7 @@ const SHELL = [
   "/ui/action-permissions.js?v=20260813-ultronfix1",
   "/ui/voice-pacing.js?v=20260813-voice2",
   "/ui/device-feedback.js?v=20260813-device1",
-  "/ui/jarvis.js?v=20260817-move1",
+  "/ui/jarvis.js?v=20260817-retry1",
   "/ui/creator-seal.js?v=20260817-app1",
   "/ui/jarvis-3d.js?v=20260815-vozes2",
   "/ui/aurora.js?v=20260813-apitools1",

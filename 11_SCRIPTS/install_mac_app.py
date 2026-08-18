@@ -106,7 +106,6 @@ def launcher_script(url: str) -> str:
 # Widget no canto: abre na hora, sem espera e sem segunda janela.
 # lock:{sealed}
 URL="${{JARVIS_COCKPIT_URL:-{url}}}"
-CHROME="{CHROME}"
 W=300
 H=430
 X=1100
@@ -120,9 +119,16 @@ if command -v osascript >/dev/null 2>&1; then
     fi
   fi
 fi
-if [ -x "$CHROME" ]; then
-  exec "$CHROME" --app="$URL" --new-window --window-size="$W,$H" --window-position="$X,$Y"
-fi
+for BIN in \\
+  "{CHROME}" \\
+  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \\
+  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" \\
+  "/Applications/Chromium.app/Contents/MacOS/Chromium"
+do
+  if [ -x "$BIN" ]; then
+    exec "$BIN" --app="$URL" --new-window --window-size="$W,$H" --window-position="$X,$Y"
+  fi
+done
 exec /usr/bin/open "$URL"
 """
 
@@ -135,7 +141,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "1.3") -> dict:
+def bundle_info(version: str = "1.4") -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
