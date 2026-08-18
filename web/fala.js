@@ -104,17 +104,8 @@
     window.speechSynthesis.speak(utterance);
   }
 
-  function speak(text) {
-    const clip = String(text || "").replace(/\s+/g, " ").trim().slice(0, 220);
-    if (!clip) return Promise.resolve();
-    return fetch("/speech", {
-      method: "POST",
-      headers: apiHeaders(),
-      body: JSON.stringify({ text: clip }),
-    }).then((response) => {
-      if (!response.ok) throw new Error("speech");
-      return response.blob();
-    }).then((blob) => new Promise((resolve) => {
+  function playBlob(blob) {
+    return new Promise((resolve) => {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       const finish = () => {
@@ -124,7 +115,25 @@
       audio.addEventListener("ended", finish, { once: true });
       audio.addEventListener("error", finish, { once: true });
       audio.play().catch(finish);
-    })).catch(() => speakLocal(clip));
+    });
+  }
+
+  function speak(text) {
+    const clip = String(text || "").replace(/\s+/g, " ").trim().slice(0, 220);
+    if (!clip) return Promise.resolve();
+    return Promise.resolve(window.JarvisLocalVoice?.speakBlob(clip))
+      .then((localBlob) => {
+        if (localBlob) return playBlob(localBlob);
+        return fetch("/speech", {
+          method: "POST",
+          headers: apiHeaders(),
+          body: JSON.stringify({ text: clip }),
+        }).then((response) => {
+          if (!response.ok) throw new Error("speech");
+          return response.blob();
+        }).then((blob) => playBlob(blob));
+      })
+      .catch(() => speakLocal(clip));
   }
 
   function openTarget(url) {
@@ -150,7 +159,7 @@
         const now = localClock();
         say("Agora.", now);
         showAnswer(now);
-        speakLocal(now);
+        speak(now);
       };
     }
     if (/^copia/.test(value)) {
@@ -177,7 +186,7 @@
         return;
       }
       say("Offline.", "Sem internet para o restante.");
-      speakLocal("Sem internet");
+      speak("Sem internet");
       return;
     }
     const local = localAction(command);
@@ -185,7 +194,7 @@
       local();
       if (!/\bhoras?\b|\bque dia\b|\bdata de hoje\b|^copia/.test(command.toLocaleLowerCase("pt-BR"))) {
         say("Aberto.", command);
-        speakLocal("Aberto");
+        speak("Aberto");
       }
       return;
     }
@@ -200,8 +209,7 @@
     }
     say(data.ok === false ? "Não." : "Pronto.", "");
     showAnswer(message);
-    if (data.ok !== false) speak(message);
-    else speakLocal(message);
+    speak(message);
     busy = false;
   }
 

@@ -1929,6 +1929,12 @@
   async function fetchSpeechChunk(text, generation, previousText = "", nextText = "") {
     const controller = new AbortController();
     currentSpeechController = controller;
+    const localBlob = await window.JarvisLocalVoice?.speakBlob(text);
+    if (generation !== speechGeneration) throw new DOMException("Speech stopped", "AbortError");
+    if (localBlob) {
+      session.localVoice = true;
+      return localBlob;
+    }
     const clientIntegrations = await runtimeClientIntegrations();
     const headers = { "Content-Type": "application/json" };
     const token = ownerToken();
@@ -2964,6 +2970,12 @@
           : voiceSupport.input
             ? "microfone ativo · saída aguarda voz"
             : "voz aguarda motor local ou ElevenLabs";
+      window.JarvisLocalVoice?.probe().then((base) => {
+        if (!base) return;
+        const info = window.JarvisLocalVoice.info();
+        session.localVoice = true;
+        byId("voiceValue").textContent = `Pocket TTS · ${info.voice || "bill_boerst"}`;
+      }).catch(() => {});
       const ready = [
         status.ai?.configured || browserOpenRouter ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
         session.elevenlabs ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
