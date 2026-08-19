@@ -14,11 +14,11 @@
 <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-apitools1">
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260819-files1">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260819-ui2">
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260815-vozes2">
 <link rel="stylesheet" href="/ui/api-panel.css?v=20260813-ultronfix1">
 <link rel="stylesheet" href="/ui/responsive-polish.css?v=20260819-notas1">
-<link rel="stylesheet" href="/ui/shell.css?v=20260819-notas1">
+<link rel="stylesheet" href="/ui/shell.css?v=20260819-ui2">
 <script src="/ui/creator-seal.js?v=20260817-app1"></script>
 <script>
 (() => {
@@ -57,7 +57,25 @@
         <span class="connection-dot" id="connectionDot"></span>
         <span id="connectionText">acordando</span>
         <button class="crown-button" id="crownButton" type="button" hidden title="Contas do JARVIS" aria-label="Abrir contas">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 18h18v2H3zm1.2-3 3.1-8.4 3.7 5.1L12 6l1 5.7 3.7-5.1L19.8 15z"></path></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <defs>
+              <linearGradient id="jarvisCrownGrad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#ffe566"/>
+                <stop offset=".48" stop-color="#ff9a1f"/>
+                <stop offset="1" stop-color="#ff5a00"/>
+              </linearGradient>
+              <filter id="jarvisCrownGlow" x="-25%" y="-25%" width="150%" height="150%">
+                <feGaussianBlur stdDeviation=".85" result="g"/>
+                <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <g fill="none" stroke="url(#jarvisCrownGrad)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" filter="url(#jarvisCrownGlow)">
+              <path d="M4.1 16.9c.55-3.5.2-7.1-1-9.8 2.55 1.7 3.7 4.7 4 8.7"/>
+              <path d="M12 3.7c-1.2 2.7-1.65 6-1.5 9.7h3c.15-3.7-.3-7-1.5-9.7z"/>
+              <path d="M19.9 16.9c-.55-3.5-.2-7.1 1-9.8-2.55 1.7-3.7 4.7-4 8.7"/>
+              <path d="M4.2 17.6c2.5-1.2 4.8-1.75 7.8-1.75s5.3.55 7.8 1.75"/>
+            </g>
+          </svg>
         </button>
         <button class="access-mode" id="accessMode" type="button" title="Ver acesso atual">
           <svg class="access-swap" viewBox="0 0 24 24" aria-hidden="true">
@@ -66,14 +84,26 @@
           <span id="accessModeLabel">verificando acesso</span>
         </button>
         <button class="pulse-button" id="pulseButton" type="button" hidden>1 lembrete</button>
-        <button class="quiet-button" id="tourButton" type="button">Guia</button>
-        <a class="quiet-button" id="macDownloadButton" href="/download/mac">Mac</a>
-        <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
+        <a class="github-star-button" id="githubStarButton" href="https://github.com/theopadilha2009-hash/jarvis-agent-os" target="_blank" rel="noopener noreferrer" title="Star on GitHub" aria-label="Star on GitHub">
+          <span class="github-star-action">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            Star
+          </span>
+          <b id="githubStarCount" hidden></b>
+        </a>
+        <button class="quiet-button code-hot-button" id="codePadButton" type="button" title="JARVIS Code · terminal, Mac e Windows">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M8 8 4 12l4 4M16 8l4 4-4 4M14 6l-4 12"></path></svg>
+          <span>Code</span>
+        </button>
         <button class="quiet-button" id="notesPadButton" type="button" title="Abrir bloco de notas">Notas</button>
         <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir ferramentas · ⌘K">Ferramentas <kbd>⌘K</kbd></button>
         <button class="quiet-button integrations-button" id="integrationsButton" type="button" title="Abrir cofre de APIs">APIs <b id="integrationsCount">0</b></button>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Mutar fala</span><span class="mobile-label">Mutar</span></button>
-        <button class="quiet-button quality-button" id="qualityButton" type="button" title="Mudar qualidade gráfica">Excelente</button>
+        <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
+        <button class="quiet-button app-download-button" id="downloadButton" type="button" title="App JARVIS · Mac e Windows">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 20c1.2-2.6 1.1-5.2 0-8 1.8 1.1 3.2 3.4 3.6 6.4M12 4.8c-.9 2.1-1.2 4.6-1.1 7.2h2.2c.1-2.6-.2-5.1-1.1-7.2zM17 20c-1.2-2.6-1.1-5.2 0-8-1.8 1.1-3.2 3.4-3.6 6.4M6.8 20.4c1.9-.9 3.7-1.3 5.2-1.3s3.3.4 5.2 1.3"></path></svg>
+          <span>App</span>
+        </button>
         <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema"><i></i><i></i><i></i></button>
       </div>
     </header>
@@ -220,7 +250,7 @@
             <strong>Estou aqui.</strong>
             <span id="welcomeHint">Escreva ou fale naturalmente. Arraste a barra de cima para mover o chat.</span>
             <button class="welcome-login" id="welcomeLogin" type="button">Entrar com login e senha</button>
-            <a class="welcome-mac" href="/download/mac">Baixar no Mac</a>
+            <button class="welcome-mac" id="welcomeAppButton" type="button">Baixar o app · Mac e Windows</button>
             <div class="starter-actions" id="starterActions" aria-label="Sugestões para começar"></div>
           </div>
         </div>
@@ -238,18 +268,26 @@
             </svg>
             <b>Ouvir</b>
           </button>
+          <button class="palette-button" id="paletteButton" type="button" title="Ações rápidas · digite /" aria-label="Abrir ações rápidas" aria-expanded="false" aria-controls="commandPalette">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 7h16M4 12h10M4 17h7"></path>
+              <path d="M17 14v6M14 17h6"></path>
+            </svg>
+            <b>Ações</b>
+          </button>
           <button class="attachment-button" id="attachmentButton" type="button" aria-label="Anexar imagem, PDF ou texto" title="Anexar arquivo">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8.5 12.5 14.8 6.2a3 3 0 0 1 4.2 4.2l-8.5 8.5a5 5 0 0 1-7.1-7.1l8-8"></path></svg>
           </button>
           <input id="attachmentInput" type="file" hidden multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json,.md,.json,.csv">
-          <textarea id="commandInput" maxlength="8000" rows="1" autocomplete="off" placeholder="Escreva ou fale comigo" aria-label="Pedido para JARVIS"></textarea>
-          <button class="strength-button" id="strengthButton" type="button" title="Ajustar força da resposta" aria-label="Força da resposta: Automática">
+          <textarea id="commandInput" maxlength="8000" rows="1" autocomplete="off" placeholder="Escreva, fale ou digite / para ações" aria-label="Pedido para JARVIS"></textarea>
+          <div class="command-palette" id="commandPalette" hidden role="listbox" aria-label="Ações rápidas"></div>
+          <button class="strength-button" id="strengthButton" type="button" title="Forte prioriza qualidade e completa o pedido" aria-label="Força da resposta: Forte" data-strength="strong">
             <svg class="strength-gauge" aria-hidden="true" viewBox="0 0 32 24">
               <path class="strength-gauge-track" d="M4 20a12 12 0 0 1 24 0"></path>
               <path class="strength-gauge-ticks" d="M4 20h3M7.5 11.5l2.1 2.1M16 5v3M24.5 11.5l-2.1 2.1M28 20h-3"></path>
               <g class="strength-gauge-needle"><path d="M16 19V8"></path><circle cx="16" cy="19" r="2.4"></circle></g>
             </svg>
-            <b>Auto</b>
+            <b>Forte</b>
           </button>
           <button class="send-button" id="sendButton" type="submit">Enviar</button>
         </form>
@@ -258,18 +296,27 @@
     </main>
   </div>
 
-  <dialog id="systemDialog" aria-labelledby="systemDialogTitle">
+  <dialog id="systemDialog" class="system-dialog" aria-labelledby="systemDialogTitle">
     <div class="dialog-head">
       <b id="systemDialogTitle">SISTEMA JARVIS</b>
       <button id="closeDialog" type="button" aria-label="Fechar">×</button>
     </div>
-    <div class="dialog-grid">
+    <nav class="system-tabs" aria-label="Áreas do sistema">
+      <button type="button" data-system-tab="status" aria-selected="true">Status</button>
+      <button type="button" data-system-tab="conta">Conta</button>
+      <button type="button" data-system-tab="voz">Voz</button>
+      <button type="button" data-system-tab="baixar">Baixar</button>
+      <button type="button" data-system-tab="mais">Mais</button>
+    </nav>
+    <div class="dialog-grid" data-system-panel="status">
       <section><span>Serviço</span><strong id="serviceValue">—</strong></section>
       <section><span>Inteligência</span><strong id="aiValue">—</strong></section>
       <section><span>Modelo</span><strong id="modelValue">—</strong></section>
-      <section class="voice-summary"><span>Voz</span><strong id="voiceValue">detectando</strong><button id="voiceTuningButton" type="button">Ajustar voz</button></section>
-      <section class="voice-summary"><span>Personalidade</span><strong id="personaValue">Padrão</strong><button id="personaPanelButton" type="button">Mudar jeito</button></section>
-      <section class="dialog-wide"><span>Acesso atual</span><strong id="accessValue">verificando</strong></section>
+      <section><span>Acesso</span><strong id="accessValue">verificando</strong></section>
+      <section class="dialog-wide"><span>Presença</span><strong id="presenceValue">carregando modelo 3D</strong></section>
+      <section class="dialog-wide"><span>Última ação</span><strong id="activityValue">Nenhuma ação nesta sessão.</strong></section>
+    </div>
+    <div class="dialog-grid" data-system-panel="conta" hidden>
       <section class="dialog-wide pairing-panel">
         <span>Conexão privada</span>
         <strong id="workerValue">verificando worker do Mac</strong>
@@ -297,12 +344,65 @@
           </div>
         </details>
       </section>
-      <section class="dialog-wide"><span>Presença</span><strong id="presenceValue">carregando modelo 3D</strong></section>
-      <section class="dialog-wide"><span>Última ação</span><strong id="activityValue">Nenhuma ação nesta sessão.</strong></section>
+    </div>
+    <div class="dialog-grid" data-system-panel="voz" hidden>
+      <section class="voice-summary"><span>Voz</span><strong id="voiceValue">detectando</strong><button id="voiceTuningButton" type="button">Ajustar voz</button></section>
+      <section class="voice-summary"><span>Personalidade</span><strong id="personaValue">Padrão</strong><button id="personaPanelButton" type="button">Mudar jeito</button></section>
+      <section class="dialog-wide"><span>Qualidade 3D</span><button class="quiet-button quality-button" id="qualityButton" type="button" title="Mudar qualidade gráfica">Excelente</button></section>
+    </div>
+    <div class="dialog-grid" data-system-panel="baixar" hidden>
+      <section class="dialog-wide">
+        <span>Pacotes</span>
+        <strong>Escolhe o sistema. App abre o cockpit; Code traz VS Code e terminal.</strong>
+        <div class="download-grid">
+          <a href="/download/mac">App Mac</a>
+          <a href="/download/windows">App Windows</a>
+          <a href="/download/vscode/mac">Code · Mac</a>
+          <a href="/download/vscode/windows">Code · Windows</a>
+        </div>
+      </section>
+    </div>
+    <div class="dialog-grid" data-system-panel="mais" hidden>
+      <section class="dialog-wide">
+        <span>Ajuda</span>
+        <button class="quiet-button" id="tourButton" type="button">Guia rápido</button>
+      </section>
       <section class="dialog-wide history-panel">
         <span>Histórico real</span>
         <div class="history-list" id="actionHistory"><small>Nenhuma ação carregada.</small></div>
       </section>
+    </div>
+  </dialog>
+
+  <dialog id="codeLaunchDialog" class="download-dialog" aria-labelledby="codeLaunchTitle">
+    <div class="dialog-head">
+      <b id="codeLaunchTitle">JARVIS CODE</b>
+      <button id="closeCodeLaunch" type="button" aria-label="Fechar JARVIS Code">×</button>
+    </div>
+    <div class="download-body">
+      <p>Painel para copiar e colar no VS Code, usar no terminal, ou baixar o JARVIS Theo no Mac e no Windows.</p>
+      <div class="download-grid">
+        <button class="quiet-button" id="codeLaunchPad" type="button">Abrir painel</button>
+        <button class="quiet-button" id="codeLaunchTerminal" type="button">Usar no terminal</button>
+        <a class="quiet-button" href="/download/vscode/mac">Code · Mac</a>
+        <a class="quiet-button" href="/download/vscode/windows">Code · Windows</a>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="downloadDialog" class="download-dialog" aria-labelledby="downloadDialogTitle">
+    <div class="dialog-head">
+      <b id="downloadDialogTitle">APP JARVIS</b>
+      <button id="closeDownloadDialog" type="button" aria-label="Fechar downloads">×</button>
+    </div>
+    <div class="download-body">
+      <p>App no desktop: Mac e Windows. JARVIS Code (VS Code + terminal) também nos dois.</p>
+      <div class="download-grid">
+        <a class="quiet-button" id="macDownloadButton" href="/download/mac">App · Mac</a>
+        <a class="quiet-button" id="windowsDownloadButton" href="/download/windows">App · Windows</a>
+        <a class="quiet-button" href="/download/vscode/mac">Code · Mac</a>
+        <a class="quiet-button" href="/download/vscode/windows">Code · Windows</a>
+      </div>
     </div>
   </dialog>
 
@@ -473,7 +573,7 @@
 
 <script src="/ui/api-vault.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
-<script src="/ui/feature-loader.js?v=20260819-notas2" defer></script>
+<script src="/ui/feature-loader.js?v=20260819-ui2" defer></script>
 <script src="/ui/device-feedback.js?v=20260813-device1" defer></script>
 <script src="/ui/local-voice.js?v=20260818-voice2"></script>
 <script>
@@ -486,7 +586,7 @@ window.addEventListener("error", (event) => {
   if (state) state.textContent = "script interrompido";
 }, true);
 </script>
-<script src="/ui/jarvis.js?v=20260819-files1" defer></script>
-<script type="module" src="/ui/presence-loader.js?v=20260819-files1"></script>
+<script src="/ui/jarvis.js?v=20260819-ui2" defer></script>
+<script type="module" src="/ui/presence-loader.js?v=20260819-ui2"></script>
 </body>
 </html>

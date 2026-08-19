@@ -1415,9 +1415,11 @@ button {
   padding: 0 14px;
   border: 1px solid rgba(216, 180, 254, 0.28);
   border-radius: 999px;
+  background: rgba(124, 58, 237, 0.22);
   color: #f6eefe;
   text-decoration: none;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .starter-actions {
@@ -2060,19 +2062,20 @@ dialog::backdrop {
 .leave-owner-mode[hidden] { display: none; }
 
 .crown-button {
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(250, 204, 21, 0.35);
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 154, 46, 0.42);
   border-radius: 999px;
-  background: rgba(250, 204, 21, 0.08);
-  color: #facc15;
+  background: radial-gradient(circle at 50% 28%, rgba(255, 214, 90, 0.22), rgba(24, 10, 4, 0.45));
+  color: #ffb020;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  box-shadow: 0 0 14px rgba(255, 140, 20, 0.22);
 }
-.crown-button svg { width: 16px; height: 16px; }
+.crown-button svg { width: 20px; height: 20px; overflow: visible; }
 .crown-button[hidden] { display: none; }
 .crown-button:hover { background: rgba(250, 204, 21, 0.16); }
 .crown-button[data-count]:not([data-count=""]) { position: relative; }
@@ -2870,7 +2873,6 @@ dialog::backdrop {
   .pairing-controls input,
   .pairing-controls button { min-height: 44px; font-size: 16px; }
   .tour-grid { grid-template-columns: 1fr; }
-  #tourButton { display: none; }
 
   .stage.mobile-keyboard-open .presence { opacity: 0.12; }
 }
@@ -3208,8 +3210,6 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
 }
 
 @media (max-width: 1280px) {
-  #tourButton,
-  #qualityButton { display: none; }
   .quiet-button kbd { display: none; }
 }
 
@@ -3559,8 +3559,7 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
   .app { grid-template-rows: 58px minmax(0, 1fr); }
   .topbar { padding-inline: 24px; }
   .quiet-button { min-height: 30px; padding-inline: 11px; }
-  #tourButton,
-  .quality-button { opacity: 0.58; }
+  .quality-button { opacity: 0.85; }
 
   .presence {
     border-right-color: rgba(139, 92, 246, 0.06);

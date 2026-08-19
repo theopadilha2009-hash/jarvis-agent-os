@@ -94,43 +94,22 @@ async function loadObjGeometry(url) {
   return geometry;
 }
 
-function makeVisitorAlbedo() {
-  const size = 1024;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  const skin = ctx.createRadialGradient(size * 0.5, size * 0.42, size * 0.08, size * 0.5, size * 0.5, size * 0.72);
-  skin.addColorStop(0, "#f0c7a4");
-  skin.addColorStop(0.35, "#d9a078");
-  skin.addColorStop(0.7, "#b57b58");
-  skin.addColorStop(1, "#6b3d6f");
-  ctx.fillStyle = skin;
-  ctx.fillRect(0, 0, size, size);
-  const pixels = ctx.getImageData(0, 0, size, size);
-  for (let i = 0; i < pixels.data.length; i += 4) {
-    const grain = ((i * 17) % 97) / 97 * 16 - 8;
-    pixels.data[i] = Math.min(255, Math.max(0, pixels.data[i] + grain));
-    pixels.data[i + 1] = Math.min(255, Math.max(0, pixels.data[i + 1] + grain * 0.7));
-    pixels.data[i + 2] = Math.min(255, Math.max(0, pixels.data[i + 2] + grain * 0.45));
-  }
-  ctx.putImageData(pixels, 0, 0);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
-  return texture;
-}
-
 async function loadObjHead(url) {
   const geometry = await loadObjGeometry(url);
-  const material = new THREE.MeshStandardMaterial({
-    map: geometry.getAttribute("uv") ? makeVisitorAlbedo() : null,
-    color: 0xffffff,
-    metalness: 0.12,
-    roughness: 0.48,
-    envMapIntensity: 0.95,
-    emissive: 0x3b1760,
-    emissiveIntensity: 0.16,
+  const material = new THREE.MeshPhysicalMaterial({
+    color: 0x7741ad,
+    metalness: 0.04,
+    roughness: 0.52,
+    emissive: 0x5b21b6,
+    emissiveIntensity: 1.35,
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false,
+    side: THREE.FrontSide,
+    clearcoat: 0,
+    envMapIntensity: 0,
+    sheen: 0,
+    iridescence: 0,
   });
   material.name = "visitor-purple-volume";
   const head = new THREE.Mesh(geometry, material);
@@ -184,8 +163,8 @@ function makeVisitorLife(topologyGeometry) {
       varying float vSweep;
       uniform float uEnergy;
       void main() {
-        float alpha = 0.055 + vSweep * (0.36 + uEnergy * 0.16);
-        gl_FragColor = vec4(0.75, 0.48, 1.0, alpha);
+        float alpha = 0.04 + vSweep * (0.42 + uEnergy * 0.22);
+        gl_FragColor = vec4(0.69, 0.32, 1.0, alpha);
       }
     `,
     transparent: true,
@@ -636,12 +615,19 @@ function installCyanRemap(material) {
         float jarvisAccentMask = max(jarvisRedMask, jarvisMagentaMask);
         float jarvisEnergy = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         vec3 jarvisUltronRed = vec3(jarvisEnergy * 1.3, jarvisEnergy * 0.08, jarvisEnergy * 0.055);
-        outgoingLight = mix(outgoingLight, jarvisUltronRed, jarvisAccentMask * 0.96);
+        outgoingLight = mix(outgoingLight, jarvisUltronRed, jarvisAccentMask * 0.42);
         #include <opaque_fragment>
       `,
     );
   };
-  material.customProgramCacheKey = () => "ultron-red-identity-v1";
+  const maps = [
+    material.map ? "1" : "0",
+    material.normalMap ? "1" : "0",
+    material.roughnessMap ? "1" : "0",
+    material.metalnessMap ? "1" : "0",
+    material.emissiveMap ? "1" : "0",
+  ].join("");
+  material.customProgramCacheKey = () => `ultron-red-identity-v2-${maps}`;
   material.needsUpdate = true;
 }
 
@@ -659,7 +645,7 @@ async function start() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, QUALITY_PROFILES[graphicsQuality].pixelRatio));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.16;
+  renderer.toneMappingExposure = 0.86;
   mount.appendChild(renderer.domElement);
 
   const effectCanvas = makeEffectCanvas();
@@ -674,18 +660,18 @@ async function start() {
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   camera.position.set(0, 0.02, 5.1);
 
-  const ambient = new THREE.AmbientLight(0x2b174d, 1.04);
+  const ambient = new THREE.AmbientLight(0x1a0b2e, 0.55);
   scene.add(ambient);
-  const key = new THREE.DirectionalLight(0xb899ff, 3.1);
+  const key = new THREE.DirectionalLight(0x9b7dff, 0.95);
   key.position.set(2.6, 3.4, 4.2);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x6d5cff, 2.45);
+  const rim = new THREE.DirectionalLight(0x7c3aed, 1.15);
   rim.position.set(-3, 1.3, -2);
   scene.add(rim);
-  const faceFill = new THREE.PointLight(0xdacfff, 8.2, 7, 1.7);
+  const faceFill = new THREE.PointLight(0x7c3aed, 0.7, 7, 1.7);
   faceFill.position.set(0.15, 0.45, 3.1);
   scene.add(faceFill);
-  const lowerFill = new THREE.PointLight(0x8b5cf6, 4.8, 6, 2);
+  const lowerFill = new THREE.PointLight(0x5b21b6, 1.1, 6, 2);
   lowerFill.position.set(-1.2, -1.8, 2.4);
   scene.add(lowerFill);
   const coreEntity = makeCoreEntity(scene);
@@ -844,9 +830,17 @@ async function start() {
         return;
       }
       materials.filter(Boolean).forEach((material) => {
+        if (material.map) {
+          material.map.colorSpace = THREE.SRGBColorSpace;
+          material.map.anisotropy = Math.max(material.map.anisotropy || 0, 8);
+          material.map.needsUpdate = true;
+        }
+        ["normalMap", "roughnessMap", "metalnessMap", "emissiveMap", "aoMap"].forEach((key) => {
+          if (material[key]) material[key].needsUpdate = true;
+        });
+        if (!material.map && material.color) material.color.setHex(0x3b1014);
+        if ("envMapIntensity" in material) material.envMapIntensity = material.map ? 0.72 : 0.18;
         installCyanRemap(material);
-        if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
-        if ("envMapIntensity" in material) material.envMapIntensity = 1.55;
         material.needsUpdate = true;
         if (material.emissive && /glow|emissive/i.test(material.name || "")) {
           material.userData.jarvisBaseEmissive = material.emissive.clone();
@@ -945,7 +939,7 @@ async function start() {
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
   stage.classList.remove("gpu-error");
-  presenceValue.textContent = "Busto visitante · pele e ambiente";
+  presenceValue.textContent = "Busto visitante holográfico · vidro roxo · malha sutil";
 
   let previousFrameMs = performance.now();
   let currentScale = 1;
@@ -1048,7 +1042,7 @@ async function start() {
       }
     } else {
       ownerModel.visible = false;
-      presenceValue.textContent = "Busto visitante · pele e ambiente";
+      presenceValue.textContent = "Busto visitante holográfico · vidro roxo · malha sutil";
       wakeRender();
     }
   }
@@ -1101,15 +1095,22 @@ async function start() {
     visitorModel.visible = !isOwner;
     visitorLife.surface.visible = !isOwner;
     ownerModel.visible = isOwner;
-    ambient.color.setHex(isOwner ? 0x33070b : 0x2b174d);
-    key.color.setHex(isOwner ? 0xffb4b4 : 0xb899ff);
-    rim.color.setHex(isOwner ? 0xdc2626 : 0x6d5cff);
-    faceFill.color.setHex(isOwner ? 0xffe0e0 : 0xdacfff);
-    lowerFill.color.setHex(isOwner ? 0xb91c1c : 0x8b5cf6);
+    ambient.color.setHex(isOwner ? 0x1a0708 : 0x1a0b2e);
+    ambient.intensity = isOwner ? 0.48 : 0.55;
+    key.color.setHex(isOwner ? 0xff6b63 : 0x9b7dff);
+    key.intensity = isOwner ? 1.25 : 0.95;
+    rim.color.setHex(isOwner ? 0xef4444 : 0x7c3aed);
+    rim.intensity = isOwner ? 0.95 : 1.15;
+    faceFill.color.setHex(isOwner ? 0xff7a70 : 0x7c3aed);
+    faceFill.intensity = isOwner ? 1.45 : 0.7;
+    lowerFill.color.setHex(isOwner ? 0x7f1d1d : 0x5b21b6);
+    lowerFill.intensity = isOwner ? 1.2 : 1.1;
     const ultronPersona = document.documentElement.dataset.persona === "ultron";
     if (visitorModel.material) {
-      visitorModel.material.color.setHex(ultronPersona ? 0xffc4c4 : 0xffffff);
-      visitorModel.material.emissive.setHex(ultronPersona ? 0x7f1d1d : 0x3b1760);
+      visitorModel.material.color.setHex(ultronPersona ? 0xef3340 : 0x7741ad);
+      visitorModel.material.emissive.setHex(ultronPersona ? 0x7f1d1d : 0x5b21b6);
+      visitorModel.material.emissiveIntensity = ultronPersona ? 0.9 : 1.35;
+      visitorModel.material.envMapIntensity = 0;
     }
     const activeColor = isOwner ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
     const isWorking = modeBlend.forge > 0.08;

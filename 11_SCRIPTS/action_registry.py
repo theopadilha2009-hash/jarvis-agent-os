@@ -64,6 +64,7 @@ def _object_schema(**properties: Any) -> dict[str, Any]:
 ACTION_SPECS = (
     ActionSpec("assistant_chat", "Conversar", "Responder usando contexto e o provedor disponível.", "brain", intents=("assistant",)),
     ActionSpec("file_send", "Enviar arquivo", "Entregar um arquivo real disponível no JARVIS.", "brain", intents=("file_send",)),
+    ActionSpec("code_pad", "JARVIS Code", "Abrir o painel para copiar, alterar e colar código no VS Code.", "brain", intents=("code_pad",)),
     ActionSpec("web_research", "Pesquisar com fontes", "Pesquisar fontes públicas e devolver evidências verificáveis.", "web", intents=("research", "research_plan")),
     ActionSpec("personal_overview", "Central pessoal", "Cruzar agenda, memória, worker e atividade recente.", "control_plane", private=True, intents=("personal_overview", "daily_brief")),
     ActionSpec("memory_view", "Ler memória", "Consultar memórias privadas confirmadas.", "memory", private=True, intents=("memory_view",)),
@@ -79,6 +80,11 @@ ACTION_SPECS = (
     ActionSpec("agenda_complete", "Concluir agenda", "Marcar um item privado como concluído.", "agenda", "local_write", "explicit_request", True, intents=("agenda_complete",)),
     ActionSpec("open_application", "Abrir aplicativo", "Abrir um aplicativo allowlisted no Mac pareado.", "mac", "runtime_write", "explicit_request", True, intents=("open_application",)),
     ActionSpec("close_application", "Fechar aplicativo", "Fechar um aplicativo allowlisted no Mac pareado.", "mac", "runtime_write", "explicit_request", True, intents=("close_application",)),
+    ActionSpec("open_url", "Abrir endereço", "Abrir um site no navegador do cockpit ou, se pedido, no Mac pareado.", "mac", "runtime_write", "explicit_request", True, intents=("open_url",)),
+    ActionSpec("clipboard_set", "Copiar texto", "Copiar texto explícito para a área de transferência do navegador e, no Ultron, do Mac.", "mac", "runtime_write", "explicit_request", False, intents=("clipboard_set",)),
+    ActionSpec("open_folder", "Abrir pasta", "Abrir Downloads, Desktop, Documentos ou a pasta pessoal no Finder.", "mac", "runtime_write", "explicit_request", True, intents=("open_folder",)),
+    ActionSpec("notify", "Avisar no Mac", "Mostrar uma notificação nativa no Mac pareado.", "mac", "runtime_write", "explicit_request", True, intents=("notify",)),
+    ActionSpec("volume_set", "Volume do Mac", "Ajustar o volume de saída do sistema, sem shell livre.", "mac", "runtime_write", "explicit_request", True, intents=("volume_set",)),
     ActionSpec(
         "spotify_control",
         "Controlar Spotify",

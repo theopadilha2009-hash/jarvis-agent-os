@@ -222,6 +222,18 @@ class DeviceWorkerTest(unittest.TestCase):
             alias_message,
             [str(ROOT / "jarvis"), "message-send", "--phone", "5511999999999", "estou chegando"],
         )
+        folder = MODULE.command_argv({"action": "open_folder", "target": "downloads", "request_text": "abre a pasta downloads"})
+        self.assertEqual(folder[0], "/usr/bin/open")
+        self.assertTrue(str(folder[1]).endswith("Downloads"))
+        volume = MODULE.command_argv({"action": "volume_set", "target": "40", "request_text": "volume do mac para 40"})
+        self.assertEqual(volume[:2], ["osascript", "-e"])
+        self.assertIn("output volume 40", volume[2])
+        opened_url = MODULE.command_argv({
+            "action": "open_url",
+            "target": "browser",
+            "request_text": "abra https://github.com no mac",
+        })
+        self.assertEqual(opened_url, ["/usr/bin/open", "https://github.com"])
 
     def test_command_argv_rejects_arbitrary_shell_and_invalid_target(self):
         with self.assertRaises(MODULE.WorkerError):
@@ -244,6 +256,51 @@ class DeviceWorkerTest(unittest.TestCase):
                 "target": "",
                 "request_text": "edite scripts token=placeholdervalue123456",
             })
+        with self.assertRaises(MODULE.WorkerError):
+            MODULE.command_argv({"action": "open_url", "target": "browser", "request_text": "abra javascript:alert(1) no mac"})
+        with self.assertRaises(MODULE.WorkerError):
+            MODULE.command_argv({"action": "open_folder", "target": "/", "request_text": "abre a pasta /"})
+        with self.assertRaises(MODULE.WorkerError):
+            MODULE.command_argv({"action": "volume_set", "target": "140", "request_text": "volume do mac para 140"})
+
+    def test_native_jobs_run_allowlisted_binaries_only(self):
+        class Result:
+            def __init__(self, code=0, stdout="40"):
+                self.returncode = code
+                self.stdout = stdout
+                self.stderr = ""
+
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append((argv, kwargs.get("input")))
+            return Result()
+
+        with patch.object(MODULE.platform, "system", return_value="Darwin"), patch.object(
+            MODULE.subprocess, "run", side_effect=fake_run
+        ):
+            ok, message = MODULE.execute_clipboard_job({
+                "action": "clipboard_set",
+                "target": "clipboard",
+                "request_text": "copia isso: hello jarvis",
+            })
+            self.assertTrue(ok)
+            self.assertEqual(calls[0][0], ["/usr/bin/pbcopy"])
+            self.assertEqual(calls[0][1], "hello jarvis")
+            ok, message = MODULE.execute_open_url_job({
+                "action": "open_url",
+                "target": "browser",
+                "request_text": "abra https://github.com no mac",
+            })
+            self.assertTrue(ok)
+            self.assertEqual(calls[1][0], ["/usr/bin/open", "https://github.com"])
+            ok, message = MODULE.execute_volume_job({
+                "action": "volume_set",
+                "target": "40",
+                "request_text": "volume do mac para 40",
+            })
+            self.assertTrue(ok)
+            self.assertIn("output volume 40", calls[2][0][2])
 
     def test_run_once_claims_executes_and_finishes_persisted_job(self):
         pending = {"id": 17, "action": "open_application", "target": "Calculator"}
@@ -326,7 +383,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
-        self.assertEqual(kwargs["body"]["version"], "11")
+        self.assertEqual(kwargs["body"]["version"], "12")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):

@@ -1,12 +1,12 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260819-notas2";
+const CACHE_VERSION = "jarvis-mobile-shell-20260819-ui2";
 const SHELL = [
   "/",
   "/cockpit",
   "/ui/manifest.webmanifest?v=20260813-apitools1",
   "/ui/jarvis-logo.png?v=20260813-logonative1",
-  "/ui/jarvis.css?v=20260819-files1",
+  "/ui/jarvis.css?v=20260819-ui2",
   "/ui/ui-repair.css?v=20260815-vozes2",
   "/ui/api-panel.css?v=20260813-ultronfix1",
   "/ui/integration-health.css?v=20260813-ultronfix1",
@@ -15,12 +15,12 @@ const SHELL = [
   "/ui/action-permissions.css?v=20260813-ultronfix1",
   "/ui/ultron-completion.css?v=20260819-notas1",
   "/ui/responsive-polish.css?v=20260819-notas1",
-  "/ui/shell.css?v=20260819-notas1",
+  "/ui/shell.css?v=20260819-ui2",
   "/ui/entrar.css?v=20260819-notas1",
   "/ui/api-vault.js?v=20260813-ultronfix1",
   "/ui/integration-history.js?v=20260813-ultronfix1",
-  "/ui/feature-loader.js?v=20260819-notas2",
-  "/ui/presence-loader.js?v=20260819-files1",
+  "/ui/feature-loader.js?v=20260819-ui2",
+  "/ui/presence-loader.js?v=20260819-ui2",
   "/ui/integration-health.js?v=20260813-ultronfix1",
   "/ui/voice-calibrator.js?v=20260815-vozes2",
   "/ui/n8n-template-pack.js?v=20260813-ultronfix1",
@@ -29,10 +29,10 @@ const SHELL = [
   "/ui/voice-pacing.js?v=20260813-voice2",
   "/ui/device-feedback.js?v=20260813-device1",
   "/ui/entrar.js?v=20260819-notas1",
-  "/ui/jarvis.js?v=20260819-files1",
+  "/ui/jarvis.js?v=20260819-ui2",
   "/ui/local-voice.js?v=20260818-voice2",
   "/ui/creator-seal.js?v=20260817-app1",
-  "/ui/jarvis-3d.js?v=20260819-files1",
+  "/ui/jarvis-3d.js?v=20260819-vis3",
   "/ui/aurora.js?v=20260813-apitools1",
   "/ui/strands.js?v=20260813-apitools1",
   "/ui/vendor/ogl/jarvis.js",
