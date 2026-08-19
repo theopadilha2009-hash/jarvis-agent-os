@@ -260,6 +260,16 @@
   background: rgba(124, 58, 237, 0.28);
   font-weight: 600;
 }
+.remember-login {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  color: #c4b5fd;
+  font-size: 12px;
+  cursor: pointer;
+}
+.remember-login input { accent-color: #a855f7; }
 .welcome-login {
   display: inline-flex;
   align-items: center;

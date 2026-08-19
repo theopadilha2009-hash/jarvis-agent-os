@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260815-vozes2">
 <link rel="stylesheet" href="/ui/api-panel.css?v=20260813-ultronfix1">
 <link rel="stylesheet" href="/ui/responsive-polish.css?v=20260815-vozes2">
-<link rel="stylesheet" href="/ui/shell.css?v=20260818-login1">
+<link rel="stylesheet" href="/ui/shell.css?v=20260818-login2">
 <script src="/ui/creator-seal.js?v=20260817-app1"></script>
 <script>
 (() => {
@@ -274,6 +274,7 @@
           <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha">
           <button id="adminLoginButton" type="button">Entrar</button>
         </div>
+        <label class="remember-login" id="rememberLoginLabel"><input id="rememberLogin" type="checkbox" checked aria-label="Manter conectado neste aparelho"> Manter conectado neste aparelho</label>
         <div class="account-signup" id="accountSignup">
           <input id="signupUsername" autocomplete="username" placeholder="Novo login" aria-label="Criar login">
           <input id="signupPassword" type="password" autocomplete="new-password" placeholder="Nova senha" aria-label="Criar senha">
@@ -481,7 +482,7 @@ window.addEventListener("error", (event) => {
   if (state) state.textContent = "script interrompido";
 }, true);
 </script>
-<script src="/ui/jarvis.js?v=20260818-login1" defer></script>
+<script src="/ui/jarvis.js?v=20260818-login2" defer></script>
 <script type="module" src="/ui/presence-loader.js?v=20260813-ultronfix1"></script>
 </body>
 </html>
