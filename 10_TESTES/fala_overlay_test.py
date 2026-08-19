@@ -75,6 +75,10 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn('persona', FALA_JS)
         self.assertIn("applyPersona", FALA_JS)
         self.assertIn("speaking", FALA_JS)
+        self.assertIn("pesquisa no google", FALA_JS)
+        self.assertIn("opening && /\\bwhatsapp\\b/", FALA_JS)
+        self.assertIn("showAnswerLink", FALA_JS)
+        self.assertIn("debug=1", FALA_JS)
 
 
 if __name__ == "__main__":
