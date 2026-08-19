@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260819-ui2";
+const CACHE_VERSION = "jarvis-mobile-shell-20260819-aug15";
 const SHELL = [
   "/",
   "/cockpit",
