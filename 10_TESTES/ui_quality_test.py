@@ -340,6 +340,21 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(MISSION_CONTROL_JS.stat().st_size, 16 * 1024)
         self.assertLess(MISSION_CONTROL_CSS.stat().st_size, 8 * 1024)
 
+    def test_notes_pad_title_input_does_not_reuse_dialog_heading_id(self):
+        notes_pad = (WEB / "notes-pad.js").read_text(encoding="utf-8")
+        heading = re.search(
+            r'ensureDialog\("notesPadDialog", "notes-pad-dialog", "([^"]+)"',
+            self.feature_loader_js,
+        )
+        self.assertIsNotNone(heading)
+        self.assertNotEqual(
+            heading.group(1),
+            "notesPadTitle",
+            "aria-labelledby e o input de título não podem partilhar o mesmo id",
+        )
+        self.assertIn('id="notesPadTitle"', notes_pad)
+        self.assertIn('getElementById("notesPadTitle")', notes_pad)
+
     def test_living_voice_preserves_voice_and_prefetches_natural_lead(self):
         self.assertIn('import("/ui/voice-pacing.js?v=20260813-voice2")', self.api_vault_js)
         self.assertIn("requestIdleCallback", self.api_vault_js)
