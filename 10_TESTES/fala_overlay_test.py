@@ -40,6 +40,11 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn('id="accessLine"', FALA_HTML)
         self.assertIn('id="moreButton"', FALA_HTML)
         self.assertIn('id="extras"', FALA_HTML)
+        self.assertIn("jarvis-logo.png", FALA_HTML)
+        self.assertIn('class="launch"', FALA_HTML)
+        self.assertIn("oi Jarvis", FALA_HTML)
+        self.assertIn("web.whatsapp.com", FALA_HTML)
+        self.assertIn("www.google.com", FALA_HTML)
 
     def test_wake_loop_listens_for_oi_jarvis(self):
         self.assertIn("startWakeLoop", FALA_JS)
@@ -65,6 +70,8 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("speak(\"Aberto\")", FALA_JS)
         self.assertNotIn("speakLocal(\"Aberto\")", FALA_JS)
         self.assertIn('persona', FALA_JS)
+        self.assertIn("applyPersona", FALA_JS)
+        self.assertIn("speaking", FALA_JS)
 
 
 if __name__ == "__main__":
