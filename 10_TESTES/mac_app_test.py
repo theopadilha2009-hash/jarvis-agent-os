@@ -100,6 +100,9 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("Microsoft Edge", script)
                 self.assertIn("com.apple.quarantine", archive.read("INSTALAR.command").decode("utf-8"))
                 self.assertIn("LaunchAgents", archive.read("INSTALAR.command").decode("utf-8"))
+                self.assertIn("INSTALAR-WORKER.command", archive.read("INSTALAR.command").decode("utf-8"))
+                self.assertIn("INSTALAR-WORKER.command", names)
+                self.assertIn("computer-worker --install", archive.read("INSTALAR-WORKER.command").decode("utf-8"))
                 self.assertIn("ai.theopadilha.jarvis.fala.plist", names)
                 if MODULE.ICON_ICNS.is_file():
                     self.assertIn("JARVIS.app/Contents/Resources/jarvis.icns", names)

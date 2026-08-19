@@ -935,19 +935,38 @@
     "Editar o próprio projeto; deploy só com pedido explícito",
   ];
 
+  const PALETTE_APPS = [
+    ["chrome", "Google Chrome"],
+    ["safari", "Safari"],
+    ["spotify", "Spotify"],
+    ["notas", "Notes"],
+    ["finder", "Finder"],
+    ["mensagens", "Messages"],
+    ["whatsapp", "WhatsApp"],
+    ["discord", "Discord"],
+    ["slack", "Slack"],
+    ["telegram", "Telegram"],
+    ["cursor", "Cursor"],
+    ["vscode", "Visual Studio Code"],
+    ["terminal", "Terminal"],
+    ["calendario", "Calendar"],
+    ["ajustes", "System Settings"],
+  ];
   const COMMAND_PALETTE = [
-    { keys: "goal plano", label: "Criar plano", hint: "/goal", fill: "crie um plano curto e executável para " },
-    { keys: "converter arquivo imagem pdf", label: "Converter arquivo", hint: "/converter", fill: "converta esta imagem para png" },
-    { keys: "abrir app chrome notas", label: "Abrir app", hint: "/abrir", fill: "abre o " },
-    { keys: "fechar app", label: "Fechar app", hint: "/fechar", fill: "fecha o " },
-    { keys: "notas notes", label: "Abrir Notas", hint: "/notas", command: "abre as notas" },
+    { keys: "goal plano", label: "Criar plano", hint: "/goal", fill: "crie um plano curto e executável para ", command: "crie um plano curto e executável para o JARVIS" },
+    { keys: "converter arquivo imagem png jpg", label: "Converter arquivo", hint: "/converter", fill: "converta esta imagem para png", command: "converta esta imagem para png" },
+    { keys: "abrir app chrome notas", label: "Abrir app", hint: "/abrir", fill: "abre o ", command: "abre o chrome", expand: "open" },
+    { keys: "fechar app", label: "Fechar app", hint: "/fechar", fill: "fecha o ", command: "fecha o chrome", expand: "close" },
+    { keys: "notas bloco jarvis", label: "Bloco de notas", hint: "/notas", command: "abre o bloco de notas" },
+    { keys: "notas apple mac notes", label: "Notas do Mac", hint: "/notas-mac", command: "abre as notas" },
     { keys: "downloads pasta finder", label: "Pasta Downloads", hint: "/downloads", command: "abre a pasta downloads" },
     { keys: "code vscode terminal", label: "JARVIS Code", hint: "/code", action: "code" },
     { keys: "app baixar mac windows", label: "Baixar o app", hint: "/app", action: "app" },
     { keys: "print tela screenshot", label: "Print da tela", hint: "/print", command: "tire um print da tela" },
     { keys: "falar mac voz", label: "Falar no Mac", hint: "/falar", fill: "fale no mac: " },
     { keys: "copiar clipboard", label: "Copiar texto", hint: "/copiar", fill: "copia isso: " },
-    { keys: "volume", label: "Volume do Mac", hint: "/volume", fill: "volume do mac para " },
+    { keys: "volume", label: "Volume do Mac", hint: "/volume", fill: "volume do mac para ", command: "volume do mac para 50" },
+    { keys: "organizar arquivos downloads", label: "Organizar Downloads", hint: "/organizar", command: "organize os arquivos" },
   ];
 
   const STARTER_ACTIONS = {
@@ -1002,10 +1021,35 @@
     return slash ? slash[1].trim().toLocaleLowerCase("pt-BR") : null;
   }
 
+  function paletteRest(item) {
+    const typed = String(input.value || "").trim();
+    const slash = typed.match(/^\s*\/([^\n]*)$/);
+    if (!slash) return "";
+    const hint = String(item?.hint || "").replace(/^\//, "");
+    const raw = slash[1].trim();
+    if (!hint) return raw;
+    const prefix = hint.split(/\s+/)[0];
+    return raw.replace(new RegExp(`^${prefix}\\s*`, "i"), "").trim();
+  }
+
   function filteredPalette() {
     const query = paletteQuery();
     if (query == null && byId("paletteButton")?.getAttribute("aria-expanded") !== "true") return [];
     const needle = (query || "").replace(/^\//, "");
+    const openMatch = needle.match(/^(abrir|fechar)(?:\s+(.*))?$/i);
+    if (openMatch) {
+      const verb = openMatch[1].toLocaleLowerCase("pt-BR");
+      const appNeedle = (openMatch[2] || "").toLocaleLowerCase("pt-BR");
+      const apps = PALETTE_APPS.filter(([key, label]) => (
+        !appNeedle || key.includes(appNeedle) || label.toLocaleLowerCase("pt-BR").includes(appNeedle)
+      ));
+      return apps.map(([key, label]) => ({
+        keys: key,
+        label: `${verb === "abrir" ? "Abrir" : "Fechar"} ${label}`,
+        hint: `/${verb} ${key}`,
+        command: `${verb === "abrir" ? "abre o" : "fecha o"} ${key}`,
+      }));
+    }
     return COMMAND_PALETTE.filter((item) => !needle || `${item.keys} ${item.label} ${item.hint}`.toLocaleLowerCase("pt-BR").includes(needle));
   }
 
@@ -1029,14 +1073,27 @@
       byId("downloadDialog")?.showModal();
       return;
     }
+    const rest = paletteRest(item);
+    if (item.fill && rest) {
+      sendCommand(item.fill + rest);
+      input.value = "";
+      syncComposerAction();
+      syncComposerHeight();
+      return;
+    }
+    if (item.command) {
+      sendCommand(item.command);
+      input.value = "";
+      syncComposerAction();
+      syncComposerHeight();
+      return;
+    }
     if (item.fill) {
       input.value = item.fill;
       syncComposerAction();
       syncComposerHeight();
       input.focus();
-      return;
     }
-    if (item.command) sendCommand(item.command);
   }
 
   function renderPalette(force) {
@@ -1957,14 +2014,32 @@
     }
   }
 
+  function workerStatusLabel(worker) {
+    const version = worker.version ? `v${worker.version}` : "sem versão";
+    const expected = worker.expected_version ? `v${worker.expected_version}` : "";
+    if (worker.status_real === "device_worker_never_seen") {
+      return "Worker não instalado · App Mac ou ./jarvis computer-worker --install";
+    }
+    if (!worker.online) {
+      return `Mac offline · ${version} · ligue o worker`;
+    }
+    const host = worker.hostname || "Mac";
+    if (worker.outdated) {
+      return `Mac conectado · ${host} · ${version} desatualizado (esperado ${expected}) · ./jarvis computer-worker --install`;
+    }
+    return `Mac conectado · ${host} · ${version}`;
+  }
+
   async function refreshWorkerStatus(target) {
     try {
       const worker = await request("/device-worker-status");
       session.deviceOnline = Boolean(worker.online);
-      target.textContent = worker.online
-        ? `Mac conectado · ${worker.hostname || "worker local"}`
-        : "Mac offline · abra ou instale o worker local";
-      byId("hubWorkerValue").textContent = worker.online ? "conectado" : "offline";
+      session.workerVersion = worker.version || "";
+      session.workerOutdated = Boolean(worker.outdated);
+      target.textContent = workerStatusLabel(worker);
+      byId("hubWorkerValue").textContent = worker.online
+        ? (worker.outdated ? `v${worker.version} desatualizado` : `conectado · v${worker.version || "?"}`)
+        : worker.status_real === "device_worker_never_seen" ? "não instalado" : "offline";
       byId("sceneMac").textContent = worker.online ? "Mac conectado" : "Mac offline";
       await refreshActionHistory({ revealLatest: true });
     } catch {
@@ -2333,6 +2408,43 @@
 
   const devicePollDelay = window.JarvisDeviceFeedback?.pollDelay || ((attempt) => Math.min(1200, 250 + (attempt * 190)));
 
+  function appendJobEvidence(message, data) {
+    if (!message || message.querySelector(".job-evidence")) return;
+    const jobs = Array.isArray(data?.jobs) && data.jobs.length ? data.jobs : (data?.job ? [data.job] : []);
+    const succeeded = jobs.filter((job) => job && job.status === "succeeded");
+    if (!succeeded.length) return;
+    const lines = [];
+    succeeded.forEach((job) => {
+      if (job.action === "open_folder") lines.push(`${job.target || "Pasta"} aberto no Finder.`);
+      if (job.action === "image_convert") lines.push(`Imagem convertida para ${job.target || "PNG"}. Downloads aberto.`);
+      if (job.action === "files_triage") lines.push("Plano de triagem pronto. Nenhum arquivo foi movido.");
+      if (job.action === "screen_capture") lines.push("Captura salva. Preview abaixo.");
+    });
+    const artifact = jobs.find((job) => job.artifact_url);
+    const box = document.createElement("div");
+    box.className = "job-evidence";
+    if (lines.length) {
+      const note = document.createElement("p");
+      note.textContent = lines.join(" ");
+      box.appendChild(note);
+    }
+    if (artifact?.artifact_url) {
+      const link = document.createElement("a");
+      link.className = "artifact-link";
+      link.href = artifact.artifact_url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      const img = document.createElement("img");
+      img.className = "artifact-preview";
+      img.src = artifact.artifact_url;
+      img.alt = "Evidência criada pelo worker do Mac";
+      link.appendChild(img);
+      box.appendChild(link);
+    }
+    if (!box.childNodes.length) return;
+    message.appendChild(box);
+  }
+
   async function monitorDeviceCommand(jobId, message) {
     for (let attempt = 0; attempt < 50; attempt += 1) {
       if (session.canceledJobs.has(String(jobId))) return;
@@ -2356,6 +2468,7 @@
         message.querySelector("span").textContent = text;
         message.classList.toggle("error", data.job.status === "failed");
         message.querySelector(".cancel-job")?.remove();
+        appendJobEvidence(message, data);
         session.responseState = data.visual_state || (data.job.status === "succeeded" ? "success" : "error");
         byId("requestTitle").textContent = data.job.status === "succeeded" ? "Ação concluída" : data.job.status === "canceled" ? "Ação cancelada" : "Ação falhou";
         refreshActionHistory();
@@ -2395,6 +2508,7 @@
         if (failed?.result) message.querySelector("span").textContent = `${data.message}\n${failed.result}`;
         message.classList.toggle("error", data.run.status === "failed");
         message.querySelector(".cancel-run")?.remove();
+        appendJobEvidence(message, data);
         session.responseState = data.visual_state || (data.run.status === "succeeded" ? "success" : "error");
         byId("requestTitle").textContent = data.run.status === "succeeded" ? "Execução concluída" : data.run.status === "canceled" ? "Execução cancelada" : "Execução interrompida";
         refreshActionHistory();
@@ -2532,7 +2646,9 @@
     if (data.result) {
       extra += `<details><summary>ver resultado completo</summary><code>${escapeHtml(data.result)}</code></details>`;
     }
-    if (Array.isArray(data.jobs) && data.jobs.length > 1 && !data.run?.terminal) {
+    if (data.needs_confirmation && data.run_id) {
+      messageActions += `<button class="confirm-run" type="button">Confirmar</button><button class="cancel-agent-run" type="button">Cancelar</button>`;
+    } else if (Array.isArray(data.jobs) && data.jobs.length > 1 && !data.run?.terminal) {
       messageActions += `<button class="cancel-run" type="button">Cancelar etapas</button>`;
     } else if (data.job?.id && data.job.status === "pending") {
       messageActions += `<button class="cancel-job" type="button">Cancelar ação</button>`;
@@ -2605,6 +2721,42 @@
         cancelJob.textContent = "Tentar cancelar novamente";
       }
     });
+    const confirmRun = message.querySelector(".confirm-run");
+    if (confirmRun) confirmRun.addEventListener("click", async () => {
+      confirmRun.disabled = true;
+      confirmRun.textContent = "Confirmando…";
+      try {
+        const confirmed = await request(`/runs/${encodeURIComponent(data.run_id)}/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        message.querySelector(".cancel-agent-run")?.remove();
+        confirmRun.remove();
+        showResponse(confirmed);
+      } catch {
+        confirmRun.disabled = false;
+        confirmRun.textContent = "Tentar confirmar de novo";
+      }
+    });
+    const cancelAgentRun = message.querySelector(".cancel-agent-run");
+    if (cancelAgentRun) cancelAgentRun.addEventListener("click", async () => {
+      cancelAgentRun.disabled = true;
+      cancelAgentRun.textContent = "Cancelando…";
+      try {
+        const canceled = await request(`/runs/${encodeURIComponent(data.run_id)}/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        message.querySelector(".confirm-run")?.remove();
+        message.querySelector("span").textContent = canceled.message || "Pedido cancelado.";
+        cancelAgentRun.remove();
+      } catch {
+        cancelAgentRun.disabled = false;
+        cancelAgentRun.textContent = "Tentar cancelar de novo";
+      }
+    });
     const cancelRun = message.querySelector(".cancel-run");
     if (cancelRun) cancelRun.addEventListener("click", async () => {
       cancelRun.disabled = true;
@@ -2632,6 +2784,8 @@
       monitorDeviceRun(data.jobs.map((job) => job.id), message);
     } else if (data.job?.id && ["pending", "running"].includes(data.job.status)) {
       monitorDeviceCommand(data.job.id, message);
+    } else if (data.job?.status === "succeeded" || data.run?.terminal) {
+      appendJobEvidence(message, data);
     }
     if (session.responseState === "memory") window.dispatchEvent(new CustomEvent("jarvis-memory-refresh"));
     const pulsed = nucleusForResult(data);

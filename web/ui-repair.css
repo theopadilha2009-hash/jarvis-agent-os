@@ -126,7 +126,9 @@ html[data-persona="ultron"] .message-actions .copy-response,
 html[data-persona="ultron"] .message-actions .memory-command,
 html[data-persona="ultron"] .message-actions .speak-command,
 html[data-persona="ultron"] .message-actions .cancel-job,
-html[data-persona="ultron"] .message-actions .cancel-run {
+html[data-persona="ultron"] .message-actions .cancel-run,
+html[data-persona="ultron"] .message-actions .confirm-run,
+html[data-persona="ultron"] .message-actions .cancel-agent-run {
   border-color: rgba(248, 113, 113, 0.38);
   background: rgba(73, 8, 14, 0.84);
   color: #fee2e2;

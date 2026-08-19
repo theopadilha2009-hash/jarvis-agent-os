@@ -22,7 +22,10 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertIn("memory_search", ACTION_REGISTRY)
         self.assertEqual(action_for_intent("clipboard_set").name, "clipboard_set")
         self.assertEqual(action_for_intent("open_folder").name, "open_folder")
+        self.assertEqual(action_for_intent("image_convert").name, "image_convert")
+        self.assertEqual(action_for_intent("files_triage").risk, "read_only")
         self.assertFalse(action_for_intent("clipboard_set").private)
+        self.assertTrue(action_for_intent("image_convert").private)
 
     def test_run_lifecycle_is_durable_and_terminal(self):
         with TemporaryDirectory() as temp:

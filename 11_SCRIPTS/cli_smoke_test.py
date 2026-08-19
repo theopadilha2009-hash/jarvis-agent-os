@@ -734,6 +734,16 @@ CHECKS = [
         ],
     },
     {
+        "name": "promote-production-dry-run",
+        "cmd": ["env", "JARVIS_NO_REPORT=1", "./jarvis", "promote-production", "--dry-run"],
+        "expect": [
+            "Promote Production",
+            "jarvis-theo.vercel.app",
+            "jarvis-agent-os",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "files-triage-read-only",
         "cmd": ["./jarvis", "files-triage", "10_TESTES/FIXTURES", "--limit", "10"],
         "expect": ["Files Triage", "plano read-only", "não possui --apply", "Produção: nada alterado"],

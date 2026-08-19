@@ -297,6 +297,7 @@ SUPABASE_AGENDA_TABLE = "jarvis_agenda_items"
 SUPABASE_SETTINGS_TABLE = "jarvis_settings"
 SUPABASE_NOTES_TABLE = "jarvis_notes"
 SUPABASE_ARTIFACTS_BUCKET = "jarvis-artifacts"
+EXPECTED_WORKER_VERSION = "13"
 REMOTE_DEVICE_INTENTS = {
     "open_application",
     "close_application",
@@ -314,6 +315,9 @@ REMOTE_DEVICE_INTENTS = {
     "open_folder",
     "notify",
     "volume_set",
+    "clipboard_set",
+    "image_convert",
+    "files_triage",
 }
 
 # Compound runs intentionally exclude messaging and self-edit. Those actions can
@@ -332,6 +336,8 @@ CHAINABLE_DEVICE_INTENTS = {
     "volume_set",
     "clipboard_set",
     "notify",
+    "speak",
+    "image_convert",
 }
 
 ACTION_SEQUENCE_SPLIT_PATTERN = re.compile(
@@ -339,11 +345,11 @@ ACTION_SEQUENCE_SPLIT_PATTERN = re.compile(
     r"(?=(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|captur\w*|"
     r"faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*|"
     r"to(?:c|q)\w*|paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*|"
-    r"copi\w*|fal\w*|avis\w*|notific\w*))|"
+    r"copi\w*|fal\w*|avis\w*|notific\w*|convert\w*|transform\w*))|"
     r"\s*[;,]\s*(?=(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|"
     r"captur\w*|faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*|"
     r"to(?:c|q)\w*|paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*|"
-    r"copi\w*|fal\w*|avis\w*|notific\w*))",
+    r"copi\w*|fal\w*|avis\w*|notific\w*|convert\w*|transform\w*))",
     re.I,
 )
 
@@ -351,7 +357,7 @@ COMPOUND_ACTION_START_PATTERN = re.compile(
     r"^\s*(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|captur\w*|faz\w*|"
     r"grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*|to(?:c|q)\w*|"
     r"paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*|copi\w*|fal\w*|"
-    r"avis\w*|notific\w*)\b",
+    r"avis\w*|notific\w*|convert\w*|transform\w*)\b",
     re.I,
 )
 
@@ -372,7 +378,7 @@ PRIVATE_INTENTS = {
     "agenda_complete",
     "agenda_view",
     "task_add",
-    *REMOTE_DEVICE_INTENTS,
+    *(REMOTE_DEVICE_INTENTS - {"clipboard_set"}),
 }
 
 CAPABILITY_OVERVIEW_PATTERN = re.compile(
@@ -2240,7 +2246,7 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(abr(?:a|e|ir)|inici(?:a|e|ar)|grav(?:a|e|ar))\b.{0,50}\b(gravador|grava[cç][aã]o|tela)\b", re.I), "screen_record"),
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar)|analis(?:a|e|ar))\b.{0,70}\b(github|reposit[oó]rios?|pull requests?|prs?)\b", re.I), "github_overview"),
     (SPEAK_MAC_PATTERN, "speak"),
-    (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
+    (device_actions.IMAGE_CONVERT_PATTERN, "image_convert"),
     (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|whatsapp\s+para|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
     (re.compile(r"\b(salv(?:a|e|ar)|adicion(?:a|e|ar)|cri(?:a|e|ar)|cadastr(?:a|e|ar))\b.{0,40}\bcontato\b", re.I), "contact_save"),
     (re.compile(r"\b(remov(?:a|e|er)|apag(?:a|e|ar)|arquiv(?:a|e|ar)|esquec(?:a|e|er))\b.{0,40}\bcontato\b", re.I), "contact_archive"),
@@ -2258,7 +2264,7 @@ LOCAL_INTENTS = (
     (APPLICATION_INTENT_PATTERNS["close_application"], "close_application"),
     (re.compile(r"(?:\b(computador|mac|mem[oó]ria|ram)\b.{0,80}\b(trav(?:a|ando)|lent[oa]|pesad[oa]|limp(?:a|ar)|analis(?:a|e|ar))\b|\b(limp(?:a|ar)|fech(?:a|ar)|trav(?:a|ando)|analis(?:a|e|ar))\b.{0,80}\b(computador|mac|mem[oó]ria|ram|processos?\s+(?:tempor[aá]rios?\s+)?(?:do\s+)?jarvis)\b)", re.I), "system_memory"),
     (re.compile(r"\b(ver|list(?:a|e|ar)|encontr(?:a|e|ar)|procur(?:a|e|ar)|mostr(?:a|e|ar)|analis(?:a|e|ar))\b.{0,60}\b(armazenamento|arquivos grandes|espaço em disco)\b", re.I), "storage_scan"),
-    (re.compile(r"\b(organiz(?:a|ar)|arrum(?:a|ar))\b.{0,40}\barquivos\b", re.I), "files_triage"),
+    (device_actions.FILES_TRIAGE_PATTERN, "files_triage"),
 )
 
 
@@ -3355,6 +3361,37 @@ def supabase_storage_request(object_path, body):
     return json.loads(raw.decode("utf-8")) if raw else {}
 
 
+def supabase_storage_put(object_path, data, mime):
+    if not supabase_configured():
+        raise ValueError("supabase not configured")
+    safe_path = clean_text(object_path, 500).strip("/")
+    if not re.fullmatch(r"theo/[A-Za-z0-9._/-]{1,480}", safe_path):
+        raise ValueError("invalid private artifact path")
+    if not data or len(data) > 10_485_760:
+        raise ValueError("arquivo vazio ou grande demais")
+    safe_mime = clean_text(mime, 80).casefold()
+    if safe_mime not in {
+        "image/png", "image/jpeg", "image/jpg", "image/tiff", "image/heic", "image/webp",
+    }:
+        raise ValueError("tipo de imagem não suportado")
+    base_url = clean_text(os.environ.get("SUPABASE_URL"), 500).rstrip("/")
+    api_key = clean_text(os.environ.get("SUPABASE_SERVICE_ROLE_KEY"), 2_000)
+    request = Request(
+        f"{base_url}/storage/v1/object/{SUPABASE_ARTIFACTS_BUCKET}/{quote(safe_path, safe='/')}",
+        data=data,
+        headers={
+            "apikey": api_key,
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "image/jpeg" if safe_mime == "image/jpg" else safe_mime,
+            "x-upsert": "false",
+        },
+        method="POST",
+    )
+    with urlopen(request, timeout=30) as response:
+        response.read(100_000)
+    return safe_path
+
+
 def signed_artifact_url(path, expires_in=120):
     safe_path = clean_text(path, 500)
     if not safe_path:
@@ -4379,7 +4416,21 @@ def contacts_payload(limit=50):
         return {"ok": False, "endpoint": "GET /contacts", "error": "Contatos não responderam."}, 504
 
 
-def supabase_device_enqueue(command, intent):
+def supabase_device_enqueue(command, intent, attachments=None):
+    worker_status, _worker_code = device_worker_status_payload()
+    if worker_status.get("status_real") == "device_worker_never_seen":
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "device_worker_missing",
+            "visual_state": "error",
+            "worker_offline": True,
+            "error": worker_status.get("message") or (
+                "O worker do Mac ainda não foi instalado. "
+                "Baixe o App e rode INSTALAR.command, ou no repo: ./jarvis computer-worker --install."
+            ),
+            "intent": intent,
+        }, 503
     target = ""
     if intent in {"open_application", "close_application"}:
         command_args = computer_app_command(command, intent)
@@ -4524,6 +4575,55 @@ def supabase_device_enqueue(command, intent):
                 "intent": intent,
             }, 400
         target = str(level)
+    elif intent == "image_convert":
+        fmt = device_actions.image_convert_format(command)
+        if not fmt:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "image_convert_format_invalid",
+                "visual_state": "error",
+                "error": "Posso converter para png, jpg ou tiff. Anexe uma imagem ou deixe uma em Downloads.",
+                "intent": intent,
+            }, 400
+        source_path = ""
+        source_name = ""
+        for item in attachments or []:
+            if isinstance(item, dict) and str(item.get("type") or "").startswith("image/"):
+                data_url = str(item.get("data_url") or "")
+                prefix = f"data:{item['type']};base64,"
+                if not data_url.startswith(prefix):
+                    continue
+                try:
+                    raw = base64.b64decode(data_url[len(prefix):], validate=True)
+                    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+                    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", clean_text(item.get("name"), 80)) or "anexo"
+                    source_path = supabase_storage_put(
+                        f"theo/inbox/{stamp}-{safe_name}",
+                        raw,
+                        item["type"],
+                    )
+                    source_name = safe_name
+                except (HTTPError, URLError, TimeoutError, ValueError, binascii.Error):
+                    return {
+                        "ok": False,
+                        "endpoint": "POST /command",
+                        "status_real": "image_convert_upload_failed",
+                        "visual_state": "error",
+                        "error": "Não consegui guardar o anexo para converter no Mac.",
+                        "intent": intent,
+                    }, 502
+                break
+        target = fmt
+        command = device_actions.payload_json(
+            "image_convert",
+            fmt,
+            source="storage" if source_path else "downloads",
+            path=source_path,
+            name=source_name,
+        )
+    elif intent == "files_triage":
+        target = "downloads"
     elif intent == "clipboard_set":
         text = device_actions.clipboard_text(command)
         if not text or has_secret_like_text(text):
@@ -4578,6 +4678,10 @@ def supabase_device_enqueue(command, intent):
                 if intent == "volume_set"
                 else "Texto enviado para a área de transferência do Mac."
                 if intent == "clipboard_set"
+                else "Pedido de conversão enviado ao Mac. Vou abrir o Downloads quando terminar."
+                if intent == "image_convert"
+                else "Pedido de triagem da pasta Downloads enviado ao Mac. Nenhum arquivo será movido."
+                if intent == "files_triage"
                 else "Pedido enviado ao worker do Mac. Estou acompanhando a execução."
             ),
             "intent": intent,
@@ -4654,6 +4758,15 @@ def chain_step_target(step):
         if not device_actions.notify_text(command):
             raise ValueError("Não identifiquei o texto da notificação.")
         return "notification"
+    if intent == "speak":
+        if not device_actions.speak_text(command):
+            raise ValueError("Não identifiquei o texto para falar no Mac.")
+        return "speaker"
+    if intent == "image_convert":
+        fmt = device_actions.image_convert_format(command)
+        if not fmt:
+            raise ValueError("Não reconheci o formato da conversão.")
+        return fmt
     if intent in CHAINABLE_DEVICE_INTENTS:
         return ""
     raise ValueError("Uma das etapas está fora do executor encadeado.")
@@ -5123,27 +5236,51 @@ def device_worker_status_payload():
         query = "select=worker_id,hostname,version,last_seen_at&owner_id=eq.theo&order=last_seen_at.desc&limit=1"
         rows = supabase_request(query=query, table=SUPABASE_DEVICE_WORKERS_TABLE)
         row = rows[0] if isinstance(rows, list) and rows else None
+        expected = EXPECTED_WORKER_VERSION
         if not isinstance(row, dict):
             return {
                 "ok": True,
                 "endpoint": "GET /device-worker-status",
                 "status_real": "device_worker_never_seen",
                 "online": False,
-                "message": "O worker do Mac ainda não enviou heartbeat.",
+                "outdated": False,
+                "version": "",
+                "expected_version": expected,
+                "message": (
+                    "O worker do Mac ainda não enviou heartbeat. "
+                    "Baixe o App e rode INSTALAR.command, ou no repo: ./jarvis computer-worker --install."
+                ),
             }, 200
         raw_seen = clean_text(row.get("last_seen_at"), 80)
         seen = datetime.fromisoformat(raw_seen.replace("Z", "+00:00"))
         age_seconds = max(0, int((datetime.now(timezone.utc) - seen.astimezone(timezone.utc)).total_seconds()))
         online = age_seconds <= 20
+        version = clean_text(row.get("version"), 40)
+        outdated = bool(version and version != expected)
+        if not online:
+            message = "Worker do Mac sem heartbeat recente."
+        elif outdated:
+            message = (
+                f"Worker do Mac conectado, mas desatualizado (v{version}; esperado v{expected}). "
+                "Rode ./jarvis computer-worker --install."
+            )
+        else:
+            message = f"Worker do Mac conectado (v{version or expected})."
         return {
             "ok": True,
             "endpoint": "GET /device-worker-status",
-            "status_real": "device_worker_online" if online else "device_worker_offline",
+            "status_real": (
+                "device_worker_outdated" if online and outdated
+                else "device_worker_online" if online
+                else "device_worker_offline"
+            ),
             "online": online,
+            "outdated": outdated,
             "age_seconds": age_seconds,
             "hostname": clean_text(row.get("hostname"), 255),
-            "version": clean_text(row.get("version"), 40),
-            "message": "Worker do Mac conectado." if online else "Worker do Mac sem heartbeat recente.",
+            "version": version,
+            "expected_version": expected,
+            "message": message,
         }, 200
     except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
         return {
@@ -5151,6 +5288,8 @@ def device_worker_status_payload():
             "endpoint": "GET /device-worker-status",
             "status_real": "device_worker_status_unavailable",
             "online": False,
+            "outdated": False,
+            "expected_version": EXPECTED_WORKER_VERSION,
             "error": "Não consegui consultar o heartbeat do Mac.",
         }, 503
 
@@ -6359,6 +6498,10 @@ def public_device_target(action, target):
         return "notificação"
     if action == "volume_set":
         return f"volume {safe_target}" if safe_target else "volume"
+    if action == "image_convert":
+        return (safe_target or "png").upper()
+    if action == "files_triage":
+        return "Downloads"
     return safe_target
 
 
@@ -6418,6 +6561,20 @@ def local_handoff(command, intent, execute=False):
     elif intent == "clipboard_set":
         text = device_actions.clipboard_text(command)
         command_args = ["/usr/bin/pbcopy"] if text else None
+    elif intent == "image_convert":
+        fmt = device_actions.image_convert_format(command)
+        folder = Path.home() / "Downloads"
+        newest = None
+        if folder.is_dir():
+            candidates = [
+                path for path in folder.iterdir()
+                if path.is_file() and not path.name.startswith(".")
+                and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".tif", ".tiff", ".webp"}
+            ]
+            newest = max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
+        command_args = ["./jarvis", "image-convert", str(newest), "--to", fmt] if fmt and newest else None
+    elif intent == "files_triage":
+        command_args = ["./jarvis", "files-triage", str(Path.home() / "Downloads"), "--limit", "40"]
     else:
         command_args = ["./jarvis", "do", command]
     if not command_args:
@@ -6430,6 +6587,7 @@ def local_handoff(command, intent, execute=False):
             "speak": "Diga exatamente o que eu devo falar no Mac.",
             "notify": "Diga o texto da notificação no Mac.",
             "clipboard_set": "Diga o texto exato para copiar.",
+            "image_convert": "Anexe uma imagem ou deixe uma em Downloads. Formatos: png, jpg, tiff.",
         }
         return {
             "ok": False,
@@ -6478,6 +6636,8 @@ def local_handoff(command, intent, execute=False):
                 "open_url": "Abri o endereço no Mac.",
                 "notify": "Mandei a notificação no Mac.",
                 "clipboard_set": "Copiei o texto no Mac.",
+                "image_convert": "Converti a imagem e abri o Downloads.",
+                "files_triage": "Plano de triagem da pasta Downloads pronto; nenhum arquivo foi movido.",
             }
             return {
                 "ok": action_succeeded,
@@ -9174,7 +9334,7 @@ def clipboard_payload(command, local_execute=False, owner_authenticated=False):
     return payload, 200
 
 
-def dispatch_intent(command, intent, local_execute=False, owner_authenticated=False, code_authenticated=False):
+def dispatch_intent(command, intent, local_execute=False, owner_authenticated=False, code_authenticated=False, attachments=None):
     """Run one known intent without giving the model access to arbitrary code."""
     if intent == "clipboard_set":
         return clipboard_payload(command, local_execute=local_execute, owner_authenticated=owner_authenticated)
@@ -9313,7 +9473,7 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
     if intent == "contact_view" and supabase_configured():
         return contacts_payload(50)
     if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
-        return supabase_device_enqueue(command, intent)
+        return supabase_device_enqueue(command, intent, attachments=attachments)
     if intent == "agenda_complete" and supabase_configured():
         return supabase_agenda_command(command, intent)
     if intent in {"agenda_note", "agenda_view", "task_add"}:
@@ -10478,6 +10638,11 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
             "persistent_write": False,
         }, 200
 
+    try:
+        attachments = normalize_attachments(body)
+    except ValueError:
+        attachments = []
+
     device_plan = compound_device_plan(command)
     if device_plan:
         return dispatch_device_plan(
@@ -10504,6 +10669,7 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
                 local_execute=local_execute,
                 owner_authenticated=owner_authenticated,
                 code_authenticated=code_authenticated,
+                attachments=attachments,
             )
 
     clean = command.lstrip("/").strip()

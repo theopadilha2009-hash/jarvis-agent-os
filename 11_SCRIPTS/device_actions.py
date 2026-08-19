@@ -65,6 +65,22 @@ FOLDER_LABELS = {
     "documents": "Documentos",
     "home": "pasta pessoal",
 }
+IMAGE_CONVERT_PATTERN = re.compile(
+    r"\b(?:convert(?:a|er)|transform(?:a|ar))\b.{0,80}\b(?:imagem|foto|png|jpe?g|heic|tiff|anexo|arquivo)\b",
+    re.I,
+)
+IMAGE_FORMATS = {
+    "png": "png",
+    "jpg": "jpg",
+    "jpeg": "jpg",
+    "tif": "tiff",
+    "tiff": "tiff",
+}
+IMAGE_NATIVE_FORMATS = {"png": "png", "jpg": "jpeg", "tiff": "tiff"}
+FILES_TRIAGE_PATTERN = re.compile(
+    r"\b(?:organiz(?:e|a|ar)|arrum(?:e|a|ar)|triagem)\b.{0,40}\barquivos\b",
+    re.I,
+)
 
 
 def _clean_body(value: str) -> str:
@@ -174,3 +190,31 @@ def folder_id(command: str, target: str = "", raw: str = "") -> str:
 
 def mac_open_requested(command: str) -> bool:
     return bool(MAC_OPEN_HINT.search(str(command or "")))
+
+
+def image_convert_format(command: str, target: str = "", raw: str = "") -> str:
+    alias = IMAGE_FORMATS.get(str(target or "").strip().casefold())
+    if alias:
+        return alias
+    payload = payload_from_text(raw or command)
+    if payload.get("kind") == "image_convert":
+        alias = IMAGE_FORMATS.get(str(payload.get("value") or "").strip().casefold())
+        if alias:
+            return alias
+    text = str(command or "").casefold()
+    for name, fmt in IMAGE_FORMATS.items():
+        if re.search(rf"\b{re.escape(name)}\b", text):
+            return fmt
+    if IMAGE_CONVERT_PATTERN.search(str(command or "")):
+        return "png"
+    return ""
+
+
+def image_convert_source(raw: str) -> dict:
+    payload = payload_from_text(raw)
+    if payload.get("kind") != "image_convert":
+        return {}
+    source = str(payload.get("source") or "").strip().casefold()
+    path = str(payload.get("path") or "").strip()
+    name = str(payload.get("name") or "").strip()
+    return {"source": source, "path": path, "name": name}

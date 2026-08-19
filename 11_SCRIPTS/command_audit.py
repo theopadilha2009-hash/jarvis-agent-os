@@ -102,6 +102,7 @@ CRITICAL_COMMANDS = [
     "computer",
     "computer-worker",
     "self-edit",
+    "promote-production",
     "files-triage",
     "run-list",
     "run-show",

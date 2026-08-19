@@ -2895,6 +2895,10 @@ def self_edit_command(args=None):
     """./jarvis self-edit "melhoria" [--dry-run] [--publish] — Codex isolado, publicação explícita."""
     _run_py_propagate("11_SCRIPTS/self_edit.py", args or [])
 
+def promote_production_command(args=None):
+    """./jarvis promote-production [--dry-run] [--deployment URL] — alias jarvis-theo no último deploy."""
+    _run_py_propagate("11_SCRIPTS/promote_production.py", args or [])
+
 def files_triage_command(args=None):
     """./jarvis files-triage [PASTA] [--limit N] — plano read-only."""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["files-triage", *(args or [])])
@@ -3233,6 +3237,7 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
   ./jarvis system-memory                     diagnostica RAM; limpa só temporários JARVIS sob pedido
   ./jarvis computer open|close "APP"         controla apps locais com evidência via Orca
   ./jarvis computer-worker --status          ponte Vercel → Supabase → Mac
+  ./jarvis promote-production [--dry-run]    alias jarvis-theo.vercel.app no último deploy
   ./jarvis files-triage PASTA                plano de organização, sem mover
 
 ## Lifecycle longo (quando `do` não basta)
@@ -3358,6 +3363,7 @@ def _help_full():
   ./jarvis computer list|inspect|open|close [APP] [--dry-run]  Computer Use local via Orca
   ./jarvis computer-worker [--once|--watch|--install|--status|--uninstall] [--dry-run]  fila allowlisted Vercel → Mac
   ./jarvis self-edit "melhoria" [--dry-run] [--publish]  altera/testa; --publish faz PR+merge+deploy apenas no JARVIS autorizado
+  ./jarvis promote-production [--dry-run] [--deployment URL]  aponta jarvis-theo.vercel.app para o último deploy de jarvis-agent-os
   ./jarvis files-triage [PASTA] [--limit N]  plano de organização por tipo; não move nada
   ./jarvis blueprint --type T --goal "..."  blueprint local (n8n|app|automation|research)
   ./jarvis research-digest [--goal "..."]  digest local dos deep research + plano de evolução
@@ -3595,6 +3601,8 @@ def main():
         computer_worker_command(sys.argv[2:])
     elif cmd == "self-edit":
         self_edit_command(sys.argv[2:])
+    elif cmd == "promote-production":
+        promote_production_command(sys.argv[2:])
     elif cmd == "files-triage":
         files_triage_command(sys.argv[2:])
     elif cmd == "run-list":

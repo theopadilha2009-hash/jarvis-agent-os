@@ -98,7 +98,7 @@ class SelfEditTest(unittest.TestCase):
             elif argv[:4] == ["git", "worktree", "add", "--detach"]:
                 Path(argv[4]).mkdir(parents=True, exist_ok=True)
             elif argv == ["vercel", "--prod", "--yes"]:
-                stdout = "Production https://jarvis-agent-test.vercel.app\n"
+                stdout = "Production https://jarvis-agent-os-abc123.vercel.app\n"
             return MODULE.subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr="")
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -111,6 +111,10 @@ class SelfEditTest(unittest.TestCase):
                 MODULE, "production_healthcheck", return_value={"status_real": "web_cockpit_ready"}
             ), patch.object(
                 MODULE, "activate_local_runtime", return_value="fast_forwarded_restart_requested"
+            ), patch.object(
+                MODULE,
+                "alias_production",
+                return_value={"ok": True, "deployment": "https://jarvis-agent-os-abc123.vercel.app", "alias": "https://jarvis-theo.vercel.app"},
             ):
                 result = MODULE.publish_release(
                     Path(tmp),
@@ -121,7 +125,7 @@ class SelfEditTest(unittest.TestCase):
                 )
 
         self.assertEqual(result["merge_commit"], merge_commit)
-        self.assertEqual(result["deployment_url"], "https://jarvis-agent-test.vercel.app")
+        self.assertEqual(result["deployment_url"], "https://jarvis-agent-os-abc123.vercel.app")
         commands = [call.args[0] for call in runner.call_args_list]
         self.assertIn(
             ["git", "push", "--set-upstream", MODULE.PUBLISH_REMOTE, "jarvis/self-edit-test"],

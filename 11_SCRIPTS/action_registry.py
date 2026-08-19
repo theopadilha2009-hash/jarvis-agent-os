@@ -85,6 +85,8 @@ ACTION_SPECS = (
     ActionSpec("open_folder", "Abrir pasta", "Abrir Downloads, Desktop, Documentos ou a pasta pessoal no Finder.", "mac", "runtime_write", "explicit_request", True, intents=("open_folder",)),
     ActionSpec("notify", "Avisar no Mac", "Mostrar uma notificação nativa no Mac pareado.", "mac", "runtime_write", "explicit_request", True, intents=("notify",)),
     ActionSpec("volume_set", "Volume do Mac", "Ajustar o volume de saída do sistema, sem shell livre.", "mac", "runtime_write", "explicit_request", True, intents=("volume_set",)),
+    ActionSpec("image_convert", "Converter imagem", "Converter anexo ou a imagem mais recente de Downloads para PNG, JPG ou TIFF.", "mac", "runtime_write", "explicit_request", True, intents=("image_convert",)),
+    ActionSpec("files_triage", "Organizar arquivos", "Gerar plano read-only da pasta Downloads, sem mover nem apagar.", "mac", "read_only", "explicit_request", True, intents=("files_triage",)),
     ActionSpec(
         "spotify_control",
         "Controlar Spotify",
@@ -105,7 +107,7 @@ ACTION_SPECS = (
     ActionSpec("storage_scan", "Analisar armazenamento", "Ler metadados e localizar arquivos grandes.", "mac", private=True, intents=("storage_scan",)),
     ActionSpec("system_memory", "Diagnosticar computador", "Inspecionar memória e processos temporários do JARVIS.", "mac", "runtime_write", "explicit_request", True, intents=("system_memory",)),
     ActionSpec("device_run", "Executar sequência", "Executar de duas a seis ações allowlisted em ordem, interrompendo na primeira falha.", "mac", "runtime_write", "explicit_request", True, intents=("device_run",)),
-    ActionSpec("local_utility", "Utilitário local", "Executar uma utilidade pessoal estreitamente allowlisted.", "local_worker", "runtime_write", "explicit_request", True, intents=("speak", "image_convert", "image_to_pdf", "message_draft", "files_triage")),
+    ActionSpec("local_utility", "Utilitário local", "Executar uma utilidade pessoal estreitamente allowlisted.", "local_worker", "runtime_write", "explicit_request", True, intents=("speak", "image_to_pdf", "message_draft")),
     ActionSpec("voice_design", "Criar voz", "Gerar e salvar uma nova voz do JARVIS no provedor configurado.", "voice", "external_write", "interactive", True, intents=("voice_design",)),
     ActionSpec(
         "message_send",
