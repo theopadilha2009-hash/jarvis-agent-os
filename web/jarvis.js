@@ -2323,8 +2323,8 @@
       session.responseState = "forge";
       stage.classList.add("spatial-result");
     }
-    if (data.client_action === "open_url" && data.open_url) {
-      window.open(data.open_url, "_blank", "noopener,noreferrer");
+    if (data.client_action === "open_url" && data.open_url && !data.already_opened) {
+      data.already_opened = Boolean(window.open(data.open_url, "_blank", "noopener,noreferrer"));
     }
     session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
@@ -2349,6 +2349,12 @@
         : "Resposta pronta no canal principal.";
     let extra = "";
     let messageActions = `<button class="copy-response" type="button">Copiar</button>`;
+    if (data.client_action === "open_url" && data.open_url) {
+      messageActions += `<a class="open-link" href="${escapeHtml(data.open_url)}" target="_blank" rel="noopener noreferrer">Abrir</a>`;
+    }
+    if (data.status_real === "free_web_search_unavailable" && session.currentCommand) {
+      messageActions += `<a class="open-link" href="https://www.google.com/search?q=${encodeURIComponent(session.currentCommand)}" target="_blank" rel="noopener noreferrer">Buscar no Google</a>`;
+    }
     extra += renderMessageContext(data);
     if (data.memory_suggestion) {
       messageActions += `<button class="memory-command" type="button">${session.paired ? "Guardar na memória" : "Memória privada"}</button>`;
@@ -2545,6 +2551,30 @@
     }, 30_000);
   }
 
+  function browserOpenFor(command) {
+    const value = String(command || "").toLocaleLowerCase("pt-BR");
+    if (session.paired && /\bspotify\b/.test(value)) return null;
+    const google = value.match(/^(?:google|pesquisa no google|busca no google)\s+(.+)/);
+    if (google) {
+      return { url: `https://www.google.com/search?q=${encodeURIComponent(google[1])}`, label: "Google" };
+    }
+    if (!/\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(value)) return null;
+    const targets = [
+      [/\bwhatsapp\b/, "https://web.whatsapp.com", "WhatsApp"],
+      [/\byoutube\b/, "https://www.youtube.com", "YouTube"],
+      [/\bspotify\b/, "https://open.spotify.com", "Spotify"],
+      [/\b(?:mapa|maps|como chegar)\b/, "https://maps.google.com", "Google Maps"],
+      [/\bcalend[aá]rio|agenda\b/, "https://calendar.google.com", "Agenda"],
+      [/\bgmail\b/, "https://mail.google.com", "Gmail"],
+      [/\bgithub\b/, "https://github.com", "GitHub"],
+      [/\bgoogle\b/, "https://www.google.com", "Google"],
+    ];
+    for (const [pattern, url, label] of targets) {
+      if (pattern.test(value)) return { url, label };
+    }
+    return null;
+  }
+
   async function sendCommand(rawValue, options = {}) {
     if (session.working) {
       input.focus();
@@ -2553,6 +2583,22 @@
     const attachments = options.includeAttachments ? session.attachments.slice() : [];
     const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
+    const localOpen = !attachments.length ? browserOpenFor(command) : null;
+    if (localOpen && options.source !== "voice") {
+      const popup = window.open(localOpen.url, "_blank", "noopener,noreferrer");
+      addMessage(command, "user");
+      input.value = "";
+      syncComposerAction();
+      syncComposerHeight();
+      showResponse({
+        ok: true,
+        message: popup ? `Abrindo ${localOpen.label}.` : `O navegador bloqueou o popup. Toque em Abrir.`,
+        client_action: "open_url",
+        open_url: localOpen.url,
+        already_opened: Boolean(popup),
+      });
+      return;
+    }
     if (session.paired && window.JarvisFeatureLoader?.screenUnavailable(command, session.deviceOnline)) {
       addMessage(command, options.source === "voice" ? "user voice" : "user");
       input.value = "";
@@ -3564,4 +3610,23 @@
   installVoiceInput();
   boot();
   window.setInterval(refreshPulse, 10 * 60 * 1000);
+  if (/[?&]debug=1(?:&|$)/.test(location.search)) {
+    const box = document.createElement("pre");
+    box.id = "jarvisDebug";
+    box.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:80;max-width:92vw;margin:0;font:11px/1.35 ui-monospace,monospace;background:#000c;color:#c4b5fd;padding:8px;border-radius:8px;white-space:pre-wrap";
+    const paint = () => {
+      const tts = window.JarvisLocalVoice?.info?.() || {};
+      box.textContent = [
+        "debug cockpit",
+        `token ${ownerToken() ? "sim" : "não"}`,
+        `remember ${rememberLoginEnabled() ? "sim" : "não"}`,
+        `paired ${session.paired ? "ultron" : session.codeMode ? "code" : "visitante"}`,
+        `tts ${tts.ok ? `${tts.engine || "ok"} ${tts.voice || ""}`.trim() : "offline"}`,
+        `lastError ${session.lastError || "—"}`,
+      ].join("\n");
+    };
+    document.body.appendChild(box);
+    paint();
+    window.setInterval(paint, 2000);
+  }
 })();

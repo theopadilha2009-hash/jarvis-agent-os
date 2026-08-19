@@ -89,6 +89,18 @@
     lastAnswer.textContent = clean.length > 180 ? `${clean.slice(0, 177)}…` : clean;
   }
 
+  function showAnswerLink(prefix, href, label) {
+    lastAnswer.hidden = false;
+    lastAnswer.textContent = "";
+    if (prefix) lastAnswer.append(document.createTextNode(`${prefix} `));
+    const link = document.createElement("a");
+    link.href = href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = label;
+    lastAnswer.append(link);
+  }
+
   function applyPersona(label) {
     const ultron = /ultron/i.test(String(label || ""));
     document.documentElement.dataset.persona = ultron ? "ultron" : "jarvis";
@@ -166,8 +178,15 @@
       .catch(() => speakLocal(clip));
   }
 
+  let lastOpenUrl = "";
+  let lastError = "";
+
   function openTarget(url) {
-    window.open(url, "_blank", "noopener,noreferrer");
+    lastOpenUrl = url;
+    const popup = window.open(url, "_blank", "noopener,noreferrer");
+    if (popup) return true;
+    showAnswerLink("Popup bloqueado.", url, "Toque para abrir");
+    return false;
   }
 
   function localClock() {
@@ -178,12 +197,15 @@
 
   function localAction(text) {
     const value = String(text || "").toLocaleLowerCase("pt-BR");
-    if (/\bwhatsapp\b/.test(value)) return () => openTarget("https://web.whatsapp.com");
-    if (/\byoutube\b/.test(value)) return () => openTarget("https://www.youtube.com");
-    if (/\bspotify\b/.test(value)) return () => openTarget("https://open.spotify.com");
-    if (/\b(?:mapa|maps|como chegar)\b/.test(value)) return () => openTarget("https://maps.google.com");
-    if (/\bcalend[aá]rio|agenda\b/.test(value)) return () => openTarget("https://calendar.google.com");
-    if (/\b(?:abre|abrir|abra)\s+(?:o\s+)?gmail\b/.test(value)) return () => openTarget("https://mail.google.com");
+    const opening = /\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(value);
+    if (opening && /\bwhatsapp\b/.test(value)) return () => openTarget("https://web.whatsapp.com");
+    if (opening && /\byoutube\b/.test(value)) return () => openTarget("https://www.youtube.com");
+    if (opening && /\bspotify\b/.test(value)) return () => openTarget("https://open.spotify.com");
+    if (opening && /\b(?:mapa|maps|como chegar)\b/.test(value)) return () => openTarget("https://maps.google.com");
+    if (opening && /\bcalend[aá]rio|agenda\b/.test(value)) return () => openTarget("https://calendar.google.com");
+    if (opening && /\b(?:o\s+)?gmail\b/.test(value)) return () => openTarget("https://mail.google.com");
+    if (opening && /\bgithub\b/.test(value)) return () => openTarget("https://github.com");
+    if (opening && /\bgoogle\b/.test(value)) return () => openTarget("https://www.google.com");
     if (/\bhoras?\b|\bque dia\b|\bdata de hoje\b/.test(value)) {
       return () => {
         const now = localClock();
@@ -199,9 +221,8 @@
         say("Copiado.", textToCopy || "Nada ainda.");
       };
     }
-    const search = value.match(/(?:pesquisa|busca|google)\s+(.+)/);
+    const search = value.match(/^(?:google|pesquisa no google|busca no google)\s+(.+)/);
     if (search) return () => openTarget(`https://www.google.com/search?q=${encodeURIComponent(search[1])}`);
-    if (/\b(?:abre|abrir|abra)\s+(?:o\s+)?google\b/.test(value)) return () => openTarget("https://www.google.com");
     if (/\bcockpit\b|\bjanela grande\b/.test(value)) return () => { window.location.href = "/"; };
     return null;
   }
@@ -235,14 +256,19 @@
       strength: ownerToken() ? "strong" : "auto",
     });
     const message = data.message || data.error || "Sem resposta.";
-    if (data.client_action === "open_url" && data.open_url) openTarget(data.open_url);
+    lastError = data.ok === false ? message : "";
+    const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
     if (response.status === 429) {
       say("Limite.", message);
       busy = false;
       return;
     }
     say(data.ok === false ? "Não." : "Pronto.", "");
-    showAnswer(message);
+    if (data.status_real === "free_web_search_unavailable") {
+      showAnswerLink(message, `https://www.google.com/search?q=${encodeURIComponent(command)}`, "Buscar no Google");
+    } else if (!opened) {
+      showAnswer(message);
+    }
     speak(message);
     busy = false;
   }
@@ -396,4 +422,24 @@
   try {
     if (sessionStorage.getItem(LISTEN_KEY) === "1") startWakeLoop();
   } catch { /* first visit */ }
+  if (/[?&]debug=1(?:&|$)/.test(location.search)) {
+    const box = document.createElement("pre");
+    box.id = "jarvisDebug";
+    box.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:99;max-width:92vw;margin:0;font:11px/1.35 ui-monospace,monospace;background:#000c;color:#c4b5fd;padding:8px;border-radius:8px;white-space:pre-wrap";
+    const paint = () => {
+      const tts = window.JarvisLocalVoice?.info?.() || {};
+      box.textContent = [
+        "debug fala",
+        `token ${ownerToken() ? "sim" : "não"}`,
+        `remember ${rememberLoginEnabled() ? "sim" : "não"}`,
+        `persona ${document.documentElement.dataset.persona || "—"}`,
+        `tts ${tts.ok ? `${tts.engine || "ok"} ${tts.voice || ""}`.trim() : "offline"}`,
+        `lastOpen ${lastOpenUrl || "—"}`,
+        `lastError ${lastError || "—"}`,
+      ].join("\n");
+    };
+    document.body.appendChild(box);
+    paint();
+    window.setInterval(paint, 2000);
+  }
 })();
