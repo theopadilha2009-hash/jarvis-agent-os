@@ -419,7 +419,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
         self.assertIn('presence-loader.js?v=20260819-ui2', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260819-vis3")', self.presence_loader_js)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260819-wire1")', self.presence_loader_js)
         self.assertIn("RoomEnvironment", self.presence_js)
         self.assertIn("MeshPhysicalMaterial", self.presence_js)
         self.assertIn("0x7741ad", self.presence_js)

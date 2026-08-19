@@ -98,12 +98,12 @@ async function loadObjHead(url) {
   const geometry = await loadObjGeometry(url);
   const material = new THREE.MeshPhysicalMaterial({
     color: 0x7741ad,
-    metalness: 0.04,
-    roughness: 0.52,
-    emissive: 0x5b21b6,
-    emissiveIntensity: 1.35,
+    metalness: 0.02,
+    roughness: 0.78,
+    emissive: 0x3b0764,
+    emissiveIntensity: 0.42,
     transparent: true,
-    opacity: 0.34,
+    opacity: 0.1,
     depthWrite: false,
     side: THREE.FrontSide,
     clearcoat: 0,
@@ -154,7 +154,7 @@ function makeVisitorLife(topologyGeometry) {
       void main() {
         float diagonal = position.x * 0.034 + position.z * 0.028;
         float wave = 0.5 + 0.5 * sin((diagonal - uTime * 0.17) * 6.2831853);
-        vSweep = pow(wave, 10.0);
+        vSweep = wave;
         vec3 posed = jarvisPoseHead(position, uHeadLook);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(posed, 1.0);
       }
@@ -163,13 +163,13 @@ function makeVisitorLife(topologyGeometry) {
       varying float vSweep;
       uniform float uEnergy;
       void main() {
-        float alpha = 0.04 + vSweep * (0.42 + uEnergy * 0.22);
-        gl_FragColor = vec4(0.69, 0.32, 1.0, alpha);
+        float alpha = 0.7 + vSweep * 0.18 + uEnergy * 0.12;
+        gl_FragColor = vec4(0.68, 0.32, 1.0, alpha);
       }
     `,
     transparent: true,
     depthWrite: false,
-    depthTest: true,
+    depthTest: false,
     blending: THREE.AdditiveBlending,
   });
   topologyMaterial.name = "visitor-animated-surface-topology";
@@ -1108,8 +1108,9 @@ async function start() {
     const ultronPersona = document.documentElement.dataset.persona === "ultron";
     if (visitorModel.material) {
       visitorModel.material.color.setHex(ultronPersona ? 0xef3340 : 0x7741ad);
-      visitorModel.material.emissive.setHex(ultronPersona ? 0x7f1d1d : 0x5b21b6);
-      visitorModel.material.emissiveIntensity = ultronPersona ? 0.9 : 1.35;
+      visitorModel.material.emissive.setHex(ultronPersona ? 0x4a0510 : 0x3b0764);
+      visitorModel.material.emissiveIntensity = ultronPersona ? 0.35 : 0.42;
+      visitorModel.material.opacity = 0.1;
       visitorModel.material.envMapIntensity = 0;
     }
     const activeColor = isOwner ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
