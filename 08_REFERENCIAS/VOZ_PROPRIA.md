@@ -23,9 +23,12 @@ compensado, corte de graves sujos, compressão suave e um eco curto de sala).
 
 ## Subir a voz própria
 
-O motor principal é o Pocket TTS no catálogo aprovado (`portuguese` +
-`bill_boerst`), no venv `~/.venv-pocket`. Config: env `JARVIS_TTS_ENGINE` /
-`JARVIS_TTS_LANGUAGE` / `JARVIS_TTS_VOICE` ou
+O motor principal é o Pocket TTS no catálogo (`portuguese` + `rafael` no
+JARVIS, `javert` no Ultron), no venv `~/.venv-pocket`. `bill_boerst` é voz
+inglesa — soa torto em pt-BR. Se `edge-tts` estiver no venv, a camada neural
+gratuita da Microsoft (`pt-BR-AntonioNeural` / `pt-BR-HumbertoNeural`) entra
+primeiro. Config: env `JARVIS_TTS_ENGINE` / `JARVIS_TTS_LANGUAGE` /
+`JARVIS_TTS_VOICE` / `JARVIS_TTS_ULTRON_VOICE` ou
 `~/Library/Application Support/JARVIS/voice-lock/VOICE_CONFIG.txt`.
 
 ```bash
@@ -34,7 +37,8 @@ python3 11_SCRIPTS/local_tts_server.py
 
 O processo carrega o modelo uma vez e atende `POST /speech` com WAV cru —
 o mesmo comportamento da CLI `pocket-tts generate --language portuguese
---voice bill_boerst --text "…"`. Sem cloning, sem WAV como `--voice`.
+--voice rafael --text "…"`. Sem cloning de ator. WAV de catálogo só pelos
+nomes oficiais (rafael, javert, …).
 
 Piper continua como fallback se Pocket falhar. Para forçar só o Piper:
 

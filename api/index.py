@@ -5185,7 +5185,7 @@ def status_payload(owner_authenticated=False, identity=None):
             ),
             "configured": bool(elevenlabs_ready or self_hosted_tts_url()),
             "voice_id": active_voice.get("voice_id"),
-            "name": active_voice.get("name") if elevenlabs_ready else ("bill_boerst" if self_hosted_tts_url() else ""),
+            "name": active_voice.get("name") if elevenlabs_ready else ("rafael" if self_hosted_tts_url() else ""),
             "source": active_voice.get("source") if elevenlabs_ready else ("self_hosted" if self_hosted_tts_url() else "browser"),
             "model": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
             "engine": "pocket_tts" if self_hosted_tts_url() and not elevenlabs_ready else "",
@@ -6158,6 +6158,11 @@ def self_hosted_speech(text, body=None):
     timbre = body.get("voice_profile") if isinstance(body, dict) else None
     timbre = timbre if isinstance(timbre, dict) else {}
     payload = {"text": text}
+    persona = ""
+    if isinstance(body, dict):
+        persona = clean_text(body.get("persona"), 40)
+    if persona:
+        payload["persona"] = persona
     for name, low, high in (("pitch", 0.70, 1.10), ("tempo", 0.80, 1.40)):
         try:
             if timbre.get(name) is not None:

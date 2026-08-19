@@ -1929,7 +1929,8 @@
   async function fetchSpeechChunk(text, generation, previousText = "", nextText = "") {
     const controller = new AbortController();
     currentSpeechController = controller;
-    const localBlob = await window.JarvisLocalVoice?.speakBlob(text);
+    const persona = document.documentElement.dataset.persona || "jarvis";
+    const localBlob = await window.JarvisLocalVoice?.speakBlob(text, { persona });
     if (generation !== speechGeneration) throw new DOMException("Speech stopped", "AbortError");
     if (localBlob) {
       session.localVoice = true;
@@ -1947,6 +1948,7 @@
         previous_text: previousText,
         next_text: nextText,
         voice_profile: window.JarvisVoiceCalibrator?.profile(),
+        persona: document.documentElement.dataset.persona || "jarvis",
         client_integrations: clientIntegrations,
       }),
       signal: controller.signal,
@@ -2966,7 +2968,7 @@
       byId("voiceValue").textContent = status.voice?.provider === "elevenlabs"
         ? `ElevenLabs${voiceSupport.input ? " + microfone" : ""}`
         : session.localVoice
-          ? `Pocket TTS · ${status.voice?.name || "bill_boerst"}`
+          ? `Pocket TTS · ${status.voice?.name || "rafael"}`
           : voiceSupport.input
             ? "microfone ativo · saída aguarda voz"
             : "voz aguarda motor local ou ElevenLabs";
@@ -2974,7 +2976,9 @@
         if (!base) return;
         const info = window.JarvisLocalVoice.info();
         session.localVoice = true;
-        byId("voiceValue").textContent = `Pocket TTS · ${info.voice || "bill_boerst"}`;
+        const persona = document.documentElement.dataset.persona || "jarvis";
+        const label = persona === "ultron" ? (info.ultronVoice || "javert") : (info.voice || "rafael");
+        byId("voiceValue").textContent = `Pocket TTS · ${label}`;
       }).catch(() => {});
       const ready = [
         status.ai?.configured || browserOpenRouter ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",

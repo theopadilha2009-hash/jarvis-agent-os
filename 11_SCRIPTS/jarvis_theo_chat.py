@@ -463,7 +463,7 @@ def local_reply(prompt: str) -> dict:
     lowered = text.casefold()
     if "voz" in lowered or "pocket" in lowered or "falar" in lowered:
         message = (
-            "Minha voz principal neste Mac é Pocket TTS local: portuguese + bill_boerst. "
+            "Minha voz principal neste Mac é Pocket TTS local: portuguese + rafael (JARVIS) e javert (Ultron). "
             "Sem cota, sem chave, sem OpenRouter. Se o servidor da 8123 cair, o alto-falante usa o say."
         )
     elif SELF_INTENT.search(text) or "o que você consegue" in lowered:

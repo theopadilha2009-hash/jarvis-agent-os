@@ -64,6 +64,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("local-voice.js", FALA_HTML)
         self.assertIn("speak(\"Aberto\")", FALA_JS)
         self.assertNotIn("speakLocal(\"Aberto\")", FALA_JS)
+        self.assertIn('persona', FALA_JS)
 
 
 if __name__ == "__main__":
