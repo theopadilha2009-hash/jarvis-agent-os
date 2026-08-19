@@ -106,8 +106,8 @@ def launcher_script(url: str) -> str:
 # Widget no canto: abre na hora, sem espera e sem segunda janela.
 # lock:{sealed}
 URL="${{JARVIS_COCKPIT_URL:-{url}}}"
-W=300
-H=430
+W=280
+H=380
 X=1100
 Y=22
 if command -v osascript >/dev/null 2>&1; then
@@ -141,7 +141,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "1.4") -> dict:
+def bundle_info(version: str = "1.5") -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,

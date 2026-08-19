@@ -73,8 +73,14 @@
     lastAnswer.textContent = clean.length > 180 ? `${clean.slice(0, 177)}…` : clean;
   }
 
+  function applyPersona(label) {
+    const ultron = /ultron/i.test(String(label || ""));
+    document.documentElement.dataset.persona = ultron ? "ultron" : "jarvis";
+  }
+
   function renderAccess(label) {
     accessLine.textContent = label;
+    applyPersona(label);
     const inSession = Boolean(ownerToken());
     logoutButton.hidden = !inSession;
     loginForm.querySelector("#loginUser").hidden = inSession;
@@ -109,11 +115,13 @@
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       const finish = () => {
+        orb.classList.remove("speaking");
         URL.revokeObjectURL(url);
         resolve();
       };
       audio.addEventListener("ended", finish, { once: true });
       audio.addEventListener("error", finish, { once: true });
+      orb.classList.add("speaking");
       audio.play().catch(finish);
     });
   }
@@ -280,7 +288,7 @@
 
   moreButton.addEventListener("click", () => {
     extras.hidden = !extras.hidden;
-    moreButton.textContent = extras.hidden ? "conta" : "fechar";
+    moreButton.textContent = extras.hidden ? "mais" : "fechar";
   });
   orb.addEventListener("click", () => {
     startWakeLoop(); // user-gesture
@@ -335,7 +343,7 @@
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       extras.hidden = true;
-      moreButton.textContent = "conta";
+      moreButton.textContent = "mais";
     }
     if (event.key === "/" && document.activeElement !== input && document.activeElement?.tagName !== "INPUT") {
       event.preventDefault();
@@ -344,8 +352,7 @@
   });
   window.addEventListener("offline", () => say("Offline.", "Atalhos locais ainda funcionam."));
   window.addEventListener("online", () => say("Online.", "Pode pedir de novo."));
-  say("Oi.", `Toque e diga “oi Jarvis”.`);
-  caption.textContent = appMode ? "Widget no canto." : `Toque e diga “oi Jarvis”.`;
+  say("oi Jarvis", appMode ? "toque no brilho e fale" : "toque no brilho e diga oi Jarvis");
   refreshAccess();
   try {
     if (sessionStorage.getItem(LISTEN_KEY) === "1") startWakeLoop();
