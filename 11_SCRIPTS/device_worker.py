@@ -573,7 +573,13 @@ def finish_command(
 
 
 def applescript_string(value: str) -> str:
-    return str(value or "").replace("\\", "\\\\").replace('"', '\\"')
+    return (
+        str(value or "")
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+    )
 
 
 def mac_note_from_job(job: dict) -> dict:
