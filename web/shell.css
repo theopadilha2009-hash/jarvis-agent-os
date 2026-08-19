@@ -252,6 +252,28 @@
   align-items: center;
   gap: 6px;
 }
+.stage[data-access="guest"] .access-mode {
+  min-height: 32px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(192, 132, 252, 0.42);
+  background: rgba(124, 58, 237, 0.28);
+  font-weight: 600;
+}
+.welcome-login {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  margin: 8px 8px 0 0;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(192, 132, 252, 0.4);
+  background: rgba(124, 58, 237, 0.35);
+  color: #f6eefe;
+  font: inherit;
+  cursor: pointer;
+}
 .access-swap {
   width: 13px;
   height: 13px;

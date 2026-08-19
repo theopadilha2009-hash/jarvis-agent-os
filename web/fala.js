@@ -82,6 +82,9 @@
     accessLine.textContent = label;
     applyPersona(label);
     const inSession = Boolean(ownerToken());
+    document.documentElement.classList.toggle("signed-in", inSession);
+    const loginToggle = document.getElementById("loginToggle");
+    if (loginToggle) loginToggle.hidden = inSession;
     logoutButton.hidden = !inSession;
     loginForm.querySelector("#loginUser").hidden = inSession;
     loginForm.querySelector("#loginPass").hidden = inSession;
@@ -180,7 +183,7 @@
     }
     const search = value.match(/(?:pesquisa|busca|google)\s+(.+)/);
     if (search) return () => openTarget(`https://www.google.com/search?q=${encodeURIComponent(search[1])}`);
-    if (/^(?:abre|abrir|abra)\s+(?:o\s+)?google\b/.test(value)) return () => openTarget("https://www.google.com");
+    if (/\b(?:abre|abrir|abra)\s+(?:o\s+)?google\b/.test(value)) return () => openTarget("https://www.google.com");
     if (/\bcockpit\b|\bjanela grande\b/.test(value)) return () => { window.location.href = "/"; };
     return null;
   }
@@ -209,8 +212,12 @@
     }
     busy = true;
     say("…", command);
-    const { response, data } = await postJson("/command", { command, strength: "auto" });
+    const { response, data } = await postJson("/command", {
+      command,
+      strength: ownerToken() ? "strong" : "auto",
+    });
     const message = data.message || data.error || "Sem resposta.";
+    if (data.client_action === "open_url" && data.open_url) openTarget(data.open_url);
     if (response.status === 429) {
       say("Limite.", message);
       busy = false;
@@ -289,6 +296,11 @@
   moreButton.addEventListener("click", () => {
     extras.hidden = !extras.hidden;
     moreButton.textContent = extras.hidden ? "mais" : "fechar";
+  });
+  document.getElementById("loginToggle")?.addEventListener("click", () => {
+    extras.hidden = false;
+    moreButton.textContent = "fechar";
+    document.getElementById("loginUser")?.focus();
   });
   orb.addEventListener("click", () => {
     startWakeLoop(); // user-gesture

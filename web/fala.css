@@ -139,7 +139,8 @@ html[data-persona="ultron"] #orb img { filter: hue-rotate(312deg) saturate(1.25)
   background: rgba(var(--glow), .14);
   border-color: rgba(var(--glow), .32);
 }
-#moreButton {
+.face-actions { display: flex; gap: 8px; -webkit-app-region: no-drag; }
+#loginToggle, #moreButton {
   background: transparent;
   color: var(--muted);
   font-size: 10px;
@@ -147,6 +148,12 @@ html[data-persona="ultron"] #orb img { filter: hue-rotate(312deg) saturate(1.25)
   text-transform: uppercase;
   min-height: 26px;
 }
+#loginToggle {
+  color: var(--ink);
+  border-color: rgba(var(--glow), .4);
+  background: rgba(var(--glow), .16);
+}
+html.app-mode.signed-in #loginToggle { display: none; }
 #extras { width: 100%; display: grid; gap: 8px; justify-items: center; }
 #extras[hidden] { display: none; }
 .quick { flex-wrap: wrap; justify-content: center; }

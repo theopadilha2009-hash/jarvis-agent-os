@@ -2305,6 +2305,9 @@
       session.responseState = "forge";
       stage.classList.add("spatial-result");
     }
+    if (data.client_action === "open_url" && data.open_url) {
+      window.open(data.open_url, "_blank", "noopener,noreferrer");
+    }
     session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
     stage.classList.add("spatial-result");
@@ -2571,7 +2574,7 @@
         messages: session.history,
         input_mode: options.source || "text",
         attachments,
-        strength: session.strength,
+        strength: session.paired && session.strength === "auto" ? "strong" : session.strength,
         persona_style: window.JarvisPersonaPanel?.current() || personaStyleFallback(),
         client_integrations: clientIntegrations,
       };
@@ -2938,7 +2941,7 @@
           ? "Theo · modo Ultron"
           : session.codeMode
             ? `${session.accountName || "conta"} · code`
-            : "visitante";
+            : "Entrar";
       byId("accessMode").dataset.action = canLeaveOwnerMode ? "logout" : "details";
       byId("accessMode").title = canLeaveOwnerMode
         ? "Voltar ao modo visitante"
@@ -2952,6 +2955,8 @@
           : status.access?.public_chat
             ? "Visitante · conversa liberada, memória e Mac privados"
             : "Visitante · conversa aguarda OpenRouter";
+      const welcomeLogin = byId("welcomeLogin");
+      if (welcomeLogin) welcomeLogin.hidden = Boolean(session.paired || session.codeMode);
       const welcomeHint = byId("welcomeHint");
       if (welcomeHint) {
         welcomeHint.textContent = session.paired
@@ -3244,7 +3249,12 @@
       return;
     }
     dialog.showModal();
+    window.setTimeout(() => byId("adminPassword")?.focus(), 30);
     refreshActionHistory();
+  });
+  byId("welcomeLogin")?.addEventListener("click", () => {
+    dialog.showModal();
+    window.setTimeout(() => byId("adminPassword")?.focus(), 30);
   });
   integrationsButton?.addEventListener("click", async () => {
     renderIntegrationRegistry();

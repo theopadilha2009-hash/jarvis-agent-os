@@ -104,7 +104,8 @@ ADVISORY_RESPONSE_PATTERN = re.compile(
 WEB_SEARCH_EXPLICIT_PATTERN = re.compile(
     r"\b(?:pesquis(?:a|e|ar|ando)|busc(?:a|ar|ando)|busqu(?:e|em|es)|procur(?:a|e|ar)\s+(?:na\s+)?(?:web|internet|google)|"
     r"google\s+(?:isso|isto|por|sobre)|consulta(?:r)?\s+(?:a\s+)?(?:web|internet)|busca\s+ao\s+vivo|"
-    r"pesquisa\s+online|fontes?\s+(?:atuais|online|da\s+web)|na\s+internet)\b",
+    r"pesquisa\s+online|fontes?\s+(?:atuais|online|da\s+web)|na\s+internet|"
+    r"me\s+(?:fala|diga|conta)\s+sobre|olha\s+na\s+(?:web|internet)|se\s+informa(?:\s+sobre)?)\b",
     re.I,
 )
 WEB_SEARCH_FRESHNESS_PATTERN = re.compile(
@@ -113,7 +114,12 @@ WEB_SEARCH_FRESHNESS_PATTERN = re.compile(
     r"placar|resultado\s+(?:do|da|de)\s+jogo|clima\s+(?:agora|hoje)|previs[aã]o\s+do\s+tempo|"
     r"quem\s+[eé]\s+(?:o|a)\s+atual|vers[aã]o\s+(?:atual|mais\s+nova)|lan[cç]amento\s+mais\s+recente|"
     r"qual(?:\s+[ée])?\s+(?:a\s+)?melhor\b.{0,50}\b(?:hoje|agora|atual)|"
-    r"melhor(?:es)?\b.{0,50}\b(?:hoje|agora|atual))\b",
+    r"melhor(?:es)?\b.{0,50}\b(?:hoje|agora|atual)|esta\s+semana|neste\s+momento)\b",
+    re.I,
+)
+WEB_SEARCH_OWNER_PATTERN = re.compile(
+    r"\b(?:o\s+que\s+aconteceu|o\s+que\s+rolou|contexto\s+atual|atualiza(?:ção|e)|"
+    r"not[ií]cias?\b|me\s+atualiza)\b",
     re.I,
 )
 WEB_SEARCH_DECISION_PATTERN = re.compile(
@@ -1878,6 +1884,22 @@ APPLICATION_INTENT_PATTERNS = {
     ),
 }
 
+WEB_OPEN_TARGETS = (
+    (re.compile(r"\bwhatsapp\b", re.I), "https://web.whatsapp.com", "WhatsApp"),
+    (re.compile(r"\byoutube\b", re.I), "https://www.youtube.com", "YouTube"),
+    (re.compile(r"\bspotify\b", re.I), "https://open.spotify.com", "Spotify"),
+    (re.compile(r"\b(?:mapa|maps|como chegar)\b", re.I), "https://maps.google.com", "Google Maps"),
+    (re.compile(r"\b(?:calend[aá]rio|agenda)\b", re.I), "https://calendar.google.com", "Agenda"),
+    (re.compile(r"\b(?:abre|abrir|abra)\s+(?:o\s+)?gmail\b", re.I), "https://mail.google.com", "Gmail"),
+    (re.compile(r"\bgithub\b", re.I), "https://github.com", "GitHub"),
+    (re.compile(r"\bgoogle\b", re.I), "https://www.google.com", "Google"),
+)
+WEB_OPEN_PATTERN = re.compile(
+    r"\b(?:abr(?:a|e|ir)|inici(?:a|e|ar))\b.{0,48}\b"
+    r"(?:google|whatsapp|youtube|spotify|gmail|mapa|maps|calend[aá]rio|agenda|github)\b",
+    re.I,
+)
+
 APPLICATION_ALIASES = {
     "chrome": "Google Chrome",
     "google chrome": "Google Chrome",
@@ -2780,8 +2802,8 @@ def pairing_required_payload():
         "endpoint": "POST /command",
         "status_real": "owner_pairing_required",
         "visual_state": "error",
-        "error": "Não executei a ação: este navegador está em modo visitante. Abra Sistema e entre no modo Ultron para liberar memória, agenda e o Mac.",
-        "next_action": "Entrar no modo Ultron pelo painel Sistema e repetir o pedido.",
+        "error": "Não executei a ação: este navegador está em modo visitante. Toque em Entrar e use login e senha do Ultron.",
+        "next_action": "Toque em Entrar, informe login e senha, e peça de novo.",
         "action_executed": False,
         "pairing_required": True,
     }, 401
@@ -5559,6 +5581,33 @@ def supabase_memory_archive(body):
         return {"ok": False, "error": "O arquivamento não foi confirmado no Supabase."}, 504
 
 
+def browser_open_payload(command, owner_authenticated=False):
+    """Abre destino web no próprio navegador — sem worker do Mac."""
+    text = clean_text(command, 400)
+    if not text or re.search(r"\b(gravador|grava[cç][aã]o\s+de\s+tela|print|screenshot)\b", text, re.I):
+        return None
+    if not (WEB_OPEN_PATTERN.search(text) or APPLICATION_INTENT_PATTERNS["open_application"].fullmatch(text)):
+        return None
+    for pattern, url, label in WEB_OPEN_TARGETS:
+        if not pattern.search(text):
+            continue
+        if owner_authenticated and label == "Spotify":
+            continue
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "browser_open",
+            "visual_state": "success",
+            "intent": "open_url",
+            "message": f"Abrindo {label}.",
+            "client_action": "open_url",
+            "open_url": url,
+            "provider": "jarvis_browser",
+            "action_executed": True,
+        }
+    return None
+
+
 def computer_app_command(command, intent):
     pattern = APPLICATION_INTENT_PATTERNS.get(intent)
     match = pattern.fullmatch(clean_text(command, 300)) if pattern else None
@@ -6399,18 +6448,19 @@ def creator_profile_payload(kind="full"):
     }, 200
 
 
-def should_search_web(messages):
+def should_search_web(messages, owner_authenticated=False):
     """Route explicit research and time-sensitive questions to live search."""
     if not messages:
         return False
     latest = clean_text(messages[-1].get("content"), 8_000)
-    if is_identity_question(latest):
+    if is_identity_question(latest) or CREATOR_QUESTION_PATTERN.search(latest):
         return False
     return bool(
         is_automotive_research(latest)
         or WEB_SEARCH_EXPLICIT_PATTERN.search(latest)
         or WEB_SEARCH_FRESHNESS_PATTERN.search(latest)
         or WEB_SEARCH_DECISION_PATTERN.search(latest)
+        or (owner_authenticated and WEB_SEARCH_OWNER_PATTERN.search(latest))
         or (
             GITHUB_RESEARCH_PATTERN.search(latest)
             and re.search(r"\b(?:pesquis\w*|busc\w*|procur\w*|investig\w*|encontr\w*|ach\w*|compar\w*|similares?)\b", latest, re.I)
@@ -6418,19 +6468,20 @@ def should_search_web(messages):
     )
 
 
-def web_search_server_tool():
+def web_search_server_tool(strength="auto"):
     """OpenRouter-operated search tool; the model never receives a search API key."""
     configured_engine = clean_text(os.environ.get("OPENROUTER_WEB_SEARCH_ENGINE") or "auto", 30).casefold()
     engine = configured_engine if configured_engine in {
         "auto", "native", "exa", "firecrawl", "parallel", "perplexity",
     } else "auto"
+    high = strength in {"strong", "maximum"}
     return {
         "type": "openrouter:web_search",
         "parameters": {
             "engine": engine,
-            "max_results": 5,
-            "max_total_results": 8,
-            "search_context_size": "medium",
+            "max_results": 8 if high else 5,
+            "max_total_results": 12 if high else 8,
+            "search_context_size": "high" if high else "medium",
         },
     }
 
@@ -8636,9 +8687,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
 
     latest = messages[-1]["content"]
     response_strength = normalized_response_strength(body)
+    if owner_authenticated and response_strength == "auto":
+        response_strength = "strong"
     response_profile = assistant_response_profile(latest, attachments, response_strength)
     power_profile = execution_power_profile(owner_authenticated)
-    web_search_requested = should_search_web(messages)
+    web_search_requested = should_search_web(messages, owner_authenticated=owner_authenticated)
     if DAILY_BRIEF_PATTERN.search(latest):
         return daily_brief_payload(owner_authenticated=owner_authenticated)
     if CAPABILITY_OVERVIEW_PATTERN.search(latest):
@@ -8650,6 +8703,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             return pairing_required_payload()
         return elevenlabs_voice_design(latest)
     device_plan = compound_device_plan(latest)
+    if not device_plan:
+        web_open = browser_open_payload(latest, owner_authenticated=owner_authenticated)
+        if web_open:
+            return web_open, 200
     if device_plan:
         return dispatch_device_plan(
             latest,
@@ -8705,7 +8762,16 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         free_search_bundle = public_search_sources(latest)
     free_search_sources = free_search_bundle.get("sources") if isinstance(free_search_bundle.get("sources"), list) else []
     paid_web_search_enabled = os.environ.get("JARVIS_ALLOW_PAID_WEB_SEARCH", "").strip() == "1"
-    provider_web_search = bool(web_search_requested and not free_search_sources and paid_web_search_enabled)
+    provider_web_search = bool(
+        web_search_requested
+        and not free_search_sources
+        and (
+            paid_web_search_enabled
+            or owner_authenticated
+            or response_strength in {"strong", "maximum"}
+        )
+        and bool(openrouter_api_keys())
+    )
     if web_search_requested and not free_search_sources and not provider_web_search:
         return {
             "ok": False,
@@ -8929,7 +8995,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     if any(item["type"] == "application/pdf" for item in attachments):
         openrouter_payload["plugins"] = [{"id": "file-parser", "pdf": {"engine": "cloudflare-ai"}}]
     agent_tools = agent_tool_definitions() if tool_access and should_offer_agent_tools(messages) else []
-    provider_tools = ([web_search_server_tool()] if provider_web_search else []) + agent_tools
+    provider_tools = ([web_search_server_tool(response_strength)] if provider_web_search else []) + agent_tools
     if provider_tools:
         openrouter_payload.update({
             "tools": provider_tools,
@@ -9326,6 +9392,11 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
         return creator_profile_payload("full")
     if IDENTITY_QUESTION_PATTERN.search(command):
         return creator_profile_payload("short")
+
+    if not compound_device_plan(command):
+        web_open = browser_open_payload(command, owner_authenticated=owner_authenticated)
+        if web_open:
+            return web_open, 200
 
     recent_messages = normalize_messages(body)[-6:]
     memory_was_opened = any(
