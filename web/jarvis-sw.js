@@ -32,7 +32,7 @@ const SHELL = [
   "/ui/jarvis.js?v=20260819-ui2",
   "/ui/local-voice.js?v=20260818-voice2",
   "/ui/creator-seal.js?v=20260817-app1",
-  "/ui/jarvis-3d.js?v=20260819-wire1",
+  "/ui/jarvis-3d.js?v=20260819-aug15",
   "/ui/aurora.js?v=20260813-apitools1",
   "/ui/strands.js?v=20260813-apitools1",
   "/ui/vendor/ogl/jarvis.js",

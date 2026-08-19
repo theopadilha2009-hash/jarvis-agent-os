@@ -558,7 +558,7 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, presence_loader = self.request("/ui/presence-loader.js")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
-        self.assertIn(b"jarvis-3d.js?v=20260819-wire1", presence_loader)
+        self.assertIn(b"jarvis-3d.js?v=20260819-aug15", presence_loader)
         self.assertIn(b"requestIdleCallback", presence_loader)
         self.assertIn(b'/ui/aurora.js', presence_loader)
         self.assertIn(b'/ui/strands.js', presence_loader)
