@@ -116,7 +116,7 @@
 .composer {
   grid-row: 4;
   display: grid;
-  grid-template-columns: 40px 56px 42px auto minmax(0, 1fr);
+  grid-template-columns: 40px 56px 42px 42px 42px minmax(0, 1fr);
   grid-template-rows: 42px auto;
   gap: 8px;
   padding: 8px 12px 12px;
@@ -142,6 +142,17 @@
   width: 42px;
   min-width: 42px;
   height: 42px;
+  place-self: center start;
+}
+.composer .palette-button {
+  grid-column: 5;
+  grid-row: 1;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 50%;
   place-self: center start;
 }
 .composer input,
@@ -182,6 +193,147 @@
   height: 13px;
   fill: currentColor;
 }
+
+.github-star-button {
+  display: inline-flex;
+  align-items: stretch;
+  height: 28px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #fff;
+  color: #24292f;
+  font: 600 12px/26px ui-sans-serif, system-ui, sans-serif;
+  text-decoration: none;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.github-star-button:is(:hover, :focus-visible) {
+  background: #f6f8fa;
+  border-color: #afb8c1;
+  color: #1f2328;
+}
+.github-star-button .github-star-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+.github-star-button svg { width: 16px; height: 16px; fill: currentColor; }
+.github-star-button b {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-left: 1px solid #d0d7de;
+  background: #f6f8fa;
+  font-weight: 600;
+}
+.github-star-button b[hidden] { display: none; }
+
+.code-hot-button,
+.app-download-button {
+  border-color: rgba(168, 85, 247, 0.55) !important;
+  background: rgba(124, 58, 237, 0.34) !important;
+  color: #f6eefe !important;
+  font-weight: 650;
+  gap: 6px;
+}
+.code-hot-button svg,
+.app-download-button svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+.palette-button {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: rgba(192, 132, 252, 0.06);
+  color: var(--cyan-hot);
+  cursor: pointer;
+}
+.palette-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+.palette-button b {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.palette-button[aria-expanded="true"] {
+  border-color: rgba(216, 180, 254, 0.9);
+  background: rgba(168, 85, 247, 0.28);
+}
+.composer { position: relative; }
+.command-palette {
+  position: absolute;
+  z-index: 8;
+  right: 10px;
+  bottom: calc(100% + 6px);
+  left: 10px;
+  display: grid;
+  gap: 4px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid rgba(192, 132, 252, 0.32);
+  border-radius: 14px;
+  background: rgba(18, 8, 34, 0.96);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+.command-palette[hidden] { display: none; }
+.command-palette button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #f6eefe;
+  text-align: left;
+  cursor: pointer;
+  font: 13px inherit;
+}
+.command-palette button small { color: #c4b5fd; font-size: 11px; }
+.command-palette button:hover,
+.command-palette button[aria-selected="true"] { background: rgba(124, 58, 237, 0.28); }
+.command-palette .palette-empty { padding: 8px 10px; color: #c4b5fd; font-size: 12px; }
+
+.system-dialog { width: min(560px, calc(100vw - 24px)); }
+.system-tabs {
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px 0;
+}
+.system-tabs button {
+  min-height: 34px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: rgba(255,255,255,.04);
+  color: #e9d5ff; cursor: pointer; font: 11px inherit;
+}
+.system-tabs button[aria-selected="true"] {
+  border-color: rgba(216, 180, 254, .55);
+  background: rgba(124, 58, 237, .32); color: #fff;
+}
+.download-dialog { width: min(480px, calc(100vw - 24px)); }
+.download-body { display: grid; gap: 14px; padding: 16px; }
+.download-body p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.download-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.download-grid a, .download-grid .quiet-button {
+  min-height: 46px; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 12px; border-radius: 12px; border: 1px solid var(--line);
+  background: rgba(124, 58, 237, .22); color: #f6eefe; text-decoration: none;
+  font: 600 13px inherit; text-align: center;
+}
+.download-grid a:hover { border-color: rgba(216, 180, 254, .5); }
 
 /* ---------- Cartão do criador ---------- */
 .author-card {
@@ -249,10 +401,8 @@
 .stage:not([data-nuclei="3d"]) .nucleus-legend { display: none; }
 
 /* Visitante só vê o essencial; o ícone de troca abre o acesso. */
-.stage[data-access="guest"] #tourButton,
 .stage[data-access="guest"] #actionHubButton,
 .stage[data-access="guest"] #integrationsButton,
-.stage[data-access="guest"] #qualityButton,
 .stage[data-access="guest"] #detailsButton { display: none; }
 .stage:not([data-access="owner"]) #notesPadButton { display: none; }
 
@@ -303,17 +453,18 @@
 @media (max-width: 720px) {
   .conversation-head { padding-inline: 11px; }
   .composer {
-    grid-template-columns: 40px 52px 44px auto minmax(0, 1fr);
+    grid-template-columns: 40px 52px 44px 44px 44px minmax(0, 1fr);
     gap: 7px;
     padding: 7px 9px max(9px, env(safe-area-inset-bottom));
   }
   .composer .voice-button,
   .composer .wake-indicator,
+  .composer .palette-button,
   .composer .send-button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
   .composer input,
   .composer textarea { min-height: 48px; font-size: 16px; }
 }
 
 @media (max-width: 350px) {
-  .composer { grid-template-columns: 38px 48px 44px auto minmax(0, 1fr); gap: 6px; }
+  .composer { grid-template-columns: 38px 48px 44px 44px 44px minmax(0, 1fr); gap: 6px; }
 }

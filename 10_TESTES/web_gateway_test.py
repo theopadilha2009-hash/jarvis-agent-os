@@ -123,6 +123,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(headers["Cross-Origin-Opener-Policy"], "same-origin")
         self.assertTrue(payload["creator"]["sealed"])
         self.assertEqual(payload["mac_app"]["download"], "/download/mac")
+        self.assertEqual(payload["vscode_pack"]["download"], "/download/vscode")
         self.assertIn("guest_ip_limits", payload["public_security"])
         self.assertEqual(payload["public_security"]["guest_daily_command"], 36)
         self.assertEqual(payload["public_security"]["guest_speech_max_chars"], 240)
@@ -147,6 +148,75 @@ class WebGatewayTest(unittest.TestCase):
         with zipfile.ZipFile(BytesIO(zip_body)) as archive:
             self.assertIn("INSTALAR.command", archive.namelist())
             self.assertIn("/fala", archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8"))
+
+    def test_vscode_pack_download_and_code_pad_intent(self):
+        self.assertIn(b'id="codePadButton"', self.request("/cockpit")[2])
+        zip_status, zip_headers, zip_body = self.request("/download/vscode")
+        self.assertEqual(zip_status, 200)
+        self.assertEqual(zip_headers.get_content_type(), "application/zip")
+        self.assertIn("JARVIS-theo-vscode.zip", zip_headers.get("Content-Disposition", ""))
+        self.assertTrue(zip_body.startswith(b"PK"))
+        import zipfile
+        from io import BytesIO
+        with zipfile.ZipFile(BytesIO(zip_body)) as archive:
+            names = archive.namelist()
+            self.assertIn("INSTALAR-MAC.command", names)
+            self.assertIn("INSTALAR-WINDOWS.cmd", names)
+            self.assertIn("bin/jarvis-theo", names)
+            self.assertIn("extension/extension.js", names)
+            self.assertTrue(any(name.endswith(".vsix") for name in names))
+            self.assertIn("fromClipboard", archive.read("extension/extension.js").decode("utf-8"))
+        opened, opened_status = MODULE.command_payload({"command": "abre o jarvis code"})
+        self.assertEqual(opened_status, 200)
+        self.assertEqual(opened["intent"], "code_pad")
+        self.assertEqual(opened["client_action"], "open_code_pad")
+        self.assertEqual(opened["download_url"], "/download/vscode")
+        self.assertEqual(MODULE.command_intent("cola no vscode"), "code_pad")
+        self.assertEqual(MODULE.command_intent("copia para o visual studio code"), "code_pad")
+        self.assertEqual(MODULE.command_intent("abre o modo code"), "code_session")
+        sent, sent_status = MODULE.command_payload({"command": "baixar jarvis-theo pro vscode"})
+        self.assertEqual(sent_status, 200)
+        self.assertEqual(sent["intent"], "file_send")
+        self.assertEqual(sent["download_url"], "/download/vscode")
+        self.assertEqual(sent["download_name"], "JARVIS-theo-vscode.zip")
+        win_status, win_headers, win_body = self.request("/download/windows")
+        self.assertEqual(win_status, 200)
+        self.assertIn("JARVIS.windows.zip", win_headers.get("Content-Disposition", ""))
+        self.assertTrue(win_body.startswith(b"PK"))
+        mac_code, _, mac_zip = self.request("/download/vscode/mac")
+        self.assertEqual(mac_code, 200)
+        import zipfile
+        from io import BytesIO
+        with zipfile.ZipFile(BytesIO(mac_zip)) as archive:
+            self.assertIn("INSTALAR-MAC.command", archive.namelist())
+            self.assertNotIn("INSTALAR-WINDOWS.cmd", archive.namelist())
+
+    def test_github_star_endpoint_is_first_party(self):
+        MODULE._GITHUB_STAR_CACHE["at"] = 0
+        MODULE._GITHUB_STAR_CACHE["payload"] = None
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def read(self, _n=-1):
+                return b'{"stargazers_count": 41345}'
+        with patch.object(MODULE, "urlopen", return_value=FakeResponse()):
+            status, _, payload = self.json_request("/github-star")
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["stars"], 41345)
+        self.assertIn("theopadilha2009-hash/jarvis-agent-os", payload["url"])
+        self.assertIn("read(8_000)", (ROOT / "api" / "index.py").read_text(encoding="utf-8"))
+        html_status, _, html = self.request("/cockpit")
+        self.assertEqual(html_status, 200)
+        self.assertIn(b'id="githubStarButton"', html)
+        self.assertIn(b"Star", html)
+        self.assertNotIn(b"ghbtns.com", html)
+        loader_status, _, loader = self.request("/ui/feature-loader.js")
+        self.assertEqual(loader_status, 200)
+        self.assertIn(b"/github-star", loader)
+        self.assertNotIn(b"ghbtns.com", loader)
 
     def test_public_origin_lock_and_guest_ip_limit(self):
         status, _, payload = self.json_request(
@@ -277,19 +347,19 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', html)
         self.assertIn(b'/ui/integration-history.js?v=20260813-ultronfix1', html)
-        self.assertIn(b'/ui/feature-loader.js?v=20260819-notas2', html)
+        self.assertIn(b'/ui/feature-loader.js?v=20260819-ui2', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-files1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260819-ui2', html)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', html)
-        self.assertIn(b'/ui/shell.css?v=20260819-notas1', html)
+        self.assertIn(b'/ui/shell.css?v=20260819-ui2', html)
         self.assertIn(b'id="welcomeLogin"', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260819-files1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260819-ui2', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260815-vozes2', html)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
         self.assertIn(b'/ui/responsive-polish.css?v=20260819-notas1', html)
-        self.assertIn(b'/ui/presence-loader.js?v=20260819-files1', html)
+        self.assertIn(b'/ui/presence-loader.js?v=20260819-ui2', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -375,7 +445,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'"/login"', app_js)
         self.assertIn(b'"/signup"', app_js)
         self.assertIn(b'"/accounts"', app_js)
-        self.assertIn(b"ElevenLabs sem cr\xc3\xa9ditos", app_js)
+        self.assertNotIn(b"ElevenLabs sem cr\xc3\xa9ditos", app_js)
+        self.assertIn(b"markElevenlabsExhausted", app_js)
         self.assertIn(b"new AbortController()", app_js)
         self.assertIn(b"signal: controller.signal", app_js)
         self.assertIn(b"currentSpeechController?.abort()", app_js)
@@ -487,7 +558,7 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, presence_loader = self.request("/ui/presence-loader.js")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
-        self.assertIn(b"jarvis-3d.js?v=20260819-files1", presence_loader)
+        self.assertIn(b"jarvis-3d.js?v=20260819-vis3", presence_loader)
         self.assertIn(b"requestIdleCallback", presence_loader)
         self.assertIn(b'/ui/aurora.js', presence_loader)
         self.assertIn(b'/ui/strands.js', presence_loader)
@@ -574,8 +645,11 @@ class WebGatewayTest(unittest.TestCase):
         self.assertNotIn(b"new THREE.CircleGeometry(0.06, 3)", visual_js)
         self.assertIn(b"facingYaw", visual_js)
         self.assertIn(b"visitor-purple-volume", visual_js)
-        self.assertIn(b"makeVisitorAlbedo", visual_js)
+        self.assertIn(b"MeshPhysicalMaterial", visual_js)
+        self.assertIn(b"0x7741ad", visual_js)
+        self.assertNotIn(b"makeVisitorAlbedo", visual_js)
         self.assertIn(b"RoomEnvironment", visual_js)
+        self.assertIn(b"ultron-red-identity-v2-", visual_js)
         self.assertIn(b"visitorLife.update", visual_js)
         self.assertIn(b"async function loadOwnerModel()", visual_js)
         self.assertIn(b"jarvisSuppressedEffect", visual_js)
@@ -625,22 +699,22 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260819-notas2", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260819-ui2", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260815-vozes2', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-history.js?v=20260813-ultronfix1', service_worker)
-        self.assertIn(b'/ui/feature-loader.js?v=20260819-notas2', service_worker)
-        self.assertIn(b'/ui/presence-loader.js?v=20260819-files1', service_worker)
+        self.assertIn(b'/ui/feature-loader.js?v=20260819-ui2', service_worker)
+        self.assertIn(b'/ui/presence-loader.js?v=20260819-ui2', service_worker)
         self.assertIn(b'/ui/integration-health.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/voice-calibrator.js?v=20260815-vozes2', service_worker)
         self.assertIn(b'/ui/n8n-template-pack.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/memory-explorer.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', service_worker)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-files1', service_worker)
+        self.assertIn(b'/ui/jarvis.js?v=20260819-ui2', service_worker)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', service_worker)
-        self.assertIn(b'/ui/shell.css?v=20260819-notas1', service_worker)
+        self.assertIn(b'/ui/shell.css?v=20260819-ui2', service_worker)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-health.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/voice-calibrator.css?v=20260815-vozes2', service_worker)
@@ -889,6 +963,8 @@ class WebGatewayTest(unittest.TestCase):
         names = {row["name"] for row in payload["action_registry"]["actions"]}
         self.assertIn("message_send", names)
         self.assertIn("memory_search", names)
+        self.assertIn("code_pad", names)
+        self.assertIn("file_send", names)
 
     def test_failed_command_has_terminal_error_event(self):
         status, _, payload = self.json_request("/command", "POST", {"command": ""})
@@ -1034,6 +1110,49 @@ class WebGatewayTest(unittest.TestCase):
         home_yt, home_yt_status = MODULE.command_payload({"command": "abre o youtube"})
         self.assertEqual(home_yt_status, 200)
         self.assertEqual(home_yt["open_url"], "https://www.youtube.com")
+        linkedin, linkedin_status = MODULE.command_payload({"command": "abre o linkedin"})
+        self.assertEqual(linkedin_status, 200)
+        self.assertEqual(linkedin["open_url"], "https://www.linkedin.com")
+        grok, grok_status = MODULE.command_payload({"command": "abre o grok"})
+        self.assertEqual(grok_status, 200)
+        self.assertEqual(grok["open_url"], "https://grok.x.ai")
+        site, site_status = MODULE.command_payload({"command": "abre https://linear.app/team"})
+        self.assertEqual(site_status, 200)
+        self.assertEqual(site["open_url"], "https://linear.app/team")
+
+    def test_clipboard_copy_and_mac_execution_intents(self):
+        copied, copied_status = MODULE.command_payload({"command": "copia isso: próximo passo do JARVIS"})
+        self.assertEqual(copied_status, 200)
+        self.assertEqual(copied["intent"], "clipboard_set")
+        self.assertEqual(copied["client_action"], "copy_text")
+        self.assertEqual(copied["copy_text"], "próximo passo do JARVIS")
+        self.assertEqual(MODULE.command_intent("copia para o visual studio code"), "code_pad")
+        self.assertEqual(MODULE.command_intent("pode abrir o chrome"), "open_application")
+        self.assertEqual(MODULE.command_intent("abre a pasta downloads"), "open_folder")
+        self.assertEqual(MODULE.command_intent("volume do mac para 40"), "volume_set")
+        self.assertEqual(MODULE.command_intent("fale no mac: sistemas no ar"), "speak")
+        self.assertEqual(MODULE.command_intent("avisa no mac: deploy ok"), "notify")
+        self.assertEqual(MODULE.command_intent("abre o youtube no mac"), "open_url")
+        folder, folder_status = MODULE.command_payload({"command": "abre a pasta downloads"})
+        self.assertEqual(folder_status, 200)
+        self.assertEqual(folder["intent"], "open_folder")
+        self.assertIn("Downloads", folder.get("local_command") or folder.get("message") or "")
+        self.assertTrue(MODULE.should_offer_agent_tools([{"role": "user", "content": "pode abrir o chrome"}]))
+        names = {row["function"]["name"] for row in MODULE.agent_tool_definitions()}
+        self.assertTrue({"open_url", "set_clipboard", "speak_on_mac", "open_folder", "notify_mac", "set_volume"} <= names)
+        self.assertNotIn("shell", names)
+        steps = MODULE.compound_device_plan("abra o Chrome e depois abre a pasta downloads")
+        self.assertEqual([step["intent"] for step in steps], ["open_application", "open_folder"])
+
+    def test_owner_native_apps_skip_web_open(self):
+        with patch.object(MODULE, "supabase_configured", return_value=False):
+            payload, status = MODULE.command_payload(
+                {"command": "abre o WhatsApp"},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["intent"], "open_application")
+        self.assertNotEqual(payload.get("client_action"), "open_url")
 
     def test_spotify_controls_route_to_real_local_command(self):
         cases = {
@@ -2248,7 +2367,7 @@ class WebGatewayTest(unittest.TestCase):
         sent_payload = json.loads(request.call_args.args[0].data.decode("utf-8"))
         self.assertEqual(sent_payload["temperature"], 0.26)
         self.assertEqual(sent_payload["provider"]["sort"]["partition"], "model")
-        self.assertEqual(sent_payload["provider"]["preferred_max_latency"]["p90"], 18)
+        self.assertEqual(sent_payload["provider"]["preferred_max_latency"]["p90"], 22)
         self.assertIn("nvidia/nemotron-3-ultra-550b-a55b:free", sent_payload["models"])
         system_prompt = sent_payload["messages"][0]["content"]
         self.assertIn("Você é ULTRON", system_prompt)
@@ -2264,6 +2383,13 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(MODULE.normalized_response_strength({"strength": "forte"}), "strong")
         self.assertEqual(MODULE.normalized_response_strength({"strength": "máxima"}), "maximum")
         self.assertEqual(MODULE.normalized_response_strength({"strength": "sem-limites"}), "auto")
+        self.assertEqual(MODULE.resolved_response_strength("resolve com força máxima", {"strength": "auto"}), "maximum")
+        self.assertEqual(MODULE.resolved_response_strength("responde com força forte", {"strength": "auto"}), "strong")
+        self.assertEqual(
+            MODULE.execution_power_profile(True, "maximum")["max_agent_tools_per_request"],
+            4,
+        )
+        self.assertEqual(MODULE.execution_power_profile(True, "maximum")["max_tokens_cap"], 2400)
         self.assertEqual(
             MODULE.assistant_response_profile("oi", strength="strong")["name"],
             "balanced",
@@ -3107,6 +3233,8 @@ São Paulo - SP
         tools = MODULE.agent_tool_definitions()
         names = {row["function"]["name"] for row in tools}
         self.assertIn("open_application", names)
+        self.assertIn("set_clipboard", names)
+        self.assertIn("open_folder", names)
         self.assertIn("save_memory", names)
         self.assertIn("add_agenda_item", names)
         self.assertIn("start_screen_recording", names)
@@ -3411,7 +3539,7 @@ São Paulo - SP
     def test_detailed_requests_keep_room_for_real_analysis(self):
         profile = MODULE.assistant_response_profile("faça uma análise detalhada da arquitetura")
         self.assertEqual(profile["name"], "detailed")
-        self.assertEqual(profile["max_tokens"], 900)
+        self.assertEqual(profile["max_tokens"], 1100)
         content = "Uma análise longa. Com todos os detalhes. Sem corte."
         normalized, trimmed = MODULE.concise_assistant_content(content, detailed=True)
         self.assertEqual(normalized, content)
@@ -3421,7 +3549,7 @@ São Paulo - SP
         profile = MODULE.assistant_response_profile("como você melhoraria o Jarvis agora?")
         self.assertEqual(profile, {
             "name": "balanced",
-            "max_tokens": 520,
+            "max_tokens": 640,
             "temperature": 0.44,
             "routing": "quality_first",
         })
@@ -3756,6 +3884,7 @@ São Paulo - SP
 
         self.assertEqual(MODULE.command_intent("mostra minhas notas"), "note_view")
         self.assertEqual(MODULE.command_intent("abre o bloco de notas"), "note_view")
+        self.assertEqual(MODULE.command_intent("abre as notas"), "open_application")
         self.assertEqual(MODULE.command_intent("salva no meu mac: reunião às 15h"), "note_save")
 
     def test_contact_archive_is_soft_delete_and_contact_list_filters_it(self):

@@ -152,6 +152,9 @@
     elevenlabs: false,
     localVoice: false,
     voiceError: "",
+    elevenlabsExhausted: (() => {
+      try { return localStorage.getItem("jarvis-elevenlabs-exhausted") === "1"; } catch { return false; }
+    })(),
     voiceFirstAudioMs: 0,
     muted: (() => {
       try {
@@ -182,7 +185,7 @@
     strength: (() => {
       try {
         const saved = localStorage.getItem("jarvis-response-strength");
-        return RESPONSE_STRENGTH.includes(saved) ? saved : "auto";
+        return RESPONSE_STRENGTH.includes(saved) ? saved : "strong";
       } catch {
         return "auto";
       }
@@ -905,6 +908,9 @@
     { id: "spotify", label: "Abrir Spotify", description: "Executar no Mac", command: "abra o Spotify", executor: "mac", keywords: /m[uú]sica|spotify/i },
     { id: "mac-run", label: "Executar sequência", description: "Várias ações com confirmação por etapa", command: "abra o Spotify e depois tire um print da tela", executor: "mac", keywords: /sequ[eê]ncia|etapa|depois|execut/i },
     { id: "screen", label: "Capturar minha tela", description: "Executar no Mac e devolver evidência", command: "tire um print da tela", executor: "mac", keywords: /print|captur|tela|imagem/i },
+    { id: "folder", label: "Abrir Downloads", description: "Finder na pasta Downloads", command: "abre a pasta downloads", executor: "mac", keywords: /downloads|pasta|finder/i },
+    { id: "speak", label: "Falar no Mac", description: "Alto-falante da máquina", command: "fale no mac: sistemas no ar", executor: "mac", keywords: /fal(?:a|e)|voz|alto-falante/i },
+    { id: "clipboard", label: "Copiar texto", description: "Área de transferência", command: "copia isso: próximo passo do JARVIS", executor: "jarvis", keywords: /copi|clipboard|transfer/i },
     { id: "computer", label: "Diagnosticar o Mac", description: "Memória e processos", command: "meu computador está travando, analise a memória", executor: "mac", keywords: /mac|computador|trav|ram/i },
     { id: "memory", label: "Abrir memória", description: "Persistente ou local", command: "mostre minhas memórias", executor: "memory", keywords: /mem[oó]ria|lembr/i },
     { id: "agenda", label: "Ver agenda", description: "Tarefas e lembretes", command: "mostre minha agenda", executor: "agenda", keywords: /agenda|tarefa|lembrete/i },
@@ -918,6 +924,7 @@
     "Pesquisar a web ao vivo e mostrar fontes clicáveis",
     "Ouvir pelo microfone e falar com ElevenLabs",
     "Abrir e fechar aplicativos pelo worker do Mac",
+    "Abrir pastas, copiar texto, falar, notificar, ajustar volume e abrir URL no Mac",
     "Encadear até seis ações no Mac e interromper as seguintes se uma falhar",
     "Tirar print, abrir o gravador e analisar arquivos",
     "Consultar GitHub autenticado sem mostrar credenciais",
@@ -928,21 +935,38 @@
     "Editar o próprio projeto; deploy só com pedido explícito",
   ];
 
+  const COMMAND_PALETTE = [
+    { keys: "goal plano", label: "Criar plano", hint: "/goal", fill: "crie um plano curto e executável para " },
+    { keys: "converter arquivo imagem pdf", label: "Converter arquivo", hint: "/converter", fill: "converta esta imagem para png" },
+    { keys: "abrir app chrome notas", label: "Abrir app", hint: "/abrir", fill: "abre o " },
+    { keys: "fechar app", label: "Fechar app", hint: "/fechar", fill: "fecha o " },
+    { keys: "notas notes", label: "Abrir Notas", hint: "/notas", command: "abre as notas" },
+    { keys: "downloads pasta finder", label: "Pasta Downloads", hint: "/downloads", command: "abre a pasta downloads" },
+    { keys: "code vscode terminal", label: "JARVIS Code", hint: "/code", action: "code" },
+    { keys: "app baixar mac windows", label: "Baixar o app", hint: "/app", action: "app" },
+    { keys: "print tela screenshot", label: "Print da tela", hint: "/print", command: "tire um print da tela" },
+    { keys: "falar mac voz", label: "Falar no Mac", hint: "/falar", fill: "fale no mac: " },
+    { keys: "copiar clipboard", label: "Copiar texto", hint: "/copiar", fill: "copia isso: " },
+    { keys: "volume", label: "Volume do Mac", hint: "/volume", fill: "volume do mac para " },
+  ];
+
   const STARTER_ACTIONS = {
     guest: [
-      ["Pesquisar agora", "pesquise na web as notícias mais importantes de inteligência artificial hoje e cite as fontes"],
+      ["JARVIS Code", "__open_code_pad__"],
+      ["Usar no terminal", "__use_terminal__"],
       ["Quem te criou?", "quem criou você"],
       ["Copiar relatório", "__copy_bug_report__"],
     ],
     code: [
-      ["Abrir modo code", "abre o modo code"],
+      ["JARVIS Code", "__open_code_pad__"],
+      ["Usar no terminal", "__use_terminal__"],
       ["Explicar este pedido", "explique como você construiria isso passo a passo, sem editar o Mac"],
-      ["Limpar o chat", "limpa o chat"],
     ],
     owner: [
+      ["JARVIS Code", "__open_code_pad__"],
+      ["Usar no terminal", "__use_terminal__"],
       ["Melhorar você", "melhore a interface e o modo visitante do jarvis e corrija o que estiver confuso"],
       ["Deploy e merge", "faça deploy e merge do que você melhorou no jarvis"],
-      ["Resumo do meu dia", "me dê um resumo operacional do meu dia"],
     ],
   };
 
@@ -959,8 +983,81 @@
           copyBugReport();
           return;
         }
+        if (button.dataset.starterCommand === "__open_code_pad__") {
+          window.dispatchEvent(new CustomEvent("jarvis-open-code", { detail: {} }));
+          return;
+        }
+        if (button.dataset.starterCommand === "__use_terminal__") {
+          window.dispatchEvent(new CustomEvent("jarvis-open-code", { detail: { terminal: true } }));
+          return;
+        }
         sendCommand(button.dataset.starterCommand || "");
       });
+    });
+  }
+
+  function paletteQuery() {
+    const value = String(input.value || "");
+    const slash = value.match(/^\s*\/([^\n]*)$/);
+    return slash ? slash[1].trim().toLocaleLowerCase("pt-BR") : null;
+  }
+
+  function filteredPalette() {
+    const query = paletteQuery();
+    if (query == null && byId("paletteButton")?.getAttribute("aria-expanded") !== "true") return [];
+    const needle = (query || "").replace(/^\//, "");
+    return COMMAND_PALETTE.filter((item) => !needle || `${item.keys} ${item.label} ${item.hint}`.toLocaleLowerCase("pt-BR").includes(needle));
+  }
+
+  function hidePalette() {
+    const palette = byId("commandPalette");
+    const button = byId("paletteButton");
+    if (palette) palette.hidden = true;
+    button?.setAttribute("aria-expanded", "false");
+  }
+
+  function runPaletteItem(item) {
+    hidePalette();
+    if (!item) return;
+    if (item.action === "code") {
+      const launch = byId("codeLaunchDialog");
+      if (launch) launch.showModal();
+      else window.dispatchEvent(new CustomEvent("jarvis-open-code", { detail: {} }));
+      return;
+    }
+    if (item.action === "app") {
+      byId("downloadDialog")?.showModal();
+      return;
+    }
+    if (item.fill) {
+      input.value = item.fill;
+      syncComposerAction();
+      syncComposerHeight();
+      input.focus();
+      return;
+    }
+    if (item.command) sendCommand(item.command);
+  }
+
+  function renderPalette(force) {
+    const palette = byId("commandPalette");
+    if (!palette) return;
+    const query = paletteQuery();
+    const open = force || query != null;
+    if (!open) {
+      hidePalette();
+      return;
+    }
+    const rows = filteredPalette();
+    palette.hidden = false;
+    byId("paletteButton")?.setAttribute("aria-expanded", "true");
+    palette.innerHTML = rows.length
+      ? rows.map((item, index) => (
+        `<button type="button" role="option" data-palette-index="${index}" aria-selected="${index === 0 ? "true" : "false"}"><span>${escapeHtml(item.label)}</span><small>${escapeHtml(item.hint)}</small></button>`
+      )).join("")
+      : `<p class="palette-empty">Nada com essa barra. Tente /abrir, /goal, /code.</p>`;
+    palette.querySelectorAll("[data-palette-index]").forEach((button) => {
+      button.addEventListener("click", () => runPaletteItem(rows[Number(button.dataset.paletteIndex)]));
     });
   }
 
@@ -2071,32 +2168,52 @@
     renderMuteState();
   }
 
-  // Voz degradada é um problema visível, não um detalhe silencioso.
   let voiceDowngradeShown = false;
+  function markElevenlabsExhausted() {
+    session.elevenlabs = false;
+    session.elevenlabsExhausted = true;
+    try { localStorage.setItem("jarvis-elevenlabs-exhausted", "1"); } catch { /* sessão local basta */ }
+  }
+
+  function paintLocalVoiceLabel() {
+    const label = session.localVoice ? "Pocket TTS" : "Voz local";
+    byId("voiceValue").textContent = label;
+    byId("voiceLink").textContent = label.toLowerCase();
+  }
+
   async function announceVoiceDowngrade() {
     if (voiceDowngradeShown) return;
     voiceDowngradeShown = true;
-    let note = "A voz neural caiu; estou falando pelo navegador.";
+    let note = "Voz local no ar.";
     try {
       const status = await request("/voice-status");
-      if (status?.message) {
+      const raw = String(status?.message || "");
+      if (raw && !/crédito|elevenlabs/i.test(raw)) {
         const resets = status.resets_at ? new Date(status.resets_at) : null;
         const when = resets && !Number.isNaN(resets.valueOf())
           ? ` Volta em ${resets.toLocaleDateString("pt-BR")}.`
           : "";
-        note = `${status.message}${when}`;
+        note = `${raw}${when}`;
       }
     } catch { /* sem diagnóstico, fica o aviso genérico */ }
+    if (/crédito|elevenlabs/i.test(note)) return;
     addMessage(note, "jarvis");
   }
 
   function reportVoiceFailure(status, terminal = false) {
+    const quota = /crédito|quota|autoriza/i.test(String(status || ""));
+    if (quota || terminal) markElevenlabsExhausted();
+    if (quota) {
+      session.voiceError = "";
+      paintLocalVoiceLabel();
+      return;
+    }
     session.voiceError = status;
     if (terminal) session.elevenlabs = false;
     byId("voiceValue").textContent = status;
-    byId("voiceLink").textContent = status.toLowerCase();
-    byId("integrationValue").textContent = `IA · ${status}`;
-    byId("integrationHint").textContent = "ElevenLabs falhou; a voz do navegador cobre enquanto isso.";
+    byId("voiceLink").textContent = String(status || "voz local").toLowerCase();
+    byId("integrationValue").textContent = `IA · voz local`;
+    byId("integrationHint").textContent = "A voz continua pelo motor local.";
     announceVoiceDowngrade();
   }
 
@@ -2174,7 +2291,7 @@
           : null;
         const chunkPlayed = await playSpeechChunk(result.blob, chunks[index], generation, index === 0 ? () => {
           session.voiceFirstAudioMs = Math.max(1, Math.round(performance.now() - voiceRequestedAt));
-          byId("voiceValue").textContent = session.localVoice
+          byId("voiceValue").textContent = session.localVoice || session.elevenlabsExhausted
             ? `Pocket TTS · voz em ${session.voiceFirstAudioMs} ms`
             : `ElevenLabs · voz em ${session.voiceFirstAudioMs} ms`;
         } : null);
@@ -2190,12 +2307,16 @@
       if (error?.name === "AbortError") return false;
       if (generation === speechGeneration) {
         const errorCode = error?.message;
-        const status = {
-          elevenlabs_quota: "ElevenLabs sem créditos",
-          elevenlabs_authorization: "ElevenLabs sem autorização",
-          elevenlabs_rate_limit: "ElevenLabs no limite",
-        }[errorCode] || "ElevenLabs indisponível";
-        reportVoiceFailure(status, ["elevenlabs_quota", "elevenlabs_authorization"].includes(errorCode));
+        const silent = ["elevenlabs_quota", "elevenlabs_authorization"].includes(errorCode);
+        if (silent) {
+          markElevenlabsExhausted();
+          paintLocalVoiceLabel();
+        } else {
+          const status = {
+            elevenlabs_rate_limit: "Voz no limite",
+          }[errorCode] || "Voz local";
+          reportVoiceFailure(status, false);
+        }
         return speakBrowser(chunks.join(" "), generation);
       }
       return false;
@@ -2340,8 +2461,16 @@
     if (data.client_action === "open_notes") {
       import("/ui/notes-pad.js?v=20260819-notas1").then(() => window.JarvisNotesPad?.open()).catch(() => null);
     }
+    if (data.client_action === "open_code_pad") {
+      window.dispatchEvent(new CustomEvent("jarvis-open-code", { detail: { notice: data.message || "" } }));
+    } else if (/```[\s\S]{12,}```/.test(data.message || "")) {
+      window.dispatchEvent(new CustomEvent("jarvis-open-code", { detail: { text: data.message, auto: true } }));
+    }
     if (data.client_action === "open_url" && data.open_url && !data.already_opened) {
       data.already_opened = Boolean(window.open(data.open_url, "_blank", "noopener,noreferrer"));
+    }
+    if (data.client_action === "copy_text" && data.copy_text) {
+      navigator.clipboard?.writeText(String(data.copy_text)).catch(() => null);
     }
     if (data.client_action === "download_file" && data.download_url) {
       const fileLink = document.createElement("a");
@@ -2364,17 +2493,24 @@
         + `<span><b>${escapeHtml(card.name)}</b><small>${escapeHtml(card.headline)}</small>`
         + `<em>${escapeHtml(card.city)} · LinkedIn</em></span></a>`
       : "";
-    byId("sceneEyebrow").textContent = data.job?.id || data.executed_locally ? "AÇÃO CONFIRMADA" : "RESULTADO";
+    byId("sceneEyebrow").textContent = data.response_strength === "maximum"
+      ? "FORÇA MÁXIMA"
+      : data.job?.id || data.executed_locally ? "AÇÃO CONFIRMADA" : "RESULTADO";
     byId("sceneMission").textContent = compactHudText(answer, "Resultado disponível");
     byId("sceneDetail").textContent = data.web_search?.used
       ? `${Number(data.web_search.source_count) || 0} fontes verificadas ao vivo.`
       : data.response_strength === "maximum"
-        ? "Resposta processada com força máxima."
+        ? "Rota mais profunda, mais ferramentas e mais tentativas."
+        : data.response_strength === "strong"
+        ? "Força forte: qualidade primeiro e pedido até o fim."
         : data.model_routing?.quality_tier === "quality_first"
         ? "Resposta processada pela rota de qualidade."
         : "Resposta pronta no canal principal.";
     let extra = "";
     let messageActions = `<button class="copy-response" type="button">Copiar</button>`;
+    if (/```/.test(answer)) {
+      messageActions += `<button class="copy-response open-code-pad" type="button">Code</button>`;
+    }
     if (data.client_action === "open_url" && data.open_url) {
       messageActions += `<a class="open-link" href="${escapeHtml(data.open_url)}" target="_blank" rel="noopener noreferrer">Abrir</a>`;
     }
@@ -2406,7 +2542,7 @@
     }
     extra += `<div class="message-actions">${messageActions}</div>`;
     const message = addMessage(answer, "jarvis", authorHtml + extra);
-    const copyResponse = message.querySelector(".copy-response");
+    const copyResponse = message.querySelector(".copy-response:not(.open-code-pad)");
     if (copyResponse) copyResponse.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(answer);
@@ -2415,6 +2551,9 @@
       } catch {
         copyResponse.textContent = "Não copiou";
       }
+    });
+    message.querySelector(".open-code-pad")?.addEventListener("click", () => {
+      window.dispatchEvent(new CustomEvent("jarvis-open-code", { detail: { text: answer } }));
     });
     const copy = message.querySelector(".copy-command");
     if (copy) copy.addEventListener("click", async () => {
@@ -2607,7 +2746,13 @@
       const query = remainderAfter(mapsSearch[1]);
       if (query) return { url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, label: "Maps" };
     }
+    const httpsMatch = value.match(/https:\/\/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+/i);
+    if (httpsMatch && /\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(value) && !/\bno\s+(?:meu\s+)?(?:mac|computador)\b/.test(value)) {
+      return { url: httpsMatch[0].replace(/[).,;]+$/, ""), label: "site" };
+    }
     if (!/\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(value)) return null;
+    if (/\bno\s+(?:meu\s+)?(?:mac|computador)\b/.test(value)) return null;
+    const nativeWhenPaired = new Set(["WhatsApp", "Spotify", "Discord", "Slack", "Telegram", "Agenda"]);
     const targets = [
       [/\bwhatsapp\b/, "https://web.whatsapp.com", "WhatsApp"],
       [/\byoutube\b/, "https://www.youtube.com", "YouTube"],
@@ -2621,16 +2766,31 @@
       [/\b(?:google\s+)?drive\b/, "https://drive.google.com", "Drive"],
       [/\bdiscord\b/, "https://discord.com/app", "Discord"],
       [/\bnotion\b/, "https://www.notion.so", "Notion"],
+      [/\blinkedin\b/, "https://www.linkedin.com", "LinkedIn"],
+      [/\bgrok\b/, "https://grok.x.ai", "Grok"],
+      [/\bclaude\b/, "https://claude.ai", "Claude"],
+      [/\blinear\b/, "https://linear.app", "Linear"],
+      [/\bvercel\b/, "https://vercel.com", "Vercel"],
+      [/\breddit\b/, "https://www.reddit.com", "Reddit"],
+      [/\bnetflix\b/, "https://www.netflix.com", "Netflix"],
+      [/\bslack\b/, "https://app.slack.com", "Slack"],
+      [/\btelegram\b/, "https://web.telegram.org", "Telegram"],
+      [/\bcanva\b/, "https://www.canva.com", "Canva"],
+      [/\bfigma\b/, "https://www.figma.com", "Figma"],
       [/\btwitter\b|(?:abre|abrir|abra)\s+(?:o\s+)?x\b/, "https://x.com", "X"],
       [/\bgoogle\b/, "https://www.google.com", "Google"],
     ];
     for (const [pattern, url, label] of targets) {
-      if (pattern.test(value)) return { url, label };
+      if (pattern.test(value)) {
+        if (session.paired && nativeWhenPaired.has(label)) return null;
+        return { url, label };
+      }
     }
     return null;
   }
 
   async function sendCommand(rawValue, options = {}) {
+    hidePalette();
     if (session.working) {
       input.focus();
       return;
@@ -3091,16 +3251,14 @@
       }
       renderStarterActions();
       session.deviceBridge = Boolean(status.device_bridge?.configured);
-      session.elevenlabs = Boolean(status.voice?.configured || browserProviders.includes("elevenlabs"));
-      session.localVoice = status.voice?.provider === "pocket_tts" || status.voice?.source === "self_hosted" || status.voice?.fallback === "self_hosted";
+      session.localVoice = status.voice?.provider === "pocket_tts" || status.voice?.source === "self_hosted" || status.voice?.fallback === "self_hosted" || session.elevenlabsExhausted;
+      session.elevenlabs = false;
       session.voiceError = "";
-      byId("voiceValue").textContent = status.voice?.provider === "elevenlabs"
-        ? `ElevenLabs${voiceSupport.input ? " + microfone" : ""}`
-        : session.localVoice
-          ? `Pocket TTS · ${status.voice?.name || "rafael"}`
-          : voiceSupport.input
-            ? "microfone ativo · saída aguarda voz"
-            : "voz aguarda motor local ou ElevenLabs";
+      byId("voiceValue").textContent = session.localVoice
+        ? `Pocket TTS · ${status.voice?.name || "rafael"}`
+        : voiceSupport.input
+          ? "microfone ativo · saída aguarda voz"
+          : "voz local";
       window.JarvisLocalVoice?.probe().then((base) => {
         if (!base) return;
         const info = window.JarvisLocalVoice.info();
@@ -3109,9 +3267,21 @@
         const label = persona === "ultron" ? (info.ultronVoice || "javert") : (info.voice || "rafael");
         byId("voiceValue").textContent = `Pocket TTS · ${label}`;
       }).catch(() => {});
+      request("/voice-status").then((voice) => {
+        const remaining = Number(voice?.characters_remaining);
+        if (voice?.layer === "elevenlabs" && remaining > 0) {
+          session.elevenlabsExhausted = false;
+          try { localStorage.removeItem("jarvis-elevenlabs-exhausted"); } catch { /* ok */ }
+          return;
+        }
+        if (voice?.elevenlabs_configured && !(remaining > 0)) {
+          markElevenlabsExhausted();
+          if (!session.localVoice) paintLocalVoiceLabel();
+        }
+      }).catch(() => {});
       const ready = [
         status.ai?.configured || browserOpenRouter ? (status.web_search?.configured ? "IA + pesquisa web" : toolCount ? `IA + ${toolCount} ferramentas` : "IA") : "",
-        session.elevenlabs ? "ElevenLabs" : voiceSupport.input ? "microfone" : "",
+        voiceSupport.input ? "microfone" : "",
         status.automations?.n8n?.configured || browserN8n ? "n8n" : "",
         browserProviders.length ? `${browserProviders.length} API(s) no cofre` : "",
         session.paired && status.device_bridge?.configured ? "Mac pareado" : "",
@@ -3335,12 +3505,52 @@
   input.addEventListener("input", () => {
     syncComposerAction();
     syncComposerHeight();
+    renderPalette();
   });
   input.addEventListener("keydown", (event) => {
+    const palette = byId("commandPalette");
+    const visible = palette && !palette.hidden;
+    if (visible && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+      event.preventDefault();
+      const options = [...palette.querySelectorAll("[data-palette-index]")];
+      const current = options.findIndex((item) => item.getAttribute("aria-selected") === "true");
+      const next = event.key === "ArrowDown"
+        ? Math.min(options.length - 1, current + 1)
+        : Math.max(0, current - 1);
+      options.forEach((item, index) => item.setAttribute("aria-selected", index === next ? "true" : "false"));
+      options[next]?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+    if (visible && event.key === "Escape") {
+      hidePalette();
+      return;
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
+      if (visible) {
+        const selected = palette.querySelector("[aria-selected='true']");
+        const rows = filteredPalette();
+        if (selected) {
+          runPaletteItem(rows[Number(selected.dataset.paletteIndex)]);
+          return;
+        }
+      }
       byId("commandForm").requestSubmit();
     }
+  });
+  byId("paletteButton")?.addEventListener("click", () => {
+    const open = byId("paletteButton")?.getAttribute("aria-expanded") === "true";
+    if (open) hidePalette();
+    else {
+      if (!String(input.value || "").trim()) input.value = "/";
+      renderPalette(true);
+      input.focus();
+    }
+  });
+  byId("welcomeAppButton")?.addEventListener("click", () => byId("downloadDialog")?.showModal());
+  window.addEventListener("jarvis-send-command", (event) => {
+    const command = String(event.detail?.command || "").trim();
+    if (command) sendCommand(command);
   });
   input.addEventListener("blur", () => window.setTimeout(syncMobileViewport, 80));
   bindConversationResize();
@@ -3371,6 +3581,17 @@
   byId("detailsButton").addEventListener("click", () => {
     dialog.showModal();
     refreshActionHistory();
+  });
+  dialog.querySelectorAll("[data-system-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const tab = button.dataset.systemTab;
+      dialog.querySelectorAll("[data-system-tab]").forEach((item) => {
+        item.setAttribute("aria-selected", String(item === button));
+      });
+      dialog.querySelectorAll("[data-system-panel]").forEach((panel) => {
+        panel.hidden = panel.dataset.systemPanel !== tab;
+      });
+    });
   });
   byId("accessMode").addEventListener("click", () => {
     if (byId("accessMode").dataset.action === "logout") {

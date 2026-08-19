@@ -1,0 +1,31 @@
+.code-pad-dialog { width: min(540px, calc(100vw - 24px)); max-height: min(780px, calc(100dvh - 24px)); overflow: auto; }
+.code-pad-head > span { display: grid; gap: 3px; }
+.code-pad-head small { color: var(--cyan); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
+.code-pad-body { display: grid; gap: 10px; padding: 14px 16px 16px; }
+.code-pad-form { display: grid; gap: 8px; }
+.code-pad-form input,
+.code-pad-form textarea,
+.code-pad-form select {
+  min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: rgba(0,0,0,.28); color: #f3e8ff; font: 13px inherit; color-scheme: dark;
+}
+.code-pad-form textarea {
+  min-height: 180px; resize: vertical;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.code-pad-meta { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.code-pad-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.code-pad-actions button,
+.code-pad-actions a {
+  min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: rgba(124, 58, 237, .28); color: #f6eefe; cursor: pointer;
+  display: inline-flex; align-items: center; text-decoration: none; font: inherit;
+}
+.code-pad-actions a { background: rgba(255,255,255,.04); }
+#codePadTerminal {
+  background: rgba(168, 85, 247, .5);
+  border-color: rgba(216, 180, 254, .55);
+  font-weight: 650;
+}
+.code-pad-status { margin: 0; color: var(--faint); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.45; }
+.code-pad-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }

@@ -61,6 +61,9 @@ import task_queue as task_queue_store  # noqa: E402
 import jarvis_accounts as accounts_store  # noqa: E402
 import jarvis_creator_seal as creator_seal  # noqa: E402
 import install_mac_app as mac_app  # noqa: E402
+import vscode_pack as vscode_pack  # noqa: E402
+import windows_pack as windows_pack  # noqa: E402
+import device_actions as device_actions  # noqa: E402
 
 AGENT_RUNS = RunStore()
 LOCAL_MEMORY_INDEX = MemoryIndex()
@@ -78,8 +81,8 @@ MAX_PROMPT_CHARS = 8_000
 MAX_ATTACHMENT_BYTES = 2_500_000
 MAX_ATTACHMENTS = 2
 CONCISE_MAX_TOKENS = 220
-BALANCED_MAX_TOKENS = 520
-DETAILED_MAX_TOKENS = 900
+BALANCED_MAX_TOKENS = 640
+DETAILED_MAX_TOKENS = 1100
 ATTACHMENT_MIME_TYPES = {
     "image/jpeg",
     "image/png",
@@ -143,12 +146,13 @@ CREATOR_QUESTION_PATTERN = re.compile(
     r"quem\s+[eé]\s+(?:o\s+)?(?:seu\s+)?(?:criador|autor|dono)|"
     r"quem\s+[eé]\s+(?:o\s+)?theo(?:\s+lorentz)?(?:\s+padilha)?|"
     r"seu\s+criador|mais\s+sobre\s+(?:o\s+)?theo|"
-    r"curr[ií]culo|linkedin)\b",
+    r"curr[ií]culo|seu\s+linkedin|linkedin\s+d[oa]\s+theo)\b",
     re.I,
 )
 FILE_SEND_PATTERN = re.compile(
     r"\b(?:pass(?:a|e|ar)|mand(?:a|e|ar)|envi(?:a|e|ar)|baix(?:a|e|ar)|entreg(?:a|e|ar)|me\s+d[aá]|me\s+manda)\b"
-    r".{0,80}\b(?:curr[ií]culo|\bcv\b|arquivo|pdf|logo|zip|app(?:licativo)?(?:\s+do)?\s+mac)\b"
+    r".{0,80}\b(?:curr[ií]culo|\bcv\b|arquivo|pdf|logo|zip|app(?:licativo)?(?:\s+do)?\s+mac|"
+    r"vscode|vs\s*code|jarvis-theo|windows)\b"
     r"|\b(?:curr[ií]culo|\bcv\b)\b.{0,40}\b(?:arquivo|pdf|baix)",
     re.I,
 )
@@ -305,6 +309,11 @@ REMOTE_DEVICE_INTENTS = {
     "system_memory",
     "self_edit",
     "save_note",
+    "open_url",
+    "speak",
+    "open_folder",
+    "notify",
+    "volume_set",
 }
 
 # Compound runs intentionally exclude messaging and self-edit. Those actions can
@@ -318,23 +327,31 @@ CHAINABLE_DEVICE_INTENTS = {
     "github_overview",
     "storage_scan",
     "system_memory",
+    "open_url",
+    "open_folder",
+    "volume_set",
+    "clipboard_set",
+    "notify",
 }
 
 ACTION_SEQUENCE_SPLIT_PATTERN = re.compile(
     r"\s+(?:e\s+depois|depois|e\s+ent[aã]o|ent[aã]o|e)\s+"
     r"(?=(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|captur\w*|"
     r"faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*|"
-    r"to(?:c|q)\w*|paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*))|"
+    r"to(?:c|q)\w*|paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*|"
+    r"copi\w*|fal\w*|avis\w*|notific\w*))|"
     r"\s*[;,]\s*(?=(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|"
     r"captur\w*|faz\w*|grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*|"
-    r"to(?:c|q)\w*|paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*))",
+    r"to(?:c|q)\w*|paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*|"
+    r"copi\w*|fal\w*|avis\w*|notific\w*))",
     re.I,
 )
 
 COMPOUND_ACTION_START_PATTERN = re.compile(
     r"^\s*(?:jarvis[,\s]+)?(?:abr\w*|fech\w*|encerr\w*|tir\w*|captur\w*|faz\w*|"
     r"grav\w*|mostr\w*|list\w*|consult\w*|analis\w*|ver\b|limp\w*|to(?:c|q)\w*|"
-    r"paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*)\b",
+    r"paus\w*|pul\w*|avan\w*|volt\w*|ajust\w*|bus\w*|procur\w*|copi\w*|fal\w*|"
+    r"avis\w*|notific\w*)\b",
     re.I,
 )
 
@@ -448,17 +465,26 @@ def elevenlabs_api_keys(body=None):
     return keys
 
 
-def execution_power_profile(owner_authenticated=False):
+def execution_power_profile(owner_authenticated=False, strength="auto"):
     """Return an honest capability budget instead of blindly spending API calls."""
+    level = normalized_response_strength({"strength": strength})
+    high = level in {"strong", "maximum"}
+    peak = level == "maximum"
     multiplier = 3 if owner_authenticated else 1
     return {
         "mode": "ultron_3x" if owner_authenticated else "jarvis_1x",
         "multiplier": multiplier,
-        "max_provider_attempts": 3 if owner_authenticated else 1,
-        "max_agent_tools_per_request": 3 if owner_authenticated else 1,
+        "max_provider_attempts": (
+            4 if owner_authenticated and peak else 3 if owner_authenticated else 2 if high else 1
+        ),
+        "max_agent_tools_per_request": (
+            4 if owner_authenticated and peak else 3 if owner_authenticated else 1
+        ),
         "max_workflows_per_request": 3 if owner_authenticated else 1,
         "max_workflow_nodes": 18 if owner_authenticated else 6,
+        "max_tokens_cap": 2400 if peak else 1800,
         "default_response_strength": "strong" if owner_authenticated else "auto",
+        "strength": level,
     }
 
 
@@ -481,7 +507,8 @@ def capability_briefing(owner_authenticated=False):
         f"Guardo o que Theo manda guardar: {memory_line}.",
         "Pesquiso na internet com fontes reais, leio READMEs e comparo o que encontro.",
         "Crio e ativo workflows no n8n, e falo com as APIs que estão no cofre.",
-        "O Mac é executado pelo worker local: abrir apps, print, gravar tela, GitHub, diagnóstico.",
+        "O Mac é executado pelo worker local: abrir apps e pastas, copiar, falar, notificar, "
+        "ajustar volume, abrir URL, print, gravar tela, GitHub e diagnóstico.",
         "Falo com a voz da ElevenLabs e escuto pelo microfone do cockpit.",
         "Atendo quando Theo me chama pelo nome — 'oi Jarvis', 'bom dia Jarvis', 'fala Ultron' — "
         "sem ele clicar em nada; o indicador ao lado do microfone mostra se a escuta está armada.",
@@ -1812,6 +1839,30 @@ PERSONAL_ACTION_CATALOG = (
         "private": True,
     },
     {
+        "id": "folder",
+        "label": "Abrir Downloads",
+        "description": "Abre a pasta Downloads no Finder.",
+        "command": "abre a pasta downloads",
+        "executor": "mac",
+        "private": True,
+    },
+    {
+        "id": "speak",
+        "label": "Falar no Mac",
+        "description": "Fala um texto pelo alto-falante da máquina.",
+        "command": "fale no mac: sistemas no ar",
+        "executor": "mac",
+        "private": True,
+    },
+    {
+        "id": "clipboard",
+        "label": "Copiar texto",
+        "description": "Copia um texto explícito no navegador e no Mac.",
+        "command": "copia isso: próximo passo do JARVIS",
+        "executor": "jarvis",
+        "private": False,
+    },
+    {
         "id": "computer",
         "label": "Diagnosticar o Mac",
         "description": "Analisa memória e processos sem limpeza ampla automática.",
@@ -1888,11 +1939,19 @@ PERSONAL_ACTION_CATALOG = (
 
 APPLICATION_INTENT_PATTERNS = {
     "open_application": re.compile(
-        r"^\s*(?:jarvis[,\s]+)?(?:abr(?:a|e|ir)|inici(?:a|e|ar))\s+(?:o\s+|a\s+)?(?:app(?:licativo)?\s+)?(?P<app>[\wÀ-ÿ ._-]{2,80}?)(?:\s+(?:por\s+favor|pra\s+mim|para\s+mim))?[.!?]*\s*$",
+        r"^\s*(?:jarvis[,\s]+)?(?:(?:pode|consegue|quero\s+que)\s+)?"
+        r"(?:abr(?:a|e|ir)|inici(?:a|e|ar))\s+(?:o\s+|a\s+|os\s+|as\s+)?"
+        r"(?:app(?:licativo)?\s+)?(?P<app>[\wÀ-ÿ ._-]{2,80}?)"
+        r"(?:\s+(?:por\s+favor|pra\s+mim|para\s+mim|agora|a[ií]|aqui|rapidinho|"
+        r"no\s+(?:meu\s+)?(?:mac|computador)))?[.!?]*\s*$",
         re.I,
     ),
     "close_application": re.compile(
-        r"^\s*(?:jarvis[,\s]+)?(?:fech(?:a|e|ar)|encerr(?:a|e|ar)|sai(?:a|r)\s+d[oa])\s+(?:o\s+|a\s+)?(?:app(?:licativo)?\s+)?(?P<app>[\wÀ-ÿ ._-]{2,80}?)(?:\s+(?:por\s+favor|pra\s+mim|para\s+mim))?[.!?]*\s*$",
+        r"^\s*(?:jarvis[,\s]+)?(?:(?:pode|consegue|quero\s+que)\s+)?"
+        r"(?:fech(?:a|e|ar)|encerr(?:a|e|ar)|sai(?:a|r)\s+d[oa])\s+(?:o\s+|a\s+|os\s+|as\s+)?"
+        r"(?:app(?:licativo)?\s+)?(?P<app>[\wÀ-ÿ ._-]{2,80}?)"
+        r"(?:\s+(?:por\s+favor|pra\s+mim|para\s+mim|agora|a[ií]|aqui|rapidinho|"
+        r"no\s+(?:meu\s+)?(?:mac|computador)))?[.!?]*\s*$",
         re.I,
     ),
 }
@@ -1910,18 +1969,33 @@ WEB_OPEN_TARGETS = (
     (re.compile(r"\b(?:google\s+)?drive\b", re.I), "https://drive.google.com", "Drive"),
     (re.compile(r"\bdiscord\b", re.I), "https://discord.com/app", "Discord"),
     (re.compile(r"\bnotion\b", re.I), "https://www.notion.so", "Notion"),
+    (re.compile(r"\blinkedin\b", re.I), "https://www.linkedin.com", "LinkedIn"),
+    (re.compile(r"\bgrok\b", re.I), "https://grok.x.ai", "Grok"),
+    (re.compile(r"\bclaude\b", re.I), "https://claude.ai", "Claude"),
+    (re.compile(r"\blinear\b", re.I), "https://linear.app", "Linear"),
+    (re.compile(r"\bvercel\b", re.I), "https://vercel.com", "Vercel"),
+    (re.compile(r"\breddit\b", re.I), "https://www.reddit.com", "Reddit"),
+    (re.compile(r"\bnetflix\b", re.I), "https://www.netflix.com", "Netflix"),
+    (re.compile(r"\bslack\b", re.I), "https://app.slack.com", "Slack"),
+    (re.compile(r"\btelegram\b", re.I), "https://web.telegram.org", "Telegram"),
+    (re.compile(r"\bcanva\b", re.I), "https://www.canva.com", "Canva"),
+    (re.compile(r"\bfigma\b", re.I), "https://www.figma.com", "Figma"),
     (re.compile(r"\btwitter\b|(?:abre|abrir|abra)\s+(?:o\s+)?x\b", re.I), "https://x.com", "X"),
     (re.compile(r"\bgoogle\b", re.I), "https://www.google.com", "Google"),
 )
+WEB_OPEN_NATIVE_WHEN_OWNER = {"Spotify", "Discord", "WhatsApp", "Slack", "Telegram", "Agenda"}
 WEB_OPEN_PATTERN = re.compile(
     r"(?:"
     r"\b(?:abr(?:a|e|ir)|inici(?:a|e|ar))\b.{0,48}\b"
     r"(?:google|whatsapp|youtube|spotify|gmail|mapa|maps|calend[aá]rio|agenda|github|"
-    r"instagram|insta|chatgpt|chat\s*gpt|drive|discord|notion|twitter|\bx\b)"
+    r"instagram|insta|chatgpt|chat\s*gpt|drive|discord|notion|twitter|\bx\b|"
+    r"linkedin|grok|claude|linear|vercel|reddit|netflix|slack|telegram|canva|figma)"
     r"|"
     r"\bcomo chegar\b"
     r"|"
     r"\b(?:pesquisa|busca|procura)\s+(?:no\s+)?youtube\b"
+    r"|"
+    r"https://"
     r")",
     re.I,
 )
@@ -1949,6 +2023,28 @@ APPLICATION_ALIASES = {
     "spotify": "Spotify",
     "steam": "Steam",
     "terminal": "Terminal",
+    "cursor": "Cursor",
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "whatsapp": "WhatsApp",
+    "obsidian": "Obsidian",
+    "figma": "Figma",
+    "notion": "Notion",
+    "zoom": "zoom.us",
+    "mail": "Mail",
+    "preview": "Preview",
+    "calculadora": "Calculator",
+    "calculator": "Calculator",
+    "monitor": "Activity Monitor",
+    "activity monitor": "Activity Monitor",
+    "monitor de atividade": "Activity Monitor",
+    "ajustes": "System Settings",
+    "configurações": "System Settings",
+    "configuracoes": "System Settings",
+    "system settings": "System Settings",
+    "fotos": "Photos",
+    "photos": "Photos",
+    "facetime": "FaceTime",
 }
 
 JARVIS_CLEANUP_PATTERN = re.compile(
@@ -1975,6 +2071,13 @@ CODE_SESSION_PATTERN = re.compile(
     r"\b(?:modo\s+code|code\s+mode|abrir?\s+(?:o\s+)?c[oó]digo|"
     r"abr(?:a|e|ir)\s+a\s+forja|entr(?:a|e|ar)\s+na\s+forja|"
     r"quero\s+programar|vamos\s+codar)\b",
+    re.I,
+)
+
+CODE_PAD_PATTERN = re.compile(
+    r"\b(?:col(?:a|e|ar)|copi(?:a|e|ar))\b.{0,48}?\b(?:vs\s*code|vscode|visual\s+studio(?:\s+code)?)\b"
+    r"|\b(?:abr(?:a|e|ir)|mostr(?:a|e|ar))\b.{0,28}?\b(?:jarvis\s+code|painel\s+(?:de\s+)?c[oó]digo|code\s+pad)\b"
+    r"|\bjarvis\s+code\b",
     re.I,
 )
 
@@ -2105,7 +2208,22 @@ NOTE_VIEW_PATTERN = re.compile(
 )
 
 
+CLIPBOARD_SET_PATTERN = device_actions.CLIPBOARD_PATTERN
+SPEAK_MAC_PATTERN = device_actions.SPEAK_PATTERN
+NOTIFY_MAC_PATTERN = device_actions.NOTIFY_PATTERN
+VOLUME_MAC_PATTERN = device_actions.VOLUME_PATTERN
+OPEN_FOLDER_PATTERN = device_actions.FOLDER_PATTERN
+OPEN_URL_MAC_PATTERN = re.compile(
+    r"\b(?:abr(?:a|e|ir)|inici(?:a|e|ar))\b.{0,120}(?:https://|"
+    r"\b(?:google|youtube|gmail|linkedin|grok|claude|linear|vercel|reddit|"
+    r"netflix|github|instagram|chatgpt|drive|notion|canva|figma|twitter|\bx\b)\b)"
+    r".{0,40}\bno\s+(?:meu\s+)?(?:mac|computador)\b|"
+    r"\bno\s+(?:meu\s+)?(?:mac|computador)\b.{0,80}https://",
+    re.I,
+)
+
 LOCAL_INTENTS = (
+    (CODE_PAD_PATTERN, "code_pad"),
     (CODE_SESSION_PATTERN, "code_session"),
     (PERSONA_SETTINGS_PATTERN, "persona_settings"),
     (VOICE_SETTINGS_PATTERN, "voice_settings"),
@@ -2113,10 +2231,15 @@ LOCAL_INTENTS = (
     (SCENE_NUCLEUS_PATTERN, "scene_show"),
     (SELF_EDIT_PATTERN, "self_edit"),
     (SPOTIFY_CONTROL_PATTERN, "spotify_control"),
+    (CLIPBOARD_SET_PATTERN, "clipboard_set"),
+    (OPEN_FOLDER_PATTERN, "open_folder"),
+    (NOTIFY_MAC_PATTERN, "notify"),
+    (VOLUME_MAC_PATTERN, "volume_set"),
+    (OPEN_URL_MAC_PATTERN, "open_url"),
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
     (re.compile(r"\b(abr(?:a|e|ir)|inici(?:a|e|ar)|grav(?:a|e|ar))\b.{0,50}\b(gravador|grava[cç][aã]o|tela)\b", re.I), "screen_record"),
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar)|analis(?:a|e|ar))\b.{0,70}\b(github|reposit[oó]rios?|pull requests?|prs?)\b", re.I), "github_overview"),
-    (re.compile(r"\b(ler em voz alta|falar no mac|dizer no mac)\b", re.I), "speak"),
+    (SPEAK_MAC_PATTERN, "speak"),
     (re.compile(r"\b(convert(?:a|er)|transform(?:a|ar))\b.{0,60}\b(imagem|foto|png|jpe?g|heic|tiff)\b", re.I), "image_convert"),
     (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|whatsapp\s+para|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
     (re.compile(r"\b(salv(?:a|e|ar)|adicion(?:a|e|ar)|cri(?:a|e|ar)|cadastr(?:a|e|ar))\b.{0,40}\bcontato\b", re.I), "contact_save"),
@@ -2565,6 +2688,9 @@ _PUBLIC_ROUTE_LIMITS = {
     "/login": (16, 180),
     "/admin-login": (8, 180),
     "/download/mac": (8, 600),
+    "/download/vscode": (8, 600),
+    "/download/windows": (8, 600),
+    "/github-star": (40, 120),
 }
 GUEST_DAILY_COMMAND = 36
 GUEST_DAILY_SPEECH = 18
@@ -2678,6 +2804,45 @@ def pack_public_origin(handler):
         return f"{proto}://{host}"
     configured = clean_text(os.environ.get("JARVIS_PUBLIC_URL"), 200)
     return configured or mac_app.DEFAULT_ORIGIN
+
+
+_GITHUB_STAR_CACHE = {"at": 0, "payload": None}
+
+
+def github_star_payload():
+    repo_url = CREATOR_PROFILE["github"]
+    cached = _GITHUB_STAR_CACHE["payload"]
+    now = time.time()
+    if cached and now - _GITHUB_STAR_CACHE["at"] < 900:
+        return cached, 200
+    api_url = "https://api.github.com/repos/theopadilha2009-hash/jarvis-agent-os"
+    try:
+        request = Request(api_url, headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "jarvis-theo",
+        })
+        with urlopen(request, timeout=6) as response:
+            data = json.loads(response.read(8_000).decode("utf-8"))
+        stars = int(data.get("stargazers_count") or 0)
+        if stars < 0:
+            raise ValueError("invalid star count")
+        payload = {
+            "ok": True,
+            "stars": stars,
+            "url": repo_url,
+            "status_real": "github_star_count",
+        }
+        _GITHUB_STAR_CACHE["payload"] = payload
+        _GITHUB_STAR_CACHE["at"] = now
+        return payload, 200
+    except (HTTPError, URLError, TimeoutError, ValueError, TypeError, json.JSONDecodeError, OSError):
+        fallback = cached or {
+            "ok": True,
+            "stars": None,
+            "url": repo_url,
+            "status_real": "github_star_unavailable",
+        }
+        return fallback, 200
 
 
 def account_login_payload(body, require_owner=False):
@@ -4296,6 +4461,82 @@ def supabase_device_enqueue(command, intent):
         target = "theopadilha2009-hash"
     elif intent == "system_memory" and JARVIS_CLEANUP_PATTERN.search(command):
         target = "jarvis-temporaries"
+    elif intent == "open_url":
+        url, _label = requested_web_url(command)
+        if not url:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "open_url_missing",
+                "visual_state": "error",
+                "error": "Diga um endereço https ou um site conhecido para eu abrir no Mac.",
+                "intent": intent,
+            }, 400
+        target = "browser"
+        command = device_actions.payload_json("open_url", url)
+    elif intent == "speak":
+        speech = device_actions.speak_text(command)
+        if not speech or has_secret_like_text(speech):
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "speak_text_missing",
+                "visual_state": "error",
+                "error": "Diga exatamente o que eu devo falar no Mac.",
+                "intent": intent,
+            }, 400
+        target = "speaker"
+        command = device_actions.payload_json("speak", speech)
+    elif intent == "open_folder":
+        folder = device_actions.folder_id(command)
+        if not folder:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "folder_target_missing",
+                "visual_state": "error",
+                "error": "Posso abrir Downloads, Desktop, Documentos ou a pasta pessoal.",
+                "intent": intent,
+            }, 400
+        target = folder
+    elif intent == "notify":
+        text = device_actions.notify_text(command)
+        if not text or has_secret_like_text(text):
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "notify_text_missing",
+                "visual_state": "error",
+                "error": "Diga o texto da notificação no Mac.",
+                "intent": intent,
+            }, 400
+        target = "notification"
+        command = device_actions.payload_json("notify", text)
+    elif intent == "volume_set":
+        level = device_actions.volume_level(command)
+        if level is None:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "volume_level_invalid",
+                "visual_state": "error",
+                "error": "Diga o volume do Mac de 0 a 100.",
+                "intent": intent,
+            }, 400
+        target = str(level)
+    elif intent == "clipboard_set":
+        text = device_actions.clipboard_text(command)
+        if not text or has_secret_like_text(text):
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "clipboard_text_missing",
+                "visual_state": "error",
+                "error": "Diga o texto exato para copiar.",
+                "intent": intent,
+            }, 400
+        target = "clipboard"
+        command = device_actions.payload_json("clipboard_set", text)
     row = {
         "owner_id": "theo",
         "action": intent,
@@ -4325,6 +4566,18 @@ def supabase_device_enqueue(command, intent):
                 if intent == "spotify_control"
                 else "Nota enviada ao bloco de notas do Mac."
                 if intent == "save_note"
+                else "Endereço enviado para abrir no Mac."
+                if intent == "open_url"
+                else "Vou falar isso no alto-falante do Mac."
+                if intent == "speak"
+                else "Pedido para abrir a pasta no Finder enviado ao Mac."
+                if intent == "open_folder"
+                else "Notificação enviada ao Mac."
+                if intent == "notify"
+                else "Ajuste de volume enviado ao Mac."
+                if intent == "volume_set"
+                else "Texto enviado para a área de transferência do Mac."
+                if intent == "clipboard_set"
                 else "Pedido enviado ao worker do Mac. Estou acompanhando a execução."
             ),
             "intent": intent,
@@ -4378,6 +4631,29 @@ def chain_step_target(step):
         return "theopadilha2009-hash"
     if intent == "system_memory" and JARVIS_CLEANUP_PATTERN.search(command):
         return "jarvis-temporaries"
+    if intent == "open_folder":
+        folder = device_actions.folder_id(command)
+        if not folder:
+            raise ValueError("Não identifiquei a pasta allowlisted em uma das etapas.")
+        return folder
+    if intent == "volume_set":
+        level = device_actions.volume_level(command)
+        if level is None:
+            raise ValueError("Não reconheci o volume do Mac em uma das etapas.")
+        return str(level)
+    if intent == "open_url":
+        url, _label = requested_web_url(command)
+        if not url:
+            raise ValueError("Não identifiquei o endereço para abrir no Mac.")
+        return "browser"
+    if intent == "clipboard_set":
+        if not device_actions.clipboard_text(command):
+            raise ValueError("Não identifiquei o texto para copiar.")
+        return "clipboard"
+    if intent == "notify":
+        if not device_actions.notify_text(command):
+            raise ValueError("Não identifiquei o texto da notificação.")
+        return "notification"
     if intent in CHAINABLE_DEVICE_INTENTS:
         return ""
     raise ValueError("Uma das etapas está fora do executor encadeado.")
@@ -5346,6 +5622,16 @@ def status_payload(owner_authenticated=False, identity=None):
             "page": "/app",
             "overlay": "/fala",
         },
+        "vscode_pack": {
+            "download": "/download/vscode",
+            "mac": "/download/vscode/mac",
+            "windows": "/download/vscode/windows",
+            "filename": vscode_pack.PACK_NAME,
+        },
+        "windows_app": {
+            "download": "/download/windows",
+            "filename": windows_pack.PACK_NAME,
+        },
         "agent_runtime": {
             "tool_calling": ai_ready,
             "available_tools": len(agent_tool_definitions()) if ai_ready else 0,
@@ -5917,10 +6203,24 @@ def _browser_open_query(raw):
     return text
 
 
+def requested_web_url(command):
+    """Resolve an explicit https URL or a known web destination."""
+    text = clean_text(command, 400)
+    direct = device_actions.extract_https_url(text)
+    if direct:
+        return direct, "site"
+    for pattern, url, label in WEB_OPEN_TARGETS:
+        if pattern.search(text):
+            return url, label
+    return "", ""
+
+
 def browser_open_payload(command, owner_authenticated=False):
     """Abre destino web no próprio navegador — sem worker do Mac."""
     text = clean_text(command, 400)
     if not text or re.search(r"\b(gravador|grava[cç][aã]o\s+de\s+tela|print|screenshot)\b", text, re.I):
+        return None
+    if device_actions.mac_open_requested(text):
         return None
 
     def payload(url, label, message=None):
@@ -5977,12 +6277,15 @@ def browser_open_payload(command, owner_authenticated=False):
                 f"Abrindo Maps: {query}.",
             )
 
+    direct = device_actions.extract_https_url(text)
+    if direct and re.search(r"\b(?:abr(?:a|e|ir)|inici(?:a|e|ar)|abr(?:a|e)\s+este\s+link)\b", text, re.I):
+        return payload(direct, "site", "Abrindo o endereço.")
     if not (WEB_OPEN_PATTERN.search(text) or APPLICATION_INTENT_PATTERNS["open_application"].fullmatch(text)):
         return None
     for pattern, url, label in WEB_OPEN_TARGETS:
         if not pattern.search(text):
             continue
-        if owner_authenticated and label == "Spotify":
+        if owner_authenticated and label in WEB_OPEN_NATIVE_WHEN_OWNER:
             continue
         return payload(url, label)
     return None
@@ -6044,6 +6347,18 @@ def public_device_target(action, target):
         return "GitHub do Theo"
     if action == "save_note":
         return "bloco de notas do Mac"
+    if action == "open_url":
+        return "navegador do Mac"
+    if action == "clipboard_set":
+        return "área de transferência"
+    if action == "speak":
+        return "alto-falante"
+    if action == "open_folder":
+        return device_actions.FOLDER_LABELS.get(safe_target.casefold(), safe_target or "pasta")
+    if action == "notify":
+        return "notificação"
+    if action == "volume_set":
+        return f"volume {safe_target}" if safe_target else "volume"
     return safe_target
 
 
@@ -6071,11 +6386,51 @@ def local_handoff(command, intent, execute=False):
             "./jarvis", "storage-scan", str(Path.home() / "Downloads"),
             "--top", "20", "--min-mb", "50",
         ]
+    elif intent == "speak":
+        speech = device_actions.speak_text(command)
+        command_args = ["./jarvis", "speak", speech] if speech else None
+    elif intent == "open_folder":
+        folder = device_actions.folder_id(command)
+        folder_paths = {
+            "downloads": Path.home() / "Downloads",
+            "desktop": Path.home() / "Desktop",
+            "documents": Path.home() / "Documents",
+            "home": Path.home(),
+        }
+        command_args = ["/usr/bin/open", str(folder_paths[folder])] if folder in folder_paths else None
+    elif intent == "volume_set":
+        level = device_actions.volume_level(command)
+        command_args = ["osascript", "-e", f"set volume output volume {int(level)}"] if level is not None else None
+    elif intent == "open_url":
+        url, _label = requested_web_url(command)
+        command_args = ["/usr/bin/open", url] if url else None
+    elif intent == "notify":
+        text = device_actions.notify_text(command)
+        safe_note = (
+            text[:180].replace("\\", "\\\\").replace('"', '\\"').replace("\r", " ").replace("\n", " ")
+            if text else ""
+        )
+        command_args = [
+            "osascript",
+            "-e",
+            f'display notification "{safe_note}" with title "JARVIS"',
+        ] if text else None
+    elif intent == "clipboard_set":
+        text = device_actions.clipboard_text(command)
+        command_args = ["/usr/bin/pbcopy"] if text else None
     else:
         command_args = ["./jarvis", "do", command]
     if not command_args:
         application_intent = intent in {"open_application", "close_application"}
         spotify_intent = intent == "spotify_control"
+        missing = {
+            "open_folder": "Posso abrir Downloads, Desktop, Documentos ou a pasta pessoal.",
+            "volume_set": "Diga o volume do Mac de 0 a 100.",
+            "open_url": "Diga um endereço https ou um site conhecido.",
+            "speak": "Diga exatamente o que eu devo falar no Mac.",
+            "notify": "Diga o texto da notificação no Mac.",
+            "clipboard_set": "Diga o texto exato para copiar.",
+        }
         return {
             "ok": False,
             "endpoint": "POST /command",
@@ -6086,7 +6441,7 @@ def local_handoff(command, intent, execute=False):
                 if application_intent
                 else "Não reconheci esse controle do Spotify. Use tocar, pausar, próxima/anterior, volume, aleatório, repetição, busca ou status."
                 if spotify_intent
-                else "Diga exatamente o que devo guardar; não vou fingir que salvei um ‘isso’ sem contexto."
+                else missing.get(intent, "Diga exatamente o que devo guardar; não vou fingir que salvei um ‘isso’ sem contexto.")
             ),
             "intent": intent,
             "executed_locally": False,
@@ -6101,6 +6456,7 @@ def local_handoff(command, intent, execute=False):
                 capture_output=True,
                 timeout=90,
                 env=os.environ.copy(),
+                input=device_actions.clipboard_text(command) if intent == "clipboard_set" else None,
             )
             output = (result.stdout or result.stderr or "").strip()[-8_000:]
             action_succeeded = result.returncode == 0
@@ -6116,6 +6472,12 @@ def local_handoff(command, intent, execute=False):
                 "open_application": "Aplicativo aberto no seu Mac.",
                 "close_application": "Aplicativo fechado no seu Mac.",
                 "spotify_control": "Spotify controlado e estado consultado novamente no seu Mac.",
+                "speak": "Falei no alto-falante do Mac.",
+                "open_folder": "Abri a pasta no Finder.",
+                "volume_set": "Ajustei o volume do Mac.",
+                "open_url": "Abri o endereço no Mac.",
+                "notify": "Mandei a notificação no Mac.",
+                "clipboard_set": "Copiei o texto no Mac.",
             }
             return {
                 "ok": action_succeeded,
@@ -6870,8 +7232,21 @@ def file_send_payload(command):
     text = clean_text(command, 400)
     if re.search(r"\blogo\b", text, re.I):
         url, name, label = "/ui/jarvis-logo.png?v=20260813-logonative1", "jarvis-logo.png", "logo do JARVIS"
-    elif re.search(r"\b(?:zip|app(?:licativo)?(?:\s+do)?\s+mac|mac\.zip)\b", text, re.I):
+    elif re.search(r"\b(?:zip|app(?:licativo)?(?:\s+do)?\s+mac|mac\.zip)\b", text, re.I) and not re.search(
+        r"\b(?:vscode|vs\s*code|jarvis-theo|windows)\b", text, re.I
+    ):
         url, name, label = "/download/mac", "JARVIS.mac.zip", "app do Mac"
+    elif re.search(r"\b(?:windows|win32|win64)\b", text, re.I) and not re.search(
+        r"\b(?:vscode|vs\s*code|jarvis-theo)\b", text, re.I
+    ):
+        url, name, label = "/download/windows", windows_pack.PACK_NAME, "app do Windows"
+    elif re.search(r"\b(?:vscode|vs\s*code|jarvis-theo)\b", text, re.I):
+        if re.search(r"\bwindows\b", text, re.I):
+            url, name, label = "/download/vscode/windows", vscode_pack.PACK_NAME_WIN, "JARVIS Theo para VS Code no Windows"
+        elif re.search(r"\bmac\b", text, re.I):
+            url, name, label = "/download/vscode/mac", vscode_pack.PACK_NAME_MAC, "JARVIS Theo para VS Code no Mac"
+        else:
+            url, name, label = "/download/vscode", vscode_pack.PACK_NAME, "JARVIS Theo para VS Code"
     else:
         url, name, label = "/download/curriculo", CURRICULO_FILENAME, "currículo do Theo"
     payload = {
@@ -6918,12 +7293,13 @@ def web_search_server_tool(strength="auto"):
         "auto", "native", "exa", "firecrawl", "parallel", "perplexity",
     } else "auto"
     high = strength in {"strong", "maximum"}
+    peak = strength == "maximum"
     return {
         "type": "openrouter:web_search",
         "parameters": {
             "engine": engine,
-            "max_results": 8 if high else 5,
-            "max_total_results": 12 if high else 8,
+            "max_results": 10 if peak else 8 if high else 5,
+            "max_total_results": 16 if peak else 12 if high else 8,
             "search_context_size": "high" if high else "medium",
         },
     }
@@ -8188,6 +8564,28 @@ def normalized_response_strength(body):
     return aliases.get(value, "auto")
 
 
+STRENGTH_MAXIMUM_PATTERN = re.compile(
+    r"\b(?:for[cç]a\s+m[aá]xima|m[aá]xima\s+for[cç]a|pot[eê]ncia\s+m[aá]xima|modo\s+m[aá]ximo)\b",
+    re.I,
+)
+STRENGTH_STRONG_PATTERN = re.compile(
+    r"\b(?:for[cç]a\s+forte|resposta\s+forte|modo\s+forte|com\s+for[cç]a)\b",
+    re.I,
+)
+
+
+def resolved_response_strength(command, body=None, owner_authenticated=False):
+    requested = normalized_response_strength(body or {})
+    text = clean_text(command, 800)
+    if STRENGTH_MAXIMUM_PATTERN.search(text):
+        requested = "maximum"
+    elif requested == "auto" and STRENGTH_STRONG_PATTERN.search(text):
+        requested = "strong"
+    if owner_authenticated and requested == "auto":
+        return "strong"
+    return requested
+
+
 def assistant_response_profile(prompt, attachments=None, strength="auto"):
     text = clean_text(prompt, 8_000)
     detailed = (
@@ -8291,13 +8689,15 @@ def sanitize_model_output(value):
 
 
 ACTION_TOOL_REQUEST = re.compile(
-    r"(?:^|[.!?]\s*)(?:jarvis[,\s]+)?(?:abr(?:a|e)|fech(?:a|e)|envi(?:a|e)|mand(?:a|e)|"
+    r"(?:^|[.!?]\s*)(?:jarvis[,\s]+)?(?:(?:pode|consegue|quero\s+que)\s+)?"
+    r"(?:abr(?:a|e|ir)|fech(?:a|e)|envi(?:a|e)|mand(?:a|e)|"
     r"salv(?:a|e)|guard(?:a|e)|adicion(?:a|e)|mostr(?:a|e)|list(?:a|e)|tir(?:a|e)|"
-    r"captur(?:a|e)|grav(?:a|e)|analis(?:a|e)|limp(?:a|e))\b",
+    r"captur(?:a|e)|grav(?:a|e)|analis(?:a|e)|limp(?:a|e)|copi(?:a|e)|fal(?:a|e)|"
+    r"diz(?:a|er)|avis(?:a|e)|notific(?:a|e)|to(?:c|q)(?:a|e)|paus(?:a|e)|volume)\b",
     re.I,
 )
 CONTEXTUAL_TOOL_FOLLOWUP = re.compile(
-    r"^\s*(?:faz|fa[cç]a|pode fazer|manda|envia|abre|fecha|salva|guarda|mostra|isso|agora)"
+    r"^\s*(?:faz|fa[cç]a|pode fazer|manda|envia|abre|fecha|salva|guarda|mostra|copia|isso|agora)"
     r"(?:\s+(?:isso|ele|ela|a[ií]))?[.!?]*\s*$",
     re.I,
 )
@@ -8312,7 +8712,7 @@ def should_offer_agent_tools(messages):
         return True
     if CONTEXTUAL_TOOL_FOLLOWUP.fullmatch(latest) and len(messages) > 1:
         previous = " ".join(clean_text(row.get("content"), 1_000) for row in messages[-4:-1])
-        return bool(re.search(r"\b(?:app|chrome|navegador|spotify|steam|github|mensagem|agenda|mem[oó]ria|tela|computador|mac)\b", previous, re.I))
+        return bool(re.search(r"\b(?:app|chrome|navegador|spotify|steam|github|mensagem|agenda|mem[oó]ria|tela|computador|mac|pasta|downloads|clipboard|volume|url|link)\b", previous, re.I))
     return False
 
 
@@ -8399,7 +8799,7 @@ def capability_question_payload(prompt):
     if topics["n8n"]:
         pieces.append("no n8n eu monto o fluxo e aciono webhooks configurados; criar dentro da sua conta exige a API ou credencial do n8n conectada")
     if topics["computer"]:
-        pieces.append("no Mac o worker abre ou fecha apps, controla reprodução e volume do Spotify, tira prints, abre o gravador e analisa memória")
+        pieces.append("no Mac o worker abre ou fecha apps e pastas, copia texto, fala, notifica, ajusta volume, abre URL, controla Spotify, tira prints, abre o gravador e analisa memória")
     if topics["github"]:
         pieces.append("no GitHub eu consulto a conta autenticada sem expor o token")
     if topics["evolve"]:
@@ -8591,6 +8991,89 @@ def agent_tool_definitions():
                 },
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "open_url",
+                "description": "Open an https URL on Theo's paired Mac when he asks to open a site on the computer.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"url": {"type": "string", "description": "https URL to open."}},
+                    "required": ["url"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "set_clipboard",
+                "description": "Copy exact text to the clipboard of this browser and, when paired, Theo's Mac.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"text": {"type": "string", "description": "Exact text to copy."}},
+                    "required": ["text"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "speak_on_mac",
+                "description": "Speak exact text through the speakers of Theo's paired Mac.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"text": {"type": "string", "description": "Exact speech."}},
+                    "required": ["text"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "open_folder",
+                "description": "Open Downloads, Desktop, Documents, or the home folder in Finder.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "folder": {
+                            "type": "string",
+                            "enum": ["downloads", "desktop", "documents", "home"],
+                        },
+                    },
+                    "required": ["folder"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "notify_mac",
+                "description": "Show a native macOS notification with the exact text Theo asked to display.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"text": {"type": "string", "description": "Notification body."}},
+                    "required": ["text"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "set_volume",
+                "description": "Set the macOS output volume from 0 to 100 when Theo asks to change the computer volume.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"level": {"type": "integer", "minimum": 0, "maximum": 100}},
+                    "required": ["level"],
+                    "additionalProperties": False,
+                },
+            },
+        },
     ]
 
 
@@ -8651,12 +9134,71 @@ def scene_nucleus_payload(command, owner_authenticated=False):
     }, 200
 
 
+def clipboard_payload(command, local_execute=False, owner_authenticated=False):
+    text = device_actions.clipboard_text(command)
+    if not text or has_secret_like_text(text):
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "clipboard_text_missing",
+            "visual_state": "error",
+            "error": "Diga o texto exato para copiar.",
+            "intent": "clipboard_set",
+        }, 400
+    payload = {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "clipboard_copied",
+        "visual_state": "success",
+        "message": "Copiei o texto para a área de transferência.",
+        "intent": "clipboard_set",
+        "client_action": "copy_text",
+        "copy_text": text,
+        "provider": "jarvis_browser",
+        "action_executed": True,
+    }
+    if owner_authenticated and supabase_configured() and not local_execute:
+        queued, status = supabase_device_enqueue(command, "clipboard_set")
+        if queued.get("ok"):
+            queued["client_action"] = "copy_text"
+            queued["copy_text"] = text
+            queued["message"] = "Copiei aqui e enviei o mesmo texto para o Mac."
+            queued["action_executed"] = True
+            return queued, status
+    if local_execute:
+        handed = local_handoff(command, "clipboard_set", execute=True)
+        if handed.get("ok"):
+            handed["client_action"] = "copy_text"
+            handed["copy_text"] = text
+        return handed, 200 if handed.get("ok") else 500
+    return payload, 200
+
+
 def dispatch_intent(command, intent, local_execute=False, owner_authenticated=False, code_authenticated=False):
     """Run one known intent without giving the model access to arbitrary code."""
+    if intent == "clipboard_set":
+        return clipboard_payload(command, local_execute=local_execute, owner_authenticated=owner_authenticated)
     if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
         return pairing_required_payload()
     if owner_pairing_required() and not (owner_authenticated or code_authenticated) and intent in CODE_INTENTS:
         return login_required_payload("code")
+    if intent == "code_pad":
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "code_pad_opened",
+            "visual_state": "forge",
+            "message": (
+                "Abri o JARVIS Code. Copie, altere e cole no VS Code no Mac ou no Windows. "
+                "Também dá para baixar o JARVIS Theo para o VS Code."
+            ),
+            "intent": "code_pad",
+            "client_action": "open_code_pad",
+            "download_url": "/download/vscode",
+            "download_name": vscode_pack.PACK_NAME,
+            "provider": "jarvis_cockpit",
+            "action_executed": True,
+        }, 200
     if intent == "code_session":
         return {
             "ok": True,
@@ -8962,6 +9504,45 @@ def execute_agent_tool(tool_call, original_command, local_execute=False, owner_a
             )
         else:
             return {"ok": False, "status_real": "agent_tool_computer_area_invalid", "error": "A área do computador não é válida."}, 400
+    elif name == "open_url":
+        url = device_actions.safe_https_url(clean_text(args.get("url"), 500))
+        if not url:
+            return {"ok": False, "status_real": "agent_tool_url_invalid", "error": "A URL precisa ser https e pública."}, 400
+        intent = "open_url"
+        command = f"abra {url} no mac"
+    elif name == "set_clipboard":
+        text = clean_text(args.get("text"), 4_000).strip()
+        if len(text) < 1 or has_secret_like_text(text):
+            return {"ok": False, "status_real": "agent_tool_clipboard_invalid", "error": "O texto para copiar não é válido."}, 400
+        intent = "clipboard_set"
+        command = f"copia isso: {text}"
+    elif name == "speak_on_mac":
+        text = clean_text(args.get("text"), 4_000).strip()
+        if len(text) < 1 or has_secret_like_text(text):
+            return {"ok": False, "status_real": "agent_tool_speak_invalid", "error": "O texto para falar no Mac não é válido."}, 400
+        intent = "speak"
+        command = f"fale no mac: {text}"
+    elif name == "open_folder":
+        folder = clean_text(args.get("folder"), 30).casefold()
+        if folder not in device_actions.FOLDER_LABELS:
+            return {"ok": False, "status_real": "agent_tool_folder_invalid", "error": "A pasta não está no allowlist."}, 400
+        intent = "open_folder"
+        command = f"abre a pasta {folder}"
+    elif name == "notify_mac":
+        text = clean_text(args.get("text"), 4_000).strip()
+        if len(text) < 1 or has_secret_like_text(text):
+            return {"ok": False, "status_real": "agent_tool_notify_invalid", "error": "O texto da notificação não é válido."}, 400
+        intent = "notify"
+        command = f"avisa no mac: {text}"
+    elif name == "set_volume":
+        try:
+            level = int(args.get("level"))
+        except (TypeError, ValueError):
+            level = -1
+        if not 0 <= level <= 100:
+            return {"ok": False, "status_real": "agent_tool_volume_invalid", "error": "O volume precisa ser de 0 a 100."}, 400
+        intent = "volume_set"
+        command = f"volume do mac para {level}"
 
     payload, status = dispatch_intent(
         command,
@@ -9010,7 +9591,7 @@ def execute_agent_tools(
         seen.add(fingerprint)
         unique_calls.append(tool_call)
 
-    limit = max(1, min(int(max_tools or 1), 3))
+    limit = max(1, min(int(max_tools or 1), 4))
     selected = unique_calls[:limit]
     ignored = max(0, len(unique_calls) - len(selected))
     if not selected:
@@ -9145,11 +9726,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         return {"ok": False, "error": str(error), "status_real": "attachment_refused"}, 400
 
     latest = messages[-1]["content"]
-    response_strength = normalized_response_strength(body)
-    if owner_authenticated and response_strength == "auto":
-        response_strength = "strong"
+    response_strength = resolved_response_strength(latest, body, owner_authenticated=owner_authenticated)
     response_profile = assistant_response_profile(latest, attachments, response_strength)
-    power_profile = execution_power_profile(owner_authenticated)
+    power_profile = execution_power_profile(owner_authenticated, response_strength)
     web_search_requested = should_search_web(messages, owner_authenticated=owner_authenticated)
     if DAILY_BRIEF_PATTERN.search(latest):
         return daily_brief_payload(owner_authenticated=owner_authenticated)
@@ -9163,6 +9742,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         return elevenlabs_voice_design(latest)
     if FILE_SEND_PATTERN.search(latest):
         return file_send_payload(latest)
+    device_plan = compound_device_plan(latest)
+    if not device_plan:
+        web_open = browser_open_payload(latest, owner_authenticated=owner_authenticated)
+        if web_open:
+            return web_open, 200
     if CREATOR_QUESTION_PATTERN.search(latest):
         payload, status = creator_profile_payload("full")
         if re.search(r"curr[ií]culo|\bcv\b", latest, re.I):
@@ -9171,11 +9755,6 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             payload["status_real"] = "file_sent"
         payload["endpoint"] = "POST /assistant"
         return payload, status
-    device_plan = compound_device_plan(latest)
-    if not device_plan:
-        web_open = browser_open_payload(latest, owner_authenticated=owner_authenticated)
-        if web_open:
-            return web_open, 200
     if device_plan:
         return dispatch_device_plan(
             latest,
@@ -9389,12 +9968,12 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     strength_contracts = {
         "auto": "",
         "strong": (
-            "\n\nFORÇA FORTE: priorize qualidade, revise premissas e complete todas as partes do pedido antes de responder. "
-            "Não aumente o texto sem necessidade."
+            "\n\nFORÇA FORTE: complete o pedido até o fim. Use ferramenta quando o pedido for ação. "
+            "Revise premissas, entregue o resultado e o próximo passo concreto. Sem enrolação."
         ),
         "maximum": (
-            "\n\nFORÇA MÁXIMA: use a rota de raciocínio mais profunda disponível, verifique conflitos e cubra integralmente "
-            "o objetivo. Seja conclusivo; profundidade não significa enrolação."
+            "\n\nFORÇA MÁXIMA: trate isto como missão. Cubra o objetivo inteiro, use as ferramentas necessárias, "
+            "confira conflitos e entregue uma conclusão executável. Profundidade sem enrolação; não deixe parte do pedido pela metade."
         ),
     }
     system["content"] += strength_contracts[response_strength]
@@ -9403,7 +9982,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         system["content"] += (
             "\n\nVocê possui ferramentas reais para memória, agenda e o Mac. Quando o pedido for uma ação, "
             + (
-                "no modo Ultron você pode selecionar até três ferramentas distintas quando o pedido tiver frentes independentes. "
+                f"no modo Ultron você pode selecionar até { {1: 'uma', 2: 'duas', 3: 'três', 4: 'quatro'}.get(int(power_profile['max_agent_tools_per_request'] or 3), 'três') } ferramentas distintas quando o pedido tiver frentes independentes. "
                 if owner_authenticated
                 else "prefira exatamente uma ferramenta adequada em vez de apenas explicar como fazer. "
             )
@@ -9443,7 +10022,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "partition": "model" if quality_first else "none",
         },
         "preferred_max_latency": {
-            "p90": 18 if response_strength == "maximum" else 14 if response_strength == "strong" else 12 if quality_first else 6
+            "p90": 22 if response_strength == "maximum" else 16 if response_strength == "strong" else 12 if quality_first else 6
         },
         "max_price": {"prompt": 0, "completion": 0},
         "allow_fallbacks": True,
@@ -9451,7 +10030,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     openrouter_payload = {
             "messages": [system, *provider_messages],
             "temperature": response_profile["temperature"],
-            "max_tokens": min(response_profile["max_tokens"] * power_profile["multiplier"], 1_800),
+            "max_tokens": min(
+                response_profile["max_tokens"] * power_profile["multiplier"],
+                power_profile.get("max_tokens_cap") or 1_800,
+            ),
             "stream": False,
             "provider": provider_routing,
         }
@@ -9487,7 +10069,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         def send_openrouter(payload, timeout=None):
             nonlocal openrouter_key_failover
             if timeout is None:
-                timeout = 24 if response_strength == "maximum" else 18 if response_strength == "strong" else 14
+                timeout = 32 if response_strength == "maximum" else 20 if response_strength == "strong" else 14
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             last_error = None
             key_retryable_codes = {401, 402, 403, 408, 409, 429, 500, 502, 503, 504}
@@ -9859,6 +10441,10 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
 
     if FILE_SEND_PATTERN.search(command):
         return file_send_payload(command)
+    if not compound_device_plan(command):
+        web_open = browser_open_payload(command, owner_authenticated=owner_authenticated)
+        if web_open:
+            return web_open, 200
     if CREATOR_QUESTION_PATTERN.search(command):
         payload, status = creator_profile_payload("full")
         if re.search(r"curr[ií]culo|\bcv\b", command, re.I):
@@ -9868,11 +10454,6 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
         return payload, status
     if IDENTITY_QUESTION_PATTERN.search(command):
         return creator_profile_payload("short")
-
-    if not compound_device_plan(command):
-        web_open = browser_open_payload(command, owner_authenticated=owner_authenticated)
-        if web_open:
-            return web_open, 200
 
     recent_messages = normalize_messages(body)[-6:]
     memory_was_opened = any(
@@ -9950,7 +10531,7 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
             "command": command,
             "messages": body.get("messages"),
             "attachments": body.get("attachments"),
-            "strength": normalized_response_strength(body),
+            "strength": resolved_response_strength(command, body, owner_authenticated=owner_authenticated),
             "client_integrations": body.get("client_integrations"),
         },
         origin=origin,
@@ -9969,6 +10550,8 @@ def command_intent(command):
         return "personal_overview"
     if FILE_SEND_PATTERN.search(command):
         return "file_send"
+    if not compound_device_plan(command) and browser_open_payload(command):
+        return "open_url"
     if CREATOR_QUESTION_PATTERN.search(command) or IDENTITY_QUESTION_PATTERN.search(command):
         return "creator_profile"
     if compound_device_plan(command):
@@ -10850,6 +11433,34 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self._write_body(body)
 
+    def serve_zip_download(self, limit_path, filename, body):
+        limited, retry_after = public_route_limit_hit(self, limit_path)
+        if limited:
+            return self.send_json(429, {
+                "ok": False,
+                "status_real": "public_rate_limited",
+                "error": "Muitos downloads deste endereço. Espere um pouco.",
+                "retryable": True,
+            }, extra_headers={"Retry-After": str(retry_after)})
+        self.send_response(200)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Cache-Control", "no-store")
+        self._security_headers()
+        self.end_headers()
+        self._write_body(body)
+
+    def serve_vscode_pack(self, platform="all"):
+        origin = pack_public_origin(self)
+        filename = vscode_pack.pack_filename(platform)
+        body = vscode_pack.vscode_pack_bytes(origin, platform)
+        return self.serve_zip_download("/download/vscode", filename, body)
+
+    def serve_windows_pack(self):
+        body = windows_pack.windows_pack_bytes(pack_public_origin(self))
+        return self.serve_zip_download("/download/windows", windows_pack.PACK_NAME, body)
+
     def serve_asset(self, relative):
         try:
             base = UI_ASSET_DIR.resolve()
@@ -10923,6 +11534,14 @@ class handler(BaseHTTPRequestHandler):
             return self.serve_public_page("app.html", "página do app indisponível")
         if path in {"/download/mac", "/download/JARVIS.mac.zip"}:
             return self.serve_mac_pack()
+        if path in {"/download/vscode", "/download/JARVIS-theo-vscode.zip"}:
+            return self.serve_vscode_pack("all")
+        if path in {"/download/vscode/mac", "/download/JARVIS-theo-macos.zip"}:
+            return self.serve_vscode_pack("mac")
+        if path in {"/download/vscode/windows", "/download/JARVIS-theo-windows.zip"}:
+            return self.serve_vscode_pack("windows")
+        if path in {"/download/windows", "/download/JARVIS.windows.zip"}:
+            return self.serve_windows_pack()
         if path == "/oferta":
             payload = product_offer_payload()
             return self.send_json(200, payload)
@@ -10930,6 +11549,18 @@ class handler(BaseHTTPRequestHandler):
             payload, _status = creator_profile_payload("full")
             payload["endpoint"] = "GET /creator-profile"
             return self.send_json(200, payload)
+        if path == "/github-star":
+            limited, retry_after = public_route_limit_hit(self, "/github-star")
+            if limited:
+                return self.send_json(429, {
+                    "ok": False,
+                    "status_real": "public_rate_limited",
+                    "error": "Muitas consultas deste endereço. Espere um pouco.",
+                    "retryable": True,
+                }, extra_headers={"Retry-After": str(retry_after)})
+            payload, status = github_star_payload()
+            payload["endpoint"] = "GET /github-star"
+            return self.send_json(status, payload)
         if path == "/favicon.ico":
             return self.send_bytes(200, b"", "image/x-icon", "public, max-age=86400")
         if path == "/jarvis-sw.js":

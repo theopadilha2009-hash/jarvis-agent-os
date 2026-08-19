@@ -26,10 +26,20 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
 from spotify_control import command_args as spotify_command_args  # noqa: E402
+from device_actions import (  # noqa: E402
+    clipboard_text,
+    extract_https_url,
+    folder_id,
+    notify_text,
+    payload_from_text,
+    safe_https_url,
+    speak_text,
+    volume_level,
+)
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "11"
+WORKER_VERSION = "12"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -71,6 +81,9 @@ RETRYABLE_STALE_ACTIONS = {
     "github_overview",
     "storage_scan",
     "system_memory",
+    "open_url",
+    "open_folder",
+    "volume_set",
 }
 ALLOWED_ACTIONS = {
     "open_application",
@@ -84,6 +97,18 @@ ALLOWED_ACTIONS = {
     "system_memory",
     "self_edit",
     "save_note",
+    "open_url",
+    "clipboard_set",
+    "speak",
+    "open_folder",
+    "notify",
+    "volume_set",
+}
+ALLOWED_FOLDER_PATHS = {
+    "downloads": lambda: Path.home() / "Downloads",
+    "desktop": lambda: Path.home() / "Desktop",
+    "documents": lambda: Path.home() / "Documents",
+    "home": Path.home,
 }
 TARGET_PATTERN = re.compile(r"^[\wÀ-ÿ ._-]{0,120}$")
 APPLICATION_ALIASES = {
@@ -106,6 +131,27 @@ APPLICATION_ALIASES = {
     "terminal": "Terminal",
     "vs code": "Visual Studio Code",
     "vscode": "Visual Studio Code",
+    "cursor": "Cursor",
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "whatsapp": "WhatsApp",
+    "obsidian": "Obsidian",
+    "figma": "Figma",
+    "notion": "Notion",
+    "zoom": "zoom.us",
+    "mail": "Mail",
+    "preview": "Preview",
+    "calculadora": "Calculator",
+    "calculator": "Calculator",
+    "monitor": "Activity Monitor",
+    "activity monitor": "Activity Monitor",
+    "monitor de atividade": "Activity Monitor",
+    "ajustes": "System Settings",
+    "configuracoes": "System Settings",
+    "system settings": "System Settings",
+    "fotos": "Photos",
+    "photos": "Photos",
+    "facetime": "FaceTime",
 }
 JARVIS_CLEANUP_PATTERN = re.compile(
     r"\b(?:limp(?:a|e|ar)|fech(?:a|e|ar)|encerr(?:a|e|ar))\b.{0,120}"
@@ -639,6 +685,123 @@ def persist_mac_note(job: dict) -> tuple[bool, str]:
     return True, f"Arquivo: {path}. {apple}"
 
 
+def job_text_source(job: dict) -> str:
+    return job_request_text(job) or str(job.get("request_text") or "")
+
+
+def job_open_url(job: dict) -> str:
+    source = job_text_source(job)
+    payload = payload_from_text(source)
+    if payload.get("kind") == "open_url":
+        url = safe_https_url(str(payload.get("value") or ""))
+        if url:
+            return url
+    return extract_https_url(source)
+
+
+def execute_open_url_job(job: dict) -> tuple[bool, str]:
+    url = job_open_url(job)
+    if not url:
+        raise WorkerError("URL https válida não encontrada.")
+    if platform.system() != "Darwin":
+        return False, "Abrir URL no Mac indisponível neste sistema."
+    result = subprocess.run(["/usr/bin/open", url], text=True, capture_output=True, check=False, timeout=12)
+    if result.returncode != 0:
+        return False, "O macOS recusou abrir o endereço."
+    return True, f"Aberto no Mac: {url}"
+
+
+def execute_clipboard_job(job: dict) -> tuple[bool, str]:
+    text = clipboard_text(job_text_source(job), job_text_source(job))
+    if not text or contains_secret(text):
+        raise WorkerError("Texto para copiar ausente ou inseguro.")
+    if platform.system() != "Darwin":
+        return False, "Área de transferência do Mac indisponível neste sistema."
+    result = subprocess.run(
+        ["/usr/bin/pbcopy"],
+        input=text,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=8,
+    )
+    if result.returncode != 0:
+        return False, "Não consegui copiar para a área de transferência."
+    return True, "Texto copiado para a área de transferência do Mac."
+
+
+def execute_speak_job(job: dict) -> tuple[bool, str]:
+    text = speak_text(job_text_source(job), job_text_source(job))
+    if not text or contains_secret(text):
+        raise WorkerError("Fala recebida sem texto seguro.")
+    spoken = speak_on_mac(text)
+    if spoken == "skipped":
+        return False, "A voz local está desligada."
+    if spoken == "failed":
+        return False, "Não consegui falar pelo alto-falante do Mac."
+    return True, f"Falei no Mac ({spoken})."
+
+
+def execute_open_folder_job(job: dict) -> tuple[bool, str]:
+    alias = folder_id(job_text_source(job), str(job.get("target") or ""), job_text_source(job))
+    builder = ALLOWED_FOLDER_PATHS.get(alias)
+    if not builder:
+        raise WorkerError("Pasta fora do allowlist.")
+    path = builder()
+    if not path.exists():
+        return False, f"A pasta {alias} não existe neste Mac."
+    if platform.system() != "Darwin":
+        return False, "Finder indisponível neste sistema."
+    result = subprocess.run(["/usr/bin/open", str(path)], text=True, capture_output=True, check=False, timeout=12)
+    if result.returncode != 0:
+        return False, "O Finder recusou abrir a pasta."
+    return True, f"Finder aberto em {path}."
+
+
+def execute_notify_job(job: dict) -> tuple[bool, str]:
+    text = notify_text(job_text_source(job), job_text_source(job))
+    if not text or contains_secret(text):
+        raise WorkerError("Notificação recebida sem texto seguro.")
+    if platform.system() != "Darwin":
+        return False, "Notificações do macOS indisponíveis neste sistema."
+    script = (
+        f'display notification "{applescript_string(text[:180])}" '
+        f'with title "JARVIS"'
+    )
+    result = subprocess.run(["osascript", "-e", script], text=True, capture_output=True, check=False, timeout=8)
+    if result.returncode != 0:
+        return False, "O macOS recusou a notificação."
+    return True, "Notificação enviada no Mac."
+
+
+def execute_volume_job(job: dict) -> tuple[bool, str]:
+    level = volume_level(job_text_source(job), str(job.get("target") or ""), job_text_source(job))
+    if level is None:
+        raise WorkerError("Volume fora de 0 a 100.")
+    if platform.system() != "Darwin":
+        return False, "Volume do sistema indisponível neste sistema."
+    result = subprocess.run(
+        ["osascript", "-e", f"set volume output volume {int(level)}"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=8,
+    )
+    if result.returncode != 0:
+        return False, "O macOS recusou o ajuste de volume."
+    observed = subprocess.run(
+        ["osascript", "-e", "output volume of (get volume settings)"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=8,
+    )
+    evidence = (observed.stdout or "").strip()
+    if observed.returncode == 0 and evidence.isdigit() and abs(int(evidence) - int(level)) > 5:
+        return False, f"O volume não ficou em {level}; o sistema reportou {evidence}."
+    return True, f"Volume do Mac ajustado para {level}."
+
+
 def command_argv(job: dict) -> list[str]:
     action = str(job.get("action") or "")
     target = str(job.get("target") or "").strip()
@@ -647,6 +810,37 @@ def command_argv(job: dict) -> list[str]:
     if action == "save_note":
         note = mac_note_from_job(job)
         return ["jarvis-note-save", note["title"][:80]]
+    if action == "open_url":
+        url = job_open_url(job)
+        if not url:
+            raise WorkerError("URL https válida não encontrada.")
+        return ["/usr/bin/open", url]
+    if action == "clipboard_set":
+        text = clipboard_text(job_request_text(job), str(job.get("request_text") or ""))
+        if not text:
+            raise WorkerError("Texto para copiar ausente.")
+        return ["/usr/bin/pbcopy"]
+    if action == "speak":
+        text = speak_text(job_request_text(job), str(job.get("request_text") or ""))
+        if not text:
+            raise WorkerError("Fala recebida sem texto.")
+        return ["/usr/bin/say", "-v", LOCAL_SAY_VOICE, text]
+    if action == "open_folder":
+        alias = folder_id(job_request_text(job), target, str(job.get("request_text") or ""))
+        builder = ALLOWED_FOLDER_PATHS.get(alias)
+        if not builder:
+            raise WorkerError("Pasta fora do allowlist.")
+        return ["/usr/bin/open", str(builder())]
+    if action == "notify":
+        text = notify_text(job_request_text(job), str(job.get("request_text") or ""))
+        if not text:
+            raise WorkerError("Notificação recebida sem texto.")
+        return ["osascript", "-e", f'display notification "{applescript_string(text[:180])}" with title "JARVIS"']
+    if action == "volume_set":
+        level = volume_level(job_request_text(job), target, str(job.get("request_text") or ""))
+        if level is None:
+            raise WorkerError("Volume fora de 0 a 100.")
+        return ["osascript", "-e", f"set volume output volume {int(level)}"]
     if not TARGET_PATTERN.fullmatch(target):
         raise WorkerError("Aplicativo recebido com nome inválido.")
     if action == "self_edit":
@@ -747,6 +941,16 @@ def execute_job(job: dict) -> tuple[bool, str]:
     effective_job = dict(job)
     if action == "save_note":
         return persist_mac_note(effective_job)
+    native = {
+        "open_url": execute_open_url_job,
+        "clipboard_set": execute_clipboard_job,
+        "speak": execute_speak_job,
+        "open_folder": execute_open_folder_job,
+        "notify": execute_notify_job,
+        "volume_set": execute_volume_job,
+    }.get(action)
+    if native:
+        return native(effective_job)
     if action in {"open_application", "close_application"}:
         effective_job["target"] = resolve_application_target(str(job.get("target") or ""))
     argv = command_argv(effective_job)

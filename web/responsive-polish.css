@@ -99,8 +99,7 @@ dialog {
   .topbar { padding-inline: 18px; }
   .connection { gap: 7px; }
   .quiet-button { margin-left: 2px; padding-inline: 10px; }
-  #connectionText,
-  #tourButton { display: none; }
+  #connectionText { display: none; }
   .scene-objective { left: 22px; width: min(280px, 25vw); }
   .scene-modes { right: 16px; width: 118px; }
   .hud-rail { display: none; }
@@ -111,8 +110,7 @@ dialog {
   .topbar { padding-inline: 14px; }
   .identity { flex: 0 0 auto; }
   .connection { max-width: calc(100vw - 130px); justify-content: flex-end; }
-  #connectionText,
-  #tourButton { display: none; }
+  #connectionText { display: none; }
   .conversation-head { border-bottom-color: color-mix(in srgb, var(--cyan) 13%, transparent); }
 }
 

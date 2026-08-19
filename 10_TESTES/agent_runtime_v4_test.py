@@ -20,6 +20,9 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertEqual(action_for_intent("self_edit").risk, "code_write")
         self.assertEqual(action_for_intent("research_plan").name, "web_research")
         self.assertIn("memory_search", ACTION_REGISTRY)
+        self.assertEqual(action_for_intent("clipboard_set").name, "clipboard_set")
+        self.assertEqual(action_for_intent("open_folder").name, "open_folder")
+        self.assertFalse(action_for_intent("clipboard_set").private)
 
     def test_run_lifecycle_is_durable_and_terminal(self):
         with TemporaryDirectory() as temp:

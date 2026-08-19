@@ -102,6 +102,7 @@ function render() {
         <textarea id="notesPadBody" maxlength="4000" placeholder="Escreva a nota. Vale em qualquer computador." aria-label="Texto da nota"></textarea>
         <div class="notes-pad-actions">
           <button type="submit">Salvar no JARVIS</button>
+          <button type="button" id="notesPadOpenMac">Abrir Notas no Mac</button>
           <label><input id="notesPadMac" type="checkbox"> também no Mac</label>
         </div>
       </form>
@@ -111,6 +112,9 @@ function render() {
   `;
   document.getElementById("notesPadClose")?.addEventListener("click", () => dialog?.close());
   document.getElementById("notesPadForm")?.addEventListener("submit", save);
+  document.getElementById("notesPadOpenMac")?.addEventListener("click", () => {
+    window.dispatchEvent(new CustomEvent("jarvis-send-command", { detail: { command: "abre as notas" } }));
+  });
 }
 
 function openPad() {
