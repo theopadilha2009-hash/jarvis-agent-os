@@ -23,7 +23,7 @@ function ensureDialog(id, className, titleId, title, mountId) {
 
 ensureDialog("memoryExplorerDialog", "memory-explorer-dialog", "memoryExplorerTitle", "Explorar memória", "memoryExplorerMount");
 ensureDialog("actionPermissionsDialog", "action-permissions-dialog", "actionPermissionsTitle", "Permissões de ações", "actionPermissionsMount");
-ensureDialog("notesPadDialog", "notes-pad-dialog", "notesPadTitle", "Bloco de notas", "notesPadMount");
+ensureDialog("notesPadDialog", "notes-pad-dialog", "notesPadHeading", "Bloco de notas", "notesPadMount");
 
 // Assinatura do dono: leva ao LinkedIn do Theo, sem embed de terceiro.
 const authorLink = document.createElement("a");

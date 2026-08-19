@@ -422,6 +422,22 @@ class DeviceWorkerTest(unittest.TestCase):
             self.assertIn("comprar pão amanhã", notes[0].read_text(encoding="utf-8"))
             self.assertIn("app Notas", output)
 
+    def test_applescript_string_escapes_newlines_and_quotes(self):
+        escaped = MODULE.applescript_string('linha 1\n"quebra"\r\\fim')
+        self.assertEqual(escaped, 'linha 1\\n\\"quebra\\"\\r\\\\fim')
+        self.assertNotIn("\n", escaped)
+        self.assertNotIn("\r", escaped)
+
+    def test_write_apple_note_keeps_multiline_body_inside_the_string(self):
+        with patch.object(MODULE.platform, "system", return_value="Darwin"), \
+                patch.object(MODULE.subprocess, "run") as run:
+            run.return_value = type("Proc", (), {"returncode": 0})()
+            message = MODULE.write_apple_note("compra", "leite\npão")
+        script = run.call_args.args[0][2]
+        self.assertEqual(message, "Cópia no app Notas.")
+        self.assertIn('body:"leite\\npão"', script)
+        self.assertNotRegex(script, r'body:"[^"]*\n[^"]*"')
+
     def test_launch_agent_path_includes_orca_install_locations(self):
         path = MODULE.launch_payload()["EnvironmentVariables"]["PATH"]
         self.assertIn(str(Path.home() / ".local" / "bin"), path)
