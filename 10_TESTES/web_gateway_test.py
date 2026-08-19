@@ -264,7 +264,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/feature-loader.js?v=20260815-vozes2', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-debug1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260819-leftover1', html)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', html)
         self.assertIn(b'/ui/shell.css?v=20260819-debug1', html)
         self.assertIn(b'id="welcomeLogin"', html)
@@ -609,7 +609,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260819-debug1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260819-leftover1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260815-vozes2', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', service_worker)
@@ -622,7 +622,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/memory-explorer.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', service_worker)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-debug1', service_worker)
+        self.assertIn(b'/ui/jarvis.js?v=20260819-leftover1', service_worker)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', service_worker)
         self.assertIn(b'/ui/shell.css?v=20260819-debug1', service_worker)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', service_worker)
@@ -1005,6 +1005,19 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(zap["open_url"], "https://web.whatsapp.com")
         chrome, _status = MODULE.command_payload({"command": "abre o Chrome pra mim"})
         self.assertNotEqual(chrome.get("client_action"), "open_url")
+        youtube, youtube_status = MODULE.command_payload({"command": "abre o youtube de lo-fi"})
+        self.assertEqual(youtube_status, 200)
+        self.assertIn("youtube.com/results", youtube["open_url"])
+        self.assertIn("lo-fi", youtube["open_url"])
+        maps, maps_status = MODULE.command_payload({"command": "como chegar em Congonhas"})
+        self.assertEqual(maps_status, 200)
+        self.assertIn("google.com/maps", maps["open_url"])
+        insta, insta_status = MODULE.command_payload({"command": "abre o instagram"})
+        self.assertEqual(insta_status, 200)
+        self.assertEqual(insta["open_url"], "https://www.instagram.com")
+        home_yt, home_yt_status = MODULE.command_payload({"command": "abre o youtube"})
+        self.assertEqual(home_yt_status, 200)
+        self.assertEqual(home_yt["open_url"], "https://www.youtube.com")
 
     def test_spotify_controls_route_to_real_local_command(self):
         cases = {
@@ -3028,6 +3041,14 @@ São Paulo - SP
         self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "quem é você"}]))
         self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "pesquise quem é o jarvis"}]))
         self.assertTrue(MODULE.should_search_web([{"role": "user", "content": "quem é o atual presidente do Brasil"}]))
+        self.assertTrue(MODULE.should_search_web(
+            [{"role": "user", "content": "quem ganhou o jogo ontem"}],
+            owner_authenticated=True,
+        ))
+        self.assertFalse(MODULE.should_search_web(
+            [{"role": "user", "content": "quem ganhou o jogo ontem"}],
+            owner_authenticated=False,
+        ))
         self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "quem criou você"}]))
         self.assertFalse(MODULE.should_search_web([{"role": "user", "content": "quem é o theo padilha"}]))
 
