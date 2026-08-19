@@ -13,6 +13,9 @@
   const logoutButton = document.getElementById("logoutButton");
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
+  const LAST_LOGIN_KEY = "jarvis-last-login";
+  const REMEMBER_KEY = "jarvis-remember-login-v1";
+  const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
   const WAKE = /(?:^|\b)(?:oi|olá|ola)?\s*jarvis\b/i;
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
@@ -27,6 +30,19 @@
 
   function ownerToken() {
     try { return window.localStorage.getItem(OWNER_TOKEN_KEY) || ""; } catch { return ""; }
+  }
+
+  function rememberLoginEnabled() {
+    try { return window.localStorage.getItem(REMEMBER_KEY) !== "0"; } catch { return true; }
+  }
+
+  function persistSession(token, username) {
+    try {
+      if (token) window.localStorage.setItem(OWNER_TOKEN_KEY, token);
+      if (username) window.localStorage.setItem(LAST_LOGIN_KEY, username);
+      window.localStorage.setItem(REMEMBER_KEY, rememberLoginEnabled() ? "1" : "0");
+      window.localStorage.setItem(OWNER_IDLE_KEY, String(Date.now()));
+    } catch { /* private mode */ }
   }
 
   function apiHeaders() {
@@ -89,6 +105,8 @@
     loginForm.querySelector("#loginUser").hidden = inSession;
     loginForm.querySelector("#loginPass").hidden = inSession;
     loginForm.querySelector("button[type='submit']").hidden = inSession;
+    const remember = document.getElementById("rememberLogin");
+    if (remember) remember.closest("label").hidden = inSession;
   }
 
   async function refreshAccess() {
@@ -331,7 +349,9 @@
         say("Não.", data.error || "Login inválido.");
         return;
       }
-      localStorage.setItem(OWNER_TOKEN_KEY, data.session_token);
+      const keep = document.getElementById("rememberLogin");
+      try { localStorage.setItem(REMEMBER_KEY, keep && !keep.checked ? "0" : "1"); } catch { /* ignore */ }
+      persistSession(data.session_token, username);
       document.getElementById("loginPass").value = "";
       await refreshAccess();
       startWakeLoop();
@@ -364,6 +384,13 @@
   });
   window.addEventListener("offline", () => say("Offline.", "Atalhos locais ainda funcionam."));
   window.addEventListener("online", () => say("Online.", "Pode pedir de novo."));
+  try {
+    const remembered = localStorage.getItem(LAST_LOGIN_KEY);
+    const user = document.getElementById("loginUser");
+    if (remembered && user) user.value = remembered;
+    const keep = document.getElementById("rememberLogin");
+    if (keep) keep.checked = rememberLoginEnabled();
+  } catch { /* first visit */ }
   say("oi Jarvis", appMode ? "toque no brilho e fale" : "toque no brilho e diga oi Jarvis");
   refreshAccess();
   try {

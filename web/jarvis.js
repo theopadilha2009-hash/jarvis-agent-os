@@ -36,6 +36,7 @@
   const OWNER_TOKEN_KEY = "jarvis-owner-token-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LAST_LOGIN_KEY = "jarvis-last-login";
+  const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
@@ -830,15 +831,32 @@
     }
   }
 
+  function rememberLoginEnabled() {
+    try { return localStorage.getItem(REMEMBER_KEY) !== "0"; } catch { return true; }
+  }
+
+  function setRememberLogin(on) {
+    try { localStorage.setItem(REMEMBER_KEY, on ? "1" : "0"); } catch { /* ignore */ }
+    const box = byId("rememberLogin");
+    if (box) box.checked = Boolean(on);
+  }
+
   function touchOwnerActivity() {
     try { localStorage.setItem(OWNER_IDLE_KEY, String(Date.now())); } catch { /* ignore */ }
   }
 
   function expireIdleOwnerSession() {
     if (!ownerToken()) return false;
+    if (rememberLoginEnabled()) {
+      touchOwnerActivity();
+      return false;
+    }
     let last = 0;
     try { last = Number(localStorage.getItem(OWNER_IDLE_KEY) || 0); } catch { last = 0; }
-    if (last && Date.now() - last < OWNER_IDLE_MS) return false;
+    if (!last || Date.now() - last < OWNER_IDLE_MS) {
+      if (!last) touchOwnerActivity();
+      return false;
+    }
     try {
       localStorage.removeItem(OWNER_TOKEN_KEY);
       localStorage.removeItem(OWNER_IDLE_KEY);
@@ -3011,13 +3029,18 @@
         if (remembered && byId("adminUsername") && !session.paired && !session.codeMode) {
           byId("adminUsername").value = remembered;
         }
+        setRememberLogin(rememberLoginEnabled());
       } catch { /* ignore */ }
       byId("adminUsername").closest(".admin-login").hidden = session.paired || session.codeMode;
+      const rememberLabel = byId("rememberLoginLabel");
+      if (rememberLabel) rememberLabel.hidden = session.paired || session.codeMode;
       const signupBox = byId("accountSignup");
       if (signupBox) signupBox.hidden = session.paired || session.codeMode;
       document.querySelector(".advanced-pairing").hidden = !status.owner_pairing?.required;
       byId("pairingHint").textContent = session.paired
-        ? "Modo Ultron ativo neste navegador. A sessão é temporária e pode ser encerrada em Sair."
+        ? (rememberLoginEnabled()
+          ? "Modo Ultron ativo neste aparelho. Fica conectado até você tocar em Sair."
+          : "Modo Ultron ativo neste navegador. Sem “manter conectado”, a sessão cai após 12h parado.")
         : status.owner_pairing?.required
           ? status.owner_pairing?.admin_login_configured
             ? "Entre como admin para liberar memória, agenda, GitHub e ações no Mac."
@@ -3326,6 +3349,7 @@
       }
       localStorage.setItem(OWNER_TOKEN_KEY, data.session_token);
       try { localStorage.setItem(LAST_LOGIN_KEY, username); } catch { /* ignore */ }
+      setRememberLogin(Boolean(byId("rememberLogin")?.checked));
       touchOwnerActivity();
       byId("adminPassword").value = "";
       session.historyRestored = false;

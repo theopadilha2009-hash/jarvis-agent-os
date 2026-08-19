@@ -40,6 +40,8 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn('id="accessLine"', FALA_HTML)
         self.assertIn('id="moreButton"', FALA_HTML)
         self.assertIn('id="loginToggle"', FALA_HTML)
+        self.assertIn('id="rememberLogin"', FALA_HTML)
+        self.assertIn("jarvis-remember-login-v1", FALA_JS)
         self.assertIn('id="extras"', FALA_HTML)
         self.assertIn("jarvis-logo.png", FALA_HTML)
         self.assertIn('class="launch"', FALA_HTML)

@@ -113,6 +113,16 @@ html[data-persona="ultron"] #orb img { filter: hue-rotate(312deg) saturate(1.25)
   border: 1px solid var(--line);
   -webkit-app-region: no-drag;
 }
+#loginForm { flex-wrap: wrap; }
+.remember-login {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 11px;
+}
 #askForm, #loginForm, .launch, .quick { display: flex; gap: 6px; width: 100%; }
 #askForm, #loginForm, .launch, .quick, #moreButton, #extras { -webkit-app-region: no-drag; }
 #askInput, #loginUser, #loginPass, #loginForm button, .launch button, .quick button, .quick a, .download, #moreButton {
