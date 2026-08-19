@@ -22,8 +22,13 @@ class PromoteProductionTest(unittest.TestCase):
     def test_only_jarvis_agent_os_hosts_are_accepted(self):
         self.assertEqual(MODULE.deployment_host("https://jarvis-agent-os-abc.vercel.app"), "jarvis-agent-os-abc.vercel.app")
         self.assertEqual(MODULE.deployment_host("https://jarvis-agent-os.vercel.app/"), "jarvis-agent-os.vercel.app")
+        self.assertEqual(
+            MODULE.deployment_host("https://jarvis-agent-jay7bqdn5-theopadilha2009-5085s-projects.vercel.app"),
+            "jarvis-agent-jay7bqdn5-theopadilha2009-5085s-projects.vercel.app",
+        )
         self.assertEqual(MODULE.deployment_host("https://copytrade.vercel.app"), "")
         self.assertEqual(MODULE.deployment_host("https://evil.vercel.app"), "")
+        self.assertEqual(MODULE.deployment_host("https://jarvis-agent-os-delta.vercel.app"), "jarvis-agent-os-delta.vercel.app")
 
     def test_dry_run_does_not_call_vercel_alias(self):
         output = StringIO()

@@ -23,7 +23,12 @@ ROOT = Path(__file__).resolve().parents[1]
 PRODUCTION_ALIAS = "jarvis-theo.vercel.app"
 PRODUCTION_URL = f"https://{PRODUCTION_ALIAS}"
 VERCEL_PROJECT = "jarvis-agent-os"
-ALLOWED_HOST_PATTERN = re.compile(r"^jarvis-agent-os(?:-[a-z0-9-]+)?\.vercel\.app$")
+ALLOWED_HOST_PATTERN = re.compile(
+    r"^(?:"
+    r"jarvis-agent-os(?:-[a-z0-9-]+)?|"
+    r"jarvis-agent-[a-z0-9]+-theopadilha2009-5085s-projects"
+    r")\.vercel\.app$"
+)
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
