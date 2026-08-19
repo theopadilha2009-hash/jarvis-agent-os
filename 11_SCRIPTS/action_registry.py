@@ -63,6 +63,7 @@ def _object_schema(**properties: Any) -> dict[str, Any]:
 
 ACTION_SPECS = (
     ActionSpec("assistant_chat", "Conversar", "Responder usando contexto e o provedor disponível.", "brain", intents=("assistant",)),
+    ActionSpec("file_send", "Enviar arquivo", "Entregar um arquivo real disponível no JARVIS.", "brain", intents=("file_send",)),
     ActionSpec("web_research", "Pesquisar com fontes", "Pesquisar fontes públicas e devolver evidências verificáveis.", "web", intents=("research", "research_plan")),
     ActionSpec("personal_overview", "Central pessoal", "Cruzar agenda, memória, worker e atividade recente.", "control_plane", private=True, intents=("personal_overview", "daily_brief")),
     ActionSpec("memory_view", "Ler memória", "Consultar memórias privadas confirmadas.", "memory", private=True, intents=("memory_view",)),

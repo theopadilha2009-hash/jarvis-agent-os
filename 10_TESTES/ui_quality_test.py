@@ -361,8 +361,11 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("memórias relevantes", self.app_js)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
-        self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-vozes2")', self.presence_loader_js)
+        self.assertIn('presence-loader.js?v=20260819-files1', self.html)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260819-files1")', self.presence_loader_js)
+        self.assertIn("RoomEnvironment", self.presence_js)
+        self.assertIn("makeVisitorAlbedo", self.presence_js)
+        self.assertIn('else if (parts[0] === "vt")', self.presence_js)
         self.assertIn("always: true", self.presence_js)
         self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
@@ -380,8 +383,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
         self.assertGreaterEqual(self.html.count("20260815-vozes2"), 1)
-        self.assertGreaterEqual(self.html.count("20260819-notas1"), 3)
-        self.assertIn("20260819-notas1", self.html)
+        self.assertGreaterEqual(self.html.count("20260819-files1"), 2)
+        self.assertIn("20260819-files1", self.html)
         self.assertIn("welcomeLogin", self.html)
         self.assertIn("script interrompido", self.html)
         self.assertIn("local-voice.js", self.html)
@@ -681,6 +684,9 @@ class UIQualityTest(unittest.TestCase):
         # Resultados parciais repetem o trecho; sem trava, o comando dispara duas vezes.
         self.assertIn("lastFired", self.app_js)
         self.assertIn("Ouvindo o pedido.", self.app_js)
+        self.assertIn("toggleMute", self.app_js)
+        self.assertIn("Mutar fala", self.html)
+        self.assertIn("download_file", self.app_js)
         self.assertIn('.wake-indicator[data-state="command"]', self.ultron_completion_css)
         # Timbre da voz própria sai do mesmo painel.
         self.assertIn('data-voice-setting="pitch"', calibrator)

@@ -146,6 +146,13 @@ CREATOR_QUESTION_PATTERN = re.compile(
     r"curr[ií]culo|linkedin)\b",
     re.I,
 )
+FILE_SEND_PATTERN = re.compile(
+    r"\b(?:pass(?:a|e|ar)|mand(?:a|e|ar)|envi(?:a|e|ar)|baix(?:a|e|ar)|entreg(?:a|e|ar)|me\s+d[aá]|me\s+manda)\b"
+    r".{0,80}\b(?:curr[ií]culo|\bcv\b|arquivo|pdf|logo|zip|app(?:licativo)?(?:\s+do)?\s+mac)\b"
+    r"|\b(?:curr[ií]culo|\bcv\b)\b.{0,40}\b(?:arquivo|pdf|baix)",
+    re.I,
+)
+CURRICULO_FILENAME = "Theo-Lorentz-Padilha-Curriculo.html"
 QUEM_MAGAZINE_HOSTS = {
     "quem.globo.com",
     "quem.com.br",
@@ -6819,8 +6826,69 @@ def creator_profile_payload(kind="full"):
             {"title": "LinkedIn · Theo Lorentz Padilha", "url": profile["linkedin"], "domain": "linkedin.com"},
             {"title": "JARVIS no GitHub", "url": profile["github"], "domain": "github.com"},
             {"title": "Perfil público do criador", "url": profile["page"], "domain": "jarvis"},
+            {"title": "Currículo em arquivo", "url": "/download/curriculo", "domain": "jarvis"},
         ],
     }, 200
+
+
+def curriculo_document():
+    profile = dict(CREATOR_PROFILE)
+    profile["name"] = creator_name()
+    return "\n".join([
+        "<!doctype html>",
+        '<html lang="pt-BR"><head><meta charset="utf-8">',
+        f"<title>Currículo · {profile['name']}</title>",
+        "<style>body{font:16px/1.5 ui-sans-serif,system-ui,sans-serif;max-width:720px;margin:32px auto;padding:0 18px;color:#1a1224}h1{margin:0 0 6px}h2{margin:22px 0 8px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#6b21a8}a{color:#6b21a8}</style>",
+        "</head><body>",
+        f"<h1>{profile['name']}</h1>",
+        f"<p>{profile['headline']}<br>{profile['city']} · {profile['email']}</p>",
+        f"<p><a href=\"{profile['linkedin']}\">LinkedIn</a> · <a href=\"{profile['github']}\">GitHub</a></p>",
+        "<h2>Agora</h2>",
+        f"<p>{profile['current']}</p>",
+        "<h2>Stack</h2>",
+        f"<p>{profile['stack']}</p>",
+        "<h2>Antes</h2>",
+        f"<p>{profile['past']}</p>",
+        "<h2>Formação</h2>",
+        f"<p>{profile['education']}</p>",
+        "</body></html>",
+        "",
+    ])
+
+
+def file_send_fields(url, name, label):
+    return {
+        "client_action": "download_file",
+        "download_url": url,
+        "download_name": name,
+        "file": {"url": url, "name": name, "label": label},
+        "action_executed": True,
+    }
+
+
+def file_send_payload(command):
+    text = clean_text(command, 400)
+    if re.search(r"\blogo\b", text, re.I):
+        url, name, label = "/ui/jarvis-logo.png?v=20260813-logonative1", "jarvis-logo.png", "logo do JARVIS"
+    elif re.search(r"\b(?:zip|app(?:licativo)?(?:\s+do)?\s+mac|mac\.zip)\b", text, re.I):
+        url, name, label = "/download/mac", "JARVIS.mac.zip", "app do Mac"
+    else:
+        url, name, label = "/download/curriculo", CURRICULO_FILENAME, "currículo do Theo"
+    payload = {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "file_sent",
+        "intent": "file_send",
+        "provider": "jarvis_files",
+        "visual_state": "success",
+        "message": f"Arquivo na mão: {label}.",
+        **file_send_fields(url, name, label),
+    }
+    if label.startswith("currículo"):
+        profile, _status = creator_profile_payload("short")
+        payload["author_card"] = profile.get("author_card")
+        payload["creator"] = profile.get("creator")
+    return payload, 200
 
 
 def should_search_web(messages, owner_authenticated=False):
@@ -9093,6 +9161,16 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         if owner_pairing_required() and not owner_authenticated:
             return pairing_required_payload()
         return elevenlabs_voice_design(latest)
+    if FILE_SEND_PATTERN.search(latest):
+        return file_send_payload(latest)
+    if CREATOR_QUESTION_PATTERN.search(latest):
+        payload, status = creator_profile_payload("full")
+        if re.search(r"curr[ií]culo|\bcv\b", latest, re.I):
+            payload.update(file_send_fields("/download/curriculo", CURRICULO_FILENAME, "currículo do Theo"))
+            payload["message"] = f"Arquivo na mão: currículo do Theo. {payload['message']}"
+            payload["status_real"] = "file_sent"
+        payload["endpoint"] = "POST /assistant"
+        return payload, status
     device_plan = compound_device_plan(latest)
     if not device_plan:
         web_open = browser_open_payload(latest, owner_authenticated=owner_authenticated)
@@ -9779,8 +9857,15 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
         payload.update({"endpoint": "POST /command", "intent": "personal_overview", "provider": "jarvis_control_plane"})
         return payload, 200
 
+    if FILE_SEND_PATTERN.search(command):
+        return file_send_payload(command)
     if CREATOR_QUESTION_PATTERN.search(command):
-        return creator_profile_payload("full")
+        payload, status = creator_profile_payload("full")
+        if re.search(r"curr[ií]culo|\bcv\b", command, re.I):
+            payload.update(file_send_fields("/download/curriculo", CURRICULO_FILENAME, "currículo do Theo"))
+            payload["message"] = f"Arquivo na mão: currículo do Theo. {payload['message']}"
+            payload["status_real"] = "file_sent"
+        return payload, status
     if IDENTITY_QUESTION_PATTERN.search(command):
         return creator_profile_payload("short")
 
@@ -9882,6 +9967,8 @@ def command_intent(command):
         return "daily_brief"
     if CAPABILITY_OVERVIEW_PATTERN.search(command):
         return "personal_overview"
+    if FILE_SEND_PATTERN.search(command):
+        return "file_send"
     if CREATOR_QUESTION_PATTERN.search(command) or IDENTITY_QUESTION_PATTERN.search(command):
         return "creator_profile"
     if compound_device_plan(command):
@@ -10808,6 +10895,20 @@ class handler(BaseHTTPRequestHandler):
             return self.serve_landing()
         if path == "/cockpit":
             return self.serve_ui()
+        if path in {"/curriculo", "/currículo"}:
+            body = curriculo_document().encode("utf-8")
+            return self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=120")
+        if path == "/download/curriculo":
+            body = curriculo_document().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Disposition", f'attachment; filename="{CURRICULO_FILENAME}"')
+            self.send_header("Cache-Control", "no-store")
+            self._security_headers()
+            self.end_headers()
+            self._write_body(body)
+            return
         if path in {"/theo", "/criador", "/creator"}:
             return self.serve_creator_page()
         if path in {"/produto", "/oferta.html"}:

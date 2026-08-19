@@ -991,6 +991,9 @@ button {
   display: -webkit-box;
   overflow: hidden;
   padding: 8px 15px;
+  appearance: none;
+  font: inherit;
+  cursor: pointer;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   transform: translate(-50%, 8px);
