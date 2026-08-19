@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Voz própria do JARVIS: síntese neural local, sem cota e sem chave.
 
-Motor principal: Pocket TTS (portuguese + bill_boerst), o mesmo catálogo da
-CLI aprovada `pocket-tts generate --language portuguese --voice bill_boerst`.
-O modelo e o voice state ficam em memória; cada /speech só gera a frase
-inteira e devolve WAV cru — sem cloning, sem WAV como --voice, sem pitch.
+Motor principal: Pocket TTS (portuguese + rafael no JARVIS, javert no Ultron).
+rafael é a voz masculina de catálogo em português; bill_boerst é inglês e
+soa torto em pt-BR. Se edge-tts estiver instalado, a camada neural gratuita
+da Microsoft (Antonio / Humberto) entra primeiro — melhor pronúncia.
+O modelo Pocket fica em memória; cada /speech gera a frase inteira.
 
 Piper continua como fallback se Pocket falhar. O gateway web chama este
 servidor quando a voz paga não está disponível.
@@ -41,10 +42,23 @@ VOICE_PROFILE = (
     "volume=1.15"
 )
 MAX_TEXT = 2_200
-DEFAULT_ENGINE = "pocket_tts"
+DEFAULT_ENGINE = "auto"
 DEFAULT_LANGUAGE = "portuguese"
-DEFAULT_VOICE = "bill_boerst"
+DEFAULT_VOICE = "rafael"
+DEFAULT_ULTRON_VOICE = "javert"
+DEFAULT_EDGE_JARVIS = "pt-BR-AntonioNeural"
+DEFAULT_EDGE_ULTRON = "pt-BR-AntonioNeural"
+EDGE_STYLE = {
+    "jarvis": {"rate": "-5%", "pitch": "-8Hz"},
+    "ultron": {"rate": "-12%", "pitch": "-22Hz"},
+}
 DEFAULT_POCKET_PYTHON = Path(".venv-pocket") / "bin" / "python"
+CATALOG_VOICES = {
+    "rafael", "javert", "jean", "marius", "bill_boerst", "alba", "giovanni",
+    "lola", "juergen", "estelle", "anna", "azelma", "caro_davy", "charles",
+    "cosette", "eponine", "eve", "fantine", "george", "jane", "mary",
+    "michael", "paul", "peter_yearsley", "stuart_bell", "vera",
+}
 
 LAUNCH_LABEL = "ai.theopadilha.jarvis-voice"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
@@ -69,7 +83,7 @@ def parse_voice_lock(text: str) -> dict:
         key, value = line.split("=", 1)
         key = key.strip().casefold().replace(" ", "_").replace("-", "_")
         value = value.strip()
-        if key in {"language", "voice", "engine"} and value:
+        if key in {"language", "voice", "engine", "ultron_voice", "edge_jarvis", "edge_ultron"} and value:
             parsed[key] = value
     return parsed
 
@@ -78,6 +92,10 @@ def normalize_engine(value: str) -> str:
     engine = (value or "").strip().casefold().replace("-", "_").replace(" ", "_")
     if engine in {"pocket", "pockettts"}:
         return "pocket_tts"
+    if engine in {"edge", "edgetts", "microsoft"}:
+        return "edge"
+    if engine in {"auto", "quality"}:
+        return "auto"
     return engine or DEFAULT_ENGINE
 
 
@@ -93,11 +111,43 @@ def resolve_voice_config(environ=None, home=None) -> dict:
     engine = normalize_engine(env.get("JARVIS_TTS_ENGINE") or lock.get("engine") or DEFAULT_ENGINE)
     language = (env.get("JARVIS_TTS_LANGUAGE") or lock.get("language") or DEFAULT_LANGUAGE).strip()
     voice = (env.get("JARVIS_TTS_VOICE") or lock.get("voice") or DEFAULT_VOICE).strip()
+    ultron_voice = (env.get("JARVIS_TTS_ULTRON_VOICE") or lock.get("ultron_voice") or DEFAULT_ULTRON_VOICE).strip()
     return {
         "engine": engine,
         "language": language or DEFAULT_LANGUAGE,
         "voice": voice or DEFAULT_VOICE,
+        "ultron_voice": ultron_voice or DEFAULT_ULTRON_VOICE,
+        "edge_jarvis": (env.get("JARVIS_TTS_EDGE_JARVIS") or lock.get("edge_jarvis") or DEFAULT_EDGE_JARVIS).strip(),
+        "edge_ultron": (env.get("JARVIS_TTS_EDGE_ULTRON") or lock.get("edge_ultron") or DEFAULT_EDGE_ULTRON).strip(),
         "lock_path": str(lock_path),
+    }
+
+
+def catalog_voice(value: str, fallback: str) -> str:
+    name = (value or "").strip().casefold().replace("-", "_").replace(" ", "_")
+    if name in CATALOG_VOICES:
+        return name
+    return fallback
+
+
+def persona_is_ultron(value: str) -> bool:
+    return (value or "").strip().casefold() in {"ultron", "ultron_private"}
+
+
+def resolve_request_voices(body: dict, config: dict) -> dict:
+    persona = str((body or {}).get("persona") or "jarvis")
+    ultron = persona_is_ultron(persona)
+    requested = catalog_voice(str((body or {}).get("voice") or ""), "")
+    pocket = requested or (config.get("ultron_voice") if ultron else config.get("voice")) or DEFAULT_VOICE
+    edge = (config.get("edge_ultron") if ultron else config.get("edge_jarvis")) or DEFAULT_EDGE_JARVIS
+    persona_id = "ultron" if ultron else "jarvis"
+    style = EDGE_STYLE[persona_id]
+    return {
+        "persona": persona_id,
+        "pocket": catalog_voice(pocket, DEFAULT_VOICE),
+        "edge": edge,
+        "edge_rate": style["rate"],
+        "edge_pitch": style["pitch"],
     }
 
 
@@ -120,7 +170,7 @@ def default_piper_voice(home=None) -> Path | None:
 
 def maybe_reexec_pocket_python(engine: str) -> None:
     """Pocket vive no venv aprovado; sem isso o processo longo não carrega o modelo."""
-    if engine != "pocket_tts":
+    if engine not in {"pocket_tts", "auto", "edge"}:
         return
     if os.environ.get("JARVIS_TTS_NO_REEXEC") == "1":
         return
@@ -184,37 +234,55 @@ def default_load_voice_state(model, voice: str):
 
 
 class PocketRuntime:
-    """Um load do modelo + voice state; generate_audio reutiliza os dois."""
+    """Um load do modelo + voice states; generate_audio reutiliza os dois."""
 
-    def __init__(self, language: str, voice: str, loader=None, state_loader=None):
+    def __init__(self, language: str, voice: str, loader=None, state_loader=None, extra_voices=None):
         self.language = language
         self.voice = voice
+        self.voices = []
+        for name in (voice, *(extra_voices or ())):
+            clean = catalog_voice(name, "")
+            if clean and clean not in self.voices:
+                self.voices.append(clean)
+        if not self.voices:
+            self.voices = [DEFAULT_VOICE]
         self._loader = loader or default_load_model
         self._state_loader = state_loader or default_load_voice_state
         self.model = None
         self.voice_state = None
+        self.voice_states = {}
         self.sample_rate = 24_000
         self.load_calls = 0
         self.state_load_calls = 0
         self._lock = threading.Lock()
 
     def load(self):
-        if self.model is not None and self.voice_state is not None:
+        pending = [name for name in self.voices if name not in self.voice_states]
+        if self.model is not None and not pending:
             return self
         with self._lock:
             if self.model is None:
                 self.model = self._loader(self.language)
                 self.load_calls += 1
                 self.sample_rate = int(getattr(self.model, "sample_rate", 24_000) or 24_000)
-            if self.voice_state is None:
-                self.voice_state = self._state_loader(self.model, self.voice)
+            for name in self.voices:
+                if name in self.voice_states:
+                    continue
+                self.voice_states[name] = self._state_loader(self.model, name)
                 self.state_load_calls += 1
+            self.voice_state = self.voice_states.get(self.voice) or next(iter(self.voice_states.values()), None)
         return self
 
-    def generate(self, text: str) -> bytes:
+    def generate(self, text: str, voice: str | None = None) -> bytes:
         self.load()
+        chosen = catalog_voice(voice or "", self.voice) if voice else self.voice
         with self._lock:
-            audio = self.model.generate_audio(self.voice_state, text, copy_state=True)
+            if chosen not in self.voice_states:
+                self.voice_states[chosen] = self._state_loader(self.model, chosen)
+                self.state_load_calls += 1
+            state = self.voice_states[chosen]
+            self.voice_state = state
+            audio = self.model.generate_audio(state, text, copy_state=True)
         return tensor_to_wav(audio, self.sample_rate)
 
 
@@ -245,16 +313,59 @@ def apply_profile(audio: bytes, rate: int, pitch: float, tempo: float) -> tuple[
     return result.stdout, "audio/mpeg"
 
 
-def synthesize_speech(text: str, pocket=None, piper=None, piper_opts=None) -> dict:
-    """Gera áudio sem derrubar o processo. Pocket primeiro; Piper só se Pocket falhar."""
+def synthesize_edge(text: str, voice: str, rate: str = "-5%", pitch: str = "-8Hz") -> dict:
+    """Neural gratuita da Microsoft (Edge Read Aloud). Sem chave; precisa de rede."""
+    try:
+        import asyncio
+        import edge_tts
+    except ImportError:
+        return {"ok": False, "error": "edge-tts não instalado", "engine": "edge"}
+    voice = (voice or DEFAULT_EDGE_JARVIS).strip() or DEFAULT_EDGE_JARVIS
+
+    async def collect():
+        chunks = []
+        communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
+        async for item in communicate.stream():
+            if item.get("type") == "audio" and item.get("data"):
+                chunks.append(item["data"])
+        return b"".join(chunks)
+
+    try:
+        loop = asyncio.new_event_loop()
+        try:
+            audio = loop.run_until_complete(collect())
+        finally:
+            loop.close()
+    except Exception as error:
+        return {"ok": False, "error": f"falha na síntese edge: {error}", "engine": "edge"}
+    if not audio:
+        return {"ok": False, "error": "edge-tts devolveu áudio vazio", "engine": "edge"}
+    return {"ok": True, "audio": audio, "content_type": "audio/mpeg", "engine": "edge", "voice": voice}
+
+
+def synthesize_speech(text: str, pocket=None, piper=None, piper_opts=None, voice=None, edge_voice=None, prefer_edge=False, edge_rate="-5%", edge_pitch="-8Hz") -> dict:
+    """Gera áudio sem derrubar o processo. Edge neural (se pedido) → Pocket → Piper."""
     opts = piper_opts or {}
+    if prefer_edge and edge_voice:
+        edge = synthesize_edge(text, edge_voice, rate=edge_rate, pitch=edge_pitch)
+        if edge.get("ok"):
+            return edge
     if pocket is not None:
         try:
-            audio = pocket.generate(text)
+            try:
+                audio = pocket.generate(text, voice=voice)
+            except TypeError:
+                audio = pocket.generate(text)
             if audio:
-                return {"ok": True, "audio": audio, "content_type": "audio/wav", "engine": "pocket_tts"}
+                return {
+                    "ok": True,
+                    "audio": audio,
+                    "content_type": "audio/wav",
+                    "engine": "pocket_tts",
+                    "voice": voice or getattr(pocket, "voice", ""),
+                }
         except Exception as error:
-            if piper is None:
+            if piper is None and not (prefer_edge and edge_voice):
                 return {"ok": False, "error": f"falha na síntese: {error}", "engine": "pocket_tts"}
     if piper is not None:
         try:
@@ -287,6 +398,7 @@ def agent_program_args(args, config: dict) -> list[str]:
         "--engine", config["engine"],
         "--language", config["language"],
         "--tts-voice", config["voice"],
+        "--ultron-voice", config.get("ultron_voice") or DEFAULT_ULTRON_VOICE,
         "--pitch", str(args.pitch),
         "--tempo", str(args.tempo),
     ]
@@ -355,7 +467,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--voice", default="", help="caminho do modelo .onnx do Piper (fallback)")
     parser.add_argument("--engine", default="", help="pocket_tts (padrão) ou piper")
     parser.add_argument("--language", default="", help="idioma Pocket (padrão: portuguese)")
-    parser.add_argument("--tts-voice", default="", dest="tts_voice", help="voz de catálogo Pocket (padrão: bill_boerst)")
+    parser.add_argument("--tts-voice", default="", dest="tts_voice", help="voz Pocket do JARVIS (padrão: rafael)")
+    parser.add_argument("--ultron-voice", default="", dest="ultron_voice", help="voz Pocket do Ultron (padrão: javert)")
     parser.add_argument("--install-agent", action="store_true", help="sobe junto com o Mac, via LaunchAgent")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8123)
@@ -373,6 +486,8 @@ def apply_cli_overrides(config: dict, args) -> dict:
         config["language"] = args.language.strip()
     if args.tts_voice:
         config["voice"] = args.tts_voice.strip()
+    if getattr(args, "ultron_voice", ""):
+        config["ultron_voice"] = args.ultron_voice.strip()
     return config
 
 
@@ -416,6 +531,9 @@ def make_handler(args, pocket, piper, sample_rate: int, config: dict):
                     "engine": config.get("engine"),
                     "language": config.get("language"),
                     "voice": config.get("voice"),
+                    "ultron_voice": config.get("ultron_voice"),
+                    "edge_jarvis": config.get("edge_jarvis"),
+                    "edge_ultron": config.get("edge_ultron"),
                     "pocket_loaded": pocket is not None,
                     "piper_loaded": piper is not None,
                     "piper_voice": Path(args.voice).name if piper is not None and args.voice else "",
@@ -444,6 +562,8 @@ def make_handler(args, pocket, piper, sample_rate: int, config: dict):
                 except (TypeError, ValueError):
                     return default
 
+            chosen = resolve_request_voices(body if isinstance(body, dict) else {}, config)
+            prefer_edge = config.get("engine") in {"auto", "edge"}
             result = synthesize_speech(
                 text,
                 pocket=pocket,
@@ -454,6 +574,11 @@ def make_handler(args, pocket, piper, sample_rate: int, config: dict):
                     "pitch": bounded("pitch", args.pitch, 0.70, 1.10),
                     "tempo": bounded("tempo", args.tempo, 0.80, 1.40),
                 },
+                voice=chosen["pocket"],
+                edge_voice=chosen["edge"],
+                prefer_edge=prefer_edge,
+                edge_rate=chosen.get("edge_rate") or "-5%",
+                edge_pitch=chosen.get("edge_pitch") or "-8Hz",
             )
             if not result.get("ok"):
                 return self._json(500, {
@@ -497,9 +622,13 @@ def main(argv=None) -> int:
 
     pocket = None
     pocket_error = ""
-    if config["engine"] == "pocket_tts":
+    if config["engine"] in {"pocket_tts", "auto", "edge"}:
         try:
-            pocket = PocketRuntime(config["language"], config["voice"])
+            pocket = PocketRuntime(
+                config["language"],
+                config["voice"],
+                extra_voices=[config.get("ultron_voice") or DEFAULT_ULTRON_VOICE],
+            )
             pocket.load()
         except Exception as error:
             pocket = None
@@ -528,11 +657,12 @@ def main(argv=None) -> int:
 
     sample_rate = getattr(pocket, "sample_rate", None) or getattr(getattr(piper, "config", None), "sample_rate", 22_050)
     server = ThreadingHTTPServer((args.host, args.port), make_handler(args, pocket, piper, int(sample_rate), config))
-    engine_label = "pocket_tts" if pocket is not None else "piper" if piper is not None else "indisponível"
+    engine_label = config.get("engine") or ("pocket_tts" if pocket is not None else "piper" if piper is not None else "indisponível")
     print("JARVIS — voz local")
     print(
         f"Status real: engine={engine_label} language={config['language']} "
-        f"voice={config['voice']} em http://{args.host}:{args.port}/speech"
+        f"voice={config['voice']} ultron={config.get('ultron_voice')} "
+        f"em http://{args.host}:{args.port}/speech"
     )
     if pocket_error and piper is not None:
         print(f"Fallback: Piper em {Path(piper_path).name}")

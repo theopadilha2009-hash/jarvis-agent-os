@@ -4,9 +4,11 @@
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 from urllib.request import Request, urlopen
 import importlib.util
 import json
+import sys
 import threading
 import unittest
 import wave
@@ -75,9 +77,10 @@ class LocalTtsServerTest(unittest.TestCase):
                 encoding="utf-8",
             )
             resolved = MODULE.resolve_voice_config(environ={}, home=folder)
-            self.assertEqual(resolved["engine"], "pocket_tts")
+            self.assertEqual(resolved["engine"], "auto")
             self.assertEqual(resolved["language"], "portuguese")
             self.assertEqual(resolved["voice"], "bill_boerst")
+            self.assertEqual(resolved["ultron_voice"], "javert")
             self.assertFalse(resolved["voice"].endswith(".wav"))
 
             overridden = MODULE.resolve_voice_config(
@@ -221,6 +224,41 @@ class LocalTtsServerTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(model.generate_calls[0]["text"], PHRASE_A)
         self.assertNotIn("--voice", model.generate_calls[0]["text"])
+
+    def test_default_catalog_is_portuguese_male_not_english_bill(self):
+        empty = MODULE.resolve_voice_config(environ={}, home="/tmp/jarvis-no-voice-lock-test")
+        self.assertEqual(empty["voice"], "rafael")
+        self.assertEqual(empty["ultron_voice"], "javert")
+        self.assertEqual(empty["edge_jarvis"], "pt-BR-AntonioNeural")
+        self.assertEqual(empty["edge_ultron"], "pt-BR-AntonioNeural")
+        jarvis = MODULE.resolve_request_voices({}, empty)
+        ultron = MODULE.resolve_request_voices({"persona": "ultron"}, empty)
+        self.assertEqual(jarvis["pocket"], "rafael")
+        self.assertEqual(jarvis["edge"], "pt-BR-AntonioNeural")
+        self.assertEqual(ultron["pocket"], "javert")
+        self.assertEqual(ultron["edge"], "pt-BR-AntonioNeural")
+        self.assertNotEqual(jarvis["edge_pitch"], ultron["edge_pitch"])
+
+    def test_ultron_persona_uses_second_pocket_voice_state(self):
+        model = FakeModel()
+        runtime = MODULE.PocketRuntime(
+            "portuguese",
+            "rafael",
+            extra_voices=["javert"],
+            loader=lambda _language: model,
+            state_loader=lambda _model, voice: {"voice": voice},
+        )
+        runtime.generate("Olá, Theo.", voice="rafael")
+        runtime.generate("Ordem recebida.", voice="javert")
+        self.assertEqual(runtime.load_calls, 1)
+        self.assertEqual(runtime.state_load_calls, 2)
+        self.assertEqual([row["state"]["voice"] for row in model.generate_calls], ["rafael", "javert"])
+
+    def test_edge_missing_module_fails_soft(self):
+        with patch.dict(sys.modules, {"edge_tts": None}):
+            failed = MODULE.synthesize_edge("teste", "pt-BR-AntonioNeural")
+        self.assertFalse(failed["ok"])
+        self.assertEqual(failed["engine"], "edge")
 
 
 if __name__ == "__main__":

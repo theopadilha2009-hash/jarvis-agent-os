@@ -121,13 +121,14 @@
   function speak(text) {
     const clip = String(text || "").replace(/\s+/g, " ").trim().slice(0, 220);
     if (!clip) return Promise.resolve();
-    return Promise.resolve(window.JarvisLocalVoice?.speakBlob(clip))
+    const persona = ownerToken() ? "ultron" : "jarvis";
+    return Promise.resolve(window.JarvisLocalVoice?.speakBlob(clip, { persona }))
       .then((localBlob) => {
         if (localBlob) return playBlob(localBlob);
         return fetch("/speech", {
           method: "POST",
           headers: apiHeaders(),
-          body: JSON.stringify({ text: clip }),
+          body: JSON.stringify({ text: clip, persona }),
         }).then((response) => {
           if (!response.ok) throw new Error("speech");
           return response.blob();

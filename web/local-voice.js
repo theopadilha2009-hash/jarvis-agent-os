@@ -28,7 +28,8 @@
           base,
           at: Date.now(),
           engine: data.engine || "pocket_tts",
-          voice: data.voice || "bill_boerst",
+          voice: data.voice || "rafael",
+          ultronVoice: data.ultron_voice || "javert",
           ok: true,
         };
         return base;
@@ -40,16 +41,22 @@
     return "";
   }
 
-  async function speakBlob(text) {
+  function activePersona(explicit) {
+    const raw = String(explicit || document.documentElement?.dataset?.persona || "jarvis").toLowerCase();
+    return raw.indexOf("ultron") >= 0 ? "ultron" : "jarvis";
+  }
+
+  async function speakBlob(text, options) {
     const clip = String(text || "").replace(/\s+/g, " ").trim();
     if (!clip) return null;
     const base = await probe();
     if (!base) return null;
+    const persona = activePersona(options && options.persona);
     try {
       const response = await fetch(`${base}/speech`, fetchOpts({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clip.slice(0, 2200) }),
+        body: JSON.stringify({ text: clip.slice(0, 2200), persona }),
         timeoutMs: 20_000,
       }));
       if (!response.ok) {
