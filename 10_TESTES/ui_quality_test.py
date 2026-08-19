@@ -171,7 +171,8 @@ class UIQualityTest(unittest.TestCase):
     def test_composer_uses_one_whatsapp_style_voice_or_send_action(self):
         self.assertIn('class="strength-gauge"', self.html)
         self.assertIn('class="strength-gauge-needle"', self.html)
-        self.assertIn("grid-template-columns: 40px 56px 46px minmax(0, 1fr)", self.shell_css)
+        self.assertIn("grid-template-columns: 40px 56px 42px auto minmax(0, 1fr)", self.shell_css)
+        self.assertIn(".composer .wake-indicator", self.shell_css)
         self.assertIn('.composer[data-has-payload="false"] .send-button', self.ui_repair_css)
         self.assertIn('.composer[data-has-payload="true"] .voice-button', self.ui_repair_css)
         self.assertIn('content: "➤"', self.ui_repair_css)
@@ -326,7 +327,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertLess(THREE_JS.stat().st_size, 1400 * 1024)
 
     def test_mission_control_is_lazy_real_and_operator_controlled(self):
-        self.assertIn("Missões <kbd>⌘K</kbd>", self.html)
+        self.assertIn("Ferramentas <kbd>⌘K</kbd>", self.html)
+        self.assertIn('id="notesPadButton"', self.html)
+        self.assertIn('aria-label="Ouvir pelo nome"', self.html)
         self.assertIn('import("/ui/mission-control.js?v=20260813-missions1")', self.api_vault_js)
         self.assertIn('request("/mission-control?limit=12")', self.mission_control_js)
         self.assertIn("jarvis-mission-control/1", self.mission_control_js)
@@ -358,8 +361,11 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("memórias relevantes", self.app_js)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
-        self.assertIn('presence-loader.js?v=20260813-ultronfix1', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260815-vozes2")', self.presence_loader_js)
+        self.assertIn('presence-loader.js?v=20260819-files1', self.html)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20260819-files1")', self.presence_loader_js)
+        self.assertIn("RoomEnvironment", self.presence_js)
+        self.assertIn("makeVisitorAlbedo", self.presence_js)
+        self.assertIn('else if (parts[0] === "vt")', self.presence_js)
         self.assertIn("always: true", self.presence_js)
         self.assertIn("requestIdleCallback", self.presence_loader_js)
         self.assertIn("activeFps: 45", self.presence_js)
@@ -376,10 +382,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("20260812-v9", self.html)
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
-        self.assertGreaterEqual(self.html.count("20260815-vozes2"), 3)
-        self.assertGreaterEqual(self.html.count("20260817-move1") + self.html.count("20260819-debug1") + self.html.count("20260819-leftover1"), 3)
-        self.assertIn("20260819-leftover1", self.html)
-        self.assertIn("20260819-debug1", self.html)
+        self.assertGreaterEqual(self.html.count("20260815-vozes2"), 1)
+        self.assertGreaterEqual(self.html.count("20260819-files1"), 2)
+        self.assertIn("20260819-files1", self.html)
         self.assertIn("welcomeLogin", self.html)
         self.assertIn("script interrompido", self.html)
         self.assertIn("local-voice.js", self.html)
@@ -678,7 +683,10 @@ class UIQualityTest(unittest.TestCase):
         self.assertNotIn("commandRecognition.start()", self.app_js)
         # Resultados parciais repetem o trecho; sem trava, o comando dispara duas vezes.
         self.assertIn("lastFired", self.app_js)
-        self.assertIn('command: "Te ouvindo', self.app_js)
+        self.assertIn("Ouvindo o pedido.", self.app_js)
+        self.assertIn("toggleMute", self.app_js)
+        self.assertIn("Mutar fala", self.html)
+        self.assertIn("download_file", self.app_js)
         self.assertIn('.wake-indicator[data-state="command"]', self.ultron_completion_css)
         # Timbre da voz própria sai do mesmo painel.
         self.assertIn('data-voice-setting="pitch"', calibrator)

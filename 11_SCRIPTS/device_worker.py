@@ -29,7 +29,7 @@ from spotify_control import command_args as spotify_command_args  # noqa: E402
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "10"
+WORKER_VERSION = "11"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -83,6 +83,7 @@ ALLOWED_ACTIONS = {
     "storage_scan",
     "system_memory",
     "self_edit",
+    "save_note",
 }
 TARGET_PATTERN = re.compile(r"^[\wÀ-ÿ ._-]{0,120}$")
 APPLICATION_ALIASES = {
@@ -279,7 +280,7 @@ def announce_arrival(now: float, reason: str = "worker") -> bool:
     spoken = speak_on_mac(BOOT_GREETING if reason == "boot" else ARRIVAL_GREETING)
     # A aba não repete o que o alto-falante já disse.
     silence = "&spoken=1" if spoken in {"local_tts", "say"} else ""
-    url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/?arrival={reason}{silence}"
+    url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/cockpit?arrival={reason}{silence}"
     try:
         subprocess.run(["/usr/bin/open", url], capture_output=True, timeout=15, check=False)
     except (OSError, subprocess.TimeoutExpired):
@@ -571,11 +572,75 @@ def finish_command(
     )
 
 
+def applescript_string(value: str) -> str:
+    return str(value or "").replace("\\", "\\\\").replace('"', '\\"')
+
+
+def mac_note_from_job(job: dict) -> dict:
+    raw = str(job.get("request_text") or "")[:8_000].strip()
+    title = str(job.get("target") or "").strip() or "Nota"
+    body = raw
+    if raw.startswith("{"):
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError:
+            value = {}
+        if isinstance(value, dict) and value.get("schema") == "jarvis-note/1":
+            title = str(value.get("title") or title).strip()[:120] or "Nota"
+            body = str(value.get("body") or "").strip()[:8_000]
+    if not body or contains_secret(body) or contains_secret(title):
+        raise WorkerError("Nota recebida sem texto seguro.")
+    return {"title": title, "body": body}
+
+
+def write_apple_note(title: str, body: str) -> str:
+    if platform.system() != "Darwin":
+        return "Notas do macOS indisponível neste sistema."
+    script = (
+        'tell application "Notes"\n'
+        'set jarvisFolder to missing value\n'
+        'repeat with f in folders\n'
+        'if name of f is "JARVIS" then set jarvisFolder to f\n'
+        'end repeat\n'
+        'if jarvisFolder is missing value then set jarvisFolder to make new folder with properties {name:"JARVIS"}\n'
+        f'make new note at jarvisFolder with properties {{name:"{applescript_string(title)}", body:"{applescript_string(body)}"}}\n'
+        'end tell'
+    )
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=20,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "Não consegui falar com o app Notas."
+    if result.returncode != 0:
+        return "O app Notas recusou a nota."
+    return "Cópia no app Notas."
+
+
+def persist_mac_note(job: dict) -> tuple[bool, str]:
+    note = mac_note_from_job(job)
+    folder = Path.home() / "Documents" / "JARVIS" / "Notas"
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    slug = re.sub(r"[^\wÀ-ÿ]+", "-", note["title"].casefold()).strip("-")[:40] or "nota"
+    path = folder / f"{stamp}_{slug}.md"
+    path.write_text(f"# {note['title']}\n\n{note['body']}\n", encoding="utf-8")
+    apple = write_apple_note(note["title"], note["body"])
+    return True, f"Arquivo: {path}. {apple}"
+
+
 def command_argv(job: dict) -> list[str]:
     action = str(job.get("action") or "")
     target = str(job.get("target") or "").strip()
     if action not in ALLOWED_ACTIONS:
         raise WorkerError("Ação recebida fora do allowlist.")
+    if action == "save_note":
+        note = mac_note_from_job(job)
+        return ["jarvis-note-save", note["title"][:80]]
     if not TARGET_PATTERN.fullmatch(target):
         raise WorkerError("Aplicativo recebido com nome inválido.")
     if action == "self_edit":
@@ -674,6 +739,8 @@ def message_details(request_text: str, expected_phone: str) -> dict | None:
 def execute_job(job: dict) -> tuple[bool, str]:
     action = str(job.get("action") or "")
     effective_job = dict(job)
+    if action == "save_note":
+        return persist_mac_note(effective_job)
     if action in {"open_application", "close_application"}:
         effective_job["target"] = resolve_application_target(str(job.get("target") or ""))
     argv = command_argv(effective_job)

@@ -15,7 +15,7 @@
     {
       "name": "Novo pedido",
       "short_name": "Novo",
-      "url": "/?action=new",
+      "url": "/cockpit?action=new",
       "icons": [{"src": "/ui/jarvis-logo.png", "sizes": "458x368", "type": "image/png"}]
     }
   ],

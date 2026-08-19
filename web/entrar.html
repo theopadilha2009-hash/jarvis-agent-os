@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#130824">
+  <meta name="description" content="JARVIS — entre com login e senha. Assistente pessoal de Theo Padilha.">
+  <title>JARVIS · entrar</title>
+  <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
+  <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
+  <link rel="stylesheet" href="/ui/entrar.css?v=20260819-notas1">
+</head>
+<body>
+  <main class="gate">
+    <img class="mark" src="/ui/jarvis-logo.png?v=20260813-logonative1" width="72" height="58" alt="">
+    <p class="kicker">Assistente pessoal</p>
+    <h1>JARVIS</h1>
+    <p class="lead">Login e senha para entrar. Não basta tocar em continuar neste aparelho.</p>
+
+    <p id="sessionHint" class="session-hint" hidden>
+      Há uma sessão neste navegador.
+      <a href="/cockpit">Abrir o JARVIS</a>
+    </p>
+
+    <form id="loginForm" autocomplete="on">
+      <label>
+        <span>Login</span>
+        <input id="loginUser" name="username" autocomplete="username" required maxlength="80" placeholder="seu login">
+      </label>
+      <label>
+        <span>Senha</span>
+        <input id="loginPass" name="password" type="password" autocomplete="current-password" required maxlength="200" placeholder="sua senha">
+      </label>
+      <p id="loginError" role="alert" hidden></p>
+      <button id="loginSubmit" type="submit">Entrar</button>
+    </form>
+
+    <p class="guest">
+      <a href="/cockpit?guest=1">Entrar como visitante</a>
+      · conversa pública, sem Mac e sem bloco de notas.
+    </p>
+
+    <nav class="links" aria-label="Outros caminhos">
+      <a href="/download/mac">Baixar no Mac</a>
+      <a href="/fala">Fala</a>
+      <a href="/produto">Produto</a>
+      <a href="/theo">Criador</a>
+    </nav>
+    <p class="by">por <span data-creator-lock>Theo Lorentz Padilha</span></p>
+  </main>
+  <script src="/ui/creator-seal.js?v=20260817-app1"></script>
+  <script src="/ui/entrar.js?v=20260819-notas1"></script>
+</body>
+</html>

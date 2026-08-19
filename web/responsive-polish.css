@@ -163,7 +163,7 @@ dialog {
   .connection-dot { display: none; }
   #muteButton { padding-inline: 7px; }
   #actionHubButton { font-size: 0; }
-  #actionHubButton::before { content: "MISSÕES"; font-size: 7px; }
+  #actionHubButton::before { content: "FERRAMENTAS"; font-size: 7px; }
   .conversation-head-actions { gap: 5px; }
   .new-conversation-button { padding-inline: 9px; }
   .starter-actions { grid-template-columns: 1fr; }

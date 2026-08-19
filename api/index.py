@@ -39,6 +39,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 UI_FILE = WEB_DIR / "index.html"
+LANDING_FILE = WEB_DIR / "entrar.html"
 UI_ASSET_DIR = ROOT / "11_SCRIPTS" / "jarvis_ui_assets"
 sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
 from action_registry import (  # noqa: E402
@@ -145,6 +146,13 @@ CREATOR_QUESTION_PATTERN = re.compile(
     r"curr[ií]culo|linkedin)\b",
     re.I,
 )
+FILE_SEND_PATTERN = re.compile(
+    r"\b(?:pass(?:a|e|ar)|mand(?:a|e|ar)|envi(?:a|e|ar)|baix(?:a|e|ar)|entreg(?:a|e|ar)|me\s+d[aá]|me\s+manda)\b"
+    r".{0,80}\b(?:curr[ií]culo|\bcv\b|arquivo|pdf|logo|zip|app(?:licativo)?(?:\s+do)?\s+mac)\b"
+    r"|\b(?:curr[ií]culo|\bcv\b)\b.{0,40}\b(?:arquivo|pdf|baix)",
+    re.I,
+)
+CURRICULO_FILENAME = "Theo-Lorentz-Padilha-Curriculo.html"
 QUEM_MAGAZINE_HOSTS = {
     "quem.globo.com",
     "quem.com.br",
@@ -283,6 +291,7 @@ SUPABASE_DEVICE_WORKERS_TABLE = "jarvis_device_workers"
 SUPABASE_CONTACTS_TABLE = "jarvis_contacts"
 SUPABASE_AGENDA_TABLE = "jarvis_agenda_items"
 SUPABASE_SETTINGS_TABLE = "jarvis_settings"
+SUPABASE_NOTES_TABLE = "jarvis_notes"
 SUPABASE_ARTIFACTS_BUCKET = "jarvis-artifacts"
 REMOTE_DEVICE_INTENTS = {
     "open_application",
@@ -295,6 +304,7 @@ REMOTE_DEVICE_INTENTS = {
     "storage_scan",
     "system_memory",
     "self_edit",
+    "save_note",
 }
 
 # Compound runs intentionally exclude messaging and self-edit. Those actions can
@@ -336,6 +346,8 @@ PRIVATE_INTENTS = {
     "daily_brief",
     "memory_save",
     "memory_view",
+    "note_save",
+    "note_view",
     "contact_save",
     "contact_archive",
     "contact_view",
@@ -2072,6 +2084,27 @@ def persona_styles_payload(body=None):
     }
 
 
+NOTE_MAC_HINT = re.compile(
+    r"\b(?:no|nas|no\s+meu|na)\s+(?:mac|computador)\b"
+    r"|\bnotas?\s+do\s+mac\b"
+    r"|\bbloco\s+de\s+notas\s+do\s+mac\b",
+    re.I,
+)
+NOTE_SAVE_PATTERN = re.compile(
+    r"\b(?:salv(?:a|e|ar)|anot(?:a|e|ar)|escrev(?:a|e|er)|guard(?:a|e|ar)|registr(?:a|e|ar)|captur(?:a|e|ar))\b"
+    r".{0,100}?\b(?:bloco\s+de\s+notas|anota[cç][aã]o|ideia|inbox|notas?(?:\s+do\s+(?:jarvis|mac))?)\b"
+    r"|"
+    r"\b(?:salv(?:a|e|ar)|anot(?:a|e|ar)|escrev(?:a|e|er))\b.{0,80}?\b(?:no|nas|no\s+meu)\s+(?:mac|computador)\b",
+    re.I,
+)
+NOTE_VIEW_PATTERN = re.compile(
+    r"\b(?:mostr(?:a|e|ar)|list(?:a|e|ar)|ver|l[eê])\b.{0,40}?\b"
+    r"(?:bloco\s+de\s+notas|minhas\s+notas|notas\s+do\s+jarvis|anota[cç][oõ]es)\b"
+    r"|\b(?:abr(?:a|e|ir))\b.{0,24}?\bbloco\s+de\s+notas\b",
+    re.I,
+)
+
+
 LOCAL_INTENTS = (
     (CODE_SESSION_PATTERN, "code_session"),
     (PERSONA_SETTINGS_PATTERN, "persona_settings"),
@@ -2094,7 +2127,8 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(coloc(?:a|e|ar)|adicion(?:a|e|ar)|marc(?:a|e|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
     (re.compile(r"\b(conclu(?:a|i|ir)|finaliz(?:a|e|ar)|marc(?:a|e|ar))\b.{0,60}\b(?:item|tarefa|lembrete|agenda)\s*#?\s*\d+\b", re.I), "agenda_complete"),
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
-    (re.compile(r"\b(anot(?:a|ar)|captur(?:a|ar)|registr(?:a|ar))\b.{0,100}\b(ideia|inbox|nota)\b", re.I), "capture_note"),
+    (NOTE_VIEW_PATTERN, "note_view"),
+    (NOTE_SAVE_PATTERN, "note_save"),
     (re.compile(r"\b(adicion(?:a|e|ar)|cri(?:a|e|ar))\b.{0,60}\b(tarefa|task)\b", re.I), "task_add"),
     (re.compile(r"\b(abr(?:e|ir))\b.{0,40}\b(projeto|oficina|jarvis|gc|ls)\b", re.I), "open_project"),
     (APPLICATION_INTENT_PATTERNS["open_application"], "open_application"),
@@ -2816,8 +2850,8 @@ def pairing_required_payload():
         "endpoint": "POST /command",
         "status_real": "owner_pairing_required",
         "visual_state": "error",
-        "error": "Não executei a ação: este navegador está em modo visitante. Toque em Entrar e use login e senha do Ultron.",
-        "next_action": "Toque em Entrar, informe login e senha, e peça de novo.",
+        "error": "Não executei a ação: este navegador está em modo visitante. Volte à entrada e use login e senha.",
+        "next_action": "Abra a página inicial, toque em Entrar, informe login e senha, e peça de novo.",
         "action_executed": False,
         "pairing_required": True,
     }, 401
@@ -3032,6 +3066,7 @@ def supabase_request(method="GET", query="", body=None, prefer="", table=SUPABAS
         SUPABASE_CONTACTS_TABLE,
         SUPABASE_AGENDA_TABLE,
         SUPABASE_SETTINGS_TABLE,
+        SUPABASE_NOTES_TABLE,
     }:
         raise ValueError("supabase table not allowed")
     url = f"{base_url}/rest/v1/{table}"
@@ -4239,6 +4274,22 @@ def supabase_device_enqueue(command, intent):
         target = details["phone"]
     elif intent == "storage_scan":
         target = "downloads"
+    elif intent == "save_note":
+        details = note_details(command)
+        if not details:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "note_content_missing",
+                "visual_state": "error",
+                "error": "Diga o texto da nota para eu copiar no Mac.",
+                "intent": intent,
+            }, 400
+        target = re.sub(r"[^\wÀ-ÿ ._-]+", "-", details["title"])[:80].strip("-._ ") or "nota"
+        command = json.dumps(
+            {"schema": "jarvis-note/1", "title": details["title"], "body": details["body"]},
+            ensure_ascii=False,
+        )
     elif intent == "screen_record":
         target = "native-recorder"
     elif intent == "github_overview":
@@ -4272,6 +4323,8 @@ def supabase_device_enqueue(command, intent):
                 if intent == "self_edit"
                 else "Controle enviado ao Spotify do Mac. Estou acompanhando até o app devolver o estado real."
                 if intent == "spotify_control"
+                else "Nota enviada ao bloco de notas do Mac."
+                if intent == "save_note"
                 else "Pedido enviado ao worker do Mac. Estou acompanhando a execução."
             ),
             "intent": intent,
@@ -5595,6 +5648,263 @@ def supabase_memory_archive(body):
         return {"ok": False, "error": "O arquivamento não foi confirmado no Supabase."}, 504
 
 
+def note_details(command):
+    """Extract title/body and whether the operator also wants the Mac copy."""
+    text = clean_text(command, 8_000)
+    if not text or has_secret_like_text(text):
+        return None
+    mac = bool(NOTE_MAC_HINT.search(text))
+    body = re.sub(r"^\s*(?:jarvis[,\s]+)?", "", text, flags=re.I)
+    body = re.sub(
+        r"^(?:salv(?:a|e|ar)|anot(?:a|e|ar)|escrev(?:a|e|er)|guard(?:a|e|ar)|registr(?:a|e|ar)|captur(?:a|e|ar))\s+",
+        "",
+        body,
+        flags=re.I,
+    )
+    body = re.sub(r"^(?:isso|isto|essa|esta|aquilo)\s+", "", body, flags=re.I)
+    body = re.sub(
+        r"^(?:no|nas|no\s+meu|na)\s+(?:mac|computador|bloco\s+de\s+notas(?:\s+do\s+(?:jarvis|mac))?|notas?(?:\s+do\s+(?:jarvis|mac))?)\s*[:\-]?\s*",
+        "",
+        body,
+        flags=re.I,
+    )
+    body = re.sub(
+        r"^(?:bloco\s+de\s+notas|anota[cç][aã]o|ideia|inbox|notas?(?:\s+do\s+(?:jarvis|mac))?)\s*[:\-]?\s*",
+        "",
+        body,
+        flags=re.I,
+    )
+    body = re.sub(
+        r"\s+(?:no|nas|no\s+meu)\s+(?:mac|computador|bloco\s+de\s+notas(?:\s+do\s+mac)?|notas?\s+do\s+mac)\s*$",
+        "",
+        body,
+        flags=re.I,
+    )
+    body = body.strip(" :-")
+    if len(body) < 3 or body.casefold() in {"isso", "isto", "essa", "esta", "aquilo"}:
+        return None
+    title = body.split("\n", 1)[0].strip()
+    if len(title) > 80:
+        title = title[:77].rstrip() + "…"
+    return {"title": title, "body": body, "mac": mac}
+
+
+def _settings_notepad_rows():
+    rows = supabase_request(
+        query="select=value&owner_id=eq.theo&key=eq.notepad&limit=1",
+        table=SUPABASE_SETTINGS_TABLE,
+    )
+    value = rows[0].get("value") if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
+    notes = value.get("notes") if isinstance(value, dict) else []
+    return [row for row in notes if isinstance(row, dict)] if isinstance(notes, list) else []
+
+
+def _settings_notepad_write(notes):
+    supabase_request(
+        "POST",
+        query="on_conflict=owner_id,key",
+        body={"owner_id": "theo", "key": "notepad", "value": {"notes": notes[-80:]}},
+        prefer="resolution=merge-duplicates,return=minimal",
+        table=SUPABASE_SETTINGS_TABLE,
+    )
+
+
+def supabase_notes_read(limit=40):
+    safe_limit = max(1, min(int(limit or 40), 80))
+    try:
+        rows = supabase_request(
+            query=(
+                "select=id,title,body,mac_saved,created_at,source"
+                f"&owner_id=eq.theo&archived_at=is.null&order=created_at.desc&limit={safe_limit}"
+            ),
+            table=SUPABASE_NOTES_TABLE,
+        )
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    except HTTPError as error:
+        if error.code not in {404, 400}:
+            raise
+        rows = _settings_notepad_rows()
+        return list(reversed(rows))[:safe_limit]
+
+
+def supabase_notes_write(title, body, source="jarvis-web", mac_saved=False):
+    row = {
+        "owner_id": "theo",
+        "title": clean_text(title, 120) or "Nota",
+        "body": clean_text(body, 4_000),
+        "source": clean_text(source, 80) or "jarvis-web",
+        "mac_saved": bool(mac_saved),
+    }
+    try:
+        result = supabase_request(
+            "POST",
+            body=row,
+            prefer="return=representation",
+            table=SUPABASE_NOTES_TABLE,
+        )
+        saved = result[0] if isinstance(result, list) and result else None
+        if isinstance(saved, dict) and saved.get("id"):
+            return saved
+        raise ValueError("missing persisted note")
+    except HTTPError as error:
+        if error.code not in {404, 400}:
+            raise
+        notes = _settings_notepad_rows()
+        saved = {
+            "id": f"n-{int(time.time())}-{secrets.token_hex(3)}",
+            "title": row["title"],
+            "body": row["body"],
+            "mac_saved": row["mac_saved"],
+            "source": row["source"],
+            "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        notes.append(saved)
+        _settings_notepad_write(notes)
+        return saved
+
+
+def notes_list_payload(limit=40):
+    if not supabase_configured():
+        return {
+            "ok": False,
+            "endpoint": "GET /notes",
+            "status_real": "notes_backend_missing",
+            "error": "O bloco de notas precisa do Supabase para existir em qualquer computador.",
+            "notes": [],
+            "count": 0,
+        }, 503
+    try:
+        notes = supabase_notes_read(limit)
+        public = [{
+            "id": row.get("id"),
+            "title": clean_text(row.get("title"), 120),
+            "body": clean_text(row.get("body"), 4_000),
+            "mac_saved": bool(row.get("mac_saved")),
+            "created_at": clean_text(row.get("created_at"), 80),
+        } for row in notes]
+        return {
+            "ok": True,
+            "endpoint": "GET /notes",
+            "status_real": "notes_read",
+            "notes": public,
+            "count": len(public),
+        }, 200
+    except HTTPError as error:
+        return {"ok": False, "endpoint": "GET /notes", "error": f"Supabase recusou as notas (HTTP {error.code}).", "notes": [], "count": 0}, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {"ok": False, "endpoint": "GET /notes", "error": "O bloco de notas não respondeu.", "notes": [], "count": 0}, 504
+
+
+def jarvis_note_save(command, local_execute=False, title="", body="", save_mac=None):
+    raw = " ".join(part for part in (command, title, body) if part)
+    if has_secret_like_text(raw):
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "note_secret_refused",
+            "visual_state": "error",
+            "error": "Não salvo credenciais no bloco de notas.",
+            "intent": "note_save",
+        }, 400
+    details = {"title": clean_text(title, 120), "body": clean_text(body, 4_000), "mac": bool(save_mac)} if body else note_details(command)
+    if not details or len(details.get("body") or "") < 3:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "note_content_missing",
+            "visual_state": "error",
+            "message": "Diga o texto da nota. Não vou fingir que salvei um “isso” vazio.",
+            "intent": "note_save",
+        }, 400
+    mac = details["mac"] if save_mac is None else bool(save_mac)
+    if not supabase_configured():
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "notes_backend_missing",
+            "visual_state": "error",
+            "error": "O bloco de notas precisa do Supabase para valer em qualquer computador.",
+            "intent": "note_save",
+        }, 503
+    try:
+        saved = supabase_notes_write(details["title"], details["body"], mac_saved=mac)
+    except HTTPError as error:
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "note_write_failed",
+            "visual_state": "error",
+            "error": f"O Supabase recusou a nota (HTTP {error.code}).",
+            "intent": "note_save",
+        }, 502
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "note_write_unavailable",
+            "visual_state": "error",
+            "error": "O bloco de notas não confirmou a gravação.",
+            "intent": "note_save",
+        }, 504
+    mac_job = None
+    if mac:
+        queued, status = supabase_device_enqueue(
+            command or f"salva no bloco de notas: {details['body']} no mac",
+            "save_note",
+        )
+        if queued.get("ok"):
+            mac_job = queued.get("job")
+        else:
+            return {
+                "ok": True,
+                "endpoint": "POST /command",
+                "status_real": "note_saved_mac_pending",
+                "visual_state": "memory",
+                "message": "Guardei no bloco de notas do JARVIS. A cópia no Mac não entrou na fila agora.",
+                "intent": "note_save",
+                "note": saved,
+                "mac_error": queued.get("error"),
+                "persistent_write": True,
+                "client_action": "open_notes",
+            }, 201
+    message = (
+        "Guardei no bloco de notas do JARVIS e enviei cópia para o Mac."
+        if mac_job
+        else "Guardei no bloco de notas do JARVIS. Vale em qualquer computador."
+    )
+    return {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "note_saved",
+        "visual_state": "memory",
+        "message": message,
+        "intent": "note_save",
+        "note": {
+            "id": saved.get("id"),
+            "title": clean_text(saved.get("title"), 120),
+            "body": clean_text(saved.get("body"), 4_000),
+            "mac_saved": bool(mac_job),
+            "created_at": clean_text(saved.get("created_at"), 80),
+        },
+        "job": mac_job,
+        "persistent_write": True,
+        "client_action": "open_notes",
+        "provider": "supabase",
+    }, 201
+
+
+def notes_write_payload(body):
+    title = clean_text(body.get("title"), 120)
+    text = clean_text(body.get("body") or body.get("text") or body.get("note"), 4_000)
+    save_mac = bool(body.get("save_mac") or body.get("mac"))
+    command = f"salva no bloco de notas: {title + chr(10) if title else ''}{text}"
+    if save_mac:
+        command += " no mac"
+    payload, status = jarvis_note_save(command, title=title, body=text, save_mac=save_mac)
+    payload["endpoint"] = "POST /notes"
+    return payload, status
+
+
 def _browser_open_query(raw):
     text = re.sub(
         r"\s+(?:pra\s+mim|para\s+mim|por\s+favor|please)\s*$",
@@ -5732,6 +6042,8 @@ def public_device_target(action, target):
         return "Gravador do macOS"
     if action == "github_overview":
         return "GitHub do Theo"
+    if action == "save_note":
+        return "bloco de notas do Mac"
     return safe_target
 
 
@@ -6514,8 +6826,69 @@ def creator_profile_payload(kind="full"):
             {"title": "LinkedIn · Theo Lorentz Padilha", "url": profile["linkedin"], "domain": "linkedin.com"},
             {"title": "JARVIS no GitHub", "url": profile["github"], "domain": "github.com"},
             {"title": "Perfil público do criador", "url": profile["page"], "domain": "jarvis"},
+            {"title": "Currículo em arquivo", "url": "/download/curriculo", "domain": "jarvis"},
         ],
     }, 200
+
+
+def curriculo_document():
+    profile = dict(CREATOR_PROFILE)
+    profile["name"] = creator_name()
+    return "\n".join([
+        "<!doctype html>",
+        '<html lang="pt-BR"><head><meta charset="utf-8">',
+        f"<title>Currículo · {profile['name']}</title>",
+        "<style>body{font:16px/1.5 ui-sans-serif,system-ui,sans-serif;max-width:720px;margin:32px auto;padding:0 18px;color:#1a1224}h1{margin:0 0 6px}h2{margin:22px 0 8px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#6b21a8}a{color:#6b21a8}</style>",
+        "</head><body>",
+        f"<h1>{profile['name']}</h1>",
+        f"<p>{profile['headline']}<br>{profile['city']} · {profile['email']}</p>",
+        f"<p><a href=\"{profile['linkedin']}\">LinkedIn</a> · <a href=\"{profile['github']}\">GitHub</a></p>",
+        "<h2>Agora</h2>",
+        f"<p>{profile['current']}</p>",
+        "<h2>Stack</h2>",
+        f"<p>{profile['stack']}</p>",
+        "<h2>Antes</h2>",
+        f"<p>{profile['past']}</p>",
+        "<h2>Formação</h2>",
+        f"<p>{profile['education']}</p>",
+        "</body></html>",
+        "",
+    ])
+
+
+def file_send_fields(url, name, label):
+    return {
+        "client_action": "download_file",
+        "download_url": url,
+        "download_name": name,
+        "file": {"url": url, "name": name, "label": label},
+        "action_executed": True,
+    }
+
+
+def file_send_payload(command):
+    text = clean_text(command, 400)
+    if re.search(r"\blogo\b", text, re.I):
+        url, name, label = "/ui/jarvis-logo.png?v=20260813-logonative1", "jarvis-logo.png", "logo do JARVIS"
+    elif re.search(r"\b(?:zip|app(?:licativo)?(?:\s+do)?\s+mac|mac\.zip)\b", text, re.I):
+        url, name, label = "/download/mac", "JARVIS.mac.zip", "app do Mac"
+    else:
+        url, name, label = "/download/curriculo", CURRICULO_FILENAME, "currículo do Theo"
+    payload = {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "file_sent",
+        "intent": "file_send",
+        "provider": "jarvis_files",
+        "visual_state": "success",
+        "message": f"Arquivo na mão: {label}.",
+        **file_send_fields(url, name, label),
+    }
+    if label.startswith("currículo"):
+        profile, _status = creator_profile_payload("short")
+        payload["author_card"] = profile.get("author_card")
+        payload["creator"] = profile.get("creator")
+    return payload, 200
 
 
 def should_search_web(messages, owner_authenticated=False):
@@ -8375,6 +8748,22 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
         return payload, 200 if payload.get("ok") else 503
     if intent == "memory_save" and supabase_configured():
         return supabase_memory_save(command)
+    if intent in {"note_save", "capture_note"}:
+        return jarvis_note_save(command, local_execute=local_execute)
+    if intent == "note_view":
+        payload, status = notes_list_payload(40)
+        payload.update({
+            "endpoint": "POST /command",
+            "intent": "note_view",
+            "visual_state": "memory",
+            "client_action": "open_notes",
+            "message": (
+                f"Abri o bloco de notas com {payload.get('count') or 0} nota(s)."
+                if payload.get("ok")
+                else payload.get("error") or "O bloco de notas não está disponível."
+            ),
+        })
+        return payload, status
     if intent == "contact_save" and supabase_configured():
         return supabase_contact_save(command)
     if intent == "contact_archive" and supabase_configured():
@@ -8772,6 +9161,16 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         if owner_pairing_required() and not owner_authenticated:
             return pairing_required_payload()
         return elevenlabs_voice_design(latest)
+    if FILE_SEND_PATTERN.search(latest):
+        return file_send_payload(latest)
+    if CREATOR_QUESTION_PATTERN.search(latest):
+        payload, status = creator_profile_payload("full")
+        if re.search(r"curr[ií]culo|\bcv\b", latest, re.I):
+            payload.update(file_send_fields("/download/curriculo", CURRICULO_FILENAME, "currículo do Theo"))
+            payload["message"] = f"Arquivo na mão: currículo do Theo. {payload['message']}"
+            payload["status_real"] = "file_sent"
+        payload["endpoint"] = "POST /assistant"
+        return payload, status
     device_plan = compound_device_plan(latest)
     if not device_plan:
         web_open = browser_open_payload(latest, owner_authenticated=owner_authenticated)
@@ -9458,8 +9857,15 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
         payload.update({"endpoint": "POST /command", "intent": "personal_overview", "provider": "jarvis_control_plane"})
         return payload, 200
 
+    if FILE_SEND_PATTERN.search(command):
+        return file_send_payload(command)
     if CREATOR_QUESTION_PATTERN.search(command):
-        return creator_profile_payload("full")
+        payload, status = creator_profile_payload("full")
+        if re.search(r"curr[ií]culo|\bcv\b", command, re.I):
+            payload.update(file_send_fields("/download/curriculo", CURRICULO_FILENAME, "currículo do Theo"))
+            payload["message"] = f"Arquivo na mão: currículo do Theo. {payload['message']}"
+            payload["status_real"] = "file_sent"
+        return payload, status
     if IDENTITY_QUESTION_PATTERN.search(command):
         return creator_profile_payload("short")
 
@@ -9561,6 +9967,8 @@ def command_intent(command):
         return "daily_brief"
     if CAPABILITY_OVERVIEW_PATTERN.search(command):
         return "personal_overview"
+    if FILE_SEND_PATTERN.search(command):
+        return "file_send"
     if CREATOR_QUESTION_PATTERN.search(command) or IDENTITY_QUESTION_PATTERN.search(command):
         return "creator_profile"
     if compound_device_plan(command):
@@ -10405,6 +10813,13 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(500, {"ok": False, "error": "cockpit asset is unavailable"})
         self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=60")
 
+    def serve_landing(self):
+        try:
+            body = LANDING_FILE.read_bytes()
+        except OSError:
+            return self.send_json(500, {"ok": False, "error": "landing asset is unavailable"})
+        self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=60")
+
     def serve_creator_page(self):
         return self.serve_public_page("theo.html", "perfil do criador indisponível")
 
@@ -10476,8 +10891,24 @@ class handler(BaseHTTPRequestHandler):
         path, query = request_route(self.path)
         identity = request_identity(self.headers.get("X-Jarvis-Owner-Token"))
         owner_authenticated = bool(identity.get("owner"))
-        if path == "/":
+        if path in {"/", "/entrar"}:
+            return self.serve_landing()
+        if path == "/cockpit":
             return self.serve_ui()
+        if path in {"/curriculo", "/currículo"}:
+            body = curriculo_document().encode("utf-8")
+            return self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=120")
+        if path == "/download/curriculo":
+            body = curriculo_document().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Disposition", f'attachment; filename="{CURRICULO_FILENAME}"')
+            self.send_header("Cache-Control", "no-store")
+            self._security_headers()
+            self.end_headers()
+            self._write_body(body)
+            return
         if path in {"/theo", "/criador", "/creator"}:
             return self.serve_creator_page()
         if path in {"/produto", "/oferta.html"}:
@@ -10518,6 +10949,17 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(200, payload)
         if path == "/accounts":
             payload, status = accounts_list_payload(identity)
+            return self.send_json(status, payload)
+        if path == "/notes":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "GET /notes"
+                return self.send_json(status, payload)
+            try:
+                limit = int((query.get("limit") or ["40"])[0])
+            except ValueError:
+                limit = 40
+            payload, status = notes_list_payload(limit)
             return self.send_json(status, payload)
         if path == "/persona-styles":
             return self.send_json(200, persona_styles_payload())
@@ -10784,6 +11226,13 @@ class handler(BaseHTTPRequestHandler):
             return self.send_json(status, payload)
         if path == "/login":
             payload, status = account_login_payload(body, require_owner=False)
+            return self.send_json(status, payload)
+        if path == "/notes":
+            if owner_pairing_required() and not owner_authenticated:
+                payload, status = pairing_required_payload()
+                payload["endpoint"] = "POST /notes"
+                return self.send_json(status, payload)
+            payload, status = notes_write_payload(body)
             return self.send_json(status, payload)
         if path == "/signup":
             payload, status = signup_payload(body)

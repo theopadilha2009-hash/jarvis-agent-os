@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const mount = document.getElementById("avatar3d");
 const stage = document.getElementById("stage");
@@ -64,44 +65,72 @@ async function loadObjGeometry(url) {
   const source = await response.text();
   const vertices = [];
   const normals = [];
+  const uvs = [];
   const positions = [];
   const outputNormals = [];
+  const outputUvs = [];
   source.split(/\r?\n/).forEach((line) => {
     const parts = line.trim().split(/\s+/);
     if (parts[0] === "v") vertices.push(parts.slice(1, 4).map(Number));
     else if (parts[0] === "vn") normals.push(parts.slice(1, 4).map(Number));
+    else if (parts[0] === "vt") uvs.push([Number(parts[1] || 0), Number(parts[2] || 0)]);
     else if (parts[0] === "f") {
       const corners = parts.slice(1).map((value) => value.split("/").map(Number));
       for (let index = 1; index < corners.length - 1; index += 1) {
-        [corners[0], corners[index], corners[index + 1]].forEach(([vertexIndex, , normalIndex]) => {
+        [corners[0], corners[index], corners[index + 1]].forEach(([vertexIndex, uvIndex, normalIndex]) => {
           positions.push(...(vertices[vertexIndex - 1] || [0, 0, 0]));
-          outputNormals.push(...(normals[normalIndex - 1] || [0, 0, 1]));
+          outputUvs.push(...(uvs[(uvIndex || 0) - 1] || [0, 0]));
+          outputNormals.push(...(normals[(normalIndex || 0) - 1] || [0, 0, 1]));
         });
       }
     }
   });
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  if (uvs.length) geometry.setAttribute("uv", new THREE.Float32BufferAttribute(outputUvs, 2));
   if (normals.length) geometry.setAttribute("normal", new THREE.Float32BufferAttribute(outputNormals, 3));
   else geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
   return geometry;
 }
 
+function makeVisitorAlbedo() {
+  const size = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const skin = ctx.createRadialGradient(size * 0.5, size * 0.42, size * 0.08, size * 0.5, size * 0.5, size * 0.72);
+  skin.addColorStop(0, "#f0c7a4");
+  skin.addColorStop(0.35, "#d9a078");
+  skin.addColorStop(0.7, "#b57b58");
+  skin.addColorStop(1, "#6b3d6f");
+  ctx.fillStyle = skin;
+  ctx.fillRect(0, 0, size, size);
+  const pixels = ctx.getImageData(0, 0, size, size);
+  for (let i = 0; i < pixels.data.length; i += 4) {
+    const grain = ((i * 17) % 97) / 97 * 16 - 8;
+    pixels.data[i] = Math.min(255, Math.max(0, pixels.data[i] + grain));
+    pixels.data[i + 1] = Math.min(255, Math.max(0, pixels.data[i + 1] + grain * 0.7));
+    pixels.data[i + 2] = Math.min(255, Math.max(0, pixels.data[i + 2] + grain * 0.45));
+  }
+  ctx.putImageData(pixels, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
 async function loadObjHead(url) {
   const geometry = await loadObjGeometry(url);
-  const material = new THREE.MeshPhysicalMaterial({
-    color: 0x7741ad,
-    metalness: 0.04,
-    roughness: 0.7,
-    emissive: 0x2e105c,
-    emissiveIntensity: 0.54,
-    transparent: true,
-    opacity: 0.66,
-    depthWrite: false,
-    side: THREE.FrontSide,
-    clearcoat: 0.12,
-    clearcoatRoughness: 0.8,
+  const material = new THREE.MeshStandardMaterial({
+    map: geometry.getAttribute("uv") ? makeVisitorAlbedo() : null,
+    color: 0xffffff,
+    metalness: 0.12,
+    roughness: 0.48,
+    envMapIntensity: 0.95,
+    emissive: 0x3b1760,
+    emissiveIntensity: 0.16,
   });
   material.name = "visitor-purple-volume";
   const head = new THREE.Mesh(geometry, material);
@@ -639,6 +668,9 @@ async function start() {
   const thumbCanvas = makeEffectCanvas("nuclei", "2");
   const thumbContext = thumbCanvas.getContext("2d");
   const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   camera.position.set(0, 0.02, 5.1);
 
@@ -813,7 +845,9 @@ async function start() {
       }
       materials.filter(Boolean).forEach((material) => {
         installCyanRemap(material);
-        if ("envMapIntensity" in material) material.envMapIntensity = 1.42;
+        if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
+        if ("envMapIntensity" in material) material.envMapIntensity = 1.55;
+        material.needsUpdate = true;
         if (material.emissive && /glow|emissive/i.test(material.name || "")) {
           material.userData.jarvisBaseEmissive = material.emissive.clone();
           material.userData.jarvisBaseIntensity = material.emissiveIntensity || 1;
@@ -911,7 +945,7 @@ async function start() {
   stage.classList.add("model-ready");
   stage.classList.remove("model-error");
   stage.classList.remove("gpu-error");
-  presenceValue.textContent = "Busto visitante roxo · volume facial · malha sutil";
+  presenceValue.textContent = "Busto visitante · pele e ambiente";
 
   let previousFrameMs = performance.now();
   let currentScale = 1;
@@ -1014,7 +1048,7 @@ async function start() {
       }
     } else {
       ownerModel.visible = false;
-      presenceValue.textContent = "Busto visitante roxo · volume facial · malha sutil";
+      presenceValue.textContent = "Busto visitante · pele e ambiente";
       wakeRender();
     }
   }
@@ -1072,6 +1106,11 @@ async function start() {
     rim.color.setHex(isOwner ? 0xdc2626 : 0x6d5cff);
     faceFill.color.setHex(isOwner ? 0xffe0e0 : 0xdacfff);
     lowerFill.color.setHex(isOwner ? 0xb91c1c : 0x8b5cf6);
+    const ultronPersona = document.documentElement.dataset.persona === "ultron";
+    if (visitorModel.material) {
+      visitorModel.material.color.setHex(ultronPersona ? 0xffc4c4 : 0xffffff);
+      visitorModel.material.emissive.setHex(ultronPersona ? 0x7f1d1d : 0x3b1760);
+    }
     const activeColor = isOwner ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
     const isWorking = modeBlend.forge > 0.08;
     targetColor.setHex(activeColor);

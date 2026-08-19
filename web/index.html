@@ -14,11 +14,11 @@
 <link rel="manifest" href="/ui/manifest.webmanifest?v=20260813-apitools1">
 <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
 <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-<link rel="stylesheet" href="/ui/jarvis.css?v=20260817-move1">
+<link rel="stylesheet" href="/ui/jarvis.css?v=20260819-files1">
 <link rel="stylesheet" href="/ui/ui-repair.css?v=20260815-vozes2">
 <link rel="stylesheet" href="/ui/api-panel.css?v=20260813-ultronfix1">
-<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260815-vozes2">
-<link rel="stylesheet" href="/ui/shell.css?v=20260819-debug1">
+<link rel="stylesheet" href="/ui/responsive-polish.css?v=20260819-notas1">
+<link rel="stylesheet" href="/ui/shell.css?v=20260819-notas1">
 <script src="/ui/creator-seal.js?v=20260817-app1"></script>
 <script>
 (() => {
@@ -69,9 +69,10 @@
         <button class="quiet-button" id="tourButton" type="button">Guia</button>
         <a class="quiet-button" id="macDownloadButton" href="/download/mac">Mac</a>
         <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
-        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir missões · ⌘K">Missões <kbd>⌘K</kbd></button>
+        <button class="quiet-button" id="notesPadButton" type="button" title="Abrir bloco de notas">Notas</button>
+        <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir ferramentas · ⌘K">Ferramentas <kbd>⌘K</kbd></button>
         <button class="quiet-button integrations-button" id="integrationsButton" type="button" title="Abrir cofre de APIs">APIs <b id="integrationsCount">0</b></button>
-        <button class="quiet-button" id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Fala ligada</span><span class="mobile-label">Voz</span></button>
+        <button class="quiet-button" id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Mutar fala</span><span class="mobile-label">Mutar</span></button>
         <button class="quiet-button quality-button" id="qualityButton" type="button" title="Mudar qualidade gráfica">Excelente</button>
         <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema"><i></i><i></i><i></i></button>
       </div>
@@ -175,7 +176,7 @@
           </section>
         </aside>
 
-        <div class="spoken-caption" id="spokenCaption" aria-live="polite">Estou aqui.</div>
+        <button class="spoken-caption" id="spokenCaption" type="button" aria-live="polite" title="Clique para mutar a fala">Estou aqui.</button>
 
         <aside class="file-preview" id="filePreview" aria-live="polite" hidden>
           <div class="file-preview-visual" aria-hidden="true">
@@ -231,8 +232,11 @@
             </svg>
             <b>Falar</b>
           </button>
-          <button class="wake-indicator" id="wakeIndicator" type="button" data-state="off" hidden>
-            <i aria-hidden="true"></i><b>pelo nome</b>
+          <button class="wake-indicator" id="wakeIndicator" type="button" data-state="off" hidden aria-label="Ouvir pelo nome">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 9v6M8 6v12M12 3v18M16 6v12M20 9v6"></path>
+            </svg>
+            <b>Ouvir</b>
           </button>
           <button class="attachment-button" id="attachmentButton" type="button" aria-label="Anexar imagem, PDF ou texto" title="Anexar arquivo">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8.5 12.5 14.8 6.2a3 3 0 0 1 4.2 4.2l-8.5 8.5a5 5 0 0 1-7.1-7.1l8-8"></path></svg>
@@ -469,7 +473,7 @@
 
 <script src="/ui/api-vault.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
-<script src="/ui/feature-loader.js?v=20260815-vozes2" defer></script>
+<script src="/ui/feature-loader.js?v=20260819-notas1" defer></script>
 <script src="/ui/device-feedback.js?v=20260813-device1" defer></script>
 <script src="/ui/local-voice.js?v=20260818-voice2"></script>
 <script>
@@ -482,7 +486,7 @@ window.addEventListener("error", (event) => {
   if (state) state.textContent = "script interrompido";
 }, true);
 </script>
-<script src="/ui/jarvis.js?v=20260819-leftover1" defer></script>
-<script type="module" src="/ui/presence-loader.js?v=20260813-ultronfix1"></script>
+<script src="/ui/jarvis.js?v=20260819-files1" defer></script>
+<script type="module" src="/ui/presence-loader.js?v=20260819-files1"></script>
 </body>
 </html>

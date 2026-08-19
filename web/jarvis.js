@@ -2050,11 +2050,25 @@
   }
 
   function renderMuteState() {
-    const desktopLabel = session.muted ? "Fala muda" : "Fala ligada";
-    const mobileLabel = session.muted ? "Mudo" : "Voz";
+    const desktopLabel = session.muted ? "Fala desligada" : "Mutar fala";
+    const mobileLabel = session.muted ? "Mudo" : "Mutar";
     muteButton.innerHTML = `<span class="desktop-label">${desktopLabel}</span><span class="mobile-label">${mobileLabel}</span>`;
     muteButton.setAttribute("aria-pressed", String(session.muted));
-    muteButton.title = session.muted ? `Ativar a voz do ${assistantName()}` : `Mutar a voz do ${assistantName()}`;
+    muteButton.title = session.muted ? `Clique para ouvir ${assistantName()}` : `Clique para mutar a fala`;
+    const caption = byId("spokenCaption");
+    if (caption) {
+      caption.title = muteButton.title;
+      caption.setAttribute("aria-pressed", String(session.muted));
+    }
+  }
+
+  function toggleMute() {
+    session.muted = !session.muted;
+    try {
+      localStorage.setItem("jarvis-voice-muted", session.muted ? "1" : "0");
+    } catch { /* a sessão ainda obedece */ }
+    if (session.muted) stopSpeechOutput();
+    renderMuteState();
   }
 
   // Voz degradada é um problema visível, não um detalhe silencioso.
@@ -2323,8 +2337,20 @@
       session.responseState = "forge";
       stage.classList.add("spatial-result");
     }
+    if (data.client_action === "open_notes") {
+      import("/ui/notes-pad.js?v=20260819-notas1").then(() => window.JarvisNotesPad?.open()).catch(() => null);
+    }
     if (data.client_action === "open_url" && data.open_url && !data.already_opened) {
       data.already_opened = Boolean(window.open(data.open_url, "_blank", "noopener,noreferrer"));
+    }
+    if (data.client_action === "download_file" && data.download_url) {
+      const fileLink = document.createElement("a");
+      fileLink.href = data.download_url;
+      if (data.download_name) fileLink.download = data.download_name;
+      fileLink.rel = "noopener";
+      document.body.appendChild(fileLink);
+      fileLink.click();
+      fileLink.remove();
     }
     session.memoryViewing = data.intent === "memory_view" || data.mode === "memory";
     session.responseState = responseVisualState(data);
@@ -2351,6 +2377,10 @@
     let messageActions = `<button class="copy-response" type="button">Copiar</button>`;
     if (data.client_action === "open_url" && data.open_url) {
       messageActions += `<a class="open-link" href="${escapeHtml(data.open_url)}" target="_blank" rel="noopener noreferrer">Abrir</a>`;
+    }
+    if (data.download_url) {
+      const fileName = escapeHtml(data.download_name || "arquivo");
+      messageActions += `<a class="open-link" href="${escapeHtml(data.download_url)}" download="${fileName}">Baixar ${fileName}</a>`;
     }
     if (data.status_real === "free_web_search_unavailable" && session.currentCommand) {
       messageActions += `<a class="open-link" href="https://www.google.com/search?q=${encodeURIComponent(session.currentCommand)}" target="_blank" rel="noopener noreferrer">Buscar no Google</a>`;
@@ -2856,12 +2886,13 @@
       badge.hidden = false;
       badge.dataset.state = state;
       badge.title = {
-        on: "Escutando pelo nome. Diga \"oi Jarvis\" sem clicar em nada.",
-        command: "Te ouvindo. Fale o pedido.",
-        arming: "Preparando a escuta pelo nome…",
-        blocked: "Microfone bloqueado. Clique para liberar e atender pelo nome.",
-        off: "Escuta pelo nome desligada. Clique para ligar.",
+        on: "Ouvir pelo nome ligado. Diga \"oi Jarvis\" sem clicar no microfone.",
+        command: "Ouvindo o pedido.",
+        arming: "Preparando o ouvir pelo nome…",
+        blocked: "Microfone bloqueado. Clique em Ouvir para liberar.",
+        off: "Ouvir pelo nome desligado. Clique para ligar.",
       }[state];
+      badge.setAttribute("aria-label", badge.title);
     };
 
     // Nunca devolve sem reagendar: um ciclo ocupado não pode matar a escuta.
@@ -3346,13 +3377,16 @@
       exitOwnerMode(byId("accessMode"));
       return;
     }
+    if (!session.paired && !session.codeMode) {
+      window.location.href = "/";
+      return;
+    }
     dialog.showModal();
     window.setTimeout(() => byId("adminPassword")?.focus(), 30);
     refreshActionHistory();
   });
   byId("welcomeLogin")?.addEventListener("click", () => {
-    dialog.showModal();
-    window.setTimeout(() => byId("adminPassword")?.focus(), 30);
+    window.location.href = "/";
   });
   integrationsButton?.addEventListener("click", async () => {
     renderIntegrationRegistry();
@@ -3581,16 +3615,8 @@
   tourDialog.addEventListener("click", (event) => {
     if (event.target === tourDialog) tourDialog.close();
   });
-  muteButton.addEventListener("click", () => {
-    session.muted = !session.muted;
-    try {
-      localStorage.setItem("jarvis-voice-muted", session.muted ? "1" : "0");
-    } catch {
-      // The control still works for this session when storage is unavailable.
-    }
-    if (session.muted) stopSpeechOutput();
-    renderMuteState();
-  });
+  muteButton.addEventListener("click", toggleMute);
+  byId("spokenCaption")?.addEventListener("click", toggleMute);
   byId("closeDialog").addEventListener("click", () => dialog.close());
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();

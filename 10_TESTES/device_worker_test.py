@@ -43,7 +43,7 @@ class DeviceWorkerTest(unittest.TestCase):
                     self.assertEqual(spoken, [MODULE.ARRIVAL_GREETING])
                     self.assertIn("/usr/bin/open", opened[0])
                     # spoken=1: a aba mostra a saudação sem repetir o áudio.
-                    self.assertTrue(opened[0][1].endswith("/?arrival=worker&spoken=1"), opened[0][1])
+                    self.assertTrue(opened[0][1].endswith("/cockpit?arrival=worker&spoken=1"), opened[0][1])
                     spoken.clear()
                     # Dentro do cooldown não abre de novo.
                     self.assertFalse(MODULE.announce_arrival(10_600.0))
@@ -179,6 +179,16 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertFalse(MODULE.self_publish_requested("edite seus arquivos, somente local"))
         self.assertTrue(MODULE.self_publish_requested("crie a melhoria e suba para produção"))
         self.assertTrue(MODULE.self_publish_requested("faça deploy e merge do que você melhorou no jarvis"))
+        note_argv = MODULE.command_argv({
+            "action": "save_note",
+            "target": "comprar-pao",
+            "request_text": json.dumps({
+                "schema": "jarvis-note/1",
+                "title": "comprar pão",
+                "body": "comprar pão",
+            }),
+        })
+        self.assertEqual(note_argv[0], "jarvis-note-save")
 
         capture = MODULE.command_argv({"action": "screen_capture", "target": ""})
         recording = MODULE.command_argv({"action": "screen_record", "target": "native-recorder"})
@@ -316,7 +326,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
-        self.assertEqual(kwargs["body"]["version"], "10")
+        self.assertEqual(kwargs["body"]["version"], "11")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):
@@ -390,6 +400,27 @@ class DeviceWorkerTest(unittest.TestCase):
         args = MODULE.build_parser().parse_args(["--watch"])
         self.assertEqual(args.interval, 3.0)
         self.assertGreaterEqual(MODULE.HEARTBEAT_INTERVAL_SECONDS, 15.0)
+
+    def test_save_note_writes_markdown_in_jarvis_folder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            home = Path(folder)
+            job = {
+                "action": "save_note",
+                "target": "comprar-pao",
+                "request_text": json.dumps({
+                    "schema": "jarvis-note/1",
+                    "title": "comprar pão",
+                    "body": "comprar pão amanhã",
+                }),
+            }
+            with patch.object(MODULE.Path, "home", return_value=home), \
+                    patch.object(MODULE, "write_apple_note", return_value="Cópia no app Notas."):
+                ok, output = MODULE.persist_mac_note(job)
+            self.assertTrue(ok)
+            notes = list((home / "Documents" / "JARVIS" / "Notas").glob("*.md"))
+            self.assertEqual(len(notes), 1)
+            self.assertIn("comprar pão amanhã", notes[0].read_text(encoding="utf-8"))
+            self.assertIn("app Notas", output)
 
     def test_launch_agent_path_includes_orca_install_locations(self):
         path = MODULE.launch_payload()["EnvironmentVariables"]["PATH"]

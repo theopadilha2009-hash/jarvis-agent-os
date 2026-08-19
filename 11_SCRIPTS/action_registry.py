@@ -63,11 +63,14 @@ def _object_schema(**properties: Any) -> dict[str, Any]:
 
 ACTION_SPECS = (
     ActionSpec("assistant_chat", "Conversar", "Responder usando contexto e o provedor disponível.", "brain", intents=("assistant",)),
+    ActionSpec("file_send", "Enviar arquivo", "Entregar um arquivo real disponível no JARVIS.", "brain", intents=("file_send",)),
     ActionSpec("web_research", "Pesquisar com fontes", "Pesquisar fontes públicas e devolver evidências verificáveis.", "web", intents=("research", "research_plan")),
     ActionSpec("personal_overview", "Central pessoal", "Cruzar agenda, memória, worker e atividade recente.", "control_plane", private=True, intents=("personal_overview", "daily_brief")),
     ActionSpec("memory_view", "Ler memória", "Consultar memórias privadas confirmadas.", "memory", private=True, intents=("memory_view",)),
     ActionSpec("memory_search", "Buscar na memória", "Pesquisar memória confirmada por conteúdo, origem e projeto.", "memory", private=True, intents=("memory_search",)),
     ActionSpec("memory_save", "Guardar memória", "Persistir aprendizado, preferência ou decisão explícita.", "memory", "local_write", "explicit_request", True, intents=("memory_save",)),
+    ActionSpec("note_view", "Ler bloco de notas", "Consultar o bloco de notas global do JARVIS.", "memory", private=True, intents=("note_view",)),
+    ActionSpec("note_save", "Salvar nota", "Gravar no bloco de notas do JARVIS e, se pedido, copiar no Mac.", "memory", "local_write", "explicit_request", True, intents=("note_save", "capture_note")),
     ActionSpec("contact_view", "Ler contatos", "Consultar contatos privados ativos.", "contacts", private=True, intents=("contact_view",)),
     ActionSpec("contact_save", "Guardar contato", "Persistir um contato fornecido explicitamente.", "contacts", "local_write", "explicit_request", True, intents=("contact_save",)),
     ActionSpec("contact_archive", "Arquivar contato", "Arquivar um contato privado sem apagar histórico.", "contacts", "local_write", "interactive", True, intents=("contact_archive",)),
@@ -96,7 +99,7 @@ ACTION_SPECS = (
     ActionSpec("storage_scan", "Analisar armazenamento", "Ler metadados e localizar arquivos grandes.", "mac", private=True, intents=("storage_scan",)),
     ActionSpec("system_memory", "Diagnosticar computador", "Inspecionar memória e processos temporários do JARVIS.", "mac", "runtime_write", "explicit_request", True, intents=("system_memory",)),
     ActionSpec("device_run", "Executar sequência", "Executar de duas a seis ações allowlisted em ordem, interrompendo na primeira falha.", "mac", "runtime_write", "explicit_request", True, intents=("device_run",)),
-    ActionSpec("local_utility", "Utilitário local", "Executar uma utilidade pessoal estreitamente allowlisted.", "local_worker", "runtime_write", "explicit_request", True, intents=("speak", "image_convert", "image_to_pdf", "message_draft", "files_triage", "capture_note")),
+    ActionSpec("local_utility", "Utilitário local", "Executar uma utilidade pessoal estreitamente allowlisted.", "local_worker", "runtime_write", "explicit_request", True, intents=("speak", "image_convert", "image_to_pdf", "message_draft", "files_triage")),
     ActionSpec("voice_design", "Criar voz", "Gerar e salvar uma nova voz do JARVIS no provedor configurado.", "voice", "external_write", "interactive", True, intents=("voice_design",)),
     ActionSpec(
         "message_send",
@@ -109,6 +112,7 @@ ACTION_SPECS = (
         intents=("message_send",),
         parameters=_object_schema(recipient={"type": "string"}, message={"type": "string"}),
     ),
+    ActionSpec("save_note", "Salvar nota no Mac", "Copiar uma nota do JARVIS para a pasta e o app Notas do Mac.", "mac", "runtime_write", "explicit_request", True, intents=("save_note",)),
     ActionSpec("self_edit", "Autoeditar JARVIS", "Editar, testar e commitar o próprio JARVIS em ambiente isolado.", "local_worker", "code_write", "interactive", True, intents=("self_edit", "self_evolve")),
     ActionSpec("planning", "Planejar", "Gerar plano, brief ou checklist sem executar produção.", "planner", "runtime_write", "explicit_request", intents=("planning", "blueprint", "n8n_blueprint", "app_blueprint", "automation_blueprint", "no_claude", "unclear")),
     ActionSpec("project_inspect", "Inspecionar projeto", "Ler arquivos, Git e testes de projeto registrado.", "local_worker", private=True, intents=("project_inspect", "project_fix_or_inspect", "project_fix", "project_qa", "browser_qa", "final_gate", "open_project")),

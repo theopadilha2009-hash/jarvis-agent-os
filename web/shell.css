@@ -116,7 +116,7 @@
 .composer {
   grid-row: 4;
   display: grid;
-  grid-template-columns: 40px 56px 46px minmax(0, 1fr);
+  grid-template-columns: 40px 56px 42px auto minmax(0, 1fr);
   grid-template-rows: 42px auto;
   gap: 8px;
   padding: 8px 12px 12px;
@@ -134,6 +134,14 @@
   min-height: 42px;
   padding: 0;
   border-radius: 50%;
+  place-self: center start;
+}
+.composer .wake-indicator {
+  grid-column: 4;
+  grid-row: 1;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
   place-self: center start;
 }
 .composer input,
@@ -246,6 +254,7 @@
 .stage[data-access="guest"] #integrationsButton,
 .stage[data-access="guest"] #qualityButton,
 .stage[data-access="guest"] #detailsButton { display: none; }
+.stage:not([data-access="owner"]) #notesPadButton { display: none; }
 
 .access-mode {
   display: inline-flex;
@@ -294,16 +303,17 @@
 @media (max-width: 720px) {
   .conversation-head { padding-inline: 11px; }
   .composer {
-    grid-template-columns: 40px 52px 44px minmax(0, 1fr);
+    grid-template-columns: 40px 52px 44px auto minmax(0, 1fr);
     gap: 7px;
     padding: 7px 9px max(9px, env(safe-area-inset-bottom));
   }
   .composer .voice-button,
+  .composer .wake-indicator,
   .composer .send-button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
   .composer input,
   .composer textarea { min-height: 48px; font-size: 16px; }
 }
 
 @media (max-width: 350px) {
-  .composer { grid-template-columns: 38px 48px 44px minmax(0, 1fr); gap: 6px; }
+  .composer { grid-template-columns: 38px 48px 44px auto minmax(0, 1fr); gap: 6px; }
 }
