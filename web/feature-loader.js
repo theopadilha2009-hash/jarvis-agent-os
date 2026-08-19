@@ -9,7 +9,7 @@ const loadStyle = (id, href) => {
   document.head.appendChild(link);
 };
 
-loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260815-vozes2");
+loadStyle("ultronCompletionStyle", "/ui/ultron-completion.css?v=20260819-notas1");
 
 function ensureDialog(id, className, titleId, title, mountId) {
   if (document.getElementById(id)) return;
@@ -23,6 +23,7 @@ function ensureDialog(id, className, titleId, title, mountId) {
 
 ensureDialog("memoryExplorerDialog", "memory-explorer-dialog", "memoryExplorerTitle", "Explorar memória", "memoryExplorerMount");
 ensureDialog("actionPermissionsDialog", "action-permissions-dialog", "actionPermissionsTitle", "Permissões de ações", "actionPermissionsMount");
+ensureDialog("notesPadDialog", "notes-pad-dialog", "notesPadTitle", "Bloco de notas", "notesPadMount");
 
 // Assinatura do dono: leva ao LinkedIn do Theo, sem embed de terceiro.
 const authorLink = document.createElement("a");
@@ -38,6 +39,10 @@ document.getElementById("integrationsButton")?.before(authorLink);
 document.getElementById("memoryExplorerButton")?.addEventListener("click", () => {
   import("/ui/memory-explorer.js?v=20260813-ultronfix1").catch(() => null);
 }, { once: true });
+
+document.getElementById("notesPadButton")?.addEventListener("click", () => {
+  import("/ui/notes-pad.js?v=20260819-notas1").then(() => window.JarvisNotesPad?.open()).catch(() => null);
+});
 
 const permissions = () => import("/ui/action-permissions.js?v=20260813-ultronfix1");
 

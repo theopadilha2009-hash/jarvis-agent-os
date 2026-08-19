@@ -2323,6 +2323,9 @@
       session.responseState = "forge";
       stage.classList.add("spatial-result");
     }
+    if (data.client_action === "open_notes") {
+      import("/ui/notes-pad.js?v=20260819-notas1").then(() => window.JarvisNotesPad?.open()).catch(() => null);
+    }
     if (data.client_action === "open_url" && data.open_url && !data.already_opened) {
       data.already_opened = Boolean(window.open(data.open_url, "_blank", "noopener,noreferrer"));
     }
@@ -2856,12 +2859,13 @@
       badge.hidden = false;
       badge.dataset.state = state;
       badge.title = {
-        on: "Escutando pelo nome. Diga \"oi Jarvis\" sem clicar em nada.",
-        command: "Te ouvindo. Fale o pedido.",
-        arming: "Preparando a escuta pelo nome…",
-        blocked: "Microfone bloqueado. Clique para liberar e atender pelo nome.",
-        off: "Escuta pelo nome desligada. Clique para ligar.",
+        on: "Ouvir pelo nome ligado. Diga \"oi Jarvis\" sem clicar no microfone.",
+        command: "Ouvindo o pedido.",
+        arming: "Preparando o ouvir pelo nome…",
+        blocked: "Microfone bloqueado. Clique em Ouvir para liberar.",
+        off: "Ouvir pelo nome desligado. Clique para ligar.",
       }[state];
+      badge.setAttribute("aria-label", badge.title);
     };
 
     // Nunca devolve sem reagendar: um ciclo ocupado não pode matar a escuta.
@@ -3346,13 +3350,16 @@
       exitOwnerMode(byId("accessMode"));
       return;
     }
+    if (!session.paired && !session.codeMode) {
+      window.location.href = "/";
+      return;
+    }
     dialog.showModal();
     window.setTimeout(() => byId("adminPassword")?.focus(), 30);
     refreshActionHistory();
   });
   byId("welcomeLogin")?.addEventListener("click", () => {
-    dialog.showModal();
-    window.setTimeout(() => byId("adminPassword")?.focus(), 30);
+    window.location.href = "/";
   });
   integrationsButton?.addEventListener("click", async () => {
     renderIntegrationRegistry();

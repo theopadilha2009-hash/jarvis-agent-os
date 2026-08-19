@@ -72,7 +72,7 @@ function render(data) {
   const summary = data.summary || {};
   const missions = Array.isArray(data.missions) ? data.missions : [];
   panel.dataset.health = data.health || "empty";
-  panel.innerHTML = `<div class="mission-control-head"><span><small>CENTRAL DE MISSÕES</small><strong>Execução sob controle</strong></span><button type="button" data-mission-refresh aria-label="Atualizar missões">↻</button></div>`
+  panel.innerHTML = `<div class="mission-control-head"><span><small>CENTRAL DE FERRAMENTAS</small><strong>Execução sob controle</strong></span><button type="button" data-mission-refresh aria-label="Atualizar ferramentas">↻</button></div>`
     + `<p class="mission-control-message">${escapeHtml(data.message || "Estado real carregado.")}</p>`
     + `<div class="mission-control-summary"><span><small>ATIVAS</small><b>${Number(summary.active) || 0}</b></span><span><small>CONFIRMAR</small><b>${Number(summary.waiting_confirmation) || 0}</b></span><span><small>CONCLUÍDAS</small><b>${Number(summary.completed) || 0}</b></span><span><small>FALHAS</small><b>${Number(summary.failed) || 0}</b></span></div>`
     + `<div class="mission-control-list">${missions.length ? missions.map(missionRow).join("") : "<div class=\"mission-control-empty\">Seu próximo pedido real aparecerá aqui com etapas, estado e evidências.</div>"}</div>`;
@@ -81,7 +81,7 @@ function render(data) {
 function renderUnavailable(message) {
   if (!panel) return;
   panel.dataset.health = "error";
-  panel.innerHTML = `<div class="mission-control-head"><span><small>CENTRAL DE MISSÕES</small><strong>Estado protegido</strong></span><button type="button" data-mission-refresh aria-label="Tentar novamente">↻</button></div><p class="mission-control-message">${escapeHtml(message)}</p>`;
+  panel.innerHTML = `<div class="mission-control-head"><span><small>CENTRAL DE FERRAMENTAS</small><strong>Estado protegido</strong></span><button type="button" data-mission-refresh aria-label="Tentar novamente">↻</button></div><p class="mission-control-message">${escapeHtml(message)}</p>`;
 }
 
 async function refresh() {
@@ -90,10 +90,10 @@ async function refresh() {
   panel.setAttribute("aria-busy", "true");
   try {
     const data = await request("/mission-control?limit=12");
-    if (data.protocol !== "jarvis-mission-control/1") throw new Error("O núcleo respondeu sem o contrato de missões.");
+    if (data.protocol !== "jarvis-mission-control/1") throw new Error("O núcleo respondeu sem o contrato de ferramentas.");
     render(data);
   } catch (error) {
-    renderUnavailable(error.status === 401 ? `Entre no modo Ultron para abrir as missões privadas do ${assistantName()}.` : error.message);
+    renderUnavailable(error.status === 401 ? `Entre no modo Ultron para abrir as ferramentas privadas do ${assistantName()}.` : error.message);
   } finally {
     loading = false;
     panel?.removeAttribute("aria-busy");
@@ -130,12 +130,12 @@ function mount() {
   stylesheet.href = `/ui/mission-control.css?v=${MODULE_VERSION}`;
   document.head.appendChild(stylesheet);
   const headerCopy = hub.querySelector("header span");
-  if (headerCopy) headerCopy.innerHTML = "<small>CENTRAL DE MISSÕES</small><strong>Veja. Decida. Continue.</strong>";
+  if (headerCopy) headerCopy.innerHTML = "<small>CENTRAL DE FERRAMENTAS</small><strong>Veja. Decida. Continue.</strong>";
   panel = document.createElement("section");
   panel.id = "missionControl";
   panel.className = "mission-control";
   panel.setAttribute("aria-live", "polite");
-  panel.innerHTML = "<div class=\"mission-control-empty\">Carregando missões reais…</div>";
+  panel.innerHTML = "<div class=\"mission-control-empty\">Carregando ferramentas reais…</div>";
   const actionSection = hub.querySelector(".action-hub-section");
   hub.insertBefore(panel, actionSection || null);
   panel.addEventListener("click", (event) => {

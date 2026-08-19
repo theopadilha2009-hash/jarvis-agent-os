@@ -1,0 +1,79 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100dvh; }
+body {
+  display: grid;
+  place-items: center;
+  padding: 28px 18px 48px;
+  font: 16px/1.5 ui-sans-serif, system-ui, sans-serif;
+  color: #f6eefe;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(168, 85, 247, 0.32), transparent 42%),
+    radial-gradient(circle at 88% 100%, rgba(88, 28, 135, 0.35), transparent 48%),
+    #0e0818;
+}
+.gate { width: min(420px, 100%); }
+.mark { display: block; margin: 0 auto 10px; filter: drop-shadow(0 0 18px rgba(168, 85, 247, 0.45)); }
+.kicker {
+  margin: 0;
+  text-align: center;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: #c4b5fd;
+}
+h1 {
+  margin: 6px 0 8px;
+  text-align: center;
+  font-size: clamp(36px, 8vw, 52px);
+  letter-spacing: -0.04em;
+}
+.lead, .guest, .by { color: #d8c7ee; }
+.lead { margin: 0 0 22px; text-align: center; }
+.session-hint {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(192, 132, 252, 0.28);
+  border-radius: 12px;
+  background: rgba(124, 58, 237, 0.16);
+  font-size: 14px;
+}
+.session-hint[hidden] { display: none; }
+form { display: grid; gap: 12px; }
+label { display: grid; gap: 6px; color: #c4b5fd; font-size: 13px; }
+input {
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  border-radius: 12px;
+  background: rgba(8, 4, 16, 0.72);
+  color: #fff;
+  font: inherit;
+}
+input:focus { outline: 0; border-color: #c084fc; box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18); }
+#loginError {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 13px;
+}
+#loginError[hidden] { display: none; }
+button[type="submit"] {
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6d28d9, #7c3aed);
+  color: #fff;
+  font: 700 16px/1 inherit;
+  cursor: pointer;
+}
+button[type="submit"]:disabled { opacity: 0.5; cursor: wait; }
+.guest { margin: 18px 0 0; text-align: center; font-size: 13px; }
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 22px;
+}
+a { color: #d8b4fe; }
+.by { margin: 22px 0 0; text-align: center; font-size: 13px; color: #c4b5fd; }

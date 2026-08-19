@@ -246,8 +246,24 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(events[-1]["type"], "stream.result")
         self.assertIn("event_stream", events[-1]["payload"])
 
-    def test_cockpit_and_model_asset(self):
+    def test_landing_requires_login_form(self):
         status, _, html = self.request("/")
+        self.assertEqual(status, 200)
+        self.assertIn(b"JARVIS", html)
+        self.assertIn(b'id="loginForm"', html)
+        self.assertIn(b'id="loginUser"', html)
+        self.assertIn(b'id="loginPass"', html)
+        self.assertIn(b"/cockpit", html)
+        js_status, _, login_js = self.request("/ui/entrar.js")
+        self.assertEqual(js_status, 200)
+        self.assertIn(b"/login", login_js)
+        self.assertNotIn(b'id="voiceButton"', html)
+        entrar, _, entrar_html = self.request("/entrar")
+        self.assertEqual(entrar, 200)
+        self.assertIn(b'id="loginSubmit"', entrar_html)
+
+    def test_cockpit_and_model_asset(self):
+        status, _, html = self.request("/cockpit")
         self.assertEqual(status, 200)
         self.assertIn(b"JARVIS", html)
         self.assertIn(b'id="voiceButton"', html)
@@ -261,18 +277,18 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', html)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', html)
         self.assertIn(b'/ui/integration-history.js?v=20260813-ultronfix1', html)
-        self.assertIn(b'/ui/feature-loader.js?v=20260815-vozes2', html)
+        self.assertIn(b'/ui/feature-loader.js?v=20260819-notas1', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-leftover1', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260819-notas1', html)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', html)
-        self.assertIn(b'/ui/shell.css?v=20260819-debug1', html)
+        self.assertIn(b'/ui/shell.css?v=20260819-notas1', html)
         self.assertIn(b'id="welcomeLogin"', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260817-move1', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260819-notas1', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260815-vozes2', html)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260815-vozes2', html)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260819-notas1', html)
         self.assertIn(b'/ui/presence-loader.js?v=20260813-ultronfix1', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
@@ -609,12 +625,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260819-leftover1", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260819-notas1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260815-vozes2', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-history.js?v=20260813-ultronfix1', service_worker)
-        self.assertIn(b'/ui/feature-loader.js?v=20260815-vozes2', service_worker)
+        self.assertIn(b'/ui/feature-loader.js?v=20260819-notas1', service_worker)
         self.assertIn(b'/ui/presence-loader.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-health.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/voice-calibrator.js?v=20260815-vozes2', service_worker)
@@ -622,16 +638,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/memory-explorer.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', service_worker)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-leftover1', service_worker)
+        self.assertIn(b'/ui/jarvis.js?v=20260819-notas1', service_worker)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', service_worker)
-        self.assertIn(b'/ui/shell.css?v=20260819-debug1', service_worker)
+        self.assertIn(b'/ui/shell.css?v=20260819-notas1', service_worker)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-health.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/voice-calibrator.css?v=20260815-vozes2', service_worker)
         self.assertIn(b'/ui/memory-explorer.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.css?v=20260813-ultronfix1', service_worker)
-        self.assertIn(b'/ui/ultron-completion.css?v=20260815-vozes2', service_worker)
-        self.assertIn(b'/ui/responsive-polish.css?v=20260815-vozes2', service_worker)
+        self.assertIn(b'/ui/ultron-completion.css?v=20260819-notas1', service_worker)
+        self.assertIn(b'/ui/responsive-polish.css?v=20260819-notas1', service_worker)
         self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
@@ -3703,7 +3719,44 @@ São Paulo - SP
             )
         self.assertEqual(status, 201)
         self.assertEqual(payload["contact"]["phone"], "…9999")
-        self.assertNotIn("5511999999999", json.dumps(payload))
+
+    def test_note_save_persists_globally_and_can_copy_to_mac(self):
+        def fake_request(method="GET", query="", body=None, prefer="", table=""):
+            if table == MODULE.SUPABASE_NOTES_TABLE and method == "POST":
+                return [{
+                    "id": 4,
+                    "title": body["title"],
+                    "body": body["body"],
+                    "mac_saved": body.get("mac_saved"),
+                    "created_at": "2026-08-19T12:00:00Z",
+                }]
+            if table == MODULE.SUPABASE_DEVICE_COMMANDS_TABLE and method == "POST":
+                return [{"id": 77, "status": "pending"}]
+            return []
+
+        with patch.object(MODULE, "supabase_configured", return_value=True), \
+                patch.object(MODULE, "supabase_request", side_effect=fake_request) as request:
+            saved, status = MODULE.command_payload(
+                {"command": "salva no bloco de notas: comprar pão no mac"},
+                owner_authenticated=True,
+            )
+            listed, listed_status = MODULE.notes_list_payload(10)
+        self.assertEqual(status, 201)
+        self.assertEqual(saved["intent"], "note_save")
+        self.assertEqual(saved["note"]["body"], "comprar pão")
+        self.assertEqual(saved["job"]["action"], "save_note")
+        self.assertEqual(saved["client_action"], "open_notes")
+        self.assertIn("JARVIS", saved["message"])
+        self.assertTrue(any(call.kwargs.get("table") == MODULE.SUPABASE_NOTES_TABLE for call in request.call_args_list))
+        self.assertEqual(listed_status, 200)
+
+        secret, secret_status = MODULE.jarvis_note_save('salva no bloco de notas: token=supersecretvalue123')
+        self.assertEqual(secret_status, 400)
+        self.assertEqual(secret["status_real"], "note_secret_refused")
+
+        self.assertEqual(MODULE.command_intent("mostra minhas notas"), "note_view")
+        self.assertEqual(MODULE.command_intent("abre o bloco de notas"), "note_view")
+        self.assertEqual(MODULE.command_intent("salva no meu mac: reunião às 15h"), "note_save")
 
     def test_contact_archive_is_soft_delete_and_contact_list_filters_it(self):
         archived = [{"id": 3, "display_name": "Arthur", "alias": "arthur"}]

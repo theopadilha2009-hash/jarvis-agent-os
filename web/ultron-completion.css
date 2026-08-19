@@ -147,10 +147,12 @@ html[data-persona="ultron"] :is(
 }
 
 html[data-persona="ultron"] .wake-indicator[data-state="on"] {
-  background: radial-gradient(ellipse at center, rgba(255, 230, 230, 0.9) 0%, rgba(248, 113, 113, 0.5) 40%, rgba(127, 29, 29, 0) 72%);
-  box-shadow: 0 0 22px rgba(248, 113, 113, 0.7);
+  border-color: rgba(248, 113, 113, 0.72);
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecaca;
 }
 html[data-persona="ultron"] .wake-indicator[data-state="command"] {
-  background: radial-gradient(ellipse at center, #fff 0%, rgba(252, 165, 165, 0.65) 42%, rgba(127, 29, 29, 0) 74%);
-  box-shadow: 0 0 28px rgba(254, 202, 202, 0.8);
+  border-color: #fca5a5;
+  background: rgba(185, 28, 28, 0.42);
+  color: #fff;
 }
