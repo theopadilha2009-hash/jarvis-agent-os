@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const WAKE = /(?:^|\b)(?:oi|olá|ola)?\s*jarvis\b/i;
+  const WAKE = /(?:^|\b)(?:oi|ol[aá]|ei|hey|ok|eai|e a[ií])?\s*(?:jarvis|ultron)\b/i;
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
     || window.matchMedia("(display-mode: standalone)").matches;
   let busy = false;
@@ -106,10 +106,14 @@
     document.documentElement.dataset.persona = ultron ? "ultron" : "jarvis";
   }
 
-  function renderAccess(label) {
+  function clearStaleSession() {
+    try { window.localStorage.removeItem(OWNER_TOKEN_KEY); } catch { /* private */ }
+  }
+
+  function renderAccess(label, signedIn) {
     accessLine.textContent = label;
     applyPersona(label);
-    const inSession = Boolean(ownerToken());
+    const inSession = Boolean(signedIn);
     document.documentElement.classList.toggle("signed-in", inSession);
     const loginToggle = document.getElementById("loginToggle");
     if (loginToggle) loginToggle.hidden = inSession;
@@ -123,15 +127,20 @@
 
   async function refreshAccess() {
     if (!ownerToken()) {
-      renderAccess("Visitante");
+      renderAccess("Visitante", false);
       return;
     }
     try {
       const data = await fetch("/status", { headers: apiHeaders() }).then((row) => row.json());
       const mode = data.access?.mode;
-      renderAccess(mode === "owner" ? "Ultron" : mode === "member" ? "Conta JARVIS" : "Visitante");
+      if (mode !== "owner" && mode !== "member") {
+        clearStaleSession();
+        renderAccess("Visitante", false);
+        return;
+      }
+      renderAccess(mode === "owner" ? "Ultron" : "Conta JARVIS", true);
     } catch {
-      renderAccess("Sessão");
+      renderAccess("Sessão", Boolean(ownerToken()));
     }
   }
 
@@ -180,6 +189,7 @@
 
   let lastOpenUrl = "";
   let lastError = "";
+  let lastCommand = "";
 
   function openTarget(url) {
     lastOpenUrl = url;
@@ -195,17 +205,65 @@
     });
   }
 
+  function remainderAfter(value, match) {
+    const rest = String(match || "").replace(/\s+(?:pra mim|para mim|por favor)$/i, "").trim();
+    if (!rest || /^(?:o|a|o youtube|youtube|mapa|maps)$/i.test(rest)) return "";
+    return rest;
+  }
+
+  function resolveOpen(text) {
+    const value = String(text || "").toLocaleLowerCase("pt-BR").trim();
+    const google = value.match(/^(?:google|pesquisa no google|busca no google)\s+(.+)/);
+    if (google) return { url: `https://www.google.com/search?q=${encodeURIComponent(google[1])}`, label: "Google" };
+    const youtubeSearch = value.match(/^(?:pesquisa|busca|procura)\s+(?:no\s+)?youtube\s+(.+)/)
+      || value.match(/^(?:abre|abrir|abra|inici(?:a|e|ar))\s+(?:o\s+)?youtube\s+(?:de|do|da|das|dos|sobre)\s+(.+)/)
+      || value.match(/^(?:abre|abrir|abra|inici(?:a|e|ar))\s+(?:o\s+)?youtube\s+(.+)/);
+    if (youtubeSearch) {
+      const query = remainderAfter(value, youtubeSearch[1]);
+      if (query) return { url: `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, label: "YouTube" };
+    }
+    const mapsSearch = value.match(/^(?:como chegar(?:\s+(?:em|no|na|ao|à|a))?)\s+(.+)/)
+      || value.match(/^(?:abre|abrir|abra)\s+(?:o\s+)?(?:mapa|maps)\s+(?:de|para|em|no|na)\s+(.+)/);
+    if (mapsSearch) {
+      const query = remainderAfter(value, mapsSearch[1]);
+      if (query) return { url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, label: "Maps" };
+    }
+    const opening = /\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(value);
+    if (!opening) return null;
+    const targets = [
+      [/\bwhatsapp\b/, "https://web.whatsapp.com", "WhatsApp"],
+      [/\byoutube\b/, "https://www.youtube.com", "YouTube"],
+      [/\bspotify\b/, "https://open.spotify.com", "Spotify"],
+      [/\b(?:mapa|maps|como chegar)\b/, "https://maps.google.com", "Google Maps"],
+      [/\bcalend[aá]rio|agenda\b/, "https://calendar.google.com", "Agenda"],
+      [/\b(?:o\s+)?gmail\b/, "https://mail.google.com", "Gmail"],
+      [/\bgithub\b/, "https://github.com", "GitHub"],
+      [/\b(?:instagram|insta)\b/, "https://www.instagram.com", "Instagram"],
+      [/\b(?:chat\s*gpt|chatgpt)\b/, "https://chatgpt.com", "ChatGPT"],
+      [/\b(?:google\s+)?drive\b/, "https://drive.google.com", "Drive"],
+      [/\bdiscord\b/, "https://discord.com/app", "Discord"],
+      [/\bnotion\b/, "https://www.notion.so", "Notion"],
+      [/\btwitter\b|(?:abre|abrir|abra)\s+(?:o\s+)?x\b/, "https://x.com", "X"],
+      [/\bgoogle\b/, "https://www.google.com", "Google"],
+    ];
+    for (const [pattern, url, label] of targets) {
+      if (pattern.test(value)) return { url, label };
+    }
+    return null;
+  }
+
+  function revealLogin() {
+    extras.hidden = false;
+    moreButton.textContent = "fechar";
+    document.getElementById("loginUser")?.focus();
+    say("Login.", "Mesma conta do cockpit.");
+  }
+
   function localAction(text) {
     const value = String(text || "").toLocaleLowerCase("pt-BR");
-    const opening = /\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(value);
-    if (opening && /\bwhatsapp\b/.test(value)) return () => openTarget("https://web.whatsapp.com");
-    if (opening && /\byoutube\b/.test(value)) return () => openTarget("https://www.youtube.com");
-    if (opening && /\bspotify\b/.test(value)) return () => openTarget("https://open.spotify.com");
-    if (opening && /\b(?:mapa|maps|como chegar)\b/.test(value)) return () => openTarget("https://maps.google.com");
-    if (opening && /\bcalend[aá]rio|agenda\b/.test(value)) return () => openTarget("https://calendar.google.com");
-    if (opening && /\b(?:o\s+)?gmail\b/.test(value)) return () => openTarget("https://mail.google.com");
-    if (opening && /\bgithub\b/.test(value)) return () => openTarget("https://github.com");
-    if (opening && /\bgoogle\b/.test(value)) return () => openTarget("https://www.google.com");
+    if (/^(?:entrar|login|fazer login|conectar)$/.test(value.trim())) return () => revealLogin();
+    const opened = resolveOpen(value);
+    if (opened) return () => openTarget(opened.url);
     if (/\bhoras?\b|\bque dia\b|\bdata de hoje\b/.test(value)) {
       return () => {
         const now = localClock();
@@ -221,8 +279,6 @@
         say("Copiado.", textToCopy || "Nada ainda.");
       };
     }
-    const search = value.match(/^(?:google|pesquisa no google|busca no google)\s+(.+)/);
-    if (search) return () => openTarget(`https://www.google.com/search?q=${encodeURIComponent(search[1])}`);
     if (/\bcockpit\b|\bjanela grande\b/.test(value)) return () => { window.location.href = "/"; };
     return null;
   }
@@ -230,6 +286,7 @@
   async function ask(text) {
     const command = String(text || "").trim();
     if (!command || busy) return;
+    lastCommand = command;
     if (navigator.onLine === false) {
       const local = localAction(command);
       if (local) {
@@ -243,7 +300,7 @@
     const local = localAction(command);
     if (local) {
       local();
-      if (!/\bhoras?\b|\bque dia\b|\bdata de hoje\b|^copia/.test(command.toLocaleLowerCase("pt-BR"))) {
+      if (!/\bhoras?\b|\bque dia\b|\bdata de hoje\b|^copia|^(?:entrar|login|fazer login|conectar)$/.test(command.toLocaleLowerCase("pt-BR"))) {
         say("Aberto.", command);
         speak("Aberto");
       }
@@ -257,6 +314,13 @@
     });
     const message = data.message || data.error || "Sem resposta.";
     lastError = data.ok === false ? message : "";
+    const retry = document.getElementById("retryButton");
+    if (retry) retry.hidden = !lastError;
+    if (response.status === 401 || data.pairing_required) {
+      clearStaleSession();
+      renderAccess("Visitante", false);
+      revealLogin();
+    }
     const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
     if (response.status === 429) {
       say("Limite.", message);
@@ -342,9 +406,13 @@
     moreButton.textContent = extras.hidden ? "mais" : "fechar";
   });
   document.getElementById("loginToggle")?.addEventListener("click", () => {
-    extras.hidden = false;
-    moreButton.textContent = "fechar";
-    document.getElementById("loginUser")?.focus();
+    revealLogin();
+  });
+  document.getElementById("retryButton")?.addEventListener("click", () => {
+    if (lastCommand) ask(lastCommand);
+  });
+  document.getElementById("debugToggle")?.addEventListener("click", () => {
+    mountDebug(true);
   });
   orb.addEventListener("click", () => {
     startWakeLoop(); // user-gesture
@@ -419,10 +487,29 @@
   } catch { /* first visit */ }
   say("oi Jarvis", appMode ? "toque no brilho e fale" : "toque no brilho e diga oi Jarvis");
   refreshAccess();
+  refreshVoiceChip();
+  window.setInterval(refreshVoiceChip, 8000);
   try {
     if (sessionStorage.getItem(LISTEN_KEY) === "1") startWakeLoop();
   } catch { /* first visit */ }
-  if (/[?&]debug=1(?:&|$)/.test(location.search)) {
+  if (/[?&]debug=1(?:&|$)/.test(location.search)) mountDebug(false);
+
+  function refreshVoiceChip() {
+    const chip = document.getElementById("voiceChip");
+    if (!chip || !window.JarvisLocalVoice?.probe) return;
+    Promise.resolve(window.JarvisLocalVoice.probe()).then((base) => {
+      chip.hidden = false;
+      chip.textContent = base ? "voz local" : "voz na nuvem";
+      chip.dataset.state = base ? "local" : "cloud";
+    }).catch(() => {
+      chip.hidden = false;
+      chip.textContent = "voz na nuvem";
+      chip.dataset.state = "cloud";
+    });
+  }
+
+  function mountDebug(fromButton) {
+    if (document.getElementById("jarvisDebug")) return;
     const box = document.createElement("pre");
     box.id = "jarvisDebug";
     box.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:99;max-width:92vw;margin:0;font:11px/1.35 ui-monospace,monospace;background:#000c;color:#c4b5fd;padding:8px;border-radius:8px;white-space:pre-wrap";
@@ -435,7 +522,9 @@
         `persona ${document.documentElement.dataset.persona || "—"}`,
         `tts ${tts.ok ? `${tts.engine || "ok"} ${tts.voice || ""}`.trim() : "offline"}`,
         `lastOpen ${lastOpenUrl || "—"}`,
+        `lastCommand ${lastCommand || "—"}`,
         `lastError ${lastError || "—"}`,
+        fromButton ? "via diagnóstico" : "via ?debug=1",
       ].join("\n");
     };
     document.body.appendChild(box);

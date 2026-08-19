@@ -41,6 +41,10 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn('id="moreButton"', FALA_HTML)
         self.assertIn('id="loginToggle"', FALA_HTML)
         self.assertIn('id="rememberLogin"', FALA_HTML)
+        self.assertIn('id="voiceChip"', FALA_HTML)
+        self.assertIn('id="retryButton"', FALA_HTML)
+        self.assertIn('id="debugToggle"', FALA_HTML)
+        self.assertIn("www.instagram.com", FALA_HTML)
         self.assertIn("jarvis-remember-login-v1", FALA_JS)
         self.assertIn('id="extras"', FALA_HTML)
         self.assertIn("jarvis-logo.png", FALA_HTML)
@@ -76,9 +80,15 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("applyPersona", FALA_JS)
         self.assertIn("speaking", FALA_JS)
         self.assertIn("pesquisa no google", FALA_JS)
-        self.assertIn("opening && /\\bwhatsapp\\b/", FALA_JS)
+        self.assertIn("function resolveOpen", FALA_JS)
+        self.assertIn("/\\bwhatsapp\\b/", FALA_JS)
         self.assertIn("showAnswerLink", FALA_JS)
         self.assertIn("debug=1", FALA_JS)
+        self.assertIn("youtube.com/results", FALA_JS)
+        self.assertIn("como chegar", FALA_JS)
+        self.assertIn("clearStaleSession", FALA_JS)
+        self.assertIn("mountDebug", FALA_JS)
+        self.assertIn("ultron", FALA_JS)
 
 
 if __name__ == "__main__":

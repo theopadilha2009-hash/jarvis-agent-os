@@ -2551,12 +2551,31 @@
     }, 30_000);
   }
 
+  function remainderAfter(match) {
+    const rest = String(match || "").replace(/\s+(?:pra mim|para mim|por favor)$/i, "").trim();
+    if (!rest || /^(?:o|a|o youtube|youtube|mapa|maps)$/i.test(rest)) return "";
+    return rest;
+  }
+
   function browserOpenFor(command) {
-    const value = String(command || "").toLocaleLowerCase("pt-BR");
+    const value = String(command || "").toLocaleLowerCase("pt-BR").trim();
     if (session.paired && /\bspotify\b/.test(value)) return null;
     const google = value.match(/^(?:google|pesquisa no google|busca no google)\s+(.+)/);
     if (google) {
       return { url: `https://www.google.com/search?q=${encodeURIComponent(google[1])}`, label: "Google" };
+    }
+    const youtubeSearch = value.match(/^(?:pesquisa|busca|procura)\s+(?:no\s+)?youtube\s+(.+)/)
+      || value.match(/^(?:abre|abrir|abra|inici(?:a|e|ar))\s+(?:o\s+)?youtube\s+(?:de|do|da|das|dos|sobre)\s+(.+)/)
+      || value.match(/^(?:abre|abrir|abra|inici(?:a|e|ar))\s+(?:o\s+)?youtube\s+(.+)/);
+    if (youtubeSearch) {
+      const query = remainderAfter(youtubeSearch[1]);
+      if (query) return { url: `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, label: "YouTube" };
+    }
+    const mapsSearch = value.match(/^(?:como chegar(?:\s+(?:em|no|na|ao|à|a))?)\s+(.+)/)
+      || value.match(/^(?:abre|abrir|abra)\s+(?:o\s+)?(?:mapa|maps)\s+(?:de|para|em|no|na)\s+(.+)/);
+    if (mapsSearch) {
+      const query = remainderAfter(mapsSearch[1]);
+      if (query) return { url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, label: "Maps" };
     }
     if (!/\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(value)) return null;
     const targets = [
@@ -2567,6 +2586,12 @@
       [/\bcalend[aá]rio|agenda\b/, "https://calendar.google.com", "Agenda"],
       [/\bgmail\b/, "https://mail.google.com", "Gmail"],
       [/\bgithub\b/, "https://github.com", "GitHub"],
+      [/\b(?:instagram|insta)\b/, "https://www.instagram.com", "Instagram"],
+      [/\b(?:chat\s*gpt|chatgpt)\b/, "https://chatgpt.com", "ChatGPT"],
+      [/\b(?:google\s+)?drive\b/, "https://drive.google.com", "Drive"],
+      [/\bdiscord\b/, "https://discord.com/app", "Discord"],
+      [/\bnotion\b/, "https://www.notion.so", "Notion"],
+      [/\btwitter\b|(?:abre|abrir|abra)\s+(?:o\s+)?x\b/, "https://x.com", "X"],
       [/\bgoogle\b/, "https://www.google.com", "Google"],
     ];
     for (const [pattern, url, label] of targets) {
@@ -2584,9 +2609,10 @@
     const command = String(rawValue || "").trim() || (attachments.length ? "Analise estes anexos." : "");
     if (!command) return;
     const localOpen = !attachments.length ? browserOpenFor(command) : null;
-    if (localOpen && options.source !== "voice") {
+    if (localOpen) {
+      session.lastOpenUrl = localOpen.url;
       const popup = window.open(localOpen.url, "_blank", "noopener,noreferrer");
-      addMessage(command, "user");
+      addMessage(command, options.source === "voice" ? "user voice" : "user");
       input.value = "";
       syncComposerAction();
       syncComposerHeight();
@@ -2977,6 +3003,9 @@
       session.codeMode = Boolean(status.access?.code || session.paired);
       session.accountName = status.access?.username || "";
       session.canManageAccounts = Boolean(status.access?.can_manage_accounts);
+      if (ownerToken() && status.owner_pairing?.required && !status.owner_pairing?.authenticated && !status.access?.code) {
+        try { localStorage.removeItem(OWNER_TOKEN_KEY); } catch { /* private */ }
+      }
       if (session.paired) touchOwnerActivity();
       const crown = byId("crownButton");
       if (crown) {
@@ -3610,7 +3639,8 @@
   installVoiceInput();
   boot();
   window.setInterval(refreshPulse, 10 * 60 * 1000);
-  if (/[?&]debug=1(?:&|$)/.test(location.search)) {
+  function mountDebug() {
+    if (document.getElementById("jarvisDebug")) return;
     const box = document.createElement("pre");
     box.id = "jarvisDebug";
     box.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:80;max-width:92vw;margin:0;font:11px/1.35 ui-monospace,monospace;background:#000c;color:#c4b5fd;padding:8px;border-radius:8px;white-space:pre-wrap";
@@ -3622,6 +3652,7 @@
         `remember ${rememberLoginEnabled() ? "sim" : "não"}`,
         `paired ${session.paired ? "ultron" : session.codeMode ? "code" : "visitante"}`,
         `tts ${tts.ok ? `${tts.engine || "ok"} ${tts.voice || ""}`.trim() : "offline"}`,
+        `lastOpen ${session.lastOpenUrl || "—"}`,
         `lastError ${session.lastError || "—"}`,
       ].join("\n");
     };
@@ -3629,4 +3660,11 @@
     paint();
     window.setInterval(paint, 2000);
   }
+  if (/[?&]debug=1(?:&|$)/.test(location.search)) mountDebug();
+  window.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.altKey && String(event.key || "").toLowerCase() === "d") {
+      event.preventDefault();
+      mountDebug();
+    }
+  });
 })();

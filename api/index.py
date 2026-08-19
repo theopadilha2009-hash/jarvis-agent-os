@@ -119,7 +119,8 @@ WEB_SEARCH_FRESHNESS_PATTERN = re.compile(
 )
 WEB_SEARCH_OWNER_PATTERN = re.compile(
     r"\b(?:o\s+que\s+aconteceu|o\s+que\s+rolou|contexto\s+atual|atualiza(?:ção|e)|"
-    r"not[ií]cias?\b|me\s+atualiza)\b",
+    r"not[ií]cias?\b|me\s+atualiza|quem\s+ganhou|o\s+que\s+tem\s+de\s+novo|"
+    r"me\s+traz\s+(?:as\s+)?not[ií]cias)\b",
     re.I,
 )
 WEB_SEARCH_DECISION_PATTERN = re.compile(
@@ -1892,11 +1893,24 @@ WEB_OPEN_TARGETS = (
     (re.compile(r"\b(?:calend[aá]rio|agenda)\b", re.I), "https://calendar.google.com", "Agenda"),
     (re.compile(r"\b(?:abre|abrir|abra)\s+(?:o\s+)?gmail\b", re.I), "https://mail.google.com", "Gmail"),
     (re.compile(r"\bgithub\b", re.I), "https://github.com", "GitHub"),
+    (re.compile(r"\b(?:instagram|insta)\b", re.I), "https://www.instagram.com", "Instagram"),
+    (re.compile(r"\b(?:chat\s*gpt|chatgpt)\b", re.I), "https://chatgpt.com", "ChatGPT"),
+    (re.compile(r"\b(?:google\s+)?drive\b", re.I), "https://drive.google.com", "Drive"),
+    (re.compile(r"\bdiscord\b", re.I), "https://discord.com/app", "Discord"),
+    (re.compile(r"\bnotion\b", re.I), "https://www.notion.so", "Notion"),
+    (re.compile(r"\btwitter\b|(?:abre|abrir|abra)\s+(?:o\s+)?x\b", re.I), "https://x.com", "X"),
     (re.compile(r"\bgoogle\b", re.I), "https://www.google.com", "Google"),
 )
 WEB_OPEN_PATTERN = re.compile(
+    r"(?:"
     r"\b(?:abr(?:a|e|ir)|inici(?:a|e|ar))\b.{0,48}\b"
-    r"(?:google|whatsapp|youtube|spotify|gmail|mapa|maps|calend[aá]rio|agenda|github)\b",
+    r"(?:google|whatsapp|youtube|spotify|gmail|mapa|maps|calend[aá]rio|agenda|github|"
+    r"instagram|insta|chatgpt|chat\s*gpt|drive|discord|notion|twitter|\bx\b)"
+    r"|"
+    r"\bcomo chegar\b"
+    r"|"
+    r"\b(?:pesquisa|busca|procura)\s+(?:no\s+)?youtube\b"
+    r")",
     re.I,
 )
 
@@ -5581,11 +5595,78 @@ def supabase_memory_archive(body):
         return {"ok": False, "error": "O arquivamento não foi confirmado no Supabase."}, 504
 
 
+def _browser_open_query(raw):
+    text = re.sub(
+        r"\s+(?:pra\s+mim|para\s+mim|por\s+favor|please)\s*$",
+        "",
+        clean_text(raw, 200),
+        flags=re.I,
+    ).strip(" .!?")
+    if not text or text.casefold() in {"o", "a", "o youtube", "youtube", "mapa", "maps"}:
+        return ""
+    return text
+
+
 def browser_open_payload(command, owner_authenticated=False):
     """Abre destino web no próprio navegador — sem worker do Mac."""
     text = clean_text(command, 400)
     if not text or re.search(r"\b(gravador|grava[cç][aã]o\s+de\s+tela|print|screenshot)\b", text, re.I):
         return None
+
+    def payload(url, label, message=None):
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "browser_open",
+            "visual_state": "success",
+            "intent": "open_url",
+            "message": message or f"Abrindo {label}.",
+            "client_action": "open_url",
+            "open_url": url,
+            "provider": "jarvis_browser",
+            "action_executed": True,
+        }
+
+    youtube_search = re.search(
+        r"(?:(?:pesquisa|busca|procura)\s+(?:no\s+)?youtube\s+|"
+        r"(?:abre|abrir|abra|inici(?:a|e|ar))\s+(?:o\s+)?youtube\s+(?:de|do|da|das|dos|sobre)\s+)"
+        r"(.+)",
+        text,
+        re.I,
+    )
+    if not youtube_search:
+        youtube_open = re.search(
+            r"(?:abre|abrir|abra|inici(?:a|e|ar))\s+(?:o\s+)?youtube\s+(.+)",
+            text,
+            re.I,
+        )
+        if youtube_open and _browser_open_query(youtube_open.group(1)):
+            youtube_search = youtube_open
+    if youtube_search:
+        query = _browser_open_query(youtube_search.group(1))
+        if query:
+            return payload(
+                "https://www.youtube.com/results?" + urlencode({"search_query": query}),
+                "YouTube",
+                f"Abrindo YouTube: {query}.",
+            )
+
+    maps_search = re.search(
+        r"(?:como chegar(?:\s+(?:em|no|na|ao|à|a))?\s+|"
+        r"(?:abre|abrir|abra)\s+(?:o\s+)?(?:mapa|maps)\s+(?:de|para|em|no|na)\s+)"
+        r"(.+)",
+        text,
+        re.I,
+    )
+    if maps_search:
+        query = _browser_open_query(maps_search.group(1))
+        if query:
+            return payload(
+                "https://www.google.com/maps/search/?api=1&" + urlencode({"query": query}),
+                "Google Maps",
+                f"Abrindo Maps: {query}.",
+            )
+
     if not (WEB_OPEN_PATTERN.search(text) or APPLICATION_INTENT_PATTERNS["open_application"].fullmatch(text)):
         return None
     for pattern, url, label in WEB_OPEN_TARGETS:
@@ -5593,18 +5674,7 @@ def browser_open_payload(command, owner_authenticated=False):
             continue
         if owner_authenticated and label == "Spotify":
             continue
-        return {
-            "ok": True,
-            "endpoint": "POST /command",
-            "status_real": "browser_open",
-            "visual_state": "success",
-            "intent": "open_url",
-            "message": f"Abrindo {label}.",
-            "client_action": "open_url",
-            "open_url": url,
-            "provider": "jarvis_browser",
-            "action_executed": True,
-        }
+        return payload(url, label)
     return None
 
 

@@ -100,6 +100,29 @@ html[data-persona="ultron"] #orb img { filter: hue-rotate(312deg) saturate(1.25)
   text-indent: .34em;
 }
 #caption, #accessLine { margin: 0; color: var(--muted); max-width: 18rem; font-size: 12px; }
+#voiceChip {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#voiceChip[data-state="local"] { color: #6ee7b7; }
+#retryButton, #debugToggle {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+#retryButton[hidden] { display: none; }
 #lastAnswer {
   margin: 0;
   color: var(--ink);

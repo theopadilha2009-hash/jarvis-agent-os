@@ -7,7 +7,7 @@
   <meta name="creator-seal" content="ggCZbZFBcds2X3zL5N5jloFWuxA=">
   <title>JARVIS</title>
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
-  <link rel="stylesheet" href="/ui/fala.css?v=20260818-login2">
+  <link rel="stylesheet" href="/ui/fala.css?v=20260819-leftover1">
 </head>
 <body>
   <main class="orb-shell">
@@ -18,7 +18,9 @@
     </button>
     <strong id="statusLine">oi Jarvis</strong>
     <p id="caption">toque no brilho e fale</p>
+    <p id="voiceChip" hidden>voz</p>
     <p id="lastAnswer" hidden></p>
+    <button id="retryButton" type="button" hidden>tentar de novo</button>
     <form id="askForm">
       <input id="askInput" type="text" autocomplete="off" placeholder="ou escreva…" aria-label="Pedido para o JARVIS">
     </form>
@@ -40,17 +42,22 @@
         <button id="logoutButton" type="button" hidden>Sair</button>
       </form>
       <nav class="quick">
+        <button type="button" data-open="https://www.youtube.com">YouTube</button>
         <button type="button" data-open="https://open.spotify.com">Spotify</button>
         <button type="button" data-open="https://maps.google.com">Mapas</button>
         <button type="button" data-open="https://calendar.google.com">Agenda</button>
+        <button type="button" data-open="https://mail.google.com">Gmail</button>
+        <button type="button" data-open="https://drive.google.com">Drive</button>
+        <button type="button" data-open="https://www.instagram.com">Instagram</button>
         <a href="/">Cockpit</a>
       </nav>
+      <button id="debugToggle" type="button">diagnóstico</button>
       <a class="download" href="/download/mac">Baixar no Mac</a>
       <p class="by">por <span data-creator-lock>…</span></p>
     </div>
   </main>
   <script src="/ui/creator-seal.js?v=20260817-app1"></script>
   <script src="/ui/local-voice.js?v=20260818-voice2"></script>
-  <script src="/ui/fala.js?v=20260819-debug1"></script>
+  <script src="/ui/fala.js?v=20260819-leftover1"></script>
 </body>
 </html>
