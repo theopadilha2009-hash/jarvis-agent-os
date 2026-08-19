@@ -1710,7 +1710,9 @@ button {
 .message-actions .memory-command,
 .message-actions .speak-command,
 .message-actions .cancel-job,
-.message-actions .cancel-run {
+.message-actions .cancel-run,
+.message-actions .confirm-run,
+.message-actions .cancel-agent-run {
   min-height: 28px;
   margin: 0;
   padding: 5px 9px;
@@ -1723,7 +1725,11 @@ button {
 .message-actions .speak-command { color: #d8b4fe; }
 .message-actions .memory-command { color: #eadcff; }
 .message-actions .cancel-job,
-.message-actions .cancel-run { color: #fca5a5; }
+.message-actions .cancel-run,
+.message-actions .cancel-agent-run { color: #fca5a5; }
+.message-actions .confirm-run { color: #bbf7d0; }
+.job-evidence { margin-top: 8px; font-size: 0.92em; color: #ddd6fe; }
+.job-evidence .artifact-preview { display: block; max-width: min(100%, 280px); margin-top: 8px; border-radius: 10px; }
 
 .composer {
   border-top: 1px solid rgba(168, 85, 247, 0.09);
@@ -3762,7 +3768,9 @@ dialog {
 .message-actions .memory-command,
 .message-actions .speak-command,
 .message-actions .cancel-job,
-.message-actions .cancel-run {
+.message-actions .cancel-run,
+.message-actions .confirm-run,
+.message-actions .cancel-agent-run {
   min-height: 30px;
   padding-inline: 11px;
   border-color: rgba(192, 132, 252, 0.32);

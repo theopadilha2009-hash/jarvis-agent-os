@@ -349,12 +349,12 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/integration-history.js?v=20260813-ultronfix1', html)
         self.assertIn(b'/ui/feature-loader.js?v=20260819-ui2', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
-        self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-ui2', html)
+        self.assertIn(b'/ui/device-feedback.js?v=20260819-exec2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260819-exec2', html)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', html)
         self.assertIn(b'/ui/shell.css?v=20260819-ui2', html)
         self.assertIn(b'id="welcomeLogin"', html)
-        self.assertIn(b'/ui/jarvis.css?v=20260819-ui2', html)
+        self.assertIn(b'/ui/jarvis.css?v=20260819-exec2', html)
         self.assertIn(b'/ui/ui-repair.css?v=20260815-vozes2', html)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
@@ -455,6 +455,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'data.provider === "openrouter"', app_js)
         self.assertIn(b"renderEventStream", app_js)
         self.assertIn(b"refreshWorkerStatus", app_js)
+        self.assertIn(b"workerStatusLabel", app_js)
+        self.assertIn(b"confirm-run", app_js)
+        self.assertIn(b"appendJobEvidence", app_js)
+        self.assertIn(b"abre o bloco de notas", app_js)
         self.assertIn(b"verificando o Mac em segundo plano", app_js)
         self.assertIn(b'protocol !== "jarvis-events/1"', app_js)
         self.assertIn(b"renderUICards", app_js)
@@ -699,7 +703,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260819-aug15", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260819-exec2", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260815-vozes2', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', service_worker)
@@ -711,9 +715,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/n8n-template-pack.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/memory-explorer.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.js?v=20260813-ultronfix1', service_worker)
-        self.assertIn(b'/ui/device-feedback.js?v=20260813-device1', service_worker)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-ui2', service_worker)
+        self.assertIn(b'/ui/device-feedback.js?v=20260819-exec2', service_worker)
+        self.assertIn(b'/ui/jarvis.js?v=20260819-exec2', service_worker)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', service_worker)
+        self.assertIn(b'/ui/jarvis.css?v=20260819-exec2', service_worker)
         self.assertIn(b'/ui/shell.css?v=20260819-ui2', service_worker)
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/integration-health.css?v=20260813-ultronfix1', service_worker)
@@ -1143,6 +1148,54 @@ class WebGatewayTest(unittest.TestCase):
         self.assertNotIn("shell", names)
         steps = MODULE.compound_device_plan("abra o Chrome e depois abre a pasta downloads")
         self.assertEqual([step["intent"] for step in steps], ["open_application", "open_folder"])
+        spoken = MODULE.compound_device_plan("abra o Chrome e fale no mac: sistemas no ar")
+        self.assertEqual([step["intent"] for step in spoken], ["open_application", "speak"])
+        self.assertIn("clipboard_set", MODULE.REMOTE_DEVICE_INTENTS)
+        self.assertNotIn("clipboard_set", MODULE.PRIVATE_INTENTS)
+        self.assertEqual(MODULE.command_intent("converta esta imagem para png"), "image_convert")
+        self.assertEqual(MODULE.command_intent("organize os arquivos"), "files_triage")
+        self.assertEqual(MODULE.EXPECTED_WORKER_VERSION, "13")
+
+    def test_worker_status_exposes_expected_version_and_outdated_flag(self):
+        row = {
+            "worker_id": "theo-mac",
+            "hostname": "Theo-Mac",
+            "version": "11",
+            "last_seen_at": datetime.now().astimezone().isoformat(),
+        }
+        with patch.object(MODULE, "supabase_configured", return_value=True), patch.object(
+            MODULE, "supabase_request", return_value=[row]
+        ):
+            payload, status = MODULE.device_worker_status_payload()
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["online"])
+        self.assertTrue(payload["outdated"])
+        self.assertEqual(payload["expected_version"], "13")
+        self.assertEqual(payload["status_real"], "device_worker_outdated")
+
+    def test_mac_actions_refuse_when_worker_never_installed(self):
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE,
+            "device_worker_status_payload",
+            return_value=({
+                "ok": True,
+                "status_real": "device_worker_never_seen",
+                "online": False,
+                "message": "O worker do Mac ainda não enviou heartbeat. Baixe o App",
+            }, 200),
+        ):
+            payload, status = MODULE.command_payload(
+                {"command": "abre o chrome"},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 503)
+        self.assertTrue(payload.get("worker_offline"))
+        self.assertEqual(payload["status_real"], "device_worker_missing")
 
     def test_owner_native_apps_skip_web_open(self):
         with patch.object(MODULE, "supabase_configured", return_value=False):
@@ -1393,7 +1446,11 @@ class WebGatewayTest(unittest.TestCase):
             )
         self.assertEqual(confirmed_status, 202)
         self.assertEqual(confirmed["state"], "running")
-        confirmed_enqueue.assert_called_once_with("melhore seus próprios scripts de diagnóstico", "self_edit")
+        confirmed_enqueue.assert_called_once_with(
+            "melhore seus próprios scripts de diagnóstico",
+            "self_edit",
+            attachments=[],
+        )
 
     def test_ultron_plain_improve_and_deploy_phrases_route_to_self_edit(self):
         env = {
@@ -3312,7 +3369,7 @@ São Paulo - SP
         self.assertEqual(captured_requests[0]["tool_choice"], "auto")
         self.assertTrue(captured_requests[0]["parallel_tool_calls"])
         self.assertGreaterEqual(len(captured_requests[0]["tools"]), 8)
-        enqueue.assert_called_once_with("abra Google Chrome", "open_application")
+        enqueue.assert_called_once_with("abra Google Chrome", "open_application", attachments=None)
 
     def test_ultron_orchestrates_three_verified_model_tools_and_reports_each_front(self):
         tool_calls = [
@@ -3822,8 +3879,14 @@ São Paulo - SP
             "phone": "5511999999999",
         }]
         queued_row = [{"id": 131, "status": "pending"}]
+        worker_row = [{
+            "worker_id": "theo-mac",
+            "hostname": "Theo-Mac",
+            "version": "13",
+            "last_seen_at": "2026-08-19T20:57:00+00:00",
+        }]
         with patch.dict(os.environ, env, clear=False), patch.object(
-            MODULE, "supabase_request", side_effect=[contact_row, queued_row]
+            MODULE, "supabase_request", side_effect=[worker_row, contact_row, queued_row]
         ) as request:
             payload, status = MODULE.command_payload(
                 {"command": "manda mensagem para Arthur dizendo estou chegando"},
@@ -3835,7 +3898,7 @@ São Paulo - SP
         self.assertEqual(status, 202)
         self.assertEqual(confirmed_status, 202)
         self.assertEqual(confirmed["job"]["target"], "…9999")
-        queued = request.call_args_list[1].kwargs["body"]
+        queued = request.call_args_list[2].kwargs["body"]
         self.assertEqual(queued["target"], "5511999999999")
         self.assertNotIn("5511999999999", json.dumps(confirmed))
 
@@ -3860,6 +3923,13 @@ São Paulo - SP
                 }]
             if table == MODULE.SUPABASE_DEVICE_COMMANDS_TABLE and method == "POST":
                 return [{"id": 77, "status": "pending"}]
+            if table == MODULE.SUPABASE_DEVICE_WORKERS_TABLE:
+                return [{
+                    "worker_id": "theo-mac",
+                    "hostname": "Theo-Mac",
+                    "version": "13",
+                    "last_seen_at": "2026-08-19T12:00:00+00:00",
+                }]
             return []
 
         with patch.object(MODULE, "supabase_configured", return_value=True), \

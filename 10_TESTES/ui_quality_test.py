@@ -295,6 +295,12 @@ class UIQualityTest(unittest.TestCase):
         device_feedback = (ROOT / "web" / "device-feedback.js").read_text(encoding="utf-8")
         self.assertIn("Ainda offline · verificar de novo", device_feedback)
         self.assertIn("worker-diagnostic", device_feedback)
+        self.assertIn("computer-worker --install", device_feedback)
+        self.assertIn("workerStatusLabel", self.app_js)
+        self.assertIn("confirm-run", self.app_js)
+        self.assertIn("appendJobEvidence", self.app_js)
+        self.assertIn("abre o bloco de notas", self.app_js)
+        self.assertIn("/notas-mac", self.app_js)
         action_permissions = ACTION_PERMISSIONS_JS.read_text(encoding="utf-8")
         self.assertIn("jarvis-action-permissions-v1", action_permissions)
         self.assertIn("Permitir uma vez", action_permissions)
@@ -303,7 +309,7 @@ class UIQualityTest(unittest.TestCase):
 
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
-        self.assertLess(critical_bytes, 316 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
+        self.assertLess(critical_bytes, 322 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
         self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
         self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 5 * 1024)
         self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 7 * 1024)

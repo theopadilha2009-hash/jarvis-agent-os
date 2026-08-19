@@ -175,6 +175,11 @@ def production_healthcheck(attempts: int = 6) -> dict:
     )
 
 
+def alias_production(deployment: str, vercel: str) -> dict:
+    import promote_production as promote
+    return promote.apply_alias(deployment, vercel, preview=False)
+
+
 def deployment_url(output: str) -> str:
     clean = ANSI_ESCAPE.sub("", str(output or ""))
     urls = re.findall(r"https://[A-Za-z0-9.-]+\.vercel\.app", clean)
@@ -332,6 +337,16 @@ def publish_release(
             raise SelfEditError(
                 "O GitHub main foi atualizado, mas a Vercel recusou o deploy.",
                 f"GitHub main atualizado em {merge_commit}; deploy Vercel não confirmado.",
+            )
+        deployment = deployment_url((deploy.stdout or "") + "\n" + (deploy.stderr or ""))
+        try:
+            if not deployment:
+                raise RuntimeError("o deploy não devolveu uma URL do jarvis-agent-os")
+            alias_production(deployment, vercel)
+        except (ValueError, RuntimeError) as error:
+            raise SelfEditError(
+                f"O deploy saiu, mas o alias jarvis-theo não foi atualizado ({error}).",
+                f"GitHub main atualizado em {merge_commit}; {PRODUCTION_URL} ainda não aponta para o deploy novo.",
             )
         health = production_healthcheck()
         local_runtime = activate_local_runtime(merge_commit)

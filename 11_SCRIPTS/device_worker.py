@@ -27,9 +27,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
 from spotify_control import command_args as spotify_command_args  # noqa: E402
 from device_actions import (  # noqa: E402
+    IMAGE_NATIVE_FORMATS,
     clipboard_text,
     extract_https_url,
     folder_id,
+    image_convert_format,
+    image_convert_source,
     notify_text,
     payload_from_text,
     safe_https_url,
@@ -39,7 +42,7 @@ from device_actions import (  # noqa: E402
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
 WORKER_ID = "theo-mac"
-WORKER_VERSION = "12"
+WORKER_VERSION = "13"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 RECOVERY_INTERVAL_SECONDS = 60.0
 STALE_AFTER_SECONDS = 300
@@ -103,6 +106,8 @@ ALLOWED_ACTIONS = {
     "open_folder",
     "notify",
     "volume_set",
+    "image_convert",
+    "files_triage",
 }
 ALLOWED_FOLDER_PATHS = {
     "downloads": lambda: Path.home() / "Downloads",
@@ -390,10 +395,28 @@ def rest_request(
     return parsed if isinstance(parsed, list) else []
 
 
+ARTIFACT_MIME = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+}
+
+
+def allowed_artifact_roots() -> tuple[Path, ...]:
+    return (
+        SCREENSHOT_DIR.resolve(),
+        (Path.home() / "Downloads").resolve(),
+    )
+
+
 def upload_private_artifact(path: Path, command_id: int) -> tuple[str, str]:
     resolved = path.resolve()
-    base = SCREENSHOT_DIR.resolve()
-    if base not in resolved.parents or not resolved.is_file() or resolved.suffix.lower() != ".png":
+    mime = ARTIFACT_MIME.get(resolved.suffix.lower())
+    if not mime or not resolved.is_file():
+        raise WorkerError("O artefato não é uma imagem allowlisted.")
+    if not any(root == resolved or root in resolved.parents for root in allowed_artifact_roots()):
         raise WorkerError("A captura terminou fora da pasta privada permitida.")
     if resolved.stat().st_size <= 0 or resolved.stat().st_size > 10_485_760:
         raise WorkerError("A captura não tem um tamanho aceito para o preview privado.")
@@ -405,7 +428,7 @@ def upload_private_artifact(path: Path, command_id: int) -> tuple[str, str]:
         headers={
             "apikey": api_key,
             "Authorization": f"Bearer {api_key}",
-            "Content-Type": "image/png",
+            "Content-Type": mime,
             "x-upsert": "false",
         },
         method="POST",
@@ -417,7 +440,34 @@ def upload_private_artifact(path: Path, command_id: int) -> tuple[str, str]:
         raise WorkerError(f"Supabase Storage recusou o preview (HTTP {error.code}).") from error
     except (URLError, TimeoutError) as error:
         raise WorkerError("Supabase Storage não confirmou o preview.") from error
-    return object_path, "image/png"
+    return object_path, mime
+
+
+def download_private_artifact(object_path: str, destination: Path) -> Path:
+    safe_path = str(object_path or "").strip("/")
+    if not re.fullmatch(r"theo/[A-Za-z0-9._/-]{1,480}", safe_path):
+        raise WorkerError("Artefato fora do prefixo privado permitido.")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    base_url, api_key = configuration()
+    request = Request(
+        f"{base_url}/storage/v1/object/{ARTIFACTS_BUCKET}/{quote(safe_path, safe='/')}",
+        headers={
+            "apikey": api_key,
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            data = response.read(10_485_760)
+    except HTTPError as error:
+        raise WorkerError(f"Supabase Storage recusou o download (HTTP {error.code}).") from error
+    except (URLError, TimeoutError) as error:
+        raise WorkerError("Supabase Storage não entregou o arquivo.") from error
+    if not data:
+        raise WorkerError("O arquivo de origem chegou vazio.")
+    destination.write_bytes(data)
+    return destination
 
 
 def delete_private_artifact(object_path: str) -> None:
@@ -443,7 +493,7 @@ def delete_private_artifact(object_path: str) -> None:
 
 
 def screenshot_path(output: str) -> Path | None:
-    match = re.search(r"^sa[ií]da:\s*(.+?\.png)\s*$", str(output or ""), re.I | re.M)
+    match = re.search(r"^sa[ií]da:\s*(.+?\.(?:png|jpe?g|tiff?))\s*$", str(output or ""), re.I | re.M)
     if not match:
         return None
     path = Path(match.group(1).strip()).expanduser()
@@ -802,6 +852,94 @@ def execute_volume_job(job: dict) -> tuple[bool, str]:
     return True, f"Volume do Mac ajustado para {level}."
 
 
+DOWNLOAD_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".tif", ".tiff", ".webp"}
+
+
+def newest_download_image() -> Path | None:
+    folder = Path.home() / "Downloads"
+    if not folder.is_dir():
+        return None
+    candidates = []
+    try:
+        for path in folder.iterdir():
+            if path.name.startswith(".") or not path.is_file() or path.is_symlink():
+                continue
+            if path.suffix.lower() in DOWNLOAD_IMAGE_SUFFIXES:
+                candidates.append(path)
+    except OSError:
+        return None
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def execute_image_convert_job(job: dict) -> tuple[bool, str]:
+    source_text = job_text_source(job)
+    fmt = image_convert_format(source_text, str(job.get("target") or ""), source_text)
+    native = IMAGE_NATIVE_FORMATS.get(fmt)
+    if not native:
+        raise WorkerError("Formato de conversão fora do allowlist.")
+    origin = image_convert_source(source_text)
+    work = Path(tempfile.mkdtemp(prefix="jarvis-convert-"))
+    try:
+        if origin.get("source") == "storage" and origin.get("path"):
+            suffix = Path(origin.get("name") or origin["path"]).suffix.lower() or ".png"
+            if suffix not in DOWNLOAD_IMAGE_SUFFIXES:
+                suffix = ".png"
+            incoming = work / f"source{suffix}"
+            source = download_private_artifact(origin["path"], incoming)
+        else:
+            source = newest_download_image()
+            if source is None:
+                raise WorkerError("Não achei imagem em Downloads nem anexo para converter.")
+        extension = "jpg" if fmt == "jpg" else fmt
+        output = Path.home() / "Downloads" / f"{source.stem}-converted.{extension}"
+        if output.exists():
+            stamp = datetime.now().strftime("%H%M%S")
+            output = output.with_name(f"{source.stem}-converted-{stamp}.{extension}")
+        if platform.system() != "Darwin":
+            return False, "sips indisponível neste sistema."
+        result = subprocess.run(
+            ["/usr/bin/sips", "-s", "format", native, str(source), "--out", str(output)],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0 or not output.is_file() or output.stat().st_size <= 0:
+            return False, "A conversão não gerou um arquivo válido; o original ficou intacto."
+        opened = subprocess.run(
+            ["/usr/bin/open", str(Path.home() / "Downloads")],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=12,
+        )
+        finder = "Downloads aberto no Finder." if opened.returncode == 0 else "A pasta Downloads não abriu."
+        return True, f"Imagem convertida para {fmt}.\nsaída: {output}\n{finder}"
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def execute_files_triage_job(job: dict) -> tuple[bool, str]:
+    folder = Path.home() / "Downloads"
+    if not folder.is_dir():
+        raise WorkerError("Downloads não existe neste Mac.")
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "11_SCRIPTS" / "personal_tools.py"), "files-triage", str(folder), "--limit", "40"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+        env=os.environ.copy(),
+    )
+    output = (result.stdout or result.stderr or "").strip()
+    if result.returncode != 0:
+        return False, output or "A triagem de arquivos falhou."
+    return True, output or "Plano de triagem gerado; nenhum arquivo foi movido."
+
+
 def command_argv(job: dict) -> list[str]:
     action = str(job.get("action") or "")
     target = str(job.get("target") or "").strip()
@@ -948,6 +1086,8 @@ def execute_job(job: dict) -> tuple[bool, str]:
         "open_folder": execute_open_folder_job,
         "notify": execute_notify_job,
         "volume_set": execute_volume_job,
+        "image_convert": execute_image_convert_job,
+        "files_triage": execute_files_triage_job,
     }.get(action)
     if native:
         return native(effective_job)
@@ -1110,7 +1250,7 @@ def run_once(preview: bool = False) -> str:
         succeeded, output = False, str(error)
     artifact_path = ""
     artifact_mime = ""
-    if succeeded and action == "screen_capture":
+    if succeeded and action in {"screen_capture", "image_convert"}:
         captured = screenshot_path(output)
         if not captured:
             output = f"{output}\nAVISO: preview não publicado; caminho da captura não foi confirmado."

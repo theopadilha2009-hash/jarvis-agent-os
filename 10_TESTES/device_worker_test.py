@@ -302,6 +302,42 @@ class DeviceWorkerTest(unittest.TestCase):
             self.assertTrue(ok)
             self.assertIn("output volume 40", calls[2][0][2])
 
+    def test_image_convert_uses_sips_and_opens_downloads(self):
+        class Result:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        with tempfile.TemporaryDirectory() as folder:
+            home = Path(folder)
+            downloads = home / "Downloads"
+            downloads.mkdir()
+            source = downloads / "foto.png"
+            source.write_bytes(b"source-bytes")
+            calls = []
+
+            def fake_run(argv, **kwargs):
+                calls.append(argv)
+                if argv and argv[0] == "/usr/bin/sips":
+                    Path(argv[-1]).write_bytes(b"converted")
+                return Result()
+
+            with patch.object(MODULE, "newest_download_image", return_value=source), patch.object(
+                MODULE.Path, "home", return_value=home
+            ), patch.object(MODULE.platform, "system", return_value="Darwin"), patch.object(
+                MODULE.subprocess, "run", side_effect=fake_run
+            ):
+                ok, message = MODULE.execute_image_convert_job({
+                    "action": "image_convert",
+                    "target": "png",
+                    "request_text": "converta esta imagem para png",
+                })
+            self.assertTrue(ok)
+            self.assertEqual(calls[0][0], "/usr/bin/sips")
+            self.assertEqual(calls[1], ["/usr/bin/open", str(downloads)])
+            self.assertIn("Downloads aberto", message)
+            self.assertTrue((downloads / "foto-converted.png").is_file())
+
     def test_run_once_claims_executes_and_finishes_persisted_job(self):
         pending = {"id": 17, "action": "open_application", "target": "Calculator"}
         with patch.object(MODULE, "pending_command", return_value=pending), patch.object(
@@ -383,7 +419,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(args[:2], (MODULE.WORKERS_TABLE, "POST"))
         self.assertEqual(kwargs["query"], "on_conflict=worker_id")
         self.assertEqual(kwargs["body"]["worker_id"], "theo-mac")
-        self.assertEqual(kwargs["body"]["version"], "12")
+        self.assertEqual(kwargs["body"]["version"], "13")
         self.assertIn("resolution=merge-duplicates", kwargs["prefer"])
 
     def test_screen_capture_uploads_private_preview_before_success(self):

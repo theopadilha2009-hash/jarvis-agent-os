@@ -174,6 +174,30 @@ def build_mac_pack(url: str = DEFAULT_URL) -> bytes:
     target = app_url(url)
     info = bundle_info()
     launcher = launcher_script(target)
+    worker_install = """#!/bin/bash
+set -euo pipefail
+install_device_worker() {
+  if command -v jarvis >/dev/null 2>&1; then
+    jarvis computer-worker --install
+    return 0
+  fi
+  if [ -x "$HOME/.local/bin/jarvis" ]; then
+    "$HOME/.local/bin/jarvis" computer-worker --install
+    return 0
+  fi
+  for ROOT in "${JARVIS_HOME:-}" "$HOME/Theo/JARVIS/VAMOO_JARVIS_LAB_v0_2_PRONTO"; do
+    if [ -n "$ROOT" ] && [ -f "$ROOT/11_SCRIPTS/device_worker.py" ]; then
+      /usr/bin/python3 "$ROOT/11_SCRIPTS/device_worker.py" --install
+      return 0
+    fi
+  done
+  echo "Worker do Mac NÃO instalado."
+  echo "O App abre o cockpit, mas ações no Mac precisam do worker."
+  echo "No repositório JARVIS rode: ./jarvis computer-worker --install"
+  return 1
+}
+install_device_worker
+"""
     installer = f"""#!/bin/bash
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -188,8 +212,11 @@ xattr -dr com.apple.quarantine "$DEST/JARVIS.app" 2>/dev/null || true
 if [ -f "$HERE/ai.theopadilha.jarvis.fala.plist" ]; then
   cp "$HERE/ai.theopadilha.jarvis.fala.plist" "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist"
   launchctl bootout "gui/$(id -u)/{LAUNCH_AGENT_LABEL}" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" 2>/dev/null || \
+  launchctl bootstrap "gui/$(id -u)" "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" 2>/dev/null || \\
     launchctl load "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" 2>/dev/null || true
+fi
+if [ -x "$HERE/INSTALAR-WORKER.command" ]; then
+  "$HERE/INSTALAR-WORKER.command" || true
 fi
 open "$DEST/JARVIS.app"
 """
@@ -198,9 +225,12 @@ open "$DEST/JARVIS.app"
         "1. Dê dois cliques em INSTALAR.command\n"
         "   Se o Mac recusar, botão direito > Abrir.\n"
         "2. O app vai para ~/Applications e abre a fala no canto\n"
-        "3. Toque no brilho uma vez e diga \"oi Jarvis\"\n"
-        "4. No login do Mac o app sobe sozinho\n\n"
+        "3. INSTALAR.command também tenta ligar o worker do Mac\n"
+        "   (jarvis computer-worker --install). Sem o repo, rode INSTALAR-WORKER.command.\n"
+        "4. Toque no brilho uma vez e diga \"oi Jarvis\"\n"
+        "5. No login do Mac o app sobe sozinho\n\n"
         "Visitante não controla o Mac do dono.\n"
+        "Ações no Mac recusam se o worker nunca enviou heartbeat.\n"
     )
     if ICON_ICNS.is_file():
         info["CFBundleIconFile"] = "jarvis"
@@ -209,6 +239,7 @@ open "$DEST/JARVIS.app"
         _zip_bytes(archive, "JARVIS.app/Contents/MacOS/JARVIS", launcher.encode("utf-8"), executable=True)
         _zip_bytes(archive, "JARVIS.app/Contents/Info.plist", plistlib.dumps(info))
         _zip_bytes(archive, "INSTALAR.command", installer.encode("utf-8"), executable=True)
+        _zip_bytes(archive, "INSTALAR-WORKER.command", worker_install.encode("utf-8"), executable=True)
         _zip_bytes(archive, "LER-ME.txt", readme.encode("utf-8"))
         _zip_bytes(archive, "NOTICE.txt", creator_seal.copyright_line().encode("utf-8"))
         _zip_bytes(archive, f"{LAUNCH_AGENT_LABEL}.plist", launch_agent_plist())
