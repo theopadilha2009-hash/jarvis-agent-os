@@ -42,6 +42,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn('id="loginToggle"', FALA_HTML)
         self.assertIn('id="rememberLogin"', FALA_HTML)
         self.assertIn('id="voiceChip"', FALA_HTML)
+        self.assertIn('id="buildLine"', FALA_HTML)
+        self.assertIn('id="updateToast"', FALA_HTML)
+        self.assertIn('id="updateReloadButton"', FALA_HTML)
         self.assertIn('id="retryButton"', FALA_HTML)
         self.assertIn('id="debugToggle"', FALA_HTML)
         self.assertIn("www.instagram.com", FALA_HTML)
@@ -69,7 +72,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20260820-siri4", FALA_HTML)
+        self.assertIn("20260820-update1", FALA_HTML)
 
     def test_does_not_spend_speech_on_greeting(self):
         self.assertNotIn("greetOnce", FALA_JS)
@@ -127,6 +130,12 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertNotIn("voz na nuvem", FALA_JS)
         self.assertIn("voz JARVIS", FALA_JS)
         self.assertIn('dataset.state = "local"', FALA_JS)
+        self.assertIn("SHELL_VERSION", FALA_JS)
+        self.assertIn("updateToast", FALA_HTML)
+        self.assertIn("Reiniciar", FALA_HTML)
+        self.assertIn("restartForUpdate", FALA_JS)
+        self.assertIn("jarvisRestart", FALA_JS)
+        self.assertIn("buildLine", FALA_HTML)
 
 
 if __name__ == "__main__":

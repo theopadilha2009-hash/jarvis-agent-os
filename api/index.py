@@ -2475,6 +2475,25 @@ def paid_elevenlabs_allowed():
     return os.environ.get("JARVIS_ALLOW_ELEVENLABS", "").strip() == "1"
 
 
+_SHELL_VERSION_RE = re.compile(r'CACHE_VERSION\s*=\s*"jarvis-mobile-shell-([^"]+)"')
+_shell_version_cache = None
+
+
+def web_shell_version():
+    """Versão do cockpit no ar, lida do service worker. Cliente compara e oferece reinício."""
+    global _shell_version_cache
+    if _shell_version_cache is not None:
+        return _shell_version_cache
+    try:
+        text = (WEB_DIR / "jarvis-sw.js").read_text(encoding="utf-8")
+    except OSError:
+        _shell_version_cache = ""
+        return _shell_version_cache
+    match = _SHELL_VERSION_RE.search(text)
+    _shell_version_cache = match.group(1) if match else ""
+    return _shell_version_cache
+
+
 def owner_pairing_required():
     return bool(clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000))
 
@@ -5869,6 +5888,10 @@ def status_payload(owner_authenticated=False, identity=None):
             "sealed": True,
             "lock": creator_seal.fingerprint(),
             "page": "/theo",
+        },
+        "shell": {
+            "version": web_shell_version(),
+            "label": f"v{web_shell_version()}" if web_shell_version() else "",
         },
         "mac_app": {
             "download": "/download/mac",

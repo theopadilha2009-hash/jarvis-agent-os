@@ -108,6 +108,58 @@ html[data-persona="ultron"] #orb img { filter: hue-rotate(312deg) saturate(1.25)
   color: var(--muted);
 }
 #voiceChip[data-state="local"] { color: #6ee7b7; }
+#buildLine {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: .08em;
+  color: var(--muted);
+  -webkit-app-region: no-drag;
+}
+#buildLine[data-state="stale"] { color: #fbbf24; }
+.update-toast {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, .45);
+  background: rgba(28, 16, 8, .94);
+  color: #fde68a;
+  text-align: left;
+  -webkit-app-region: no-drag;
+}
+.update-toast[hidden] { display: none; }
+.update-toast small {
+  display: block;
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #fbbf24;
+}
+.update-toast em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+}
+.update-toast button {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #fbbf24;
+  color: #1c1408;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
 #retryButton, #debugToggle {
   min-height: 26px;
   padding: 0 10px;

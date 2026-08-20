@@ -112,6 +112,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             } else {
                 stopListen()
             }
+        } else if message.name == "jarvisRestart" {
+            webView?.reloadFromOrigin()
         }
     }
 
@@ -290,6 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         config.websiteDataStore = .default()
         config.userContentController.add(self, name: "jarvisSpeak")
         config.userContentController.add(self, name: "jarvisListen")
+        config.userContentController.add(self, name: "jarvisRestart")
         if #available(macOS 11.0, *) {
             config.defaultWebpagePreferences.allowsContentJavaScript = true
         }

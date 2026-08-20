@@ -38,6 +38,8 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("AVSpeechSynthesizer", source)
                 self.assertIn("SFSpeechRecognizer", source)
                 self.assertIn("jarvisSpeak", source)
+                self.assertIn("jarvisRestart", source)
+                self.assertIn("reloadFromOrigin", source)
                 self.assertNotIn("Google Chrome", source)
 
                 info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
@@ -93,6 +95,7 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("WKWebView", source)
                 self.assertIn("AVSpeechSynthesizer", source)
                 self.assertIn("jarvisSpeak", source)
+                self.assertIn("jarvisRestart", source)
                 self.assertNotIn("Google Chrome", source)
                 self.assertNotIn("sleep 1.1", source)
                 self.assertIn("Theo Lorentz Padilha", archive.read("NOTICE.txt").decode("utf-8"))

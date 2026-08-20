@@ -38,6 +38,7 @@
   const LAST_LOGIN_KEY = "jarvis-last-login";
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
+  const SHELL_VERSION = "20260820-update1";
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   // v3: a janela nasce como painel à direita. Trocar a chave descarta as
@@ -1243,11 +1244,54 @@
     installDialog?.showModal();
   }
 
+  function restartForUpdate() {
+    try {
+      const native = window.webkit?.messageHandlers?.jarvisRestart;
+      if (native) { native.postMessage("now"); return; }
+    } catch { /* web */ }
+    const url = new URL(location.href);
+    url.searchParams.set("r", Date.now().toString(36));
+    location.replace(url.href);
+  }
+
+  function paintShellVersion(live) {
+    const stale = Boolean(live && live !== SHELL_VERSION);
+    const mine = `v${SHELL_VERSION}`;
+    ["shellVersion", "shellVersionDetail"].forEach((id) => {
+      const node = byId(id);
+      if (!node) return;
+      node.textContent = stale ? `${mine} · desatualizada` : mine;
+      node.dataset.state = stale ? "stale" : "current";
+    });
+    const toast = byId("updateToast");
+    if (!toast) return;
+    toast.hidden = !stale;
+    const versions = byId("updateToastVersions");
+    if (stale && versions) versions.textContent = `você: ${mine} · no ar: v${live}`;
+  }
+
+  function checkShellVersion() {
+    request("/status")
+      .then((status) => paintShellVersion(status?.shell?.version || ""))
+      .catch(() => paintShellVersion(""));
+    window.__jarvisSw?.update?.().catch(() => null);
+  }
+
+  function watchShellVersion() {
+    paintShellVersion("");
+    checkShellVersion();
+    window.setInterval(checkShellVersion, 60 * 1000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) checkShellVersion(); });
+    byId("updateReloadButton")?.addEventListener("click", restartForUpdate);
+  }
+
   function registerMobileShell() {
     const localSecure = ["localhost", "127.0.0.1"].includes(window.location.hostname);
     if (!("serviceWorker" in navigator) || (window.location.protocol !== "https:" && !localSecure)) return;
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/jarvis-sw.js", { scope: "/" }).catch(() => null);
+      navigator.serviceWorker.register("/jarvis-sw.js", { scope: "/", updateViaCache: "none" })
+        .then((reg) => { window.__jarvisSw = reg; reg.update().catch(() => null); })
+        .catch(() => null);
     }, { once: true });
   }
 
@@ -4029,6 +4073,7 @@
   renderInstallAvailability();
   syncMobileViewport();
   registerMobileShell();
+  watchShellVersion();
   installVoiceInput();
   boot();
   window.setInterval(refreshPulse, 10 * 60 * 1000);
@@ -4041,6 +4086,7 @@
       const tts = window.JarvisLocalVoice?.info?.() || {};
       box.textContent = [
         "debug cockpit",
+        `shell ${SHELL_VERSION}`,
         `token ${ownerToken() ? "sim" : "não"}`,
         `remember ${rememberLoginEnabled() ? "sim" : "não"}`,
         `paired ${session.paired ? "ultron" : session.codeMode ? "code" : "visitante"}`,
