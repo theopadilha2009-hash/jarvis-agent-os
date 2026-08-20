@@ -232,7 +232,7 @@ html[data-persona="ultron"] #orb img { filter: hue-rotate(312deg) saturate(1.25)
   border-color: rgba(var(--glow), .32);
 }
 .face-actions { display: flex; gap: 8px; -webkit-app-region: no-drag; }
-#loginToggle, #moreButton, #reloadButton {
+#loginToggle, #moreButton, #reloadButton, #minimizeButton {
   background: transparent;
   color: var(--muted);
   font-size: 10px;

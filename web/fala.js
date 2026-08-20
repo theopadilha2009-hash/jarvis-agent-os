@@ -422,6 +422,7 @@
     armed = false;
     askQueue = [];
     try { nativeHandlers()?.jarvisSpeak.postMessage("stop"); } catch { /* web */ }
+    nativeWindow("hide");
     say("Quieto.", "Diga Jarvis quando quiser.");
   }
 
@@ -513,9 +514,14 @@
     }
   }
 
+  function nativeWindow(action) {
+    try { nativeHandlers()?.jarvisWindow.postMessage(action); } catch { /* web */ }
+  }
+
   function keepArmed() {
     armed = true;
     armUntil = Date.now() + 45_000;
+    nativeWindow("touch");
   }
 
   window.__jarvisNativeListen = function (state) {
@@ -605,6 +611,7 @@
     if (stayQuiet && !hit) return;
     if (hit) {
       stayQuiet = false;
+      nativeWindow("show");
       keepArmed();
       if (!hit.command) {
         say("Pode falar.", "Diz o pedido.");
@@ -749,6 +756,7 @@
     window.clearTimeout(heardTimer);
     pendingHeard = "";
     try { nativeHandlers()?.jarvisListen.postMessage("restart"); } catch { /* web */ }
+    nativeWindow("show");
     startWakeLoop({ force: true });
     startWebBackup();
   }
@@ -816,6 +824,11 @@
     mountDebug(true);
   });
   document.getElementById("reloadButton")?.addEventListener("click", restartForUpdate);
+  const minimizeButton = document.getElementById("minimizeButton");
+  if (minimizeButton) {
+    minimizeButton.hidden = !hasNativeListen();
+    minimizeButton.addEventListener("click", () => nativeWindow("hide"));
+  }
   orb.addEventListener("click", () => {
     forceListen(); // user-gesture — never persist off
   });
