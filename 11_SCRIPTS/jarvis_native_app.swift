@@ -205,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.timeoutInterval = 1.6
+        req.timeoutInterval = 3.2
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "persona": "jarvis"])
         URLSession.shared.dataTask(with: req) { data, response, _ in
