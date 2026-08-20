@@ -111,22 +111,11 @@ W=280
 H=380
 X=1100
 Y=22
-if command -v osascript >/dev/null 2>&1; then
-  ALREADY=$(osascript -e 'tell application "Google Chrome"
-    repeat with w in windows
-      try
-        if (URL of active tab of w as string) contains "/fala" then
-          set index of w to 1
-          activate
-          return "yes"
-        end if
-      end try
-    end repeat
-    return "no"
-  end tell' 2>/dev/null || true)
-  if [ "$ALREADY" = "yes" ]; then
-    exit 0
-  fi
+PROFILE="${{HOME}}/Library/Application Support/JARVIS/chrome-profile"
+mkdir -p "$PROFILE"
+# Um processo só: open -a de novo no Chrome --app empilha janela.
+if pgrep -f 'Application Support/JARVIS/chrome-profile' >/dev/null 2>&1; then
+  exit 0
 fi
 if command -v osascript >/dev/null 2>&1; then
   BOUNDS=$(osascript -e 'tell application "Finder" to get bounds of window of desktop' 2>/dev/null || true)
@@ -144,7 +133,7 @@ for BIN in \\
   "/Applications/Chromium.app/Contents/MacOS/Chromium"
 do
   if [ -x "$BIN" ]; then
-    exec "$BIN" --app="$URL" --window-size="$W,$H" --window-position="$X,$Y"
+    exec "$BIN" --user-data-dir="$PROFILE" --app="$URL" --window-size="$W,$H" --window-position="$X,$Y"
   fi
 done
 exec /usr/bin/open "$URL"

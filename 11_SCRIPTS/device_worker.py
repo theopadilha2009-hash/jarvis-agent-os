@@ -62,6 +62,10 @@ BUSY_STATE = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "busy-mode"
 )
 BUSY_TTL_SECONDS = 4 * 3600.0
+WORKER_ENV = (
+    Path.home() / "Library" / "Application Support" / "JARVIS" / "worker.env"
+)
+WIDGET_PROCESS_MARK = "Application Support/JARVIS/chrome-profile"
 BUSY_REQUEST_PATTERN = re.compile(
     r"\b(?:estou\s+ocupado|modo\s+foco|n[aã]o\s+me\s+perturba|"
     r"silenci(?:a|e|ar)\s+o\s+(?:mac|computador))\b",
@@ -210,6 +214,34 @@ class WorkerError(RuntimeError):
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def worker_env_values() -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        for line in WORKER_ENV.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            values[key.strip()] = value.strip()
+    except OSError:
+        pass
+    return values
+
+
+def persist_worker_env(url: str, key: str) -> None:
+    if not url.startswith("https://") or not key:
+        return
+    try:
+        WORKER_ENV.parent.mkdir(parents=True, exist_ok=True)
+        WORKER_ENV.write_text(
+            f"SUPABASE_URL={url}\nSUPABASE_SERVICE_ROLE_KEY={key}\n",
+            encoding="utf-8",
+        )
+        WORKER_ENV.chmod(0o600)
+    except OSError:
+        pass
 
 
 def keychain_value(service: str) -> str:
@@ -375,8 +407,23 @@ def speak_on_mac(text: str) -> str:
         return "failed"
 
 
+def widget_already_running() -> bool:
+    try:
+        result = subprocess.run(
+            ["/usr/bin/pgrep", "-f", WIDGET_PROCESS_MARK],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def _open_widget(reason: str, spoken: str) -> bool:
-    """Abre o canto JARVIS. No boot o LaunchAgent já sobe o .app."""
+    """Abre o canto JARVIS. Se já estiver no ar, não empilha janela."""
+    if widget_already_running():
+        return True
     try:
         app = subprocess.run(
             ["/usr/bin/open", "-a", "JARVIS"],
@@ -415,16 +462,20 @@ def announce_arrival(now: float, reason: str = "worker") -> bool:
 
 
 def configuration() -> tuple[str, str]:
+    cached = worker_env_values()
     base_url = (
         os.environ.get("SUPABASE_URL")
+        or cached.get("SUPABASE_URL")
         or keychain_value("jarvis-agent-os.supabase-url")
     ).strip().rstrip("/")
     api_key = (
         os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or cached.get("SUPABASE_SERVICE_ROLE_KEY")
         or keychain_value("jarvis-agent-os.supabase-service-role-key")
     ).strip()
     if not base_url.startswith("https://") or not api_key:
         raise WorkerError("Supabase URL/chave server-side não estão disponíveis no ambiente ou Chaves do macOS.")
+    persist_worker_env(base_url, api_key)
     return base_url, api_key
 
 

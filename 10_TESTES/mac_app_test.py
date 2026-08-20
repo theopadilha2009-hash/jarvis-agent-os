@@ -35,7 +35,8 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("https://cockpit.exemplo/", launcher)
                 self.assertIn("--app=", launcher)          # janela própria
                 self.assertIn("/usr/bin/open", launcher)   # rede de segurança
-                self.assertNotIn("--user-data-dir=", launcher)
+                self.assertIn("--user-data-dir=", launcher)
+                self.assertIn("pgrep -f", launcher)
 
                 info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
                 self.assertEqual(info["CFBundleIdentifier"], MODULE.BUNDLE_ID)
@@ -97,9 +98,10 @@ class MacAppTest(unittest.TestCase):
                 script = archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8")
                 self.assertIn("--window-size=", script)
                 self.assertIn("--window-position=", script)
-                self.assertNotIn("--user-data-dir=", script)
+                self.assertIn("--user-data-dir=", script)
                 self.assertNotIn("--new-window", script)
-                self.assertIn("contains \"/fala\"", script)
+                self.assertIn("pgrep -f", script)
+                self.assertIn("chrome-profile", script)
                 packed_agent = plistlib.loads(archive.read("ai.theopadilha.jarvis.fala.plist"))
                 self.assertNotIn("KeepAlive", packed_agent)
                 self.assertEqual(packed_agent["ProgramArguments"], ["/usr/bin/open", "-a", "JARVIS"])
