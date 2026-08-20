@@ -26,7 +26,7 @@ enum Jarvis {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate, SFSpeechRecognizerDelegate {
     static var shared: AppDelegate?
     private var window: NSWindow?
     private var webView: WKWebView?
@@ -39,10 +39,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private var task: SFSpeechRecognitionTask?
     private let engine = AVAudioEngine()
     private var tapInstalled = false
+    private var recycleTimer: Timer?
+    private var retryTimer: Timer?
+    private var napActivity: NSObjectProtocol?
+    private var startingListen = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         synth.delegate = self
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
+            ?? SFSpeechRecognizer(locale: Locale(identifier: "pt-PT"))
+            ?? SFSpeechRecognizer()
+        recognizer?.delegate = self
+        napActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep],
+            reason: "JARVIS always listening"
+        )
         let window = makeWindow()
         let webView = makeWebView()
         window.contentView = webView
@@ -50,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         self.window = window
         self.webView = webView
         webView.load(URLRequest(url: cockpitURL()))
+        startListen()
+        scheduleRecycle()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -178,10 +191,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         synth.speak(utterance)
     }
 
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if wantListen { startListen() }
+    }
+
+    func speechRecognizer(_ speechRecognizer: SFSpeechRecognizer, availabilityDidChange available: Bool) {
+        if available && wantListen { beginRecognition() }
+    }
+
     private func finishSpeak() {
         webView?.evaluateJavaScript("window.__jarvisOnSpeakDone && window.__jarvisOnSpeakDone()", completionHandler: nil)
         if wantListen {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
                 self?.beginRecognition()
             }
         }
@@ -189,42 +210,82 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
 
     private func startListen() {
         wantListen = true
+        if engine.isRunning, task != nil, tapInstalled {
+            tellJS("listening")
+            return
+        }
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             DispatchQueue.main.async {
-                guard status == .authorized else { return }
-                self?.beginRecognition()
+                guard let self else { return }
+                if status != .authorized {
+                    self.tellJS("denied")
+                    return
+                }
+                self.beginRecognition()
             }
         }
     }
 
     private func stopListen() {
         wantListen = false
+        tearDownRecognition()
+    }
+
+    private func scheduleRecycle() {
+        recycleTimer?.invalidate()
+        recycleTimer = Timer.scheduledTimer(withTimeInterval: 40, repeats: true) { [weak self] _ in
+            guard let self, self.wantListen else { return }
+            self.beginRecognition()
+        }
+    }
+
+    private func scheduleRetry() {
+        retryTimer?.invalidate()
+        retryTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+            guard let self, self.wantListen else { return }
+            self.beginRecognition()
+        }
+    }
+
+    private func tearDownRecognition() {
         task?.cancel()
         task = nil
         request?.endAudio()
         request = nil
+        if engine.isRunning { engine.stop() }
         if tapInstalled {
             engine.inputNode.removeTap(onBus: 0)
             tapInstalled = false
         }
-        if engine.isRunning { engine.stop() }
     }
 
     private func beginRecognition() {
-        guard wantListen, let recognizer, recognizer.isAvailable else { return }
-        task?.cancel()
-        request?.endAudio()
-        if tapInstalled {
-            engine.inputNode.removeTap(onBus: 0)
-            tapInstalled = false
+        guard wantListen, !startingListen else { return }
+        guard let recognizer else {
+            scheduleRetry()
+            return
         }
-        if engine.isRunning { engine.stop() }
+        if !recognizer.isAvailable {
+            tellJS("waiting")
+            scheduleRetry()
+            return
+        }
+        startingListen = true
+        tearDownRecognition()
         let request = SFSpeechAudioBufferRecognitionRequest()
-        request.shouldReportPartialResults = false
+        request.shouldReportPartialResults = true
+        if #available(macOS 13.0, *) {
+            request.requiresOnDeviceRecognition = false
+        }
         self.request = request
         let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+        let format = input.inputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            startingListen = false
+            scheduleRetry()
+            return
+        }
+        input.installTap(onBus: 0, bufferSize: 2048, format: format) { buffer, _ in
             request.append(buffer)
         }
         tapInstalled = true
@@ -232,28 +293,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         do {
             try engine.start()
         } catch {
+            startingListen = false
+            tearDownRecognition()
+            scheduleRetry()
             return
         }
+        startingListen = false
+        tellJS("listening")
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
-            if let text = result?.bestTranscription.formattedString, result?.isFinal == true, !text.isEmpty {
-                self.deliverHeard(text)
+            if let text = result?.bestTranscription.formattedString, !text.isEmpty {
+                let isFinal = result?.isFinal == true
+                DispatchQueue.main.async {
+                    self.deliverHeard(text, final: isFinal)
+                }
             }
             if error != nil || result?.isFinal == true {
-                DispatchQueue.main.async {
-                    if self.wantListen {
-                        self.beginRecognition()
-                    }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    if self.wantListen { self.beginRecognition() }
                 }
             }
         }
     }
 
-    private func deliverHeard(_ text: String) {
-        guard let data = try? JSONSerialization.data(withJSONObject: [text], options: []),
-              let wrapped = String(data: data, encoding: .utf8) else { return }
-        let arg = String(wrapped.dropFirst().dropLast())
-        webView?.evaluateJavaScript("window.__jarvisNativeHeard && window.__jarvisNativeHeard(\(arg))", completionHandler: nil)
+    private func tellJS(_ state: String) {
+        webView?.evaluateJavaScript(
+            "window.__jarvisNativeListen && window.__jarvisNativeListen(\(jsString(state)))",
+            completionHandler: nil
+        )
+    }
+
+    private func jsString(_ raw: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [raw], options: []),
+              let wrapped = String(data: data, encoding: .utf8) else { return "\"\"" }
+        return String(wrapped.dropFirst().dropLast())
+    }
+
+    private func deliverHeard(_ text: String, final: Bool) {
+        let flag = final ? "true" : "false"
+        webView?.evaluateJavaScript(
+            "window.__jarvisNativeHeard && window.__jarvisNativeHeard(\(jsString(text)), \(flag))",
+            completionHandler: nil
+        )
     }
 
     private func cockpitURL() -> URL {

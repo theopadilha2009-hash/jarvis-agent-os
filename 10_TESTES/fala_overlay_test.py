@@ -66,13 +66,17 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("tryAutoListen", FALA_JS)
         self.assertIn("keepArmed", FALA_JS)
         self.assertIn('name: "microphone"', FALA_JS)
+        self.assertIn(r"fala", FALA_JS)
+        self.assertIn("setInterval(kick, 4000)", FALA_JS)
+        self.assertIn("__jarvisNativeListen", FALA_JS)
+        self.assertIn("Pode falar: oi Jarvis.", FALA_HTML)
         self.assertIn("postJson", FALA_JS)
         self.assertIn("open.spotify.com", FALA_JS)
         self.assertIn("calendar.google.com", FALA_JS)
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20260820-update1", FALA_HTML)
+        self.assertIn("20260820-listen1", FALA_HTML)
 
     def test_does_not_spend_speech_on_greeting(self):
         self.assertNotIn("greetOnce", FALA_JS)
@@ -119,7 +123,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIsNotNone(click)
         self.assertIn("startWakeLoop", click.group(1))
         self.assertNotIn("stopWakeLoop", click.group(1))
-        self.assertIn("toque no brilho e permita o microfone", FALA_HTML)
+        self.assertIn("Pode falar: oi Jarvis.", FALA_HTML)
 
     def test_native_app_bridge_hooks_speak_and_listen(self):
         self.assertIn("jarvisSpeak", FALA_JS)

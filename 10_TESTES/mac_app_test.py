@@ -40,6 +40,9 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("jarvisSpeak", source)
                 self.assertIn("jarvisRestart", source)
                 self.assertIn("reloadFromOrigin", source)
+                self.assertIn("shouldReportPartialResults = true", source)
+                self.assertIn("JARVIS always listening", source)
+                self.assertIn("startListen()", source)
                 self.assertNotIn("Google Chrome", source)
 
                 info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())

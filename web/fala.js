@@ -18,7 +18,7 @@
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
   const SHELL_VERSION = "20260820-update1";
-  const WAKE = /(?:^|\b)(?:oi|ol[aá]|ei|hey|ok|eai|e a[ií])?\s*(?:jarvis|ultron)\b/i;
+  const WAKE = /(?:^|[\s,.;!?])(?:(?:oi|ol[aá]|ei|hey|ok|eai|e a[ií]|fala|eita)\s*[,.]?\s*)?(?:jarvis|jarbis|javis|ultron)\b/i;
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
     || window.matchMedia("(display-mode: standalone)").matches;
   let busy = false;
@@ -380,16 +380,14 @@
     }
     const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
     if (data.client_action === "quiet_mode") {
-      keepListening = false;
       armed = false;
-      orb.classList.remove("listening");
     }
     if (response.status === 429) {
       say("Limite.", message);
       busy = false;
       return;
     }
-    say(data.ok === false ? "Não." : (data.client_action === "quiet_mode" ? "Modo foco." : "Pronto."), data.client_action === "quiet_mode" ? "Toque no brilho quando quiser de volta." : "");
+    say(data.ok === false ? "Não." : (data.client_action === "quiet_mode" ? "Modo foco." : "Pronto."), data.client_action === "quiet_mode" ? "Continuo ouvindo. Diga oi Jarvis." : "");
     if (data.status_real === "free_web_search_unavailable") {
       showAnswerLink(message, `https://www.google.com/search?q=${encodeURIComponent(command)}`, "Buscar no Google");
     } else if (!opened) {
@@ -404,22 +402,46 @@
     armUntil = Date.now() + 8000;
   }
 
-  window.__jarvisNativeHeard = function (spoken) {
-    hearSpoken(spoken);
+  window.__jarvisNativeListen = function (state) {
+    if (state === "denied") {
+      orb.classList.remove("listening");
+      say("Mic.", "Ajustes → Privacidade → Microfone e Fala.");
+      return;
+    }
+    if (state === "listening") {
+      keepListening = true;
+      orb.classList.add("listening");
+      say("Ouvindo.", "Pode falar: oi Jarvis.");
+    }
   };
 
-  function hearSpoken(spoken) {
+  window.__jarvisNativeHeard = function (spoken, isFinal) {
+    hearSpoken(spoken, isFinal !== false);
+  };
+
+  function hearSpoken(spoken, isFinal = true) {
     if (speaking) return;
     const text = String(spoken || "").trim();
     if (!text) return;
     if (WAKE.test(text)) {
       const command = text.replace(WAKE, "").replace(/^[,.\s]+/, "").trim();
       keepArmed();
-      if (command) ask(command);
-      else say("Pode falar.", "");
+      if (!command) {
+        say("Pode falar.", "Estou ouvindo.");
+        return;
+      }
+      if (!isFinal) {
+        say("Ouvindo.", command);
+        return;
+      }
+      ask(command);
       return;
     }
     if (armed && Date.now() <= armUntil) {
+      if (!isFinal) {
+        say("Ouvindo.", text);
+        return;
+      }
       keepArmed();
       ask(text);
     }
@@ -430,7 +452,7 @@
     if (hasNativeListen()) {
       try { nativeHandlers().jarvisListen.postMessage("start"); } catch { /* web */ }
       orb.classList.add("listening");
-      say("Ouvindo.", "“oi Jarvis”.");
+      say("Ouvindo.", "Pode falar: oi Jarvis.");
       return;
     }
     if (!Recognition) return;
@@ -460,7 +482,7 @@
     try {
       rec.start();
       orb.classList.add("listening");
-      say("Ouvindo.", "“oi Jarvis”.");
+      say("Ouvindo.", "Pode falar: oi Jarvis.");
     } catch {
       if (keepListening && !speaking) window.setTimeout(listenLoop, 600);
     }
@@ -474,13 +496,13 @@
   }
 
   function wantsListen() {
+    if (appMode) return true;
     try {
       const stored = window.localStorage.getItem(LISTEN_KEY);
       if (stored === "0") return false;
-      if (appMode) return true;
       return stored === "1";
     } catch {
-      return appMode;
+      return false;
     }
   }
 
@@ -496,7 +518,7 @@
     if (keepListening) return;
     keepListening = true;
     persistListen(true);
-    say("Ouvindo.", "“oi Jarvis”.");
+    say("Ouvindo.", "Pode falar: oi Jarvis.");
     listenLoop();
   }
 
@@ -509,26 +531,27 @@
   }
 
   function tryAutoListen() {
-    if (!wantsListen()) return;
-    if (hasNativeListen()) {
-      startWakeLoop({ silent: true });
-      return;
-    }
-    if (!Recognition) return;
-    const start = () => startWakeLoop({ silent: true });
+    const kick = () => {
+      if (!wantsListen() || speaking) return;
+      if (!keepListening) startWakeLoop({ silent: true });
+      else if (hasNativeListen()) {
+        try { nativeHandlers().jarvisListen.postMessage("start"); } catch { /* web */ }
+      }
+    };
+    kick();
+    window.setInterval(kick, 4000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) kick(); });
+    if (!Recognition || hasNativeListen()) return;
     const permissions = navigator.permissions;
     if (permissions && permissions.query) {
       Promise.resolve(permissions.query({ name: "microphone" })).then((status) => {
         if (status.state === "denied") {
-          say("Mic.", "Toque no brilho e permita.");
+          say("Mic.", "Ajustes → Privacidade → Microfone.");
           return;
         }
-        if (status.state === "granted" || appMode) start();
-        status.onchange = () => { if (status.state === "granted") start(); };
-      }).catch(start);
-      return;
+        status.onchange = () => { if (status.state === "granted") kick(); };
+      }).catch(() => {});
     }
-    if (appMode) start();
   }
 
   moreButton.addEventListener("click", () => {
@@ -615,7 +638,7 @@
     const keep = document.getElementById("rememberLogin");
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
-  say("oi Jarvis", "toque no brilho e permita o microfone");
+  say("oi Jarvis", "Pode falar: oi Jarvis.");
   refreshAccess();
   refreshVoiceChip();
   watchShellVersion();
