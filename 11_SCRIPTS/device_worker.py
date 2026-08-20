@@ -1127,6 +1127,10 @@ def execute_job(job: dict) -> tuple[bool, str]:
     succeeded = result.returncode == 0
     if succeeded and action in {"open_application", "close_application"}:
         application = str(effective_job.get("target") or "")
+        # O bundle JARVIS só lança o Chrome em --app; o AppleScript
+        # "application JARVIS is running" fica falso mesmo com a janela aberta.
+        if application.casefold() == "jarvis":
+            return True, f"{output}\nCockpit JARVIS aberto no macOS.".strip()
         confirmed = confirm_application_state(application, expected_open=action == "open_application")
         if confirmed is True:
             evidence = f"Confirmação independente: {application} está {'aberto' if action == 'open_application' else 'fechado'}."

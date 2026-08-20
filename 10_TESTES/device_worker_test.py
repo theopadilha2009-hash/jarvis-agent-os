@@ -68,6 +68,26 @@ class DeviceWorkerTest(unittest.TestCase):
         loop = source[source.index("while running:"):]
         self.assertLess(loop.index("screen_is_locked()"), loop.index("heartbeat()"))
 
+    def test_open_jarvis_skips_applescript_running_check(self):
+        class Result:
+            returncode = 0
+            stdout = "OK — JARVIS aberto"
+            stderr = ""
+
+        with patch.object(MODULE, "resolve_application_target", return_value="JARVIS"), patch.object(
+            MODULE, "command_argv", return_value=["/usr/bin/true"]
+        ), patch.object(MODULE.subprocess, "run", return_value=Result()), patch.object(
+            MODULE, "confirm_application_state"
+        ) as confirm:
+            ok, message = MODULE.execute_job({
+                "action": "open_application",
+                "target": "JARVIS",
+                "request_text": "abre o sistema",
+            })
+        self.assertTrue(ok)
+        self.assertIn("Cockpit JARVIS", message)
+        confirm.assert_not_called()
+
     def test_boot_greeting_is_good_morning_and_does_not_wait_three_minutes(self):
         self.assertIn("Bom dia", MODULE.BOOT_GREETING)
         self.assertLessEqual(MODULE.BOOT_QUIET_SECONDS, 30)
