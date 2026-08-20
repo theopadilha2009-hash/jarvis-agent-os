@@ -6,6 +6,29 @@ import WebKit
 private let bundleID = "ai.theopadilha.jarvis.cockpit"
 private let fallbackURL = "https://jarvis-theo.vercel.app/fala?app=1"
 
+final class PCMConverter {
+    func convert(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard buffer.format != format else { return buffer }
+        guard let converter = AVAudioConverter(from: buffer.format, to: format) else { return nil }
+        let ratio = format.sampleRate / buffer.format.sampleRate
+        let frames = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up) + 64)
+        guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: max(frames, 1)) else { return nil }
+        var error: NSError?
+        var sent = false
+        converter.convert(to: output, error: &error) { _, status in
+            if sent {
+                status.pointee = .endOfStream
+                return nil
+            }
+            sent = true
+            status.pointee = .haveData
+            return buffer
+        }
+        if error != nil || output.frameLength == 0 { return nil }
+        return output
+    }
+}
+
 @main
 enum Jarvis {
     static func main() {
@@ -45,6 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private var startingListen = false
     private var lastPartial = ""
     private var lastWasFinal = false
+    private var useModern = false
+    private var modernTask: Task<Void, Never>?
+    private var resultsTask: Task<Void, Never>?
+    private var analyzerFinish: (() -> Void)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         synth.delegate = self
@@ -206,7 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
 
     func speechRecognizer(_ speechRecognizer: SFSpeechRecognizer, availabilityDidChange available: Bool) {
         logListen("available \(available)")
-        guard available, wantListen else { return }
+        guard available, wantListen, !useModern else { return }
         if engine.isRunning, task != nil { return }
         scheduleRetry()
     }
@@ -215,16 +242,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         webView?.evaluateJavaScript("window.__jarvisOnSpeakDone && window.__jarvisOnSpeakDone()", completionHandler: nil)
         if wantListen {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-                self?.beginRecognition()
+                self?.startListen()
             }
         }
     }
 
     private func startListen() {
         wantListen = true
-        if engine.isRunning, task != nil, tapInstalled {
+        logListen("startListen")
+        if #available(macOS 26.0, *), SpeechTranscriber.isAvailable {
+            if modernTask != nil, engine.isRunning { return }
+            startModernListen()
             return
         }
+        if engine.isRunning, task != nil, tapInstalled { return }
         requestSpeechThenRecognize()
     }
 
@@ -232,8 +263,119 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         wantListen = true
         lastPartial = ""
         lastWasFinal = true
+        stopModern()
         tearDownRecognition()
-        requestSpeechThenRecognize()
+        startListen()
+    }
+
+    private func stopModern() {
+        analyzerFinish?()
+        analyzerFinish = nil
+        modernTask?.cancel()
+        resultsTask?.cancel()
+        modernTask = nil
+        resultsTask = nil
+        useModern = false
+    }
+
+    @available(macOS 26.0, *)
+    private func startModernListen() {
+        useModern = true
+        stopModern()
+        useModern = true
+        wantListen = true
+        modernTask = Task { [weak self] in
+            await self?.runModernListen()
+        }
+    }
+
+    @available(macOS 26.0, *)
+    private func runModernListen() async {
+        logListen("modern start")
+        tellJS("waiting")
+        let preferred = Locale(identifier: "pt-BR")
+        let locale = await SpeechTranscriber.supportedLocale(equivalentTo: preferred) ?? preferred
+        let transcriber = SpeechTranscriber(
+            locale: locale,
+            transcriptionOptions: [],
+            reportingOptions: [.volatileResults, .fastResults],
+            attributeOptions: []
+        )
+        do {
+            let status = await AssetInventory.status(forModules: [transcriber])
+            logListen("asset \(String(describing: status))")
+            if status != .installed {
+                tellJS("waiting")
+                if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
+                    try await request.downloadAndInstall()
+                }
+            }
+            _ = try? await AssetInventory.reserve(locale: locale)
+        } catch {
+            logListen("asset error \(error)")
+        }
+        let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
+        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        let context = AnalysisContext()
+        context.contextualStrings = [.general: ["Jarvis", "oi Jarvis", "Olá Jarvis", "fala Jarvis", "Ultron"]]
+        try? await analyzer.setContext(context)
+        let (stream, continuation) = AsyncStream.makeStream(of: AnalyzerInput.self)
+        analyzerFinish = { continuation.finish() }
+        resultsTask = Task { [weak self] in
+            do {
+                for try await result in transcriber.results {
+                    let text = String(result.text.characters)
+                    guard !text.isEmpty else { continue }
+                    let isFinal = result.isFinal
+                    await MainActor.run {
+                        self?.deliverHeard(text, final: isFinal)
+                    }
+                }
+            } catch {
+                self?.logListen("results \(error)")
+            }
+        }
+        await MainActor.run { [weak self] in
+            self?.startMic(to: analyzerFormat) { buffer in
+                continuation.yield(AnalyzerInput(buffer: buffer))
+            }
+        }
+        tellJS("listening")
+        logListen("modern listening")
+        do {
+            try await analyzer.start(inputSequence: stream)
+        } catch {
+            logListen("analyzer \(error)")
+            if !Task.isCancelled {
+                tellJS("error:\(error.localizedDescription)")
+            }
+        }
+    }
+
+    @available(macOS 26.0, *)
+    private func startMic(to analyzerFormat: AVAudioFormat?, yield: @escaping (AVAudioPCMBuffer) -> Void) {
+        tearDownRecognition()
+        let input = engine.inputNode
+        let micFormat = input.outputFormat(forBus: 0)
+        guard micFormat.sampleRate > 0 else {
+            logListen("bad mic format")
+            scheduleRetry()
+            return
+        }
+        let converter = PCMConverter()
+        input.installTap(onBus: 0, bufferSize: 4096, format: micFormat) { [weak self] buffer, _ in
+            self?.emitLevel(buffer)
+            let out = analyzerFormat.flatMap { converter.convert(buffer, to: $0) } ?? buffer
+            yield(out)
+        }
+        tapInstalled = true
+        do {
+            try engine.start()
+            logListen("mic sr=\(micFormat.sampleRate)")
+        } catch {
+            logListen("engine \(error)")
+            scheduleRetry()
+        }
     }
 
     private func requestSpeechThenRecognize() {
@@ -264,22 +406,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
 
     private func stopListen() {
         wantListen = false
+        stopModern()
         tearDownRecognition()
     }
 
     private func scheduleRecycle() {
         recycleTimer?.invalidate()
         recycleTimer = Timer.scheduledTimer(withTimeInterval: 40, repeats: true) { [weak self] _ in
-            guard let self, self.wantListen else { return }
+            guard let self, self.wantListen, !self.useModern else { return }
             self.beginRecognition()
         }
     }
 
     private func scheduleRetry() {
         retryTimer?.invalidate()
-        retryTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+        retryTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [weak self] _ in
             guard let self, self.wantListen else { return }
-            self.beginRecognition()
+            self.startListen()
         }
     }
 
@@ -352,9 +495,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
             if let error {
+                let msg = error.localizedDescription
                 DispatchQueue.main.async {
-                    self.logListen("task \(error.localizedDescription)")
-                    self.tellJS("error:\(error.localizedDescription)")
+                    self.logListen("task \(msg)")
+                    if msg.range(of: "speech", options: .caseInsensitive) == nil {
+                        self.tellJS("error:\(msg)")
+                    }
                 }
             }
             if let text = result?.bestTranscription.formattedString, !text.isEmpty {

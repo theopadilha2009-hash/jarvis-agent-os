@@ -84,7 +84,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20260820-listen3", FALA_HTML)
+        self.assertIn("20260820-listen4", FALA_HTML)
 
     def test_does_not_spend_speech_on_greeting(self):
         self.assertNotIn("greetOnce", FALA_JS)
