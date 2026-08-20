@@ -192,7 +192,11 @@
     window.clearTimeout(heardTimer);
     pendingHeard = "";
     try { recHandle && recHandle.stop(); } catch { /* already stopped */ }
-    try { nativeHandlers()?.jarvisListen.postMessage("pause"); } catch { /* web */ }
+  }
+
+  function stopSpeak() {
+    try { nativeHandlers()?.jarvisSpeak.postMessage("stop"); } catch { /* web */ }
+    speaking = false;
   }
 
   function unmuteMicAfterSpeech() {
@@ -507,7 +511,7 @@
       } else if (!opened) {
         showAnswer(message);
       }
-      if (!stayQuiet) await speak(message);
+      if (!stayQuiet) await speak(spokenReply(message));
     } finally {
       busy = false;
       drainQueue();
@@ -652,15 +656,29 @@
     ask(items[0]);
   }
 
+  function spokenReply(text) {
+    const clip = String(text || "").replace(/\s+/g, " ").trim();
+    if (!clip) return "";
+    const first = clip.match(/^.+?[.!?…](?=\s|$)/);
+    return (first ? first[0] : clip).trim().slice(0, 160);
+  }
+
   function hearSpoken(spoken, isFinal = true) {
     const text = String(spoken || "").trim();
     if (!text) return;
     paintHeard(text);
+    if (speaking) {
+      const hit = splitWake(text);
+      if (!hit && !(isQuietAsk(text) && (armed || hit))) return;
+      stopSpeak();
+      try { nativeHandlers()?.jarvisListen.postMessage("resume"); } catch { /* web */ }
+      takeWake(text, isFinal);
+      return;
+    }
     if (isQuietAsk(text) && (armed || splitWake(text))) {
       takeWake(text, isFinal);
       return;
     }
-    if (speaking) return;
     if (!isFinal) {
       pendingHeard = text;
       window.clearTimeout(heardTimer);
@@ -761,7 +779,7 @@
     window.clearTimeout(heardTimer);
     pendingHeard = "";
     try { nativeHandlers()?.jarvisListen.postMessage("restart"); } catch { /* web */ }
-    nativeWindow("show");
+    nativeWindow("focus");
     startWakeLoop({ force: true });
     startWebBackup();
   }
@@ -906,6 +924,7 @@
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
   say("Jarvis", "Pode falar: Jarvis.");
+  if (hasNativeListen()) document.documentElement.classList.add("idle-orb");
   refreshAccess();
   refreshVoiceChip();
   watchShellVersion();
