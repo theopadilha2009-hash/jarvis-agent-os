@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 from urllib.parse import urlparse
+import os
 import zipfile
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -119,6 +120,8 @@ if command -v osascript >/dev/null 2>&1; then
     fi
   fi
 fi
+PROFILE="${{HOME}}/Library/Application Support/JARVIS/chrome-profile"
+mkdir -p "$PROFILE"
 for BIN in \\
   "{CHROME}" \\
   "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \\
@@ -126,7 +129,7 @@ for BIN in \\
   "/Applications/Chromium.app/Contents/MacOS/Chromium"
 do
   if [ -x "$BIN" ]; then
-    exec "$BIN" --app="$URL" --new-window --window-size="$W,$H" --window-position="$X,$Y"
+    exec "$BIN" --user-data-dir="$PROFILE" --app="$URL" --window-size="$W,$H" --window-position="$X,$Y"
   fi
 done
 exec /usr/bin/open "$URL"
@@ -141,7 +144,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "1.5") -> dict:
+def bundle_info(version: str = "1.6") -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
@@ -293,6 +296,18 @@ def install(url: str, system_wide: bool) -> Path:
     return app
 
 
+def install_login_agent() -> None:
+    """Sobe o widget de canto no login, sem exigir o ZIP de novo."""
+    launch = Path.home() / "Library" / "LaunchAgents"
+    launch.mkdir(parents=True, exist_ok=True)
+    path = launch / f"{LAUNCH_AGENT_LABEL}.plist"
+    path.write_bytes(launch_agent_plist())
+    domain = f"gui/{os.getuid()}"
+    label = f"{domain}/{LAUNCH_AGENT_LABEL}"
+    subprocess.run(["launchctl", "bootout", label], capture_output=True, timeout=15, check=False)
+    subprocess.run(["launchctl", "bootstrap", domain, str(path)], capture_output=True, timeout=15, check=False)
+
+
 def remove(system_wide: bool) -> bool:
     app = install_root(system_wide) / f"{APP_NAME}.app"
     if not app.exists():
@@ -326,8 +341,10 @@ def main() -> int:
         return 0
 
     app = install(args.url, args.system)
+    install_login_agent()
     print(f"JARVIS instalado em {app}")
-    print("Está no Launchpad e no Spotlight. Arraste o ícone para o Dock para deixá-lo fixo.")
+    print("Está no Launchpad, no Spotlight e no canto no login.")
+    print("Arraste o ícone para o Dock para deixá-lo fixo.")
     return 0
 
 

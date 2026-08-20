@@ -35,19 +35,36 @@ class DeviceWorkerTest(unittest.TestCase):
             with patch.object(MODULE, "ARRIVAL_STATE", state):
                 opened = []
                 spoken = []
+
+                class Ok:
+                    returncode = 0
+
                 with patch.object(MODULE, "speak_on_mac", lambda text: spoken.append(text) or "say"), \
-                        patch.object(MODULE.subprocess, "run", lambda *a, **k: opened.append(a[0]) or None):
+                        patch.object(MODULE.subprocess, "run", lambda *a, **k: opened.append(list(a[0])) or Ok()):
                     self.assertTrue(MODULE.announce_arrival(10_000.0))
                     # Ele fala pelo alto-falante antes de abrir a aba: o
                     # navegador silencia áudio que ninguém pediu com um clique.
                     self.assertEqual(spoken, [MODULE.ARRIVAL_GREETING])
-                    self.assertIn("/usr/bin/open", opened[0])
-                    # spoken=1: a aba mostra a saudação sem repetir o áudio.
-                    self.assertTrue(opened[0][1].endswith("/cockpit?arrival=worker&spoken=1"), opened[0][1])
+                    self.assertEqual(opened[0], ["/usr/bin/open", "-a", "JARVIS"])
                     spoken.clear()
                     # Dentro do cooldown não abre de novo.
                     self.assertFalse(MODULE.announce_arrival(10_600.0))
                     self.assertTrue(MODULE.announce_arrival(10_000.0 + MODULE.ARRIVAL_COOLDOWN_SECONDS + 1))
+                opened.clear()
+
+                class Fail:
+                    returncode = 1
+
+                def fallback_open(argv, **_kwargs):
+                    opened.append(list(argv))
+                    return Fail() if argv[:2] == ["/usr/bin/open", "-a"] else Ok()
+
+                with patch.object(MODULE, "speak_on_mac", lambda text: "say"), \
+                        patch.object(MODULE.subprocess, "run", fallback_open), \
+                        patch.object(MODULE, "arrival_allowed", return_value=True):
+                    self.assertTrue(MODULE.announce_arrival(20_000.0))
+                    self.assertEqual(opened[0], ["/usr/bin/open", "-a", "JARVIS"])
+                    self.assertTrue(opened[1][1].endswith("/fala?app=1&arrival=worker&spoken=1"), opened[1][1])
                 with patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "0"}):
                     self.assertFalse(MODULE.announce_arrival(99_999.0))
         # Boot: uma saudação por ligada, e só depois do sistema subir.

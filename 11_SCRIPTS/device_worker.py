@@ -50,7 +50,7 @@ RETENTION_INTERVAL_SECONDS = 21_600.0
 ARTIFACT_KEEP_COUNT = 20
 ARTIFACT_MAX_AGE_DAYS = 30
 ARRIVAL_COCKPIT_URL = os.environ.get("JARVIS_COCKPIT_URL", "https://jarvis-theo.vercel.app")
-ARRIVAL_MIN_LOCKED_SECONDS = 600.0
+ARRIVAL_MIN_LOCKED_SECONDS = 90.0
 ARRIVAL_COOLDOWN_SECONDS = 3_600.0
 ARRIVAL_STATE = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "last-arrival"
@@ -327,17 +327,36 @@ def speak_on_mac(text: str) -> str:
         return "failed"
 
 
+def _open_widget(reason: str, spoken: str) -> bool:
+    """Abre o canto JARVIS. No boot o LaunchAgent já sobe o .app."""
+    try:
+        app = subprocess.run(
+            ["/usr/bin/open", "-a", "JARVIS"],
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+        if getattr(app, "returncode", 1) == 0:
+            return True
+        silence = "&spoken=1" if spoken in {"local_tts", "say"} else ""
+        url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/fala?app=1&arrival={reason}{silence}"
+        fallback = subprocess.run(
+            ["/usr/bin/open", url],
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+        return getattr(fallback, "returncode", 1) == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def announce_arrival(now: float, reason: str = "worker") -> bool:
-    """Theo chegou: falar com ele e abrir o cockpit."""
+    """Theo chegou: falar com ele e, fora do boot, trazer o widget."""
     if not arrival_allowed(now, reason):
         return False
     spoken = speak_on_mac(BOOT_GREETING if reason == "boot" else ARRIVAL_GREETING)
-    # A aba não repete o que o alto-falante já disse.
-    silence = "&spoken=1" if spoken in {"local_tts", "say"} else ""
-    url = f"{ARRIVAL_COCKPIT_URL.rstrip('/')}/cockpit?arrival={reason}{silence}"
-    try:
-        subprocess.run(["/usr/bin/open", url], capture_output=True, timeout=15, check=False)
-    except (OSError, subprocess.TimeoutExpired):
+    if reason != "boot" and not _open_widget(reason, spoken):
         return False
     try:
         ARRIVAL_STATE.parent.mkdir(parents=True, exist_ok=True)

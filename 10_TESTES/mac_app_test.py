@@ -96,6 +96,8 @@ class MacAppTest(unittest.TestCase):
                 script = archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8")
                 self.assertIn("--window-size=", script)
                 self.assertIn("--window-position=", script)
+                self.assertIn("--user-data-dir=", script)
+                self.assertNotIn("--new-window", script)
                 self.assertIn("Brave Browser", script)
                 self.assertIn("Microsoft Edge", script)
                 self.assertIn("com.apple.quarantine", archive.read("INSTALAR.command").decode("utf-8"))
@@ -107,6 +109,26 @@ class MacAppTest(unittest.TestCase):
                 if MODULE.ICON_ICNS.is_file():
                     self.assertIn("JARVIS.app/Contents/Resources/jarvis.icns", names)
                     self.assertEqual(info["CFBundleIconFile"], "jarvis")
+
+    def test_login_agent_starts_the_corner_widget(self):
+        with tempfile.TemporaryDirectory() as folder:
+            home = Path(folder)
+            calls = []
+
+            class Result:
+                returncode = 0
+
+            with patch.object(MODULE.Path, "home", return_value=home), patch.object(
+                MODULE.os, "getuid", return_value=501
+            ), patch.object(MODULE.subprocess, "run", lambda *a, **k: calls.append(list(a[0])) or Result()):
+                MODULE.install_login_agent()
+            path = home / "Library" / "LaunchAgents" / "ai.theopadilha.jarvis.fala.plist"
+            self.assertTrue(path.is_file())
+            payload = plistlib.loads(path.read_bytes())
+            self.assertEqual(payload["Label"], "ai.theopadilha.jarvis.fala")
+            self.assertTrue(payload["RunAtLoad"])
+            self.assertEqual(payload["ProgramArguments"], ["/usr/bin/open", "-a", "JARVIS"])
+            self.assertTrue(any(cmd[:1] == ["launchctl"] for cmd in calls))
 
 
 if __name__ == "__main__":

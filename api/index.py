@@ -367,6 +367,8 @@ CODE_INTENTS = {
 
 PRIVATE_INTENTS = {
     "daily_brief",
+    "prepare_day",
+    "busy_mode",
     "memory_save",
     "memory_view",
     "note_save",
@@ -393,6 +395,16 @@ DAILY_BRIEF_PATTERN = re.compile(
     r"\b(?:resumo\s+(?:operacional\s+)?d[oa]\s+(?:meu\s+)?dia|"
     r"como\s+(?:est[aá]|vai)\s+(?:o\s+)?meu\s+dia|brief(?:ing)?\s+(?:do\s+)?dia|"
     r"o\s+que\s+tenho\s+(?:para|pra)\s+(?:hoje|fazer)|meu\s+dia\s+hoje)\b",
+    re.I,
+)
+PREPARE_DAY_PATTERN = re.compile(
+    r"\b(?:prepar(?:a|e|ar)\s+(?:o|meu)\s+dia|come[cç](?:a|e|ar)\s+o\s+dia|"
+    r"rotina\s+d[oa]\s+manh[aã])\b",
+    re.I,
+)
+BUSY_MODE_PATTERN = re.compile(
+    r"\b(?:estou\s+ocupado|modo\s+foco|n[aã]o\s+me\s+perturba|"
+    r"silenci(?:a|e|ar)\s+o\s+(?:mac|computador))\b",
     re.I,
 )
 
@@ -5653,6 +5665,94 @@ def daily_brief_payload(owner_authenticated=False):
     return overview, 200
 
 
+PREPARE_DAY_STEPS = (
+    {"index": 1, "intent": "open_application", "command": "abre o Calendar"},
+    {"index": 2, "intent": "open_application", "command": "abre o JARVIS"},
+)
+BUSY_MODE_STEPS = (
+    {"index": 1, "intent": "volume_set", "command": "volume do mac para 20"},
+    {"index": 2, "intent": "spotify_control", "command": "pausa o Spotify"},
+)
+
+
+def _named_device_plan(intent, command, steps, owner_authenticated=False, local_execute=False, message="", brief=None):
+    """Briefing + sequência allowlisted. Sem worker, devolve o plano; não finge sucesso."""
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    if supabase_configured() and not local_execute:
+        payload, status = supabase_device_enqueue_plan(command, steps)
+    elif local_execute:
+        payload, status = dispatch_device_plan(
+            command,
+            list(steps),
+            local_execute=True,
+            owner_authenticated=True,
+        )
+    else:
+        payload = {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": f"{intent}_plan",
+            "visual_state": "planning",
+            "message": message,
+            "intent": intent,
+            "device_plan": [dict(step) for step in steps],
+            "local_commands": [
+                local_handoff(step["command"], step["intent"]).get("local_command")
+                for step in steps
+            ],
+            "provider": "jarvis_control_plane",
+        }
+        payload["local_commands"] = [item for item in payload["local_commands"] if item]
+        if isinstance(brief, dict):
+            for key in ("summary", "agenda_preview", "domains"):
+                if key in brief:
+                    payload[key] = brief.get(key)
+            payload["private"] = True
+        return payload, 200
+    payload["intent"] = intent
+    payload["device_plan"] = [dict(step) for step in steps]
+    if payload.get("status_real") == "device_run_queued":
+        payload["status_real"] = f"{intent}_queued"
+    elif payload.get("status_real") == "local_device_run_succeeded":
+        payload["status_real"] = f"{intent}_done"
+    plan_msg = clean_text(payload.get("message"), 400)
+    payload["message"] = " ".join(part for part in (message, plan_msg) if part)
+    if isinstance(brief, dict):
+        payload["summary"] = brief.get("summary")
+        payload["agenda_preview"] = brief.get("agenda_preview")
+        payload["private"] = True
+    return payload, status
+
+
+def prepare_day_payload(owner_authenticated=False, local_execute=False):
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    brief, _status = daily_brief_payload(owner_authenticated=True)
+    message = clean_text(brief.get("message"), 800)
+    extra = "Vou abrir o calendário e o sistema."
+    return _named_device_plan(
+        "prepare_day",
+        "prepara o dia",
+        PREPARE_DAY_STEPS,
+        owner_authenticated=True,
+        local_execute=local_execute,
+        message=f"{message} {extra}".strip(),
+        brief=brief,
+    )
+
+
+def busy_mode_payload(owner_authenticated=False, local_execute=False):
+    return _named_device_plan(
+        "busy_mode",
+        "estou ocupado",
+        BUSY_MODE_STEPS,
+        owner_authenticated=owner_authenticated,
+        local_execute=local_execute,
+        message="Volume baixo e Spotify em pausa. Não te interrompo.",
+    )
+
+
 def status_payload(owner_authenticated=False, identity=None):
     ai_ready = bool(openrouter_api_keys())
     elevenlabs_ready = bool(os.environ.get("ELEVENLABS_API_KEY"))
@@ -9897,6 +9997,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     response_profile = assistant_response_profile(latest, attachments, response_strength)
     power_profile = execution_power_profile(owner_authenticated, response_strength)
     web_search_requested = should_search_web(messages, owner_authenticated=owner_authenticated)
+    if PREPARE_DAY_PATTERN.search(latest):
+        return prepare_day_payload(owner_authenticated=owner_authenticated, local_execute=local_execute)
+    if BUSY_MODE_PATTERN.search(latest):
+        return busy_mode_payload(owner_authenticated=owner_authenticated, local_execute=local_execute)
     if DAILY_BRIEF_PATTERN.search(latest):
         return daily_brief_payload(owner_authenticated=owner_authenticated)
     if CAPABILITY_OVERVIEW_PATTERN.search(latest):
@@ -10598,6 +10702,11 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
             return pairing_required_payload()
         return elevenlabs_voice_design(command)
 
+    if PREPARE_DAY_PATTERN.search(command):
+        return prepare_day_payload(owner_authenticated=owner_authenticated, local_execute=local_execute)
+    if BUSY_MODE_PATTERN.search(command):
+        return busy_mode_payload(owner_authenticated=owner_authenticated, local_execute=local_execute)
+
     if DAILY_BRIEF_PATTERN.search(command):
         return daily_brief_payload(owner_authenticated=owner_authenticated)
 
@@ -10717,6 +10826,10 @@ def command_intent(command):
     """Classify only far enough to attach registry policy before execution."""
     if VOICE_DESIGN_PATTERN.search(command):
         return "voice_design"
+    if PREPARE_DAY_PATTERN.search(command):
+        return "prepare_day"
+    if BUSY_MODE_PATTERN.search(command):
+        return "busy_mode"
     if DAILY_BRIEF_PATTERN.search(command):
         return "daily_brief"
     if CAPABILITY_OVERVIEW_PATTERN.search(command):

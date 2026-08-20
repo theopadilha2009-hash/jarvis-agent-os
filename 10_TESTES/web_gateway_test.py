@@ -1076,6 +1076,50 @@ class WebGatewayTest(unittest.TestCase):
         })
         self.assertEqual(cards[0]["type"], "control_plane")
 
+    def test_prepare_day_and_busy_mode_are_deterministic_mac_plans(self):
+        self.assertEqual(MODULE.command_intent("prepara o dia"), "prepare_day")
+        self.assertEqual(MODULE.command_intent("rotina da manhã"), "prepare_day")
+        self.assertEqual(MODULE.command_intent("estou ocupado"), "busy_mode")
+        self.assertEqual(MODULE.command_intent("modo foco"), "busy_mode")
+        self.assertEqual(MODULE.command_intent("não me perturba"), "busy_mode")
+        overview = {
+            "ok": True,
+            "summary": {"agenda_count": 1, "worker_online": True, "memory_count": 4},
+            "agenda_preview": [{"title": "Daily", "scheduled_for": "2026-08-20T12:00:00Z"}],
+        }
+        with patch.object(MODULE, "personal_overview_payload", return_value=overview), patch.object(
+            MODULE, "supabase_configured", return_value=False
+        ):
+            prepared, prepared_status = MODULE.prepare_day_payload(owner_authenticated=True)
+            busy, busy_status = MODULE.busy_mode_payload(owner_authenticated=True)
+            via_command, command_status = MODULE.command_payload(
+                {"command": "prepara o dia"},
+                owner_authenticated=True,
+            )
+            via_chat, chat_status = MODULE.assistant_response(
+                {"messages": [{"role": "user", "content": "estou ocupado"}]},
+                owner_authenticated=True,
+            )
+        self.assertEqual(prepared_status, 200)
+        self.assertEqual(prepared["intent"], "prepare_day")
+        self.assertEqual(prepared["status_real"], "prepare_day_plan")
+        self.assertIn("Daily", prepared["message"])
+        self.assertEqual(
+            [step["intent"] for step in prepared["device_plan"]],
+            ["open_application", "open_application"],
+        )
+        self.assertTrue(any("Calendar" in item for item in prepared["local_commands"]))
+        self.assertTrue(any("JARVIS" in item for item in prepared["local_commands"]))
+        self.assertEqual(busy_status, 200)
+        self.assertEqual(busy["intent"], "busy_mode")
+        self.assertEqual([step["intent"] for step in busy["device_plan"]], ["volume_set", "spotify_control"])
+        self.assertTrue(any("volume" in item for item in busy["local_commands"]))
+        self.assertTrue(any("pause" in item for item in busy["local_commands"]))
+        self.assertEqual(command_status, 200)
+        self.assertEqual(via_command["intent"], "prepare_day")
+        self.assertEqual(chat_status, 200)
+        self.assertEqual(via_chat["intent"], "busy_mode")
+
     def test_open_and_close_apps_route_to_explicit_computer_command(self):
         opened, open_status = MODULE.command_payload(
             {"command": "abre o Chrome pra mim"},

@@ -106,7 +106,7 @@ ACTION_SPECS = (
     ActionSpec("github_overview", "Inspecionar GitHub", "Ler conta e repositórios sem alterá-los.", "github", private=True, intents=("github_overview",)),
     ActionSpec("storage_scan", "Analisar armazenamento", "Ler metadados e localizar arquivos grandes.", "mac", private=True, intents=("storage_scan",)),
     ActionSpec("system_memory", "Diagnosticar computador", "Inspecionar memória e processos temporários do JARVIS.", "mac", "runtime_write", "explicit_request", True, intents=("system_memory",)),
-    ActionSpec("device_run", "Executar sequência", "Executar de duas a seis ações allowlisted em ordem, interrompendo na primeira falha.", "mac", "runtime_write", "explicit_request", True, intents=("device_run",)),
+    ActionSpec("device_run", "Executar sequência", "Executar de duas a seis ações allowlisted em ordem, interrompendo na primeira falha.", "mac", "runtime_write", "explicit_request", True, intents=("device_run", "prepare_day", "busy_mode")),
     ActionSpec("local_utility", "Utilitário local", "Executar uma utilidade pessoal estreitamente allowlisted.", "local_worker", "runtime_write", "explicit_request", True, intents=("speak", "image_to_pdf", "message_draft")),
     ActionSpec("voice_design", "Criar voz", "Gerar e salvar uma nova voz do JARVIS no provedor configurado.", "voice", "external_write", "interactive", True, intents=("voice_design",)),
     ActionSpec(

@@ -26,6 +26,8 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertEqual(action_for_intent("files_triage").risk, "read_only")
         self.assertFalse(action_for_intent("clipboard_set").private)
         self.assertTrue(action_for_intent("image_convert").private)
+        self.assertEqual(action_for_intent("prepare_day").name, "device_run")
+        self.assertEqual(action_for_intent("busy_mode").name, "device_run")
 
     def test_run_lifecycle_is_durable_and_terminal(self):
         with TemporaryDirectory() as temp:

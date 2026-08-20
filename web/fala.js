@@ -23,6 +23,7 @@
   let busy = false;
   let keepListening = false;
   let armed = false;
+  let armUntil = 0;
 
   if (appMode) document.documentElement.classList.add("app-mode");
 
@@ -291,6 +292,7 @@
       const local = localAction(command);
       if (local) {
         local();
+        keepArmed();
         return;
       }
       say("Offline.", "Sem internet para o restante.");
@@ -304,6 +306,7 @@
         say("Aberto.", command);
         speak("Aberto");
       }
+      keepArmed();
       return;
     }
     busy = true;
@@ -335,6 +338,12 @@
     }
     speak(message);
     busy = false;
+    keepArmed();
+  }
+
+  function keepArmed() {
+    armed = true;
+    armUntil = Date.now() + 8000;
   }
 
   function hearSpoken(spoken) {
@@ -342,17 +351,13 @@
     if (!text) return;
     if (WAKE.test(text)) {
       const command = text.replace(WAKE, "").replace(/^[,.\s]+/, "").trim();
-      if (command) {
-        armed = false;
-        ask(command);
-      } else {
-        armed = true;
-        say("Pode falar.", "");
-      }
+      keepArmed();
+      if (command) ask(command);
+      else say("Pode falar.", "");
       return;
     }
-    if (armed) {
-      armed = false;
+    if (armed && Date.now() <= armUntil) {
+      keepArmed();
       ask(text);
     }
   }
@@ -370,7 +375,6 @@
     rec.onerror = (event) => {
       if (event.error === "not-allowed") {
         keepListening = false;
-        try { sessionStorage.removeItem(LISTEN_KEY); } catch { /* private */ }
         orb.classList.remove("listening");
         say("Mic.", "Toque no brilho e permita.");
         return;
@@ -388,17 +392,64 @@
     }
   }
 
-  function startWakeLoop() {
+  function persistListen(on) {
+    try {
+      if (on) window.localStorage.setItem(LISTEN_KEY, "1");
+      else window.localStorage.setItem(LISTEN_KEY, "0");
+    } catch { /* private */ }
+  }
+
+  function wantsListen() {
+    try {
+      const stored = window.localStorage.getItem(LISTEN_KEY);
+      if (stored === "0") return false;
+      if (appMode) return true;
+      return stored === "1";
+    } catch {
+      return appMode;
+    }
+  }
+
+  function startWakeLoop(options) {
+    const silent = Boolean(options && options.silent);
     if (!Recognition) {
-      input.focus();
-      say("Escreva.", "Sem microfone aqui.");
+      if (!silent) {
+        input.focus();
+        say("Escreva.", "Sem microfone aqui.");
+      }
       return;
     }
     if (keepListening) return;
     keepListening = true;
-    try { sessionStorage.setItem(LISTEN_KEY, "1"); } catch { /* private */ }
+    persistListen(true);
     say("Ouvindo.", "“oi Jarvis”.");
     listenLoop();
+  }
+
+  function stopWakeLoop() {
+    keepListening = false;
+    armed = false;
+    persistListen(false);
+    orb.classList.remove("listening");
+    say("Parei.", "Toque no brilho para ouvir de novo.");
+  }
+
+  function tryAutoListen() {
+    if (!Recognition || !wantsListen()) return;
+    const start = () => startWakeLoop({ silent: true });
+    const permissions = navigator.permissions;
+    if (permissions && permissions.query) {
+      Promise.resolve(permissions.query({ name: "microphone" })).then((status) => {
+        if (status.state === "denied") {
+          say("Mic.", "Toque no brilho e permita.");
+          return;
+        }
+        if (status.state === "granted" || appMode) start();
+        status.onchange = () => { if (status.state === "granted") start(); };
+      }).catch(start);
+      return;
+    }
+    if (appMode) start();
   }
 
   moreButton.addEventListener("click", () => {
@@ -415,7 +466,8 @@
     mountDebug(true);
   });
   orb.addEventListener("click", () => {
-    startWakeLoop(); // user-gesture
+    if (keepListening) stopWakeLoop();
+    else startWakeLoop(); // user-gesture
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -485,13 +537,11 @@
     const keep = document.getElementById("rememberLogin");
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
-  say("oi Jarvis", appMode ? "toque no brilho e fale" : "toque no brilho e diga oi Jarvis");
+  say("oi Jarvis", appMode ? "sempre ouvindo · oi Jarvis" : "toque no brilho e diga oi Jarvis");
   refreshAccess();
   refreshVoiceChip();
   window.setInterval(refreshVoiceChip, 8000);
-  try {
-    if (sessionStorage.getItem(LISTEN_KEY) === "1") startWakeLoop();
-  } catch { /* first visit */ }
+  tryAutoListen();
   if (/[?&]debug=1(?:&|$)/.test(location.search)) mountDebug(false);
 
   function refreshVoiceChip() {

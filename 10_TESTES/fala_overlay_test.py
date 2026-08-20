@@ -60,10 +60,15 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("/login", FALA_JS)
         self.assertIn("app-mode", FALA_JS)
         self.assertIn("jarvis-fala-listen", FALA_JS)
+        self.assertIn("tryAutoListen", FALA_JS)
+        self.assertIn("keepArmed", FALA_JS)
+        self.assertIn('name: "microphone"', FALA_JS)
         self.assertIn("postJson", FALA_JS)
         self.assertIn("open.spotify.com", FALA_JS)
         self.assertIn("calendar.google.com", FALA_JS)
         self.assertIn("localClock", FALA_JS)
+        self.assertIn("sempre ouvindo", FALA_HTML)
+        self.assertIn("20260820-siri1", FALA_HTML)
 
     def test_does_not_spend_speech_on_greeting(self):
         self.assertNotIn("greetOnce", FALA_JS)
