@@ -217,7 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         if engine.isRunning, task != nil, tapInstalled {
             return
         }
-        requestMicThenRecognize()
+        requestSpeechThenRecognize()
     }
 
     private func restartListen() {
@@ -225,10 +225,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         lastPartial = ""
         lastWasFinal = true
         tearDownRecognition()
-        requestMicThenRecognize()
+        requestSpeechThenRecognize()
     }
 
-    private func requestMicThenRecognize() {
+    private func requestSpeechThenRecognize() {
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -237,24 +237,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
                     self.tellJS("denied")
                     return
                 }
-                self.requestRecordThenRecognize()
+                self.beginRecognition()
             }
         }
-    }
-
-    private func requestRecordThenRecognize() {
-        if #available(macOS 14.0, *) {
-            AVAudioApplication.requestRecordPermission { [weak self] granted in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    self.logListen("record \(granted)")
-                    if granted { self.beginRecognition() }
-                    else { self.tellJS("denied") }
-                }
-            }
-            return
-        }
-        beginRecognition()
     }
 
     private func logListen(_ msg: String) {
