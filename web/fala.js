@@ -35,6 +35,9 @@
   let lastAckAt = 0;
   let lastAsked = "";
   let lastAskedAt = 0;
+  let lastOpenAt = 0;
+  let stayQuiet = false;
+  let askQueue = [];
 
   if (appMode) document.documentElement.classList.add("app-mode");
 
@@ -194,9 +197,10 @@
 
   function unmuteMicAfterSpeech() {
     speaking = false;
-    keepArmed();
+    if (!stayQuiet) keepArmed();
     try { nativeHandlers()?.jarvisListen.postMessage("resume"); } catch { /* web */ }
     if (keepListening && !hasNativeListen()) listenLoop();
+    drainQueue();
   }
 
   function speak(text) {
@@ -236,10 +240,15 @@
   let lastCommand = "";
 
   function openTarget(url) {
-    lastOpenUrl = url;
-    const popup = window.open(url, "_blank", "noopener,noreferrer");
+    const href = String(url || "");
+    if (!href) return false;
+    const now = Date.now();
+    if (href === lastOpenUrl && now - lastOpenAt < 8000) return true;
+    lastOpenUrl = href;
+    lastOpenAt = now;
+    const popup = window.open(href, "_blank", "noopener,noreferrer");
     if (popup) return true;
-    showAnswerLink("Popup bloqueado.", url, "Toque para abrir");
+    showAnswerLink("Popup bloqueado.", href, "Toque para abrir");
     return false;
   }
 
@@ -258,8 +267,9 @@
   function isMacSpotifyCommand(value) {
     const text = String(value || "").toLocaleLowerCase("pt-BR");
     if (/\b(?:homem\s+de\s+ferro|iron\s+man|spotify:track:)\b/.test(text)) return true;
-    if (/\bspotify\b/.test(text) && /\b(?:com|paus|to(?:c|q)|play|pr[oó]xim|volum|status|aleat|shuffle|repet)\w*/.test(text)) return true;
-    return false;
+    if (!/\bspotify\b/.test(text)) return false;
+    if (/\b(?:com|paus|to(?:c|q)|play|pr[oó]xim|volum|status|aleat|shuffle|repet)\w*/.test(text)) return true;
+    return hasNativeListen() && /\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(text);
   }
 
   function resolveOpen(text) {
@@ -313,86 +323,194 @@
 
   function localAction(text) {
     const value = String(text || "").toLocaleLowerCase("pt-BR");
-    if (/^(?:entrar|login|fazer login|conectar)$/.test(value.trim())) return () => revealLogin();
+    if (/^(?:entrar|login|fazer login|conectar)$/.test(value.trim())) {
+      return { run: () => revealLogin(), speak: "" };
+    }
     const opened = resolveOpen(value);
-    if (opened) return () => openTarget(opened.url);
+    if (opened) {
+      return {
+        run: () => openTarget(opened.url),
+        speak: opened.label,
+        title: "Aberto.",
+        detail: opened.label,
+      };
+    }
     if (/\bhoras?\b|\bque dia\b|\bdata de hoje\b/.test(value)) {
-      return () => {
-        const now = localClock();
-        say("Agora.", now);
-        showAnswer(now);
-        speak(now);
+      return {
+        run: () => {
+          const now = localClock();
+          say("Agora.", now);
+          showAnswer(now);
+        },
+        speak: () => localClock(),
       };
     }
     if (/^copia/.test(value)) {
-      return () => {
-        const textToCopy = lastAnswer.textContent || "";
-        if (textToCopy && navigator.clipboard?.writeText) navigator.clipboard.writeText(textToCopy);
-        say("Copiado.", textToCopy || "Nada ainda.");
+      return {
+        run: () => {
+          const textToCopy = lastAnswer.textContent || "";
+          if (textToCopy && navigator.clipboard?.writeText) navigator.clipboard.writeText(textToCopy);
+          say("Copiado.", textToCopy || "Nada ainda.");
+        },
+        speak: "",
       };
     }
-    if (/\bcockpit\b|\bjanela grande\b/.test(value)) return () => { window.location.href = "/"; };
+    if (/\bcockpit\b|\bjanela grande\b/.test(value)) {
+      return { run: () => { window.location.href = "/"; }, speak: "" };
+    }
     return null;
+  }
+
+  function isQuietAsk(text) {
+    const folded = foldSpeech(text);
+    if (/^(?:silencio|quieto)$/.test(folded)) return true;
+    return /\b(?:fica\s+quieto|fica\s+calado|cala\s+a\s+boca|para\s+de\s+falar|modo\s+foco|nao\s+me\s+perturba|estou\s+ocupado)\b/.test(folded);
+  }
+
+  function looksLikeCommand(text) {
+    const folded = foldSpeech(text);
+    if (!folded || folded.length < 3) return false;
+    if (WAKE_NAME.test(folded)) return true;
+    return /\b(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|spotify|whatsapp|youtube|google|hora|horas|data|pesquisa|busca|procura|volume|proximo|proxima|calendario|agenda|gmail|maps|mapa|silencio|quieto|cala|foco|ocupado|copia|cockpit)\b/.test(folded);
+  }
+
+  function expandCommands(text) {
+    const folded = foldSpeech(text);
+    if (!/\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(folded)) return [text];
+    const catalog = [
+      ["whatsapp", "abre o whatsapp"],
+      ["youtube", "abre o youtube"],
+      ["spotify", "abre o spotify"],
+      ["gmail", "abre o gmail"],
+      ["instagram", "abre o instagram"],
+      ["github", "abre o github"],
+      ["discord", "abre o discord"],
+      ["notion", "abre o notion"],
+      ["drive", "abre o drive"],
+      ["agenda", "abre a agenda"],
+      ["calendario", "abre a agenda"],
+      ["maps", "abre o maps"],
+      ["mapa", "abre o maps"],
+      ["google", "abre o google"],
+    ];
+    const hits = [];
+    const seen = new Set();
+    const finder = /whatsapp|youtube|spotify|gmail|instagram|github|discord|notion|drive|agenda|calendario|maps|mapa|google/g;
+    let match = finder.exec(folded);
+    while (match) {
+      const key = match[0];
+      const row = catalog.find(([name]) => name === key);
+      if (row && !seen.has(row[1])) {
+        seen.add(row[1]);
+        hits.push(row[1]);
+      }
+      match = finder.exec(folded);
+    }
+    if (hits.includes("abre o maps")) {
+      const google = hits.indexOf("abre o google");
+      if (google >= 0) hits.splice(google, 1);
+    }
+    if (hits.includes("abre o drive")) {
+      const google = hits.indexOf("abre o google");
+      if (google >= 0) hits.splice(google, 1);
+    }
+    return hits.length >= 2 ? hits : [text];
+  }
+
+  function enterQuiet() {
+    stayQuiet = true;
+    armed = false;
+    askQueue = [];
+    try { nativeHandlers()?.jarvisSpeak.postMessage("stop"); } catch { /* web */ }
+    say("Quieto.", "Diga Jarvis quando quiser.");
+  }
+
+  function enqueue(command) {
+    const clip = String(command || "").replace(/\s+/g, " ").trim();
+    if (!clip || stayQuiet) return;
+    if (askQueue.length >= 4) return;
+    const folded = foldSpeech(clip);
+    if (folded === foldSpeech(lastAsked)) return;
+    if (askQueue.some((item) => foldSpeech(item) === folded)) return;
+    askQueue.push(clip);
+  }
+
+  function drainQueue() {
+    if (busy || speaking || stayQuiet) return;
+    const next = askQueue.shift();
+    if (next) ask(next);
   }
 
   async function ask(text) {
     const command = String(text || "").trim();
-    if (!command || busy) return;
-    lastCommand = command;
-    if (navigator.onLine === false) {
-      const local = localAction(command);
-      if (local) {
-        local();
-        keepArmed();
-        return;
-      }
-      say("Offline.", "Sem internet para o restante.");
-      speak("Sem internet");
-      return;
-    }
-    const local = localAction(command);
-    if (local) {
-      local();
-      if (!/\bhoras?\b|\bque dia\b|\bdata de hoje\b|^copia|^(?:entrar|login|fazer login|conectar)$/.test(command.toLocaleLowerCase("pt-BR"))) {
-        say("Aberto.", command);
-        speak("Aberto");
-        return;
-      }
-      if (!/\bhoras?\b|\bque dia\b|\bdata de hoje\b/.test(command.toLocaleLowerCase("pt-BR"))) keepArmed();
+    if (!command) return;
+    if (busy) {
+      enqueue(command);
       return;
     }
     busy = true;
-    say("…", command);
-    const { response, data } = await postJson("/command", {
-      command,
-      strength: ownerToken() ? "strong" : "auto",
-    });
-    const message = data.message || data.error || "Sem resposta.";
-    lastError = data.ok === false ? message : "";
-    const retry = document.getElementById("retryButton");
-    if (retry) retry.hidden = !lastError;
-    if (response.status === 401 || data.pairing_required) {
-      clearStaleSession();
-      renderAccess("Visitante", false);
-      revealLogin();
-    }
-    const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
-    if (data.client_action === "quiet_mode") {
-      armed = false;
-    }
-    if (response.status === 429) {
-      say("Limite.", message);
+    lastCommand = command;
+    try {
+      if (isQuietAsk(command)) enterQuiet();
+      if (navigator.onLine === false) {
+        const local = localAction(command);
+        if (local) {
+          local.run();
+          const spoken = typeof local.speak === "function" ? local.speak() : local.speak;
+          if (spoken && !stayQuiet) await speak(spoken);
+          return;
+        }
+        say("Offline.", "Sem internet para o restante.");
+        if (!stayQuiet) await speak("Sem internet");
+        return;
+      }
+      const local = localAction(command);
+      if (local) {
+        local.run();
+        if (local.title) say(local.title, local.detail || command);
+        const spoken = typeof local.speak === "function" ? local.speak() : local.speak;
+        if (spoken && !stayQuiet) await speak(spoken);
+        return;
+      }
+      say("…", command);
+      const { response, data } = await postJson("/command", {
+        command,
+        strength: ownerToken() ? "strong" : "auto",
+      });
+      const message = data.message || data.error || "Sem resposta.";
+      lastError = data.ok === false ? message : "";
+      const retry = document.getElementById("retryButton");
+      if (retry) retry.hidden = !lastError;
+      if (response.status === 401 || data.pairing_required) {
+        clearStaleSession();
+        renderAccess("Visitante", false);
+        revealLogin();
+      }
+      const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
+      if (data.client_action === "quiet_mode" || isQuietAsk(command)) {
+        enterQuiet();
+        if (response.status === 429) {
+          say("Limite.", message);
+          return;
+        }
+        say("Quieto.", "Diga Jarvis quando quiser.");
+        return;
+      }
+      if (response.status === 429) {
+        say("Limite.", message);
+        return;
+      }
+      say(data.ok === false ? "Não." : "Pronto.", "");
+      if (data.status_real === "free_web_search_unavailable") {
+        showAnswerLink(message, `https://www.google.com/search?q=${encodeURIComponent(command)}`, "Buscar no Google");
+      } else if (!opened) {
+        showAnswer(message);
+      }
+      if (!stayQuiet) await speak(message);
+    } finally {
       busy = false;
-      return;
+      drainQueue();
     }
-    say(data.ok === false ? "Não." : (data.client_action === "quiet_mode" ? "Modo foco." : "Pronto."), data.client_action === "quiet_mode" ? "Continuo ouvindo. Diga Jarvis." : "");
-    if (data.status_real === "free_web_search_unavailable") {
-      showAnswerLink(message, `https://www.google.com/search?q=${encodeURIComponent(command)}`, "Buscar no Google");
-    } else if (!opened) {
-      showAnswer(message);
-    }
-    busy = false;
-    await speak(message);
   }
 
   function keepArmed() {
@@ -475,8 +593,18 @@
   }
 
   function takeWake(text, isFinal) {
+    if (isQuietAsk(text)) {
+      const hit = splitWake(text);
+      if (!armed && !hit) return;
+      if (!isFinal) return;
+      stayQuiet = false;
+      fireAsk(text);
+      return;
+    }
     const hit = splitWake(text);
+    if (stayQuiet && !hit) return;
     if (hit) {
+      stayQuiet = false;
       keepArmed();
       if (!hit.command) {
         say("Pode falar.", "Diz o pedido.");
@@ -490,6 +618,7 @@
       return;
     }
     if (armed && Date.now() <= armUntil) {
+      if (!looksLikeCommand(text)) return;
       if (!isFinal) {
         say("Ouvindo.", text);
         return;
@@ -502,17 +631,24 @@
   function fireAsk(command) {
     const clip = String(command || "").replace(/\s+/g, " ").trim();
     if (!clip) return;
-    if (clip === lastAsked && Date.now() - lastAskedAt < 2500) return;
-    lastAsked = clip;
+    const folded = foldSpeech(clip);
+    if (folded === foldSpeech(lastAsked) && Date.now() - lastAskedAt < 4000) return;
+    const items = expandCommands(clip);
+    lastAsked = items[0];
     lastAskedAt = Date.now();
-    ask(clip);
+    for (let index = 1; index < items.length; index += 1) enqueue(items[index]);
+    ask(items[0]);
   }
 
   function hearSpoken(spoken, isFinal = true) {
-    if (speaking) return;
     const text = String(spoken || "").trim();
     if (!text) return;
     paintHeard(text);
+    if (isQuietAsk(text) && (armed || splitWake(text))) {
+      takeWake(text, isFinal);
+      return;
+    }
+    if (speaking) return;
     if (!isFinal) {
       pendingHeard = text;
       window.clearTimeout(heardTimer);
@@ -585,6 +721,7 @@
   }
 
   function startWebBackup() {
+    if (hasNativeListen()) return;
     if (!Recognition) return;
     try { recHandle && recHandle.stop(); } catch { /* already stopped */ }
     const rec = new Recognition();
@@ -606,6 +743,7 @@
 
   function forceListen() {
     speaking = false;
+    stayQuiet = false;
     keepListening = false;
     listenPainted = false;
     window.clearTimeout(heardTimer);

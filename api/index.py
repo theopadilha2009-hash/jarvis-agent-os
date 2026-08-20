@@ -404,6 +404,7 @@ PREPARE_DAY_PATTERN = re.compile(
 )
 BUSY_MODE_PATTERN = re.compile(
     r"\b(?:estou\s+ocupado|modo\s+foco|n[aã]o\s+me\s+perturba|"
+    r"fica\s+(?:quieto|calado)|cala\s+a\s+boca|para\s+de\s+falar|"
     r"silenci(?:a|e|ar)\s+o\s+(?:mac|computador))\b",
     re.I,
 )

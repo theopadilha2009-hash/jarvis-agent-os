@@ -1092,6 +1092,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(MODULE.command_intent("estou ocupado"), "busy_mode")
         self.assertEqual(MODULE.command_intent("modo foco"), "busy_mode")
         self.assertEqual(MODULE.command_intent("não me perturba"), "busy_mode")
+        self.assertEqual(MODULE.command_intent("fica quieto"), "busy_mode")
+        self.assertEqual(MODULE.command_intent("para de falar"), "busy_mode")
         overview = {
             "ok": True,
             "summary": {"agenda_count": 1, "worker_online": True, "memory_count": 4},
