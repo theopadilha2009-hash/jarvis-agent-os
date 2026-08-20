@@ -19,7 +19,8 @@
   const LISTEN_KEY = "jarvis-fala-listen";
   const SHELL_VERSION = "20260820-update1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
-  const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)\s+/;
+  const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
+  const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
     || window.matchMedia("(display-mode: standalone)").matches;
   let busy = false;
@@ -155,18 +156,6 @@
     }
   }
 
-  function speakLocal(text) {
-    if (!window.speechSynthesis) return Promise.resolve();
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "pt-BR";
-    return new Promise((resolve) => {
-      utterance.onend = resolve;
-      utterance.onerror = resolve;
-      window.speechSynthesis.speak(utterance);
-    });
-  }
-
   function playBlob(blob) {
     return new Promise((resolve) => {
       const url = URL.createObjectURL(blob);
@@ -238,7 +227,7 @@
           return response.blob();
         }).then((blob) => playBlob(blob));
       })
-      .catch(() => speakLocal(clip))
+      .catch(() => {})
       .finally(() => unmuteMicAfterSpeech());
   }
 
@@ -396,7 +385,7 @@
       busy = false;
       return;
     }
-    say(data.ok === false ? "Não." : (data.client_action === "quiet_mode" ? "Modo foco." : "Pronto."), data.client_action === "quiet_mode" ? "Continuo ouvindo. Diga oi Jarvis." : "");
+    say(data.ok === false ? "Não." : (data.client_action === "quiet_mode" ? "Modo foco." : "Pronto."), data.client_action === "quiet_mode" ? "Continuo ouvindo. Diga Jarvis." : "");
     if (data.status_real === "free_web_search_unavailable") {
       showAnswerLink(message, `https://www.google.com/search?q=${encodeURIComponent(command)}`, "Buscar no Google");
     } else if (!opened) {
@@ -446,7 +435,7 @@
       orb.classList.add("listening");
       if (!listenPainted) {
         listenPainted = true;
-        say("Ouvindo.", "Pode falar: oi Jarvis.");
+        say("Ouvindo.", "Pode falar: Jarvis.");
       }
     }
   };
@@ -471,7 +460,10 @@
     if (!folded) return null;
     const hit = folded.match(WAKE_NAME);
     if (!hit || hit.index == null) return null;
-    return { command: folded.slice(hit.index + hit[0].length).trim(), folded };
+    const after = folded.slice(hit.index + hit[0].length).replace(WAKE_CALL, " ").replace(/\s+/g, " ").trim();
+    let before = folded.slice(0, hit.index).replace(WAKE_CALL, " ").replace(/\s+/g, " ").trim();
+    if (WAKE_ONLY.test(before)) before = "";
+    return { command: after || before, folded };
   }
 
   function paintHeard(text) {
@@ -487,7 +479,7 @@
     if (hit) {
       keepArmed();
       if (!hit.command) {
-        say("Pode falar.", "Diz o pedido. Pode falar sem Jarvis.");
+        say("Pode falar.", "Diz o pedido.");
         return;
       }
       if (!isFinal) {
@@ -538,7 +530,7 @@
     if (hasNativeListen()) {
       try { nativeHandlers().jarvisListen.postMessage("start"); } catch { /* web */ }
       orb.classList.add("listening");
-      say("Ouvindo.", "Pode falar: oi Jarvis.");
+      say("Ouvindo.", "Pode falar: Jarvis.");
       return;
     }
     if (!Recognition) return;
@@ -568,7 +560,7 @@
     try {
       rec.start();
       orb.classList.add("listening");
-      say("Ouvindo.", "Pode falar: oi Jarvis.");
+      say("Ouvindo.", "Pode falar: Jarvis.");
     } catch {
       if (keepListening && !speaking) window.setTimeout(listenLoop, 600);
     }
@@ -636,7 +628,7 @@
     if (keepListening && !force) return;
     keepListening = true;
     persistListen(true);
-    say("Ouvindo.", "Pode falar: oi Jarvis.");
+    say("Ouvindo.", "Pode falar: Jarvis.");
     listenLoop();
   }
 
@@ -757,7 +749,7 @@
     const keep = document.getElementById("rememberLogin");
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
-  say("oi Jarvis", "Pode falar: oi Jarvis.");
+  say("Jarvis", "Pode falar: Jarvis.");
   refreshAccess();
   refreshVoiceChip();
   watchShellVersion();

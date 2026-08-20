@@ -49,11 +49,10 @@ enum Jarvis {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate, SFSpeechRecognizerDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, AVAudioPlayerDelegate, SFSpeechRecognizerDelegate {
     static var shared: AppDelegate?
     private var window: NSWindow?
     private var webView: WKWebView?
-    private let synth = AVSpeechSynthesizer()
     private var player: AVAudioPlayer?
     private var speakDone: (() -> Void)?
     private var wantListen = false
@@ -75,7 +74,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private var paused = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        synth.delegate = self
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
             ?? SFSpeechRecognizer(locale: Locale(identifier: "pt-PT"))
             ?? SFSpeechRecognizer()
@@ -172,10 +170,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         }
     }
 
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        finishSpeak()
-    }
-
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         finishSpeak()
     }
@@ -187,13 +181,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             return
         }
         paused = true
-        synth.stopSpeaking(at: .immediate)
         player?.stop()
         fetchPocketTTS(text) { [weak self] data in
             DispatchQueue.main.async {
                 guard let self else { return }
                 if let data, self.playAudio(data) { return }
-                self.speakAV(text)
+                self.fetchPocketTTS(text) { retry in
+                    DispatchQueue.main.async {
+                        if let retry, self.playAudio(retry) { return }
+                        self.finishSpeak()
+                    }
+                }
             }
         }
     }
@@ -205,7 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.timeoutInterval = 1.6
+        req.timeoutInterval = 4.0
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "persona": "jarvis"])
         URLSession.shared.dataTask(with: req) { data, response, _ in
@@ -223,14 +221,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         } catch {
             return false
         }
-    }
-
-    private func speakAV(_ text: String) {
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "pt-BR")
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-        utterance.pitchMultiplier = 1.02
-        synth.speak(utterance)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

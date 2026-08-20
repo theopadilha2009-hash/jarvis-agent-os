@@ -52,7 +52,8 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn('id="extras"', FALA_HTML)
         self.assertIn("jarvis-logo.png", FALA_HTML)
         self.assertIn('class="launch"', FALA_HTML)
-        self.assertIn("oi Jarvis", FALA_HTML)
+        self.assertIn("Jarvis", FALA_HTML)
+        self.assertNotIn("oi Jarvis", FALA_HTML)
         self.assertIn("web.whatsapp.com", FALA_HTML)
         self.assertIn("www.google.com", FALA_HTML)
 
@@ -69,8 +70,10 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn(r"fala", FALA_JS)
         self.assertIn("setInterval(kick, 4000)", FALA_JS)
         self.assertIn("__jarvisNativeListen", FALA_JS)
-        self.assertIn("Pode falar: oi Jarvis.", FALA_HTML)
+        self.assertIn("Pode falar: Jarvis.", FALA_HTML)
+        self.assertNotIn("Pode falar: oi Jarvis.", FALA_HTML)
         self.assertIn("function foldSpeech", FALA_JS)
+        self.assertIn("function splitWake", FALA_JS)
         self.assertIn("jarvius", FALA_JS)
         self.assertIn("ja vis", FALA_JS)
         self.assertIn("heardLine", FALA_HTML)
@@ -84,14 +87,17 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20260820-listen5", FALA_HTML)
+        self.assertIn("20260820-listen7", FALA_HTML)
         self.assertIn("eae", FALA_JS)
         self.assertIn("45_000", FALA_JS)
         self.assertIn('postMessage("pause")', FALA_JS)
+        self.assertIn("WAKE_NAME", FALA_JS)
+        self.assertIn("WAKE_ONLY", FALA_JS)
 
     def test_does_not_spend_speech_on_greeting(self):
         self.assertNotIn("greetOnce", FALA_JS)
-        self.assertIn("speakLocal", FALA_JS)
+        self.assertNotIn("speakLocal", FALA_JS)
+        self.assertNotIn("speechSynthesis", FALA_JS)
         self.assertIn("slice(0, 220)", FALA_JS)
 
     def test_prefers_localhost_pocket_tts_before_browser_voice(self):
@@ -99,7 +105,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("speakBlob", FALA_JS)
         self.assertIn("local-voice.js", FALA_HTML)
         self.assertIn("speak(\"Aberto\")", FALA_JS)
-        self.assertNotIn("speakLocal(\"Aberto\")", FALA_JS)
+        self.assertNotIn("speakLocal", FALA_JS)
         self.assertIn('persona', FALA_JS)
         self.assertIn("applyPersona", FALA_JS)
         self.assertIn("speaking", FALA_JS)
@@ -134,7 +140,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIsNotNone(click)
         self.assertIn("forceListen", click.group(1))
         self.assertNotIn("stopWakeLoop", click.group(1))
-        self.assertIn("Pode falar: oi Jarvis.", FALA_HTML)
+        self.assertIn("Pode falar: Jarvis.", FALA_HTML)
 
     def test_native_app_bridge_hooks_speak_and_listen(self):
         self.assertIn("jarvisSpeak", FALA_JS)
