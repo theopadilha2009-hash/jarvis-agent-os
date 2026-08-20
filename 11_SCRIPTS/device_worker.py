@@ -65,7 +65,7 @@ BUSY_TTL_SECONDS = 4 * 3600.0
 WORKER_ENV = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "worker.env"
 )
-WIDGET_PROCESS_MARK = "Application Support/JARVIS/chrome-profile"
+WIDGET_PROCESS_MARK = "JARVIS.app/Contents/MacOS/JARVIS"
 BUSY_REQUEST_PATTERN = re.compile(
     r"\b(?:estou\s+ocupado|modo\s+foco|n[aã]o\s+me\s+perturba|"
     r"silenci(?:a|e|ar)\s+o\s+(?:mac|computador))\b",

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""JARVIS como aplicativo do Mac: ícone no Launchpad, no Dock e no Spotlight.
+"""JARVIS como aplicativo nativo do Mac: WKWebView, não Chrome.
 
-Monta um bundle .app de verdade a partir do logo do cockpit. Abrir o ícone
-sobe o cockpit numa janela própria — sem abas, sem barra de endereço — pelo
-modo aplicativo do Chrome, com o navegador padrão como rede de segurança.
+Monta um bundle .app de verdade. Abrir o ícone sobe o canto /fala numa
+janela própria do processo JARVIS — Dock, mic e Spotlight no nome dele.
 
     python3 11_SCRIPTS/install_mac_app.py            # instala em ~/Applications
     python3 11_SCRIPTS/install_mac_app.py --check    # só diz o que faria
@@ -19,6 +18,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import tempfile
 from urllib.parse import urlparse
 import os
 import zipfile
@@ -44,7 +44,8 @@ PACK_NAME = "JARVIS.mac.zip"
 # Fundo do cockpit: o ícone fica quadrado sem esticar o logo.
 ICON_BACKGROUND = "130824"
 ICON_SIZES = (16, 32, 64, 128, 256, 512, 1024)
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+SWIFT_SOURCE = SCRIPTS / "jarvis_native_app.swift"
+MACHO_MAGICS = {b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xce", b"\xca\xfe\xba\xbe"}
 
 
 def install_root(system_wide: bool) -> Path:
@@ -101,43 +102,72 @@ def app_url(url: str) -> str:
     return cleaned
 
 
-def launcher_script(url: str) -> str:
-    sealed = creator_seal.fingerprint()
-    return f"""#!/bin/sh
-# Widget no canto: abre na hora, sem espera e sem segunda janela.
-# lock:{sealed}
-URL="${{JARVIS_COCKPIT_URL:-{url}}}"
-W=280
-H=380
-X=1100
-Y=22
-PROFILE="${{HOME}}/Library/Application Support/JARVIS/chrome-profile"
-mkdir -p "$PROFILE"
-# Um processo só: open -a de novo no Chrome --app empilha janela.
-if pgrep -f 'Application Support/JARVIS/chrome-profile' >/dev/null 2>&1; then
-  exit 0
-fi
-if command -v osascript >/dev/null 2>&1; then
-  BOUNDS=$(osascript -e 'tell application "Finder" to get bounds of window of desktop' 2>/dev/null || true)
-  if [ -n "$BOUNDS" ]; then
-    SW=$(printf '%s' "$BOUNDS" | awk -F',' '{{gsub(/ /,""); print $3}}')
-    if [ "$SW" -gt "$W" ] 2>/dev/null; then
-      X=$((SW - W - 12))
-    fi
-  fi
-fi
-for BIN in \\
-  "{CHROME}" \\
-  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \\
-  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" \\
-  "/Applications/Chromium.app/Contents/MacOS/Chromium"
-do
-  if [ -x "$BIN" ]; then
-    exec "$BIN" --user-data-dir="$PROFILE" --app="$URL" --window-size="$W,$H" --window-position="$X,$Y"
-  fi
-done
-exec /usr/bin/open "$URL"
-"""
+def is_macho(path: Path) -> bool:
+    try:
+        return path.read_bytes()[:4] in MACHO_MAGICS
+    except OSError:
+        return False
+
+
+def compile_native_binary(destination: Path) -> None:
+    swiftc = shutil.which("swiftc")
+    if not swiftc:
+        raise RuntimeError("swiftc não encontrado. Instale as Command Line Tools da Apple.")
+    if not SWIFT_SOURCE.is_file():
+        raise RuntimeError(f"Fonte nativa ausente: {SWIFT_SOURCE}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        [
+            swiftc,
+            "-parse-as-library",
+            "-O",
+            "-framework", "AppKit",
+            "-framework", "WebKit",
+            "-o", str(destination),
+            str(SWIFT_SOURCE),
+        ],
+        capture_output=True,
+        timeout=180,
+        check=False,
+        text=True,
+    )
+    if result.returncode != 0 or not destination.is_file() or not is_macho(destination):
+        detail = (result.stderr or result.stdout or "compile falhou").strip()[-2_000:]
+        raise RuntimeError(detail)
+    destination.chmod(0o755)
+
+
+def sign_app(app: Path) -> None:
+    codesign = shutil.which("codesign")
+    if not codesign:
+        return
+    subprocess.run(
+        [codesign, "--force", "--sign", "-", "--deep", str(app)],
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+
+_NATIVE_BYTES: bytes | None = None
+_NATIVE_STAMP = 0.0
+
+
+def native_binary_bytes() -> bytes:
+    global _NATIVE_BYTES, _NATIVE_STAMP
+    stamp = SWIFT_SOURCE.stat().st_mtime if SWIFT_SOURCE.is_file() else 0.0
+    if _NATIVE_BYTES is not None and _NATIVE_STAMP == stamp:
+        return _NATIVE_BYTES
+    handle = tempfile.NamedTemporaryFile(delete=False, prefix="jarvis-native-")
+    handle.close()
+    path = Path(handle.name)
+    try:
+        compile_native_binary(path)
+        _NATIVE_BYTES = path.read_bytes()
+        _NATIVE_STAMP = stamp
+        return _NATIVE_BYTES
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def launch_agent_plist() -> bytes:
@@ -148,7 +178,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "1.7") -> dict:
+def bundle_info(version: str = "2.0", url: str = DEFAULT_URL) -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
@@ -163,6 +193,9 @@ def bundle_info(version: str = "1.7") -> dict:
         "NSHumanReadableCopyright": creator_seal.copyright_line(),
         "CFBundleGetInfoString": f"JARVIS · {author}",
         "NSMicrophoneUsageDescription": f"O JARVIS de {author} ouve o pedido para responder por voz.",
+        "NSSpeechRecognitionUsageDescription": f"O JARVIS de {author} ouve “oi Jarvis” para executar o pedido.",
+        "JarvisCockpitURL": app_url(url),
+        "LSUIElement": False,
     }
 
 
@@ -179,8 +212,11 @@ def _zip_bytes(archive: zipfile.ZipFile, name: str, data: bytes, executable: boo
 def build_mac_pack(url: str = DEFAULT_URL) -> bytes:
     """ZIP instalável sem o repositório: .app + INSTALAR.command."""
     target = app_url(url)
-    info = bundle_info()
-    launcher = launcher_script(target)
+    info = bundle_info(url=target)
+    try:
+        native = native_binary_bytes()
+    except (RuntimeError, OSError, subprocess.TimeoutExpired):
+        native = b"#!/bin/sh\necho 'Compile o JARVIS no Mac com INSTALAR.command.'\nexit 1\n"
     worker_install = """#!/bin/bash
 set -euo pipefail
 install_device_worker() {
@@ -214,7 +250,12 @@ mkdir -p "$DEST" "$LAUNCH"
 rm -rf "$DEST/JARVIS.app"
 xattr -dr com.apple.quarantine "$HERE/JARVIS.app" 2>/dev/null || true
 cp -R "$HERE/JARVIS.app" "$DEST/JARVIS.app"
-chmod +x "$DEST/JARVIS.app/Contents/MacOS/JARVIS"
+BIN="$DEST/JARVIS.app/Contents/MacOS/JARVIS"
+SRC="$DEST/JARVIS.app/Contents/MacOS/jarvis_native_app.swift"
+if command -v file >/dev/null 2>&1 && ! file "$BIN" | grep -q "Mach-O"; then
+  swiftc -parse-as-library -O -framework AppKit -framework WebKit -o "$BIN" "$SRC"
+fi
+chmod +x "$BIN"
 xattr -dr com.apple.quarantine "$DEST/JARVIS.app" 2>/dev/null || true
 if [ -f "$HERE/ai.theopadilha.jarvis.fala.plist" ]; then
   cp "$HERE/ai.theopadilha.jarvis.fala.plist" "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist"
@@ -231,7 +272,7 @@ open "$DEST/JARVIS.app"
         f"JARVIS no Mac\nCriado por {creator_seal.creator_name()}.\n\n"
         "1. Dê dois cliques em INSTALAR.command\n"
         "   Se o Mac recusar, botão direito > Abrir.\n"
-        "2. O app vai para ~/Applications e abre a fala no canto\n"
+        "2. O app nativo vai para ~/Applications (não é Chrome)\n"
         "3. INSTALAR.command também tenta ligar o worker do Mac\n"
         "   (jarvis computer-worker --install). Sem o repo, rode INSTALAR-WORKER.command.\n"
         "4. Toque no brilho uma vez e diga \"oi Jarvis\"\n"
@@ -243,7 +284,8 @@ open "$DEST/JARVIS.app"
         info["CFBundleIconFile"] = "jarvis"
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        _zip_bytes(archive, "JARVIS.app/Contents/MacOS/JARVIS", launcher.encode("utf-8"), executable=True)
+        _zip_bytes(archive, "JARVIS.app/Contents/MacOS/JARVIS", native, executable=True)
+        _zip_bytes(archive, "JARVIS.app/Contents/MacOS/jarvis_native_app.swift", SWIFT_SOURCE.read_bytes())
         _zip_bytes(archive, "JARVIS.app/Contents/Info.plist", plistlib.dumps(info))
         _zip_bytes(archive, "INSTALAR.command", installer.encode("utf-8"), executable=True)
         _zip_bytes(archive, "INSTALAR-WORKER.command", worker_install.encode("utf-8"), executable=True)
@@ -283,10 +325,10 @@ def install(url: str, system_wide: bool) -> Path:
     resources.mkdir(parents=True)
 
     binary = macos / APP_NAME
-    binary.write_text(launcher_script(url), encoding="utf-8")
+    binary.write_bytes(native_binary_bytes())
     binary.chmod(0o755)
 
-    info = bundle_info()
+    info = bundle_info(url=url)
     if ICON_ICNS.is_file():
         shutil.copy2(ICON_ICNS, resources / "jarvis.icns")
         info["CFBundleIconFile"] = "jarvis"
@@ -297,6 +339,7 @@ def install(url: str, system_wide: bool) -> Path:
 
     # Sem isso o Finder pode continuar mostrando o ícone genérico.
     subprocess.run(["touch", str(app)], capture_output=True, timeout=10, check=False)
+    sign_app(app)
     return app
 
 
@@ -337,7 +380,8 @@ def main() -> int:
         print(f"Instalaria em {target}")
         print(f"Apontando para {args.url}")
         print(f"Ícone a partir de {LOGO} ({'encontrado' if LOGO.is_file() else 'AUSENTE'})")
-        print(f"Janela própria pelo Chrome: {'sim' if Path(CHROME).exists() else 'não, usaria o navegador padrão'}")
+        print(f"Binário nativo (swiftc): {'sim' if shutil.which('swiftc') else 'NÃO'}")
+        print("Janela: WKWebView JARVIS, não Chrome.")
         return 0
 
     if args.remove:
