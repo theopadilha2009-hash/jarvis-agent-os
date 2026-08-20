@@ -41,6 +41,7 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("jarvisRestart", source)
                 self.assertIn("reloadFromOrigin", source)
                 self.assertIn("shouldReportPartialResults = true", source)
+                self.assertIn("contextualStrings", source)
                 self.assertIn("JARVIS always listening", source)
                 self.assertIn("startListen()", source)
                 self.assertNotIn("Google Chrome", source)
