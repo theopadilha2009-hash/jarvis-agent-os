@@ -180,7 +180,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "2.4", url: str = DEFAULT_URL) -> dict:
+def bundle_info(version: str = "2.5", url: str = DEFAULT_URL) -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
@@ -195,7 +195,7 @@ def bundle_info(version: str = "2.4", url: str = DEFAULT_URL) -> dict:
         "NSHumanReadableCopyright": creator_seal.copyright_line(),
         "CFBundleGetInfoString": f"JARVIS · {author}",
         "NSMicrophoneUsageDescription": f"O JARVIS de {author} ouve o pedido para responder por voz.",
-        "NSSpeechRecognitionUsageDescription": f"O JARVIS de {author} ouve “oi Jarvis” para executar o pedido.",
+        "NSSpeechRecognitionUsageDescription": f"O JARVIS de {author} ouve “Jarvis” para executar o pedido.",
         "JarvisCockpitURL": app_url(url),
         "LSUIElement": False,
         "NSQuitAlwaysKeepsWindows": False,
@@ -279,7 +279,7 @@ open "$DEST/JARVIS.app"
         "2. O app nativo vai para ~/Applications (não é Chrome)\n"
         "3. INSTALAR.command também tenta ligar o worker do Mac\n"
         "   (jarvis computer-worker --install). Sem o repo, rode INSTALAR-WORKER.command.\n"
-        "4. Toque no brilho uma vez e diga \"oi Jarvis\"\n"
+        "4. Toque no brilho uma vez e diga \"Jarvis\"\n"
         "5. No login do Mac o app sobe sozinho\n\n"
         "Visitante não controla o Mac do dono.\n"
         "Ações no Mac recusam se o worker nunca enviou heartbeat.\n"
