@@ -422,7 +422,16 @@
       return;
     }
     if (raw.startsWith("error:")) {
-      paintHeard(raw.slice(6));
+      const msg = raw.slice(6);
+      if (/no speech|sem fala|1110|retry/i.test(msg)) return;
+      paintHeard(msg);
+      return;
+    }
+    if (raw === "waiting") {
+      keepListening = true;
+      orb.classList.add("listening");
+      say("Ouvindo.", "Preparando fala no Mac…");
+      listenPainted = false;
       return;
     }
     if (raw === "denied") {
