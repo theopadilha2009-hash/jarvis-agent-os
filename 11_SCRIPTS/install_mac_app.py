@@ -180,7 +180,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "2.1", url: str = DEFAULT_URL) -> dict:
+def bundle_info(version: str = "2.2", url: str = DEFAULT_URL) -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
@@ -198,6 +198,7 @@ def bundle_info(version: str = "2.1", url: str = DEFAULT_URL) -> dict:
         "NSSpeechRecognitionUsageDescription": f"O JARVIS de {author} ouve “oi Jarvis” para executar o pedido.",
         "JarvisCockpitURL": app_url(url),
         "LSUIElement": False,
+        "NSQuitAlwaysKeepsWindows": False,
         "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True, "NSAllowsArbitraryLoads": False},
     }
 
