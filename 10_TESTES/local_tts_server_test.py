@@ -260,6 +260,55 @@ class LocalTtsServerTest(unittest.TestCase):
         self.assertFalse(failed["ok"])
         self.assertEqual(failed["engine"], "edge")
 
+    def test_agent_restarts_only_on_crash(self):
+        args = MODULE.build_parser().parse_args(["--engine", "pocket_tts", "--host", "127.0.0.1", "--port", "8123"])
+        config = {
+            "engine": "pocket_tts",
+            "language": "portuguese",
+            "voice": "rafael",
+            "ultron_voice": "javert",
+        }
+        payload = MODULE.agent_payload(args, config)
+        self.assertEqual(payload["KeepAlive"], {"SuccessfulExit": False})
+        self.assertNotEqual(payload.get("ProcessType"), "Background")
+        self.assertTrue(payload["RunAtLoad"])
+        self.assertTrue(MODULE.ExclusiveHTTPServer.allow_reuse_address)
+
+    def test_warmup_and_short_speech_cache(self):
+        MODULE._SPEECH_CACHE.clear()
+        model = FakeModel()
+        runtime = MODULE.PocketRuntime(
+            "portuguese",
+            "rafael",
+            loader=lambda _language: model,
+            state_loader=lambda _model, voice: {"voice": voice},
+        )
+        MODULE.warmup_runtime(runtime, "rafael")
+        self.assertEqual([row["text"] for row in model.generate_calls], ["ok"])
+
+        args = MODULE.build_parser().parse_args(["--engine", "pocket_tts", "--language", "portuguese", "--tts-voice", "rafael"])
+        config = {"engine": "pocket_tts", "language": "portuguese", "voice": "rafael"}
+        server = ThreadingHTTPServer(("127.0.0.1", 0), MODULE.make_handler(args, runtime, None, 24_000, config))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_address[1]
+            for _ in range(2):
+                request = Request(
+                    f"http://127.0.0.1:{port}/speech",
+                    data=json.dumps({"text": "Aberto"}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urlopen(request, timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertTrue(response.read().startswith(b"RIFF"))
+            self.assertEqual([row["text"] for row in model.generate_calls], ["ok", "Aberto"])
+        finally:
+            server.shutdown()
+            server.server_close()
+        MODULE._SPEECH_CACHE.clear()
+
 
 if __name__ == "__main__":
     unittest.main()

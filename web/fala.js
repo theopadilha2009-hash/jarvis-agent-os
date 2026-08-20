@@ -568,6 +568,11 @@
     hearSpoken(spoken, isFinal !== false);
   };
 
+  window.__jarvisSetIdle = function (on) {
+    const idle = on === true || on === "true";
+    document.documentElement.classList.toggle("idle-orb", idle);
+  };
+
   function foldSpeech(text) {
     return String(text || "")
       .toLocaleLowerCase("pt-BR")

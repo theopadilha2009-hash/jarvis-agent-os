@@ -26,11 +26,14 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import struct
 import subprocess
 import sys
 import threading
 import time
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 import wave
 
 
@@ -63,6 +66,10 @@ CATALOG_VOICES = {
 LAUNCH_LABEL = "ai.theopadilha.jarvis-voice"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = Path(__file__).resolve().parents[1] / "09_LOGS"
+SPEECH_CACHE_MAX = 24
+SPEECH_CACHE_CHARS = 72
+_SPEECH_CACHE = {}
+_SPEECH_CACHE_LOCK = threading.Lock()
 
 
 def voice_lock_dir(home=None, environ=None) -> Path:
@@ -384,6 +391,120 @@ def synthesize_speech(text: str, pocket=None, piper=None, piper_opts=None, voice
     return {"ok": False, "error": "nenhum motor de voz disponível", "engine": "none"}
 
 
+def speech_cache_get(key):
+    if not key or len(str(key[0] if key else "")) > SPEECH_CACHE_CHARS:
+        return None
+    with _SPEECH_CACHE_LOCK:
+        return _SPEECH_CACHE.get(key)
+
+
+def speech_cache_put(key, result: dict) -> None:
+    if not key or not result.get("ok") or not result.get("audio"):
+        return
+    if len(str(key[0])) > SPEECH_CACHE_CHARS:
+        return
+    with _SPEECH_CACHE_LOCK:
+        if len(_SPEECH_CACHE) >= SPEECH_CACHE_MAX:
+            _SPEECH_CACHE.pop(next(iter(_SPEECH_CACHE)), None)
+        _SPEECH_CACHE[key] = {
+            "audio": result["audio"],
+            "content_type": result.get("content_type") or "audio/wav",
+            "engine": result.get("engine") or "",
+        }
+
+
+def voice_ready(host="127.0.0.1", port=8123, timeout=0.5) -> bool:
+    try:
+        request = Request(f"http://{host}:{port}/health", method="GET")
+        with urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read(4_000).decode("utf-8"))
+            return int(response.status) == 200 and bool(payload.get("ok"))
+    except (OSError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return False
+
+
+def pids_on_port(port: int) -> list[int]:
+    try:
+        result = subprocess.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return [int(token) for token in result.stdout.split() if token.isdigit()]
+
+
+def stop_listeners(port: int) -> None:
+    mine = os.getpid()
+    for pid in pids_on_port(port):
+        if pid == mine:
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    time.sleep(0.25)
+    for pid in pids_on_port(port):
+        if pid == mine:
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+
+def free_stale_port(host: str, port: int) -> None:
+    if voice_ready(host, port):
+        return
+    stop_listeners(port)
+
+
+def voice_lock_path() -> Path:
+    path = Path.home() / "Library" / "Application Support" / "JARVIS" / "voice-server.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def acquire_voice_lock():
+    import fcntl
+
+    handle = voice_lock_path().open("a+")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return None
+    handle.seek(0)
+    handle.truncate()
+    handle.write(str(os.getpid()))
+    handle.flush()
+    return handle
+
+
+def warmup_runtime(pocket, voice: str) -> None:
+    if pocket is None:
+        return
+    try:
+        if hasattr(pocket, "generate"):
+            pocket.generate("ok", voice=voice)
+    except TypeError:
+        try:
+            pocket.generate("ok")
+        except Exception:
+            return
+    except Exception:
+        return
+
+
+class ExclusiveHTTPServer(ThreadingHTTPServer):
+    # SO_REUSEADDR precisa ficar ligado: no macOS a porta fica em TIME_WAIT
+    # depois do kill. A exclusão real é o flock + /health.
+    allow_reuse_address = True
+
+
 def agent_program_args(args, config: dict) -> list[str]:
     python = sys.executable
     if config.get("engine") == "pocket_tts":
@@ -409,18 +530,13 @@ def agent_program_args(args, config: dict) -> list[str]:
     return command
 
 
-def install_agent(args, config=None) -> Path:
-    """Deixa a voz de pé desde o boot: sem ela a saudação cai para o `say`."""
-    import plistlib
-
-    config = config or resolve_voice_config()
-    payload = {
+def agent_payload(args, config: dict) -> dict:
+    return {
         "Label": LAUNCH_LABEL,
         "ProgramArguments": agent_program_args(args, config),
         "RunAtLoad": True,
-        "KeepAlive": True,
-        "ThrottleInterval": 10,
-        "ProcessType": "Background",
+        "KeepAlive": {"SuccessfulExit": False},
+        "ThrottleInterval": 15,
         "EnvironmentVariables": {
             "PYTHONUNBUFFERED": "1",
             "PATH": (
@@ -433,6 +549,15 @@ def install_agent(args, config=None) -> Path:
         "StandardOutPath": str(LOG_DIR / "voice-server.log"),
         "StandardErrorPath": str(LOG_DIR / "voice-server-error.log"),
     }
+
+
+def install_agent(args, config=None) -> Path:
+    """Deixa a voz de pé desde o boot: um processo só, reinicia só se cair."""
+    import plistlib
+
+    config = config or resolve_voice_config()
+    stop_listeners(int(getattr(args, "port", 8123) or 8123))
+    payload = agent_payload(args, config)
     LAUNCH_AGENT.parent.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     LAUNCH_AGENT.write_bytes(plistlib.dumps(payload, fmt=plistlib.FMT_XML, sort_keys=True))
@@ -563,7 +688,11 @@ def make_handler(args, pocket, piper, sample_rate: int, config: dict):
                     return default
 
             chosen = resolve_request_voices(body if isinstance(body, dict) else {}, config)
-            prefer_edge = config.get("engine") in {"auto", "edge"}
+            prefer_edge = config.get("engine") == "edge"
+            cache_id = (text, chosen["pocket"], chosen["edge"], prefer_edge)
+            cached = speech_cache_get(cache_id)
+            if cached:
+                return self._send(200, cached["audio"], cached["content_type"], cached.get("engine") or "")
             result = synthesize_speech(
                 text,
                 pocket=pocket,
@@ -586,6 +715,7 @@ def make_handler(args, pocket, piper, sample_rate: int, config: dict):
                     "error": result.get("error") or "falha na síntese",
                     "engine": result.get("engine"),
                 })
+            speech_cache_put(cache_id, result)
             return self._send(200, result["audio"], result["content_type"], result.get("engine") or "")
 
     return VoiceHandler
@@ -620,6 +750,30 @@ def main(argv=None) -> int:
 
     maybe_reexec_pocket_python(config["engine"])
 
+    if voice_ready(args.host, args.port):
+        print("JARVIS — voz local")
+        print(f"Status real: já ativa em http://{args.host}:{args.port}/speech")
+        print("Produção: nada alterado.")
+        return 0
+
+    free_stale_port(args.host, args.port)
+    if voice_ready(args.host, args.port):
+        print("JARVIS — voz local")
+        print(f"Status real: já ativa em http://{args.host}:{args.port}/speech")
+        print("Produção: nada alterado.")
+        return 0
+
+    lock = acquire_voice_lock()
+    if lock is None:
+        time.sleep(0.8)
+        if voice_ready(args.host, args.port):
+            print("JARVIS — voz local")
+            print(f"Status real: já ativa em http://{args.host}:{args.port}/speech")
+            print("Produção: nada alterado.")
+            return 0
+        print("FALHA: outra instância da voz está subindo.")
+        return 1
+
     pocket = None
     pocket_error = ""
     if config["engine"] in {"pocket_tts", "auto", "edge"}:
@@ -634,6 +788,8 @@ def main(argv=None) -> int:
             pocket = None
             pocket_error = str(error)
             print(f"AVISO: Pocket TTS indisponível ({error}); tentando fallback.")
+        else:
+            warmup_runtime(pocket, config["voice"])
 
     piper_path = (args.voice or "").strip()
     if not piper_path:
@@ -656,7 +812,16 @@ def main(argv=None) -> int:
         return 1
 
     sample_rate = getattr(pocket, "sample_rate", None) or getattr(getattr(piper, "config", None), "sample_rate", 22_050)
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(args, pocket, piper, int(sample_rate), config))
+    try:
+        server = ExclusiveHTTPServer((args.host, args.port), make_handler(args, pocket, piper, int(sample_rate), config))
+    except OSError as error:
+        if voice_ready(args.host, args.port):
+            print("JARVIS — voz local")
+            print(f"Status real: já ativa em http://{args.host}:{args.port}/speech")
+            print("Produção: nada alterado.")
+            return 0
+        print(f"FALHA: porta {args.port} ocupada ({error}).")
+        return 1
     engine_label = config.get("engine") or ("pocket_tts" if pocket is not None else "piper" if piper is not None else "indisponível")
     print("JARVIS — voz local")
     print(

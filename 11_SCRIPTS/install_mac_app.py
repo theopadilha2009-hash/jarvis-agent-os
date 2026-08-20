@@ -180,7 +180,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "2.7", url: str = DEFAULT_URL) -> dict:
+def bundle_info(version: str = "2.8", url: str = DEFAULT_URL) -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
