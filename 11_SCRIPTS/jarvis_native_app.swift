@@ -124,6 +124,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         } else if message.name == "jarvisListen" {
             if body == "start" {
                 startListen()
+            } else if body == "restart" {
+                restartListen()
             } else {
                 stopListen()
             }
@@ -215,15 +217,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         if engine.isRunning, task != nil, tapInstalled {
             return
         }
+        requestMicThenRecognize()
+    }
+
+    private func restartListen() {
+        wantListen = true
+        lastPartial = ""
+        lastWasFinal = true
+        tearDownRecognition()
+        requestMicThenRecognize()
+    }
+
+    private func requestMicThenRecognize() {
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             DispatchQueue.main.async {
                 guard let self else { return }
+                self.logListen("speech auth \(status.rawValue)")
                 if status != .authorized {
                     self.tellJS("denied")
                     return
                 }
-                self.beginRecognition()
+                self.requestRecordThenRecognize()
             }
+        }
+    }
+
+    private func requestRecordThenRecognize() {
+        if #available(macOS 14.0, *) {
+            AVAudioApplication.requestRecordPermission { [weak self] granted in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.logListen("record \(granted)")
+                    if granted { self.beginRecognition() }
+                    else { self.tellJS("denied") }
+                }
+            }
+            return
+        }
+        beginRecognition()
+    }
+
+    private func logListen(_ msg: String) {
+        let line = "\(Date()) \(msg)\n"
+        let path = "/tmp/jarvis-listen.log"
+        if let handle = FileHandle(forWritingAtPath: path) {
+            handle.seekToEndOfFile()
+            handle.write(Data(line.utf8))
+            handle.closeFile()
+        } else {
+            FileManager.default.createFile(atPath: path, contents: Data(line.utf8))
         }
     }
 
@@ -280,35 +322,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         tearDownRecognition()
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        request.taskHint = .dictation
         if #available(macOS 13.0, *) {
             request.requiresOnDeviceRecognition = false
             request.contextualStrings = ["Jarvis", "oi Jarvis", "Olá Jarvis", "fala Jarvis", "Ultron", "JARVIS"]
         }
         self.request = request
+        engine.prepare()
         let input = engine.inputNode
-        let format = input.inputFormat(forBus: 0)
+        let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             startingListen = false
+            logListen("bad format \(format)")
             scheduleRetry()
             return
         }
-        input.installTap(onBus: 0, bufferSize: 2048, format: format) { buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
             request.append(buffer)
+            self?.emitLevel(buffer)
         }
         tapInstalled = true
-        engine.prepare()
         do {
             try engine.start()
         } catch {
             startingListen = false
+            logListen("engine \(error)")
+            tellJS("error:\(error.localizedDescription)")
             tearDownRecognition()
             scheduleRetry()
             return
         }
         startingListen = false
+        logListen("listening sr=\(format.sampleRate) ch=\(format.channelCount)")
         tellJS("listening")
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
+            if let error {
+                DispatchQueue.main.async {
+                    self.logListen("task \(error.localizedDescription)")
+                    self.tellJS("error:\(error.localizedDescription)")
+                }
+            }
             if let text = result?.bestTranscription.formattedString, !text.isEmpty {
                 let isFinal = result?.isFinal == true
                 DispatchQueue.main.async {
@@ -320,6 +374,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
                     if self.wantListen { self.beginRecognition() }
                 }
             }
+        }
+    }
+
+    private var lastLevelAt: TimeInterval = 0
+
+    private func emitLevel(_ buffer: AVAudioPCMBuffer) {
+        let now = Date().timeIntervalSince1970
+        guard now - lastLevelAt > 0.4 else { return }
+        lastLevelAt = now
+        guard let data = buffer.floatChannelData?[0] else { return }
+        let n = Int(buffer.frameLength)
+        guard n > 0 else { return }
+        var sum: Float = 0
+        for i in 0..<n {
+            let v = data[i]
+            sum += v * v
+        }
+        let rms = sqrt(sum / Float(n))
+        DispatchQueue.main.async { [weak self] in
+            self?.tellJS(String(format: "level:%.3f", rms))
         }
     }
 

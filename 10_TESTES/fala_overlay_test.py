@@ -74,6 +74,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("jarvius", FALA_JS)
         self.assertIn("ja vis", FALA_JS)
         self.assertIn("heardLine", FALA_HTML)
+        self.assertIn("reloadButton", FALA_HTML)
+        self.assertIn("forceListen", FALA_JS)
+        self.assertIn('postMessage("restart")', FALA_JS)
         self.assertIn("1300", FALA_JS)
         self.assertIn("postJson", FALA_JS)
         self.assertIn("open.spotify.com", FALA_JS)
@@ -81,7 +84,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20260820-listen2", FALA_HTML)
+        self.assertIn("20260820-listen3", FALA_HTML)
 
     def test_does_not_spend_speech_on_greeting(self):
         self.assertNotIn("greetOnce", FALA_JS)
@@ -126,7 +129,7 @@ class FalaOverlayTest(unittest.TestCase):
     def test_orb_click_does_not_permanently_disable_listen(self):
         click = re.search(r'orb\.addEventListener\("click", \(\) => \{([^}]+)\}', FALA_JS)
         self.assertIsNotNone(click)
-        self.assertIn("startWakeLoop", click.group(1))
+        self.assertIn("forceListen", click.group(1))
         self.assertNotIn("stopWakeLoop", click.group(1))
         self.assertIn("Pode falar: oi Jarvis.", FALA_HTML)
 
