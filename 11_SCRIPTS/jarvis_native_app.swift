@@ -49,7 +49,7 @@ enum Jarvis {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, AVAudioPlayerDelegate, SFSpeechRecognizerDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, AVAudioPlayerDelegate, SFSpeechRecognizerDelegate {
     static var shared: AppDelegate?
     private var window: NSWindow?
     private var webView: WKWebView?
@@ -74,6 +74,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private var paused = false
     private var lastOpenedURL = ""
     private var lastOpenedAt: TimeInterval = 0
+    private var idleTimer: Timer?
+    private let idleHideAfter: TimeInterval = 180
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
@@ -86,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         )
         let window = makeWindow()
         let webView = makeWebView()
+        window.delegate = self
         window.contentView = webView
         window.makeKeyAndOrderFront(nil)
         self.window = window
@@ -95,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         DispatchQueue.main.async { [weak self] in
             self?.startListen()
             self?.scheduleRecycle()
+            self?.resetIdle()
         }
     }
 
@@ -103,8 +107,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        window?.makeKeyAndOrderFront(nil)
+        revealWindow()
         return true
+    }
+
+    func windowWillMiniaturize(_ notification: Notification) {
+        window?.level = .normal
+    }
+
+    func windowDidDeminiaturize(_ notification: Notification) {
+        window?.level = .floating
+        resetIdle()
+        wantListen = true
+        startListen()
     }
 
     func webView(
@@ -174,7 +189,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             }
         } else if message.name == "jarvisRestart" {
             webView?.reloadFromOrigin()
+        } else if message.name == "jarvisWindow" {
+            if body == "hide" || body == "minimize" {
+                hideWindow()
+            } else if body == "show" {
+                revealWindow()
+            } else {
+                resetIdle()
+            }
         }
+    }
+
+    private func resetIdle() {
+        idleTimer?.invalidate()
+        idleTimer = Timer.scheduledTimer(withTimeInterval: idleHideAfter, repeats: false) { [weak self] _ in
+            self?.hideWindow()
+        }
+    }
+
+    private func hideWindow() {
+        guard let window, !window.isMiniaturized else { return }
+        window.level = .normal
+        window.miniaturize(nil)
+    }
+
+    private func revealWindow() {
+        guard let window else { return }
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        window.level = .floating
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        resetIdle()
+    }
+
+    private func containsWake(_ text: String) -> Bool {
+        text.range(
+            of: #"\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|ultron|gerivis|charvis)\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
     }
 
     private func openExternal(_ url: URL) {
@@ -198,6 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         }
         paused = true
         player?.stop()
+        revealWindow()
         fetchPocketTTS(text) { [weak self] data in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -562,6 +615,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private func deliverHeard(_ text: String, final: Bool) {
         lastPartial = text
         lastWasFinal = final
+        if containsWake(text), window?.isMiniaturized == true || window?.isVisible == false {
+            revealWindow()
+        }
         let flag = final ? "true" : "false"
         webView?.evaluateJavaScript(
             "window.__jarvisNativeHeard && window.__jarvisNativeHeard(\(jsString(text)), \(flag))",
@@ -583,7 +639,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         let rect = cornerFrame(size)
         let window = NSWindow(
             contentRect: rect,
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -597,6 +653,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         window.setFrameAutosaveName("")
         window.setFrame(rect, display: true)
         window.backgroundColor = NSColor(calibratedRed: 0.03, green: 0.02, blue: 0.05, alpha: 1)
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
         return window
     }
 
@@ -607,6 +664,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         config.userContentController.add(self, name: "jarvisSpeak")
         config.userContentController.add(self, name: "jarvisListen")
         config.userContentController.add(self, name: "jarvisRestart")
+        config.userContentController.add(self, name: "jarvisWindow")
         if #available(macOS 11.0, *) {
             config.defaultWebpagePreferences.allowsContentJavaScript = true
         }
