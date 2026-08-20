@@ -80,6 +80,36 @@ html[data-persona="ultron"] #orb img { filter: hue-rotate(312deg) saturate(1.25)
   pointer-events: none;
 }
 #orb i:last-of-type { inset: -16px; animation-delay: .7s; opacity: .55; }
+html.idle-orb,
+html.idle-orb body {
+  background: transparent;
+  min-height: 100%;
+  overflow: hidden;
+}
+html.idle-orb .orb-shell {
+  min-height: 100%;
+  padding: 8px;
+  justify-content: center;
+  gap: 0;
+}
+html.idle-orb .orb-shell > :not(#orb):not(.halo) {
+  display: none !important;
+}
+html.idle-orb #orb {
+  width: 72px;
+  height: 72px;
+}
+html.idle-orb #orb img {
+  width: 72px;
+  height: 72px;
+}
+html.idle-orb #orb i { inset: -6px; }
+html.idle-orb #orb i:last-of-type { inset: -12px; }
+html.idle-orb .halo {
+  inset: -30% -20% auto;
+  height: 120%;
+  filter: blur(6px);
+}
 #orb.listening {
   box-shadow:
     0 0 0 1px rgba(52, 211, 153, .35),

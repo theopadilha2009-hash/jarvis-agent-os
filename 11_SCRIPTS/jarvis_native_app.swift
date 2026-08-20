@@ -76,6 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var lastOpenedAt: TimeInterval = 0
     private var idleTimer: Timer?
     private let idleHideAfter: TimeInterval = 180
+    private let fullSize = NSSize(width: 280, height: 380)
+    private let orbSize = NSSize(width: 92, height: 92)
+    private var compact = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
@@ -99,6 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             self?.startListen()
             self?.scheduleRecycle()
             self?.resetIdle()
+            self?.pokeVoice()
         }
     }
 
@@ -111,13 +115,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         return true
     }
 
-    func windowWillMiniaturize(_ notification: Notification) {
-        window?.level = .normal
+    func windowShouldMiniaturize(_ sender: NSWindow) -> Bool {
+        setCompact(true)
+        return false
     }
 
     func windowDidDeminiaturize(_ notification: Notification) {
-        window?.level = .floating
-        resetIdle()
+        setCompact(false)
         wantListen = true
         startListen()
     }
@@ -208,18 +212,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private func hideWindow() {
-        guard let window, !window.isMiniaturized else { return }
-        window.level = .normal
-        window.miniaturize(nil)
+        setCompact(true)
     }
 
     private func revealWindow() {
+        setCompact(false)
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func setCompact(_ on: Bool) {
         guard let window else { return }
         if window.isMiniaturized { window.deminiaturize(nil) }
+        compact = on
         window.level = .floating
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        resetIdle()
+        window.isOpaque = false
+        window.hasShadow = !on
+        window.backgroundColor = on
+            ? .clear
+            : NSColor(calibratedRed: 0.03, green: 0.02, blue: 0.05, alpha: 1)
+        window.standardWindowButton(.closeButton)?.isHidden = on
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = on
+        window.setFrame(cornerFrame(on ? orbSize : fullSize), display: true, animate: true)
+        let flag = on ? "true" : "false"
+        webView?.evaluateJavaScript(
+            "window.__jarvisSetIdle && window.__jarvisSetIdle(\(flag))",
+            completionHandler: nil
+        )
+        if !on { resetIdle() }
+    }
+
+    private func pokeVoice() {
+        guard let url = URL(string: "http://127.0.0.1:8123/health") else { return }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 0.8
+        URLSession.shared.dataTask(with: req).resume()
     }
 
     private func containsWake(_ text: String) -> Bool {
@@ -635,7 +662,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private func makeWindow() -> NSWindow {
-        let size = NSSize(width: 280, height: 380)
+        let size = fullSize
         let rect = cornerFrame(size)
         let window = NSWindow(
             contentRect: rect,
