@@ -468,3 +468,38 @@
 @media (max-width: 350px) {
   .composer { grid-template-columns: 38px 48px 44px 44px 44px minmax(0, 1fr); gap: 6px; }
 }
+
+.update-toast {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border: 1px solid rgba(251, 191, 36, .45);
+  border-radius: 14px;
+  background: rgba(28, 16, 8, .94);
+  color: #fde68a;
+  box-shadow: 0 12px 32px #0009;
+}
+.update-toast[hidden] { display: none; }
+.update-toast small, .update-toast strong, .update-toast em { display: block; }
+.update-toast small { font: 8px ui-monospace, monospace; letter-spacing: .12em; color: #fbbf24; }
+.update-toast strong { font-size: 13px; color: #fff7ed; }
+.update-toast em { font-style: normal; font-size: 11px; }
+.update-toast button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #fbbf24;
+  color: #1c1408;
+  font: 700 11px/1 sans-serif;
+  cursor: pointer;
+}
+#shellVersion[data-state="stale"],
+#shellVersionDetail[data-state="stale"] { color: #fbbf24; }

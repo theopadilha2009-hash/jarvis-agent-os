@@ -17,6 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
+  const SHELL_VERSION = "20260820-update1";
   const WAKE = /(?:^|\b)(?:oi|ol[aá]|ei|hey|ok|eai|e a[ií])?\s*(?:jarvis|ultron)\b/i;
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
     || window.matchMedia("(display-mode: standalone)").matches;
@@ -617,9 +618,59 @@
   say("oi Jarvis", "toque no brilho e permita o microfone");
   refreshAccess();
   refreshVoiceChip();
+  watchShellVersion();
   window.setInterval(refreshVoiceChip, 8000);
   tryAutoListen();
   if (/[?&]debug=1(?:&|$)/.test(location.search)) mountDebug(false);
+
+  function restartForUpdate() {
+    try {
+      const native = nativeHandlers() && nativeHandlers().jarvisRestart;
+      if (native) {
+        native.postMessage("now");
+        return;
+      }
+    } catch { /* web */ }
+    const url = new URL(location.href);
+    url.searchParams.set("r", Date.now().toString(36));
+    location.replace(url.href);
+  }
+
+  function paintShellVersion(live) {
+    const localLabel = `v${SHELL_VERSION}`;
+    const stale = Boolean(live && live !== SHELL_VERSION);
+    const line = document.getElementById("buildLine");
+    if (line) {
+      line.textContent = stale ? `${localLabel} · desatualizada` : localLabel;
+      line.dataset.state = stale ? "stale" : "current";
+      line.hidden = false;
+    }
+    const toast = document.getElementById("updateToast");
+    if (!toast) return;
+    toast.hidden = !stale;
+    const versions = document.getElementById("updateToastVersions");
+    if (versions && stale) versions.textContent = `você ${localLabel} · no ar v${live}`;
+  }
+
+  async function checkShellVersion() {
+    try {
+      const response = await fetch("/status", { headers: apiHeaders() });
+      const data = await response.json().catch(() => ({}));
+      paintShellVersion(data?.shell?.version || "");
+    } catch {
+      paintShellVersion("");
+    }
+  }
+
+  function watchShellVersion() {
+    paintShellVersion("");
+    checkShellVersion();
+    window.setInterval(checkShellVersion, 60 * 1000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) checkShellVersion();
+    });
+    document.getElementById("updateReloadButton")?.addEventListener("click", restartForUpdate);
+  }
 
   function refreshVoiceChip() {
     const chip = document.getElementById("voiceChip");
@@ -644,6 +695,7 @@
       const tts = window.JarvisLocalVoice?.info?.() || {};
       box.textContent = [
         "debug fala",
+        `shell ${SHELL_VERSION}`,
         `token ${ownerToken() ? "sim" : "não"}`,
         `remember ${rememberLoginEnabled() ? "sim" : "não"}`,
         `persona ${document.documentElement.dataset.persona || "—"}`,

@@ -7,7 +7,8 @@
   <meta name="creator-seal" content="ggCZbZFBcds2X3zL5N5jloFWuxA=">
   <title>JARVIS</title>
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
-  <link rel="stylesheet" href="/ui/fala.css?v=20260820-siri2">
+  <meta name="jarvis-shell" content="20260820-update1">
+  <link rel="stylesheet" href="/ui/fala.css?v=20260820-update1">
 </head>
 <body>
   <main class="orb-shell">
@@ -19,6 +20,14 @@
     <strong id="statusLine">oi Jarvis</strong>
     <p id="caption">toque no brilho e permita o microfone</p>
     <p id="voiceChip" hidden>voz</p>
+    <p id="buildLine" title="Versão desta janela">v20260820-update1</p>
+    <aside id="updateToast" class="update-toast" hidden>
+      <span>
+        <small>atualização disponível</small>
+        <em id="updateToastVersions">nova versão no ar</em>
+      </span>
+      <button id="updateReloadButton" type="button">Reiniciar</button>
+    </aside>
     <p id="lastAnswer" hidden></p>
     <button id="retryButton" type="button" hidden>tentar de novo</button>
     <form id="askForm">
@@ -58,6 +67,6 @@
   </main>
   <script src="/ui/creator-seal.js?v=20260817-app1"></script>
   <script src="/ui/local-voice.js?v=20260818-voice2"></script>
-  <script src="/ui/fala.js?v=20260820-siri4"></script>
+  <script src="/ui/fala.js?v=20260820-update1"></script>
 </body>
 </html>
