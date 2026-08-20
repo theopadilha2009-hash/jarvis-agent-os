@@ -69,7 +69,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20260820-siri3", FALA_HTML)
+        self.assertIn("20260820-siri4", FALA_HTML)
 
     def test_does_not_spend_speech_on_greeting(self):
         self.assertNotIn("greetOnce", FALA_JS)
@@ -124,6 +124,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("__jarvisNativeHeard", FALA_JS)
         self.assertIn("hasNativeSpeak", FALA_JS)
         self.assertIn("hasNativeListen", FALA_JS)
+        self.assertNotIn("voz na nuvem", FALA_JS)
+        self.assertIn("voz JARVIS", FALA_JS)
+        self.assertIn('dataset.state = "local"', FALA_JS)
 
 
 if __name__ == "__main__":

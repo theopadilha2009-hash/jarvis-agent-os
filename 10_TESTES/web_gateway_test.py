@@ -101,7 +101,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["service"], "jarvis-web")
         self.assertIn("voice", payload)
-        self.assertIn(payload["voice"]["fallback"], {"text_only", "self_hosted"})
+        self.assertIn(payload["voice"]["fallback"], {"text_only", "self_hosted", "browser_voice"})
+        self.assertNotEqual(payload["voice"]["provider"], "elevenlabs")
+        self.assertTrue(payload["voice"]["paid_disabled"])
         self.assertIn("pending_accounts", payload["access"])
         self.assertTrue(payload["access"]["product"]["invite_only"])
         self.assertEqual(len(payload["access"]["product"]["plans"]), 3)
@@ -350,7 +352,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/feature-loader.js?v=20260819-ui2', html)
         self.assertNotIn(b'/ui/integration-health.js?v=', html)
         self.assertIn(b'/ui/device-feedback.js?v=20260819-exec2', html)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-exec2', html)
+        self.assertIn(b'/ui/jarvis.js?v=20260820-voice1', html)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', html)
         self.assertIn(b'/ui/shell.css?v=20260819-ui2', html)
         self.assertIn(b'id="welcomeLogin"', html)
@@ -703,7 +705,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20260819-exec2", service_worker)
+        self.assertIn(b"jarvis-mobile-shell-20260820-voice1", service_worker)
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260815-vozes2', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20260813-ultronfix1', service_worker)
@@ -716,7 +718,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/memory-explorer.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/action-permissions.js?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/device-feedback.js?v=20260819-exec2', service_worker)
-        self.assertIn(b'/ui/jarvis.js?v=20260819-exec2', service_worker)
+        self.assertIn(b'/ui/jarvis.js?v=20260820-voice1', service_worker)
         self.assertIn(b'/ui/local-voice.js?v=20260818-voice2', service_worker)
         self.assertIn(b'/ui/jarvis.css?v=20260819-exec2', service_worker)
         self.assertIn(b'/ui/shell.css?v=20260819-ui2', service_worker)
@@ -3763,6 +3765,35 @@ São Paulo - SP
         self.assertEqual(payload["status_real"], "attachment_refused")
         self.assertNotIn(secret, json.dumps(payload))
 
+    def test_speech_uses_free_local_voice_even_when_elevenlabs_key_exists(self):
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key"}, clear=False), patch.object(
+            MODULE, "self_hosted_speech", return_value=b"RIFFlocal-wav"
+        ), patch.object(MODULE, "urlopen") as paid:
+            audio, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
+        self.assertEqual(status, 200)
+        self.assertTrue(audio.startswith(b"RIFF"))
+        paid.assert_not_called()
+
+    def test_paid_elevenlabs_stays_off_without_explicit_flag(self):
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key", "JARVIS_ALLOW_ELEVENLABS": ""}, clear=False), patch.object(
+            MODULE, "self_hosted_speech", return_value=None
+        ), patch.object(MODULE, "urlopen") as paid:
+            payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
+        self.assertEqual(status, 503)
+        self.assertEqual(payload["status_real"], "paid_voice_disabled")
+        self.assertEqual(payload["error_code"], "paid_voice_disabled")
+        self.assertEqual(payload["fallback"], "browser_voice")
+        paid.assert_not_called()
+
+    def test_voice_status_does_not_promote_paid_voice_without_flag(self):
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key", "JARVIS_ALLOW_ELEVENLABS": ""}, clear=False):
+            payload, status = MODULE.voice_status_payload()
+        self.assertEqual(status, 200)
+        self.assertNotEqual(payload["layer"], "elevenlabs")
+        self.assertTrue(payload["paid_disabled"])
+        self.assertEqual(payload["elevenlabs_keys"], 0)
+        self.assertIn(payload["layer"], {"self_hosted", "browser"})
+
     def test_elevenlabs_speech_returns_audio_without_exposing_key(self):
         class FakeAudioResponse:
             def __enter__(self):
@@ -3774,7 +3805,9 @@ São Paulo - SP
             def read(self, *_args):
                 return b"ID3-test-audio"
 
-        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key"}, clear=False):
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key", "JARVIS_ALLOW_ELEVENLABS": "1"}, clear=False), patch.object(
+            MODULE, "self_hosted_speech", return_value=None
+        ):
             with patch.object(MODULE, "urlopen", return_value=FakeAudioResponse()) as request:
                 audio, status = MODULE.elevenlabs_speech({
                     "text": "Olá, Theo.",
@@ -3801,7 +3834,8 @@ São Paulo - SP
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "", "SELF_HOSTED_TTS_URL": "", "VERCEL": "1"}, clear=False):
             payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
         self.assertEqual(status, 503)
-        self.assertEqual(payload["fallback"], "text_only")
+        self.assertEqual(payload["status_real"], "paid_voice_disabled")
+        self.assertEqual(payload["fallback"], "browser_voice")
 
     def test_local_self_hosted_url_defaults_off_vercel(self):
         with patch.dict(os.environ, {"SELF_HOSTED_TTS_URL": "", "VERCEL": ""}, clear=False):
@@ -3834,7 +3868,9 @@ São Paulo - SP
 
     def test_elevenlabs_quota_error_is_reported_honestly(self):
         provider_error = HTTPError("https://api.elevenlabs.io", 402, "payment required", {}, None)
-        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key"}, clear=False):
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key", "JARVIS_ALLOW_ELEVENLABS": "1"}, clear=False), patch.object(
+            MODULE, "self_hosted_speech", return_value=None
+        ):
             with patch.object(MODULE, "urlopen", side_effect=provider_error):
                 payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
         self.assertEqual(status, 502)
@@ -3855,7 +3891,9 @@ São Paulo - SP
                 }).encode("utf-8")
 
         provider_error = QuotaError("https://api.elevenlabs.io", 401, "unauthorized", {}, None)
-        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key"}, clear=False):
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key", "JARVIS_ALLOW_ELEVENLABS": "1"}, clear=False), patch.object(
+            MODULE, "self_hosted_speech", return_value=None
+        ):
             with patch.object(MODULE, "urlopen", side_effect=provider_error):
                 payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
         self.assertEqual(status, 502)
@@ -4844,9 +4882,11 @@ São Paulo - SP
             "text": "Sistemas online.",
             "client_integrations": {"elevenlabs": {"api_key": "eleven-browser-key"}},
         }
-        with patch.dict(os.environ, {}, clear=False), patch.object(
+        with patch.dict(os.environ, {"JARVIS_ALLOW_ELEVENLABS": "1"}, clear=False), patch.object(
             MODULE, "active_voice_setting", return_value={"voice_id": MODULE.DEFAULT_ELEVENLABS_VOICE_ID}
-        ), patch.object(MODULE, "urlopen", return_value=FakeAudioResponse()) as provider:
+        ), patch.object(MODULE, "self_hosted_speech", return_value=None), patch.object(
+            MODULE, "urlopen", return_value=FakeAudioResponse()
+        ) as provider:
             os.environ.pop("ELEVENLABS_API_KEY", None)
             payload, status = MODULE.elevenlabs_speech(body)
         self.assertEqual(status, 200)

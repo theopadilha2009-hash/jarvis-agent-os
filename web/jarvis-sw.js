@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260819-exec2";
+const CACHE_VERSION = "jarvis-mobile-shell-20260820-voice1";
 const SHELL = [
   "/",
   "/cockpit",
@@ -29,7 +29,7 @@ const SHELL = [
   "/ui/voice-pacing.js?v=20260813-voice2",
   "/ui/device-feedback.js?v=20260819-exec2",
   "/ui/entrar.js?v=20260819-notas1",
-  "/ui/jarvis.js?v=20260819-exec2",
+  "/ui/jarvis.js?v=20260820-voice1",
   "/ui/local-voice.js?v=20260818-voice2",
   "/ui/creator-seal.js?v=20260817-app1",
   "/ui/jarvis-3d.js?v=20260819-aug15",

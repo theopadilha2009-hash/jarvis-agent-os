@@ -922,7 +922,7 @@
   const CAPABILITIES = [
     "Conversar com OpenRouter sem expor instruções internas",
     "Pesquisar a web ao vivo e mostrar fontes clicáveis",
-    "Ouvir pelo microfone e falar com ElevenLabs",
+    "Ouvir pelo microfone e falar com a voz local gratuita",
     "Abrir e fechar aplicativos pelo worker do Mac",
     "Abrir pastas, copiar texto, falar, notificar, ajustar volume e abrir URL no Mac",
     "Encadear até seis ações no Mac e interromper as seguintes se uma falhar",
@@ -930,7 +930,7 @@
     "Consultar GitHub autenticado sem mostrar credenciais",
     "Ler agenda, criar tarefas e usar n8n quando conectado",
     "Criar, listar e revisar workflows n8n inativos pela API oficial",
-    "Usar chaves OpenRouter e ElevenLabs do cofre criptografado deste dispositivo",
+    "Usar chaves OpenRouter do cofre criptografado deste dispositivo",
     "Guardar memória confirmada e restaurar conversa privada",
     "Editar o próprio projeto; deploy só com pedido explícito",
   ];
@@ -2366,9 +2366,7 @@
           : null;
         const chunkPlayed = await playSpeechChunk(result.blob, chunks[index], generation, index === 0 ? () => {
           session.voiceFirstAudioMs = Math.max(1, Math.round(performance.now() - voiceRequestedAt));
-          byId("voiceValue").textContent = session.localVoice || session.elevenlabsExhausted
-            ? `Pocket TTS · voz em ${session.voiceFirstAudioMs} ms`
-            : `ElevenLabs · voz em ${session.voiceFirstAudioMs} ms`;
+          byId("voiceValue").textContent = `Pocket TTS · voz em ${session.voiceFirstAudioMs} ms`;
         } : null);
         if (generation !== speechGeneration) return false;
         played = played || chunkPlayed;
@@ -2382,7 +2380,7 @@
       if (error?.name === "AbortError") return false;
       if (generation === speechGeneration) {
         const errorCode = error?.message;
-        const silent = ["elevenlabs_quota", "elevenlabs_authorization"].includes(errorCode);
+        const silent = ["elevenlabs_quota", "elevenlabs_authorization", "paid_voice_disabled"].includes(errorCode);
         if (silent) {
           markElevenlabsExhausted();
           paintLocalVoiceLabel();
@@ -3422,15 +3420,9 @@
         byId("voiceValue").textContent = `Pocket TTS · ${label}`;
       }).catch(() => {});
       request("/voice-status").then((voice) => {
-        const remaining = Number(voice?.characters_remaining);
-        if (voice?.layer === "elevenlabs" && remaining > 0) {
-          session.elevenlabsExhausted = false;
-          try { localStorage.removeItem("jarvis-elevenlabs-exhausted"); } catch { /* ok */ }
-          return;
-        }
-        if (voice?.elevenlabs_configured && !(remaining > 0)) {
-          markElevenlabsExhausted();
-          if (!session.localVoice) paintLocalVoiceLabel();
+        if (voice?.layer === "self_hosted" || voice?.self_hosted_ready) {
+          session.localVoice = true;
+          paintLocalVoiceLabel();
         }
       }).catch(() => {});
       const ready = [
