@@ -44,6 +44,8 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("contextualStrings", source)
                 self.assertIn("JARVIS always listening", source)
                 self.assertIn("startListen()", source)
+                self.assertIn("restartListen", source)
+                self.assertIn("requestRecordPermission", source)
                 self.assertNotIn("Google Chrome", source)
 
                 info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())

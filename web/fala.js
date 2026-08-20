@@ -411,13 +411,27 @@
   }
 
   window.__jarvisNativeListen = function (state) {
-    if (state === "denied") {
+    const raw = String(state || "");
+    if (raw.startsWith("level:")) {
+      const n = Number(raw.slice(6));
+      const node = document.getElementById("heardLine");
+      if (node && node.hidden && n > 0.008) {
+        node.hidden = false;
+        node.textContent = "mic ok";
+      }
+      return;
+    }
+    if (raw.startsWith("error:")) {
+      paintHeard(raw.slice(6));
+      return;
+    }
+    if (raw === "denied") {
       listenPainted = false;
       orb.classList.remove("listening");
       say("Mic.", "Ajustes → Privacidade → Microfone e Fala.");
       return;
     }
-    if (state === "listening") {
+    if (raw === "listening" || raw === "waiting") {
       keepListening = true;
       orb.classList.add("listening");
       if (!listenPainted) {
@@ -572,8 +586,40 @@
     }
   }
 
+  function startWebBackup() {
+    if (!Recognition) return;
+    try { recHandle && recHandle.stop(); } catch { /* already stopped */ }
+    const rec = new Recognition();
+    recHandle = rec;
+    rec.lang = "pt-BR";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (event) => {
+      const last = event.results?.[event.results.length - 1];
+      hearSpoken(last?.[0]?.transcript || "", Boolean(last?.isFinal));
+    };
+    rec.onerror = () => {};
+    rec.onend = () => {
+      if (recHandle === rec) recHandle = null;
+      if (keepListening && !speaking) window.setTimeout(startWebBackup, 250);
+    };
+    try { rec.start(); } catch { /* native segue */ }
+  }
+
+  function forceListen() {
+    speaking = false;
+    keepListening = false;
+    listenPainted = false;
+    window.clearTimeout(heardTimer);
+    pendingHeard = "";
+    try { nativeHandlers()?.jarvisListen.postMessage("restart"); } catch { /* web */ }
+    startWakeLoop({ force: true });
+    startWebBackup();
+  }
+
   function startWakeLoop(options) {
     const silent = Boolean(options && options.silent);
+    const force = Boolean(options && options.force);
     if (!Recognition && !hasNativeListen()) {
       if (!silent) {
         input.focus();
@@ -581,7 +627,7 @@
       }
       return;
     }
-    if (keepListening) return;
+    if (keepListening && !force) return;
     keepListening = true;
     persistListen(true);
     say("Ouvindo.", "Pode falar: oi Jarvis.");
@@ -633,8 +679,9 @@
   document.getElementById("debugToggle")?.addEventListener("click", () => {
     mountDebug(true);
   });
+  document.getElementById("reloadButton")?.addEventListener("click", restartForUpdate);
   orb.addEventListener("click", () => {
-    startWakeLoop(); // user-gesture — never persist off
+    forceListen(); // user-gesture — never persist off
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
