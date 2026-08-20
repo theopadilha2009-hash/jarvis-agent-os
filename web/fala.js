@@ -19,6 +19,7 @@
   const LISTEN_KEY = "jarvis-fala-listen";
   const SHELL_VERSION = "20260820-update1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
+  const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)\s+/;
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
     || window.matchMedia("(display-mode: standalone)").matches;
   let busy = false;
@@ -196,17 +197,17 @@
 
   function muteMicForSpeech() {
     speaking = true;
-    armed = false;
     window.clearTimeout(heardTimer);
     pendingHeard = "";
     try { recHandle && recHandle.stop(); } catch { /* already stopped */ }
-    try { nativeHandlers()?.jarvisListen.postMessage("stop"); } catch { /* web */ }
+    try { nativeHandlers()?.jarvisListen.postMessage("pause"); } catch { /* web */ }
   }
 
   function unmuteMicAfterSpeech() {
     speaking = false;
     keepArmed();
-    if (keepListening) listenLoop();
+    try { nativeHandlers()?.jarvisListen.postMessage("resume"); } catch { /* web */ }
+    if (keepListening && !hasNativeListen()) listenLoop();
   }
 
   function speak(text) {
@@ -407,7 +408,7 @@
 
   function keepArmed() {
     armed = true;
-    armUntil = Date.now() + 8000;
+    armUntil = Date.now() + 45_000;
   }
 
   window.__jarvisNativeListen = function (state) {
@@ -486,11 +487,7 @@
     if (hit) {
       keepArmed();
       if (!hit.command) {
-        say("Pode falar.", "Estou ouvindo.");
-        if (isFinal && Date.now() - lastAckAt > 4000) {
-          lastAckAt = Date.now();
-          speak("Pode falar.");
-        }
+        say("Pode falar.", "Diz o pedido. Pode falar sem Jarvis.");
         return;
       }
       if (!isFinal) {
@@ -528,7 +525,7 @@
       pendingHeard = text;
       window.clearTimeout(heardTimer);
       takeWake(text, false);
-      heardTimer = window.setTimeout(() => hearSpoken(pendingHeard, true), 1300);
+      heardTimer = window.setTimeout(() => hearSpoken(pendingHeard, true), 550);
       return;
     }
     window.clearTimeout(heardTimer);

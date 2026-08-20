@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private var modernTask: Task<Void, Never>?
     private var resultsTask: Task<Void, Never>?
     private var analyzerFinish: (() -> Void)?
+    private var paused = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         synth.delegate = self
@@ -158,6 +159,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
                 startListen()
             } else if body == "restart" {
                 restartListen()
+            } else if body == "pause" {
+                paused = true
+            } else if body == "resume" {
+                paused = false
+                wantListen = true
             } else {
                 stopListen()
             }
@@ -180,7 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             finishSpeak()
             return
         }
-        stopListen()
+        paused = true
         synth.stopSpeaking(at: .immediate)
         player?.stop()
         fetchPocketTTS(text) { [weak self] data in
@@ -199,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.timeoutInterval = 8
+        req.timeoutInterval = 1.6
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "persona": "jarvis"])
         URLSession.shared.dataTask(with: req) { data, response, _ in
@@ -239,12 +245,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     }
 
     private func finishSpeak() {
+        paused = false
         webView?.evaluateJavaScript("window.__jarvisOnSpeakDone && window.__jarvisOnSpeakDone()", completionHandler: nil)
-        if wantListen {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-                self?.startListen()
-            }
-        }
     }
 
     private func startListen() {
@@ -364,6 +366,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         }
         let converter = PCMConverter()
         input.installTap(onBus: 0, bufferSize: 4096, format: micFormat) { [weak self] buffer, _ in
+            if self?.paused == true { return }
             self?.emitLevel(buffer)
             let out = analyzerFormat.flatMap { converter.convert(buffer, to: $0) } ?? buffer
             yield(out)
