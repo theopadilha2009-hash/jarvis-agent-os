@@ -624,14 +624,14 @@
   function refreshVoiceChip() {
     const chip = document.getElementById("voiceChip");
     if (!chip || !window.JarvisLocalVoice?.probe) return;
-    Promise.resolve(window.JarvisLocalVoice.probe()).then((base) => {
+    Promise.resolve(window.JarvisLocalVoice.probe()).then(() => {
       chip.hidden = false;
-      chip.textContent = base ? "voz local" : "voz na nuvem";
-      chip.dataset.state = base ? "local" : "cloud";
+      chip.textContent = hasNativeSpeak() ? "voz JARVIS" : "voz local";
+      chip.dataset.state = "local";
     }).catch(() => {
       chip.hidden = false;
-      chip.textContent = "voz na nuvem";
-      chip.dataset.state = "cloud";
+      chip.textContent = hasNativeSpeak() ? "voz JARVIS" : "voz local";
+      chip.dataset.state = "local";
     });
   }
 

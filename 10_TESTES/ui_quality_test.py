@@ -415,7 +415,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("previous_text: previousText", self.app_js)
         self.assertIn("next_text: nextText", self.app_js)
         self.assertIn("voiceFirstAudioMs", self.app_js)
-        self.assertIn('`ElevenLabs · voz em ${session.voiceFirstAudioMs} ms`', self.app_js)
+        self.assertIn('`Pocket TTS · voz em ${session.voiceFirstAudioMs} ms`', self.app_js)
+        self.assertNotIn('ElevenLabs · voz em', self.app_js)
         self.assertIn('? 100\n        : ["research", "planning"].includes(workingState) ? 600 : 280', self.app_js)
         self.assertLess(VOICE_PACING_JS.stat().st_size, 6 * 1024)
 

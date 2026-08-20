@@ -1774,7 +1774,7 @@ BASE_WEB_CAPABILITIES = [
     {
         "name": "assistant_voice",
         "status": "available",
-        "what": "Entrada por voz no navegador e saída ElevenLabs quando a chave estiver configurada.",
+        "what": "Entrada por voz no aparelho e saída pela voz local gratuita (Pocket TTS).",
     },
     {
         "name": "feature_planning",
@@ -2469,6 +2469,10 @@ def self_hosted_tts_url():
     if os.environ.get("VERCEL"):
         return ""
     return "http://127.0.0.1:8123/speech"
+
+
+def paid_elevenlabs_allowed():
+    return os.environ.get("JARVIS_ALLOW_ELEVENLABS", "").strip() == "1"
 
 
 def owner_pairing_required():
@@ -5792,19 +5796,16 @@ def status_payload(owner_authenticated=False, identity=None):
             "claim_policy": "cite_or_refuse",
         },
         "voice": {
-            "provider": (
-                "elevenlabs" if elevenlabs_ready
-                else "pocket_tts" if self_hosted_tts_url()
-                else "browser"
-            ),
-            "configured": bool(elevenlabs_ready or self_hosted_tts_url()),
-            "voice_id": active_voice.get("voice_id"),
-            "name": active_voice.get("name") if elevenlabs_ready else ("rafael" if self_hosted_tts_url() else ""),
-            "source": active_voice.get("source") if elevenlabs_ready else ("self_hosted" if self_hosted_tts_url() else "browser"),
-            "model": os.environ.get("ELEVENLABS_MODEL", DEFAULT_ELEVENLABS_MODEL),
-            "engine": "pocket_tts" if self_hosted_tts_url() and not elevenlabs_ready else "",
+            "provider": "pocket_tts" if self_hosted_tts_url() else "browser",
+            "configured": bool(self_hosted_tts_url()),
+            "voice_id": "",
+            "name": "rafael" if self_hosted_tts_url() else "",
+            "source": "self_hosted" if self_hosted_tts_url() else "browser",
+            "model": "",
+            "engine": "pocket_tts" if self_hosted_tts_url() else "",
             "language": "portuguese" if self_hosted_tts_url() else "",
-            "fallback": "self_hosted" if self_hosted_tts_url() else "text_only",
+            "fallback": "browser_voice",
+            "paid_disabled": not paid_elevenlabs_allowed(),
         },
         "automations": {
             "n8n": {"configured": n8n_ready, "agenda": n8n_ready},
@@ -5848,7 +5849,10 @@ def status_payload(owner_authenticated=False, identity=None):
             "pending_accounts": pending_account_count() if owner_authenticated else 0,
             "product": product_offer_payload()["product"],
             "public_chat": ai_ready,
-            "public_voice": bool(elevenlabs_ready or self_hosted_tts_url()),
+            "public_voice": bool(
+                self_hosted_tts_url()
+                or (paid_elevenlabs_allowed() and elevenlabs_ready)
+            ),
             "private_memory": bool(owner_authenticated or not owner_pairing_required()),
             "private_device_control": bool(owner_authenticated and supabase_configured()),
         },
@@ -7154,8 +7158,9 @@ def voice_select_payload(body, owner_authenticated=False):
 
 
 def voice_status_payload():
-    """Estado real da voz: quanto sobrou em cada chave e qual camada está no ar."""
-    keys = elevenlabs_api_keys()
+    """Estado real da voz: Pocket TTS primeiro; ElevenLabs só com flag explícita."""
+    paid_allowed = paid_elevenlabs_allowed()
+    keys = elevenlabs_api_keys() if paid_allowed else []
     openai_ready = bool(clean_text(os.environ.get("OPENAI_API_KEY"), 200))
     self_hosted_ready = self_hosted_tts_url().startswith(("http://", "https://"))
     payload = {
@@ -7163,12 +7168,20 @@ def voice_status_payload():
         "endpoint": "GET /voice-status",
         "self_hosted_ready": self_hosted_ready,
         "status_real": "voice_status",
-        "provider": "elevenlabs",
+        "provider": "pocket_tts" if self_hosted_ready else "browser",
         "elevenlabs_configured": bool(keys),
         "elevenlabs_keys": len(keys),
         "openai_backup_ready": openai_ready,
-        "layer": "browser",
+        "paid_disabled": not paid_allowed,
+        "layer": "self_hosted" if self_hosted_ready else "browser",
     }
+    if not paid_allowed:
+        payload["message"] = (
+            "A voz do JARVIS é local e gratuita (Pocket TTS)."
+            if self_hosted_ready
+            else "A voz sai pelo aparelho. ElevenLabs está desligada."
+        )
+        return payload, 200
     if not keys:
         payload["layer"] = "self_hosted" if self_hosted_ready else "browser"
         payload["message"] = (
@@ -7284,6 +7297,17 @@ def elevenlabs_speech(body):
         return {"ok": False, "error": "Texto vazio para síntese de voz."}, 400
     if any(has_secret_like_text(item) for item in (text, previous_text, next_text)):
         return {"ok": False, "error": "Não envio credenciais para síntese de voz."}, 400
+    local = self_hosted_speech(text, body)
+    if local:
+        return local, 200
+    if not paid_elevenlabs_allowed():
+        return {
+            "ok": False,
+            "status_real": "paid_voice_disabled",
+            "error_code": "paid_voice_disabled",
+            "error": "A voz do JARVIS é local e gratuita. ElevenLabs está desligada.",
+            "fallback": "browser_voice",
+        }, 503
     api_keys = elevenlabs_api_keys(body)
     if not api_keys:
         rescue = openai_speech(body, text) or self_hosted_speech(text, body)
