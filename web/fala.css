@@ -100,6 +100,13 @@ html[data-persona="ultron"] #orb img { filter: hue-rotate(312deg) saturate(1.25)
   text-indent: .34em;
 }
 #caption, #accessLine { margin: 0; color: var(--muted); max-width: 18rem; font-size: 12px; }
+#heardLine {
+  margin: 0;
+  max-width: 18rem;
+  font-size: 11px;
+  color: #c4b5fd;
+  -webkit-app-region: no-drag;
+}
 #voiceChip {
   margin: 0;
   font-size: 10px;

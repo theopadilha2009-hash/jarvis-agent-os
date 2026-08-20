@@ -18,7 +18,7 @@
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
   const SHELL_VERSION = "20260820-update1";
-  const WAKE = /(?:^|[\s,.;!?])(?:(?:oi|ol[aá]|ei|hey|ok|eai|e a[ií]|fala|eita)\s*[,.]?\s*)?(?:jarvis|jarbis|javis|ultron)\b/i;
+  const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
     || window.matchMedia("(display-mode: standalone)").matches;
   let busy = false;
@@ -27,6 +27,12 @@
   let armUntil = 0;
   let speaking = false;
   let recHandle = null;
+  let pendingHeard = "";
+  let heardTimer = 0;
+  let listenPainted = false;
+  let lastAckAt = 0;
+  let lastAsked = "";
+  let lastAskedAt = 0;
 
   if (appMode) document.documentElement.classList.add("app-mode");
 
@@ -191,6 +197,8 @@
   function muteMicForSpeech() {
     speaking = true;
     armed = false;
+    window.clearTimeout(heardTimer);
+    pendingHeard = "";
     try { recHandle && recHandle.stop(); } catch { /* already stopped */ }
     try { nativeHandlers()?.jarvisListen.postMessage("stop"); } catch { /* web */ }
   }
@@ -404,6 +412,7 @@
 
   window.__jarvisNativeListen = function (state) {
     if (state === "denied") {
+      listenPainted = false;
       orb.classList.remove("listening");
       say("Mic.", "Ajustes → Privacidade → Microfone e Fala.");
       return;
@@ -411,7 +420,10 @@
     if (state === "listening") {
       keepListening = true;
       orb.classList.add("listening");
-      say("Ouvindo.", "Pode falar: oi Jarvis.");
+      if (!listenPainted) {
+        listenPainted = true;
+        say("Ouvindo.", "Pode falar: oi Jarvis.");
+      }
     }
   };
 
@@ -419,22 +431,50 @@
     hearSpoken(spoken, isFinal !== false);
   };
 
-  function hearSpoken(spoken, isFinal = true) {
-    if (speaking) return;
-    const text = String(spoken || "").trim();
-    if (!text) return;
-    if (WAKE.test(text)) {
-      const command = text.replace(WAKE, "").replace(/^[,.\s]+/, "").trim();
+  function foldSpeech(text) {
+    return String(text || "")
+      .toLocaleLowerCase("pt-BR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/['"`´]/g, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function splitWake(text) {
+    const folded = foldSpeech(text);
+    if (!folded) return null;
+    const hit = folded.match(WAKE_NAME);
+    if (!hit || hit.index == null) return null;
+    return { command: folded.slice(hit.index + hit[0].length).trim(), folded };
+  }
+
+  function paintHeard(text) {
+    const node = document.getElementById("heardLine");
+    if (!node) return;
+    const clean = String(text || "").replace(/\s+/g, " ").trim();
+    node.hidden = !clean;
+    node.textContent = clean ? `ouvi: ${clean}` : "";
+  }
+
+  function takeWake(text, isFinal) {
+    const hit = splitWake(text);
+    if (hit) {
       keepArmed();
-      if (!command) {
+      if (!hit.command) {
         say("Pode falar.", "Estou ouvindo.");
+        if (isFinal && Date.now() - lastAckAt > 4000) {
+          lastAckAt = Date.now();
+          speak("Pode falar.");
+        }
         return;
       }
       if (!isFinal) {
-        say("Ouvindo.", command);
+        say("Ouvindo.", hit.command);
         return;
       }
-      ask(command);
+      fireAsk(hit.command);
       return;
     }
     if (armed && Date.now() <= armUntil) {
@@ -443,8 +483,34 @@
         return;
       }
       keepArmed();
-      ask(text);
+      fireAsk(text);
     }
+  }
+
+  function fireAsk(command) {
+    const clip = String(command || "").replace(/\s+/g, " ").trim();
+    if (!clip) return;
+    if (clip === lastAsked && Date.now() - lastAskedAt < 2500) return;
+    lastAsked = clip;
+    lastAskedAt = Date.now();
+    ask(clip);
+  }
+
+  function hearSpoken(spoken, isFinal = true) {
+    if (speaking) return;
+    const text = String(spoken || "").trim();
+    if (!text) return;
+    paintHeard(text);
+    if (!isFinal) {
+      pendingHeard = text;
+      window.clearTimeout(heardTimer);
+      takeWake(text, false);
+      heardTimer = window.setTimeout(() => hearSpoken(pendingHeard, true), 1300);
+      return;
+    }
+    window.clearTimeout(heardTimer);
+    pendingHeard = "";
+    takeWake(text, true);
   }
 
   function listenLoop() {
@@ -460,10 +526,10 @@
     recHandle = rec;
     rec.lang = "pt-BR";
     rec.continuous = true;
-    rec.interimResults = false;
+    rec.interimResults = true;
     rec.onresult = (event) => {
       const last = event.results?.[event.results.length - 1];
-      hearSpoken(last?.[0]?.transcript || "");
+      hearSpoken(last?.[0]?.transcript || "", Boolean(last?.isFinal));
     };
     rec.onerror = (event) => {
       if (event.error === "not-allowed") {
@@ -724,6 +790,7 @@
         `persona ${document.documentElement.dataset.persona || "—"}`,
         `tts ${tts.ok ? `${tts.engine || "ok"} ${tts.voice || ""}`.trim() : "offline"}`,
         `lastOpen ${lastOpenUrl || "—"}`,
+        `lastHeard ${document.getElementById("heardLine")?.textContent || "—"}`,
         `lastCommand ${lastCommand || "—"}`,
         `lastError ${lastError || "—"}`,
         fromButton ? "via diagnóstico" : "via ?debug=1",

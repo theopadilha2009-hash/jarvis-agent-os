@@ -43,6 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private var retryTimer: Timer?
     private var napActivity: NSObjectProtocol?
     private var startingListen = false
+    private var lastPartial = ""
+    private var lastWasFinal = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         synth.delegate = self
@@ -211,7 +213,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private func startListen() {
         wantListen = true
         if engine.isRunning, task != nil, tapInstalled {
-            tellJS("listening")
             return
         }
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
@@ -248,6 +249,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     }
 
     private func tearDownRecognition() {
+        if !lastWasFinal, !lastPartial.isEmpty {
+            deliverHeard(lastPartial, final: true)
+        }
+        lastPartial = ""
+        lastWasFinal = false
         task?.cancel()
         task = nil
         request?.endAudio()
@@ -276,6 +282,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         request.shouldReportPartialResults = true
         if #available(macOS 13.0, *) {
             request.requiresOnDeviceRecognition = false
+            request.contextualStrings = ["Jarvis", "oi Jarvis", "Olá Jarvis", "fala Jarvis", "Ultron", "JARVIS"]
         }
         self.request = request
         let input = engine.inputNode
@@ -330,6 +337,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     }
 
     private func deliverHeard(_ text: String, final: Bool) {
+        lastPartial = text
+        lastWasFinal = final
         let flag = final ? "true" : "false"
         webView?.evaluateJavaScript(
             "window.__jarvisNativeHeard && window.__jarvisNativeHeard(\(jsString(text)), \(flag))",
