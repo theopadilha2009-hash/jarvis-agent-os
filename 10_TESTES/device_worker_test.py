@@ -110,6 +110,37 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertLessEqual(MODULE.BOOT_QUIET_SECONDS, 30)
         self.assertEqual(MODULE.resolve_application_target("sistema", {}), "JARVIS")
         self.assertEqual(MODULE.resolve_application_target("cockpit", {}), "JARVIS")
+        self.assertEqual(MODULE.resolve_application_target("jarvis", {}), "JARVIS")
+        self.assertIn("volume_set", MODULE.ALLOWED_ACTIONS)
+        volume = MODULE.command_argv({
+            "action": "volume_set",
+            "target": "20",
+            "request_text": "volume do mac para 20",
+        })
+        self.assertEqual(volume[0], "osascript")
+        self.assertIn("output volume 20", volume[-1])
+
+    def test_busy_mode_blocks_arrival_greeting(self):
+        with tempfile.TemporaryDirectory() as folder:
+            busy = Path(folder) / "busy-mode"
+            with patch.object(MODULE, "BUSY_STATE", busy):
+                self.assertFalse(MODULE.busy_mode_active(1_000.0))
+                MODULE.mark_busy(1_000.0)
+                self.assertTrue(MODULE.busy_mode_active(1_100.0))
+                self.assertFalse(MODULE.arrival_allowed(1_100.0, "boot"))
+                self.assertFalse(MODULE.arrival_allowed(1_100.0, "worker"))
+                MODULE.sync_busy_from_job({"request_text": json.dumps({
+                    "schema": "jarvis-device-run/2",
+                    "original_request": "prepara o dia",
+                    "request": "abre https://calendar.google.com no mac",
+                })})
+                self.assertFalse(MODULE.busy_mode_active(1_200.0))
+                MODULE.sync_busy_from_job({"request_text": json.dumps({
+                    "schema": "jarvis-device-run/2",
+                    "original_request": "estou ocupado",
+                    "request": "volume do mac para 20",
+                })})
+                self.assertTrue(MODULE.busy_mode_active(1_300.0))
 
     def test_boot_greeting_survives_a_recent_arrival(self):
         """Reiniciar logo depois de um desbloqueio não pode engolir o bem-vindo."""

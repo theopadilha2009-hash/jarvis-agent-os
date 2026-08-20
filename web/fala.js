@@ -24,6 +24,8 @@
   let keepListening = false;
   let armed = false;
   let armUntil = 0;
+  let speaking = false;
+  let recHandle = null;
 
   if (appMode) document.documentElement.classList.add("app-mode");
 
@@ -146,11 +148,15 @@
   }
 
   function speakLocal(text) {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis) return Promise.resolve();
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "pt-BR";
-    window.speechSynthesis.speak(utterance);
+    return new Promise((resolve) => {
+      utterance.onend = resolve;
+      utterance.onerror = resolve;
+      window.speechSynthesis.speak(utterance);
+    });
   }
 
   function playBlob(blob) {
@@ -169,9 +175,22 @@
     });
   }
 
+  function muteMicForSpeech() {
+    speaking = true;
+    armed = false;
+    try { recHandle && recHandle.stop(); } catch { /* already stopped */ }
+  }
+
+  function unmuteMicAfterSpeech() {
+    speaking = false;
+    keepArmed();
+    if (keepListening) listenLoop();
+  }
+
   function speak(text) {
     const clip = String(text || "").replace(/\s+/g, " ").trim().slice(0, 220);
     if (!clip) return Promise.resolve();
+    muteMicForSpeech();
     const persona = ownerToken() ? "ultron" : "jarvis";
     return Promise.resolve(window.JarvisLocalVoice?.speakBlob(clip, { persona }))
       .then((localBlob) => {
@@ -185,7 +204,8 @@
           return response.blob();
         }).then((blob) => playBlob(blob));
       })
-      .catch(() => speakLocal(clip));
+      .catch(() => speakLocal(clip))
+      .finally(() => unmuteMicAfterSpeech());
   }
 
   let lastOpenUrl = "";
@@ -212,8 +232,16 @@
     return rest;
   }
 
+  function isMacSpotifyCommand(value) {
+    const text = String(value || "").toLocaleLowerCase("pt-BR");
+    if (/\b(?:homem\s+de\s+ferro|iron\s+man|spotify:track:)\b/.test(text)) return true;
+    if (/\bspotify\b/.test(text) && /\b(?:com|paus|to(?:c|q)|play|pr[oó]xim|volum|status|aleat|shuffle|repet)\w*/.test(text)) return true;
+    return false;
+  }
+
   function resolveOpen(text) {
     const value = String(text || "").toLocaleLowerCase("pt-BR").trim();
+    if (isMacSpotifyCommand(value)) return null;
     const google = value.match(/^(?:google|pesquisa no google|busca no google)\s+(.+)/);
     if (google) return { url: `https://www.google.com/search?q=${encodeURIComponent(google[1])}`, label: "Google" };
     const youtubeSearch = value.match(/^(?:pesquisa|busca|procura)\s+(?:no\s+)?youtube\s+(.+)/)
@@ -305,8 +333,9 @@
       if (!/\bhoras?\b|\bque dia\b|\bdata de hoje\b|^copia|^(?:entrar|login|fazer login|conectar)$/.test(command.toLocaleLowerCase("pt-BR"))) {
         say("Aberto.", command);
         speak("Aberto");
+        return;
       }
-      keepArmed();
+      if (!/\bhoras?\b|\bque dia\b|\bdata de hoje\b/.test(command.toLocaleLowerCase("pt-BR"))) keepArmed();
       return;
     }
     busy = true;
@@ -325,20 +354,24 @@
       revealLogin();
     }
     const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
+    if (data.client_action === "quiet_mode") {
+      keepListening = false;
+      armed = false;
+      orb.classList.remove("listening");
+    }
     if (response.status === 429) {
       say("Limite.", message);
       busy = false;
       return;
     }
-    say(data.ok === false ? "Não." : "Pronto.", "");
+    say(data.ok === false ? "Não." : (data.client_action === "quiet_mode" ? "Modo foco." : "Pronto."), data.client_action === "quiet_mode" ? "Toque no brilho quando quiser de volta." : "");
     if (data.status_real === "free_web_search_unavailable") {
       showAnswerLink(message, `https://www.google.com/search?q=${encodeURIComponent(command)}`, "Buscar no Google");
     } else if (!opened) {
       showAnswer(message);
     }
-    speak(message);
     busy = false;
-    keepArmed();
+    await speak(message);
   }
 
   function keepArmed() {
@@ -347,6 +380,7 @@
   }
 
   function hearSpoken(spoken) {
+    if (speaking) return;
     const text = String(spoken || "").trim();
     if (!text) return;
     if (WAKE.test(text)) {
@@ -363,8 +397,9 @@
   }
 
   function listenLoop() {
-    if (!keepListening || !Recognition) return;
+    if (!keepListening || !Recognition || speaking) return;
     const rec = new Recognition();
+    recHandle = rec;
     rec.lang = "pt-BR";
     rec.continuous = true;
     rec.interimResults = false;
@@ -375,20 +410,23 @@
     rec.onerror = (event) => {
       if (event.error === "not-allowed") {
         keepListening = false;
+        recHandle = null;
         orb.classList.remove("listening");
         say("Mic.", "Toque no brilho e permita.");
         return;
       }
-      if (keepListening) window.setTimeout(listenLoop, 500);
+      if (keepListening && !speaking) window.setTimeout(listenLoop, 500);
     };
     rec.onend = () => {
-      if (keepListening) window.setTimeout(listenLoop, 180);
+      if (recHandle === rec) recHandle = null;
+      if (keepListening && !speaking) window.setTimeout(listenLoop, 180);
     };
     try {
       rec.start();
       orb.classList.add("listening");
+      say("Ouvindo.", "“oi Jarvis”.");
     } catch {
-      if (keepListening) window.setTimeout(listenLoop, 600);
+      if (keepListening && !speaking) window.setTimeout(listenLoop, 600);
     }
   }
 
@@ -466,8 +504,7 @@
     mountDebug(true);
   });
   orb.addEventListener("click", () => {
-    if (keepListening) stopWakeLoop();
-    else startWakeLoop(); // user-gesture
+    startWakeLoop(); // user-gesture — never persist off
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -537,7 +574,7 @@
     const keep = document.getElementById("rememberLogin");
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
-  say("oi Jarvis", appMode ? "sempre ouvindo · oi Jarvis" : "toque no brilho e diga oi Jarvis");
+  say("oi Jarvis", "toque no brilho e permita o microfone");
   refreshAccess();
   refreshVoiceChip();
   window.setInterval(refreshVoiceChip, 8000);

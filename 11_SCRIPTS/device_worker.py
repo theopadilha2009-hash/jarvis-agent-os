@@ -58,6 +58,19 @@ ARRIVAL_STATE = (
 BOOT_STATE = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "last-boot"
 )
+BUSY_STATE = (
+    Path.home() / "Library" / "Application Support" / "JARVIS" / "busy-mode"
+)
+BUSY_TTL_SECONDS = 4 * 3600.0
+BUSY_REQUEST_PATTERN = re.compile(
+    r"\b(?:estou\s+ocupado|modo\s+foco|n[aã]o\s+me\s+perturba|"
+    r"silenci(?:a|e|ar)\s+o\s+(?:mac|computador))\b",
+    re.I,
+)
+PREPARE_REQUEST_PATTERN = re.compile(
+    r"\b(?:prepar(?:a|e|ar)\s+(?:o|meu)\s+dia|rotina\s+d[oa]\s+manh[aã])\b",
+    re.I,
+)
 BOOT_QUIET_SECONDS = 20.0
 # A saudação sai pelo alto-falante do Mac: o navegador cala áudio sem clique.
 LOCAL_TTS_URL = os.environ.get("JARVIS_LOCAL_TTS_URL", "http://127.0.0.1:8123/speech")
@@ -269,8 +282,43 @@ def mark_boot_greeting(booted: float) -> None:
         pass
 
 
+def busy_mode_active(now: float | None = None) -> bool:
+    stamp = now if now is not None else time.time()
+    try:
+        last = float(BUSY_STATE.read_text().strip() or 0)
+    except (OSError, ValueError):
+        return False
+    return stamp - last < BUSY_TTL_SECONDS
+
+
+def mark_busy(now: float | None = None) -> None:
+    try:
+        BUSY_STATE.parent.mkdir(parents=True, exist_ok=True)
+        BUSY_STATE.write_text(str(now if now is not None else time.time()))
+    except OSError:
+        pass
+
+
+def clear_busy() -> None:
+    try:
+        BUSY_STATE.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def sync_busy_from_job(job: dict) -> None:
+    envelope = request_envelope(job)
+    text = str(envelope.get("original_request") or job_request_text(job) or "")
+    if BUSY_REQUEST_PATTERN.search(text):
+        mark_busy()
+    elif PREPARE_REQUEST_PATTERN.search(text):
+        clear_busy()
+
+
 def arrival_allowed(now: float, reason: str = "worker") -> bool:
     if os.environ.get("JARVIS_ARRIVAL") == "0":
+        return False
+    if busy_mode_active(now):
         return False
     # O boot já tem a própria trava (uma por ligada); passar pelo cooldown de
     # chegada faria a saudação sumir quando o Mac reinicia logo depois de um
@@ -1098,6 +1146,7 @@ def message_details(request_text: str, expected_phone: str) -> dict | None:
 
 def execute_job(job: dict) -> tuple[bool, str]:
     action = str(job.get("action") or "")
+    sync_busy_from_job(job)
     effective_job = dict(job)
     if action == "save_note":
         return persist_mac_note(effective_job)

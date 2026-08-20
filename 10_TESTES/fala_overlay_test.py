@@ -67,8 +67,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("open.spotify.com", FALA_JS)
         self.assertIn("calendar.google.com", FALA_JS)
         self.assertIn("localClock", FALA_JS)
-        self.assertIn("sempre ouvindo", FALA_HTML)
-        self.assertIn("20260820-siri1", FALA_HTML)
+        self.assertNotIn("sempre ouvindo", FALA_HTML)
+        self.assertNotIn("sempre ouvindo", FALA_JS)
+        self.assertIn("20260820-siri2", FALA_HTML)
 
     def test_does_not_spend_speech_on_greeting(self):
         self.assertNotIn("greetOnce", FALA_JS)
@@ -94,6 +95,28 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("clearStaleSession", FALA_JS)
         self.assertIn("mountDebug", FALA_JS)
         self.assertIn("ultron", FALA_JS)
+
+    def test_named_spotify_is_not_a_web_shortcut(self):
+        self.assertIn("function isMacSpotifyCommand", FALA_JS)
+        self.assertIn(r"homem\s+de\s+ferro", FALA_JS)
+        self.assertRegex(FALA_JS, r"isMacSpotifyCommand\(value\)\) return null")
+        self.assertIn("open.spotify.com", FALA_JS)
+
+    def test_speech_mutes_recognition_until_ended(self):
+        self.assertIn("muteMicForSpeech", FALA_JS)
+        self.assertIn("unmuteMicAfterSpeech", FALA_JS)
+        self.assertIn(".finally", FALA_JS)
+        self.assertRegex(FALA_JS, r"function hearSpoken\([\s\S]*if \(speaking\) return")
+        self.assertRegex(FALA_JS, r"function unmuteMicAfterSpeech\([\s\S]*keepArmed\(")
+        self.assertNotRegex(FALA_JS, r"speak\(message\);\s*busy = false;\s*keepArmed")
+        self.assertIn("await speak(message)", FALA_JS)
+
+    def test_orb_click_does_not_permanently_disable_listen(self):
+        click = re.search(r'orb\.addEventListener\("click", \(\) => \{([^}]+)\}', FALA_JS)
+        self.assertIsNotNone(click)
+        self.assertIn("startWakeLoop", click.group(1))
+        self.assertNotIn("stopWakeLoop", click.group(1))
+        self.assertIn("toque no brilho e permita o microfone", FALA_HTML)
 
 
 if __name__ == "__main__":

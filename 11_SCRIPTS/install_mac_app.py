@@ -120,8 +120,6 @@ if command -v osascript >/dev/null 2>&1; then
     fi
   fi
 fi
-PROFILE="${{HOME}}/Library/Application Support/JARVIS/chrome-profile"
-mkdir -p "$PROFILE"
 for BIN in \\
   "{CHROME}" \\
   "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \\
@@ -129,22 +127,40 @@ for BIN in \\
   "/Applications/Chromium.app/Contents/MacOS/Chromium"
 do
   if [ -x "$BIN" ]; then
-    exec "$BIN" --user-data-dir="$PROFILE" --app="$URL" --window-size="$W,$H" --window-position="$X,$Y"
+    exec "$BIN" --app="$URL" --window-size="$W,$H" --window-position="$X,$Y"
   fi
 done
 exec /usr/bin/open "$URL"
 """
 
 
-def launch_agent_plist() -> bytes:
+def keep_alive_script_path() -> Path:
+    return Path.home() / "Library" / "Application Support" / "JARVIS" / "fala-keep-alive.sh"
+
+
+def keep_alive_script_text() -> str:
+    return """#!/bin/sh
+while true; do
+  if ! pgrep -f 'jarvis-theo.vercel.app/fala' >/dev/null 2>&1; then
+    /usr/bin/open -a JARVIS
+  fi
+  sleep 15
+done
+"""
+
+
+def launch_agent_plist(script: Path | None = None) -> bytes:
+    path = str(script or keep_alive_script_path())
     return plistlib.dumps({
         "Label": LAUNCH_AGENT_LABEL,
-        "ProgramArguments": ["/usr/bin/open", "-a", "JARVIS"],
+        "ProgramArguments": ["/bin/sh", path],
         "RunAtLoad": True,
+        "KeepAlive": True,
+        "ThrottleInterval": 10,
     })
 
 
-def bundle_info(version: str = "1.6") -> dict:
+def bundle_info(version: str = "1.7") -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
@@ -212,12 +228,33 @@ xattr -dr com.apple.quarantine "$HERE/JARVIS.app" 2>/dev/null || true
 cp -R "$HERE/JARVIS.app" "$DEST/JARVIS.app"
 chmod +x "$DEST/JARVIS.app/Contents/MacOS/JARVIS"
 xattr -dr com.apple.quarantine "$DEST/JARVIS.app" 2>/dev/null || true
-if [ -f "$HERE/ai.theopadilha.jarvis.fala.plist" ]; then
-  cp "$HERE/ai.theopadilha.jarvis.fala.plist" "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist"
-  launchctl bootout "gui/$(id -u)/{LAUNCH_AGENT_LABEL}" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" 2>/dev/null || \\
-    launchctl load "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" 2>/dev/null || true
-fi
+KEEP="${{HOME}}/Library/Application Support/JARVIS"
+mkdir -p "$KEEP"
+cat > "$KEEP/fala-keep-alive.sh" <<'KEEPALIVE'
+#!/bin/sh
+while true; do
+  if ! pgrep -f 'jarvis-theo.vercel.app/fala' >/dev/null 2>&1; then
+    /usr/bin/open -a JARVIS
+  fi
+  sleep 15
+done
+KEEPALIVE
+chmod +x "$KEEP/fala-keep-alive.sh"
+python3 - "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" "$KEEP/fala-keep-alive.sh" <<'PY'
+import plistlib, sys
+path, script = sys.argv[1], sys.argv[2]
+with open(path, "wb") as handle:
+    handle.write(plistlib.dumps({{
+        "Label": "{LAUNCH_AGENT_LABEL}",
+        "ProgramArguments": ["/bin/sh", script],
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "ThrottleInterval": 10,
+    }}))
+PY
+launchctl bootout "gui/$(id -u)/{LAUNCH_AGENT_LABEL}" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" 2>/dev/null || \\
+  launchctl load "$LAUNCH/{LAUNCH_AGENT_LABEL}.plist" 2>/dev/null || true
 if [ -x "$HERE/INSTALAR-WORKER.command" ]; then
   "$HERE/INSTALAR-WORKER.command" || true
 fi
@@ -297,11 +334,15 @@ def install(url: str, system_wide: bool) -> Path:
 
 
 def install_login_agent() -> None:
-    """Sobe o widget de canto no login, sem exigir o ZIP de novo."""
+    """Sobe o widget de canto no login e relança se a janela sumir."""
+    script = keep_alive_script_path()
+    script.parent.mkdir(parents=True, exist_ok=True)
+    script.write_text(keep_alive_script_text(), encoding="utf-8")
+    script.chmod(0o755)
     launch = Path.home() / "Library" / "LaunchAgents"
     launch.mkdir(parents=True, exist_ok=True)
     path = launch / f"{LAUNCH_AGENT_LABEL}.plist"
-    path.write_bytes(launch_agent_plist())
+    path.write_bytes(launch_agent_plist(script))
     domain = f"gui/{os.getuid()}"
     label = f"{domain}/{LAUNCH_AGENT_LABEL}"
     subprocess.run(["launchctl", "bootout", label], capture_output=True, timeout=15, check=False)

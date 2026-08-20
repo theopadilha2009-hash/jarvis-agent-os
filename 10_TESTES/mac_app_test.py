@@ -35,6 +35,7 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("https://cockpit.exemplo/", launcher)
                 self.assertIn("--app=", launcher)          # janela própria
                 self.assertIn("/usr/bin/open", launcher)   # rede de segurança
+                self.assertNotIn("--user-data-dir=", launcher)
 
                 info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
                 self.assertEqual(info["CFBundleIdentifier"], MODULE.BUNDLE_ID)
@@ -96,8 +97,11 @@ class MacAppTest(unittest.TestCase):
                 script = archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8")
                 self.assertIn("--window-size=", script)
                 self.assertIn("--window-position=", script)
-                self.assertIn("--user-data-dir=", script)
+                self.assertNotIn("--user-data-dir=", script)
                 self.assertNotIn("--new-window", script)
+                self.assertIn("KeepAlive", archive.read("INSTALAR.command").decode("utf-8"))
+                packed_agent = plistlib.loads(archive.read("ai.theopadilha.jarvis.fala.plist"))
+                self.assertTrue(packed_agent["KeepAlive"])
                 self.assertIn("Brave Browser", script)
                 self.assertIn("Microsoft Edge", script)
                 self.assertIn("com.apple.quarantine", archive.read("INSTALAR.command").decode("utf-8"))
@@ -127,7 +131,12 @@ class MacAppTest(unittest.TestCase):
             payload = plistlib.loads(path.read_bytes())
             self.assertEqual(payload["Label"], "ai.theopadilha.jarvis.fala")
             self.assertTrue(payload["RunAtLoad"])
-            self.assertEqual(payload["ProgramArguments"], ["/usr/bin/open", "-a", "JARVIS"])
+            self.assertTrue(payload["KeepAlive"])
+            self.assertEqual(payload["ProgramArguments"][0], "/bin/sh")
+            self.assertTrue(payload["ProgramArguments"][1].endswith("fala-keep-alive.sh"))
+            script = home / "Library" / "Application Support" / "JARVIS" / "fala-keep-alive.sh"
+            self.assertTrue(script.is_file())
+            self.assertIn("open -a JARVIS", script.read_text(encoding="utf-8"))
             self.assertTrue(any(cmd[:1] == ["launchctl"] for cmd in calls))
 
 

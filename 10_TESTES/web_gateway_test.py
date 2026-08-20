@@ -1106,12 +1106,14 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn("Daily", prepared["message"])
         self.assertEqual(
             [step["intent"] for step in prepared["device_plan"]],
-            ["open_application", "open_application"],
+            ["open_url", "notify"],
         )
-        self.assertTrue(any("Calendar" in item for item in prepared["local_commands"]))
-        self.assertTrue(any("JARVIS" in item for item in prepared["local_commands"]))
+        self.assertTrue(any("calendar.google.com" in item for item in prepared["local_commands"]))
+        self.assertFalse(any("computer open JARVIS" in item for item in prepared["local_commands"]))
         self.assertEqual(busy_status, 200)
         self.assertEqual(busy["intent"], "busy_mode")
+        self.assertEqual(busy["client_action"], "quiet_mode")
+        self.assertEqual(via_chat["client_action"], "quiet_mode")
         self.assertEqual([step["intent"] for step in busy["device_plan"]], ["volume_set", "spotify_control"])
         self.assertTrue(any("volume" in item for item in busy["local_commands"]))
         self.assertTrue(any("pause" in item for item in busy["local_commands"]))
