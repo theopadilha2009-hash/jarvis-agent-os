@@ -72,6 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private var resultsTask: Task<Void, Never>?
     private var analyzerFinish: (() -> Void)?
     private var paused = false
+    private var lastOpenedURL = ""
+    private var lastOpenedAt: TimeInterval = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
@@ -122,7 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
         if let url = navigationAction.request.url {
-            NSWorkspace.shared.open(url)
+            openExternal(url)
         }
         return nil
     }
@@ -141,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         let popup = navigationAction.targetFrame == nil
         let click = navigationAction.navigationType == .linkActivated
         if (popup || click) && host != home && !host.hasSuffix("." + home) {
-            NSWorkspace.shared.open(url)
+            openExternal(url)
             decisionHandler(.cancel)
             return
         }
@@ -151,7 +153,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         let body = String(describing: message.body)
         if message.name == "jarvisSpeak" {
-            speakNative(body)
+            if body == "stop" {
+                player?.stop()
+                finishSpeak()
+            } else {
+                speakNative(body)
+            }
         } else if message.name == "jarvisListen" {
             if body == "start" {
                 startListen()
@@ -168,6 +175,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         } else if message.name == "jarvisRestart" {
             webView?.reloadFromOrigin()
         }
+    }
+
+    private func openExternal(_ url: URL) {
+        let key = url.absoluteString.lowercased()
+        let now = Date().timeIntervalSince1970
+        if key == lastOpenedURL && now - lastOpenedAt < 8 { return }
+        lastOpenedURL = key
+        lastOpenedAt = now
+        NSWorkspace.shared.open(url)
     }
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
