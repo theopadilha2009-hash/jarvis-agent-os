@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     private var recognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
-    private let engine = AVAudioEngine()
+    private var engine = AVAudioEngine()
     private var tapInstalled = false
     private var recycleTimer: Timer?
     private var retryTimer: Timer?
@@ -63,9 +63,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         self.window = window
         self.webView = webView
         webView.load(URLRequest(url: cockpitURL()))
-        startListen()
-        scheduleRecycle()
+        UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+        DispatchQueue.main.async { [weak self] in
+            self?.startListen()
+            self?.scheduleRecycle()
+        }
     }
+
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { false }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
@@ -200,7 +205,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     }
 
     func speechRecognizer(_ speechRecognizer: SFSpeechRecognizer, availabilityDidChange available: Bool) {
-        if available && wantListen { beginRecognition() }
+        logListen("available \(available)")
+        guard available, wantListen else { return }
+        if engine.isRunning, task != nil { return }
+        scheduleRetry()
     }
 
     private func finishSpeak() {
@@ -285,11 +293,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         task = nil
         request?.endAudio()
         request = nil
-        if engine.isRunning { engine.stop() }
         if tapInstalled {
             engine.inputNode.removeTap(onBus: 0)
             tapInstalled = false
         }
+        if engine.isRunning { engine.stop() }
+        engine.reset()
+        engine = AVAudioEngine()
     }
 
     private func beginRecognition() {
@@ -313,21 +323,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             request.contextualStrings = ["Jarvis", "oi Jarvis", "Olá Jarvis", "fala Jarvis", "Ultron", "JARVIS"]
         }
         self.request = request
-        engine.prepare()
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             startingListen = false
-            logListen("bad format \(format)")
+            logListen("bad format")
             scheduleRetry()
             return
         }
-        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
-            request.append(buffer)
-            self?.emitLevel(buffer)
-        }
-        tapInstalled = true
         do {
+            input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
+                request.append(buffer)
+                self?.emitLevel(buffer)
+            }
+            tapInstalled = true
             try engine.start()
         } catch {
             startingListen = false
@@ -424,6 +433,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             defer: false
         )
         window.title = "JARVIS"
+        window.isRestorable = false
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
