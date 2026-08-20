@@ -58,11 +58,11 @@ ARRIVAL_STATE = (
 BOOT_STATE = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "last-boot"
 )
-BOOT_QUIET_SECONDS = 180.0
+BOOT_QUIET_SECONDS = 20.0
 # A saudação sai pelo alto-falante do Mac: o navegador cala áudio sem clique.
 LOCAL_TTS_URL = os.environ.get("JARVIS_LOCAL_TTS_URL", "http://127.0.0.1:8123/speech")
 LOCAL_SAY_VOICE = os.environ.get("JARVIS_SAY_VOICE", "Reed")
-BOOT_GREETING = "Bem-vindo, Theo. Sistemas no ar. O que vamos fazer hoje?"
+BOOT_GREETING = "Bom dia, Theo. Sistemas no ar. Estou pronto."
 ARRIVAL_GREETING = "Bem-vindo de volta, Theo. Estou pronto."
 LAUNCH_LABEL = "ai.theopadilha.jarvis-device-worker"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
@@ -157,6 +157,9 @@ APPLICATION_ALIASES = {
     "fotos": "Photos",
     "photos": "Photos",
     "facetime": "FaceTime",
+    "jarvis": "JARVIS",
+    "sistema": "JARVIS",
+    "cockpit": "JARVIS",
 }
 JARVIS_CLEANUP_PATTERN = re.compile(
     r"\b(?:limp(?:a|e|ar)|fech(?:a|e|ar)|encerr(?:a|e|ar))\b.{0,120}"

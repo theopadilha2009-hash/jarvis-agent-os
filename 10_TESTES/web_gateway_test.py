@@ -1214,6 +1214,8 @@ class WebGatewayTest(unittest.TestCase):
             "volume do Spotify para 35": "./jarvis spotify volume 35",
             "o que está tocando no Spotify": "./jarvis spotify status",
             "busque no Spotify Daft Punk": "./jarvis spotify search 'Daft Punk'",
+            "toca a música do homem de ferro": "./jarvis spotify play-uri spotify:track:4svkPL62HbvyFgf0nHFXAF",
+            "abre o Spotify com a música do Homem de Ferro": "./jarvis spotify play-uri spotify:track:4svkPL62HbvyFgf0nHFXAF",
         }
         with patch.object(MODULE, "supabase_configured", return_value=False):
             for command, expected in cases.items():
@@ -1243,10 +1245,23 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(body["action"], "spotify_control")
         self.assertEqual(body["target"], "volume 35")
 
+    def test_abre_o_sistema_opens_jarvis_app(self):
+        with patch.object(MODULE, "supabase_configured", return_value=False):
+            payload, status = MODULE.command_payload(
+                {"command": "abre o sistema"},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["intent"], "open_application")
+        self.assertEqual(payload["local_command"], "./jarvis computer open JARVIS")
+        self.assertEqual(MODULE.command_intent("abre o cockpit"), "open_application")
+
     def test_spotify_control_can_be_one_verified_step_in_a_mac_run(self):
         steps = MODULE.compound_device_plan("pause o Spotify e depois tire um print da tela")
         self.assertEqual([step["intent"] for step in steps], ["spotify_control", "screen_capture"])
         self.assertEqual(MODULE.chain_step_target(steps[0]), "pause")
+        iron = MODULE.compound_device_plan("abre o Spotify e toca a música do homem de ferro")
+        self.assertEqual([step["intent"] for step in iron], ["open_application", "spotify_control"])
 
     def test_agent_tool_catalog_exposes_bounded_spotify_control(self):
         tool = next(row for row in MODULE.agent_tool_definitions() if row["function"]["name"] == "control_spotify")

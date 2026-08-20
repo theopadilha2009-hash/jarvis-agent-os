@@ -2051,6 +2051,9 @@ APPLICATION_ALIASES = {
     "fotos": "Photos",
     "photos": "Photos",
     "facetime": "FaceTime",
+    "jarvis": "JARVIS",
+    "sistema": "JARVIS",
+    "cockpit": "JARVIS",
 }
 
 JARVIS_CLEANUP_PATTERN = re.compile(
@@ -2063,10 +2066,12 @@ JARVIS_CLEANUP_PATTERN = re.compile(
 SPOTIFY_CONTROL_PATTERN = re.compile(
     r"(?:\bspotify\b.{0,100}\b(?:play|to(?:c|q)\w*|reproduz\w*|retom\w*|continu\w*|paus\w*|"
     r"pr[oó]xim\w*|anteri\w*|volt\w*|volum\w*|status|tocando|bus\w*|procur\w*|"
-    r"pesquis\w*|aleat[oó]ri\w*|shuffle|repet\w*)\b|"
+    r"pesquis\w*|aleat[oó]ri\w*|shuffle|repet\w*|m[uú]sica|faixa|homem\s+de\s+ferro|iron\s+man)\b|"
     r"\b(?:play|to(?:c|q)\w*|reproduz\w*|retom\w*|continu\w*|paus\w*|pr[oó]xim\w*|"
     r"anteri\w*|volt\w*|volum\w*|status|tocando|bus\w*|procur\w*|pesquis\w*|"
     r"aleat[oó]ri\w*|shuffle|repet\w*)\b.{0,100}\bspotify\b|"
+    r"\babr\w*\s+(?:o\s+)?spotify\s+com\b|"
+    r"\b(?:homem\s+de\s+ferro|iron\s+man)\b|"
     r"\b(?:o\s+que\s+(?:est[aá]|t[aá])\s+tocando|qual\s+(?:m[uú]sica|faixa)|"
     r"paus\w*|to(?:c|q)\w*|pr[oó]xim\w*|(?:m[uú]sica|faixa)\s+anterior|volume)\b"
     r".{0,35}\b(?:m[uú]sica|faixa)\b)",
@@ -4456,6 +4461,8 @@ def supabase_device_enqueue(command, intent, attachments=None):
                 "intent": intent,
             }, 400
         target = spotify_public_target(spotify_args)
+        if spotify_args[0] == "play-uri" and len(spotify_args) > 1:
+            command = f"toque no Spotify {spotify_args[1]}"
     elif intent == "message_send":
         details = message_send_details(command)
         if not details:

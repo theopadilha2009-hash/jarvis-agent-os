@@ -56,7 +56,7 @@ class DeviceWorkerTest(unittest.TestCase):
             state = Path(folder) / "last-boot"
             with patch.object(MODULE, "BOOT_STATE", state):
                 with patch.object(MODULE, "machine_booted_at", lambda: 1_000.0):
-                    self.assertFalse(MODULE.boot_greeting_due(1_060.0))  # ainda subindo
+                    self.assertFalse(MODULE.boot_greeting_due(1_010.0))  # ainda subindo
                     self.assertTrue(MODULE.boot_greeting_due(2_000.0))
                     MODULE.mark_boot_greeting(1_000.0)
                     self.assertFalse(MODULE.boot_greeting_due(2_000.0))
@@ -67,6 +67,12 @@ class DeviceWorkerTest(unittest.TestCase):
         source = Path(MODULE.__file__).read_text(encoding="utf-8")
         loop = source[source.index("while running:"):]
         self.assertLess(loop.index("screen_is_locked()"), loop.index("heartbeat()"))
+
+    def test_boot_greeting_is_good_morning_and_does_not_wait_three_minutes(self):
+        self.assertIn("Bom dia", MODULE.BOOT_GREETING)
+        self.assertLessEqual(MODULE.BOOT_QUIET_SECONDS, 30)
+        self.assertEqual(MODULE.resolve_application_target("sistema", {}), "JARVIS")
+        self.assertEqual(MODULE.resolve_application_target("cockpit", {}), "JARVIS")
 
     def test_boot_greeting_survives_a_recent_arrival(self):
         """Reiniciar logo depois de um desbloqueio não pode engolir o bem-vindo."""

@@ -9,6 +9,11 @@ import unicodedata
 
 TRACK_URI_PATTERN = re.compile(r"^spotify:track:[A-Za-z0-9]{10,40}$")
 SAFE_QUERY_PATTERN = re.compile(r"^[\wÀ-ÿ '&.,()_-]{2,120}$", re.UNICODE)
+# Pedidos falados curtos → faixa allowlisted. Sem busca livre.
+NAMED_TRACKS = {
+    "homem de ferro": "spotify:track:4svkPL62HbvyFgf0nHFXAF",
+    "iron man": "spotify:track:4svkPL62HbvyFgf0nHFXAF",
+}
 
 
 def folded(value: str) -> str:
@@ -16,8 +21,20 @@ def folded(value: str) -> str:
     return "".join(char for char in normalized if not unicodedata.combining(char)).casefold()
 
 
-def control_requested(value: str) -> bool:
+def named_track_uri(value: str) -> str:
     text = folded(value)
+    for name, uri in NAMED_TRACKS.items():
+        if name in text:
+            return uri
+    return ""
+
+
+def control_requested(value: str) -> bool:
+    if named_track_uri(value):
+        return True
+    text = folded(value)
+    if "spotify" in text and "musica" in text:
+        return True
     controls = (
         "play", "toca", "toque", "tocar", "reprodu", "retoma", "continu", "paus",
         "proxima", "anterior", "volta", "volume", "tocando", "status", "busca", "procura",
@@ -51,6 +68,9 @@ def command_args(value: str) -> list[str] | None:
     if uri_match:
         uri = uri_match.group(0)
         return ["play-uri", uri] if TRACK_URI_PATTERN.fullmatch(uri) else None
+    named = named_track_uri(original)
+    if named:
+        return ["play-uri", named]
 
     volume_match = re.search(r"\bvolume\b[^0-9]{0,30}(\d{1,3})\s*%?", text)
     if volume_match:

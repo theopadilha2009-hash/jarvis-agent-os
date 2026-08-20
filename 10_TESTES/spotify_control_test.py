@@ -27,6 +27,15 @@ class SpotifyControlTest(unittest.TestCase):
             "toque no Spotify spotify:track:4uLU6hMCjMI75M1A2tKUQC": [
                 "play-uri", "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
             ],
+            "toca a música do homem de ferro": [
+                "play-uri", "spotify:track:4svkPL62HbvyFgf0nHFXAF",
+            ],
+            "abre o Spotify com a música do Homem de Ferro": [
+                "play-uri", "spotify:track:4svkPL62HbvyFgf0nHFXAF",
+            ],
+            "toque Iron Man no Spotify": [
+                "play-uri", "spotify:track:4svkPL62HbvyFgf0nHFXAF",
+            ],
         }
         for request, expected in cases.items():
             with self.subTest(request=request):
