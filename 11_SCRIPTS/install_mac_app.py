@@ -123,6 +123,8 @@ def compile_native_binary(destination: Path) -> None:
             "-O",
             "-framework", "AppKit",
             "-framework", "WebKit",
+            "-framework", "AVFoundation",
+            "-framework", "Speech",
             "-o", str(destination),
             str(SWIFT_SOURCE),
         ],
@@ -178,7 +180,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "2.0", url: str = DEFAULT_URL) -> dict:
+def bundle_info(version: str = "2.1", url: str = DEFAULT_URL) -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
@@ -196,6 +198,7 @@ def bundle_info(version: str = "2.0", url: str = DEFAULT_URL) -> dict:
         "NSSpeechRecognitionUsageDescription": f"O JARVIS de {author} ouve “oi Jarvis” para executar o pedido.",
         "JarvisCockpitURL": app_url(url),
         "LSUIElement": False,
+        "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True, "NSAllowsArbitraryLoads": False},
     }
 
 
@@ -253,7 +256,7 @@ cp -R "$HERE/JARVIS.app" "$DEST/JARVIS.app"
 BIN="$DEST/JARVIS.app/Contents/MacOS/JARVIS"
 SRC="$DEST/JARVIS.app/Contents/MacOS/jarvis_native_app.swift"
 if command -v file >/dev/null 2>&1 && ! file "$BIN" | grep -q "Mach-O"; then
-  swiftc -parse-as-library -O -framework AppKit -framework WebKit -o "$BIN" "$SRC"
+  swiftc -parse-as-library -O -framework AppKit -framework WebKit -framework AVFoundation -framework Speech -o "$BIN" "$SRC"
 fi
 chmod +x "$BIN"
 xattr -dr com.apple.quarantine "$DEST/JARVIS.app" 2>/dev/null || true

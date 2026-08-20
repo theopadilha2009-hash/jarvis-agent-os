@@ -175,10 +175,23 @@
     });
   }
 
+  function nativeHandlers() {
+    try { return window.webkit && window.webkit.messageHandlers; } catch { return null; }
+  }
+
+  function hasNativeSpeak() {
+    return Boolean(nativeHandlers() && nativeHandlers().jarvisSpeak);
+  }
+
+  function hasNativeListen() {
+    return Boolean(nativeHandlers() && nativeHandlers().jarvisListen);
+  }
+
   function muteMicForSpeech() {
     speaking = true;
     armed = false;
     try { recHandle && recHandle.stop(); } catch { /* already stopped */ }
+    try { nativeHandlers()?.jarvisListen.postMessage("stop"); } catch { /* web */ }
   }
 
   function unmuteMicAfterSpeech() {
@@ -191,6 +204,17 @@
     const clip = String(text || "").replace(/\s+/g, " ").trim().slice(0, 220);
     if (!clip) return Promise.resolve();
     muteMicForSpeech();
+    if (hasNativeSpeak()) {
+      return new Promise((resolve) => {
+        const timer = window.setTimeout(resolve, 20_000);
+        window.__jarvisOnSpeakDone = () => {
+          window.clearTimeout(timer);
+          window.__jarvisOnSpeakDone = null;
+          resolve();
+        };
+        try { nativeHandlers().jarvisSpeak.postMessage(clip); } catch { resolve(); }
+      }).finally(() => unmuteMicAfterSpeech());
+    }
     const persona = ownerToken() ? "ultron" : "jarvis";
     return Promise.resolve(window.JarvisLocalVoice?.speakBlob(clip, { persona }))
       .then((localBlob) => {
@@ -379,6 +403,10 @@
     armUntil = Date.now() + 8000;
   }
 
+  window.__jarvisNativeHeard = function (spoken) {
+    hearSpoken(spoken);
+  };
+
   function hearSpoken(spoken) {
     if (speaking) return;
     const text = String(spoken || "").trim();
@@ -397,7 +425,14 @@
   }
 
   function listenLoop() {
-    if (!keepListening || !Recognition || speaking) return;
+    if (!keepListening || speaking) return;
+    if (hasNativeListen()) {
+      try { nativeHandlers().jarvisListen.postMessage("start"); } catch { /* web */ }
+      orb.classList.add("listening");
+      say("Ouvindo.", "“oi Jarvis”.");
+      return;
+    }
+    if (!Recognition) return;
     const rec = new Recognition();
     recHandle = rec;
     rec.lang = "pt-BR";
@@ -450,7 +485,7 @@
 
   function startWakeLoop(options) {
     const silent = Boolean(options && options.silent);
-    if (!Recognition) {
+    if (!Recognition && !hasNativeListen()) {
       if (!silent) {
         input.focus();
         say("Escreva.", "Sem microfone aqui.");
@@ -473,7 +508,12 @@
   }
 
   function tryAutoListen() {
-    if (!Recognition || !wantsListen()) return;
+    if (!wantsListen()) return;
+    if (hasNativeListen()) {
+      startWakeLoop({ silent: true });
+      return;
+    }
+    if (!Recognition) return;
     const start = () => startWakeLoop({ silent: true });
     const permissions = navigator.permissions;
     if (permissions && permissions.query) {
