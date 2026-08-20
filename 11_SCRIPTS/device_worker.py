@@ -58,6 +58,23 @@ ARRIVAL_STATE = (
 BOOT_STATE = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "last-boot"
 )
+BUSY_STATE = (
+    Path.home() / "Library" / "Application Support" / "JARVIS" / "busy-mode"
+)
+BUSY_TTL_SECONDS = 4 * 3600.0
+WORKER_ENV = (
+    Path.home() / "Library" / "Application Support" / "JARVIS" / "worker.env"
+)
+WIDGET_PROCESS_MARK = "Application Support/JARVIS/chrome-profile"
+BUSY_REQUEST_PATTERN = re.compile(
+    r"\b(?:estou\s+ocupado|modo\s+foco|n[aã]o\s+me\s+perturba|"
+    r"silenci(?:a|e|ar)\s+o\s+(?:mac|computador))\b",
+    re.I,
+)
+PREPARE_REQUEST_PATTERN = re.compile(
+    r"\b(?:prepar(?:a|e|ar)\s+(?:o|meu)\s+dia|rotina\s+d[oa]\s+manh[aã])\b",
+    re.I,
+)
 BOOT_QUIET_SECONDS = 20.0
 # A saudação sai pelo alto-falante do Mac: o navegador cala áudio sem clique.
 LOCAL_TTS_URL = os.environ.get("JARVIS_LOCAL_TTS_URL", "http://127.0.0.1:8123/speech")
@@ -199,6 +216,34 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def worker_env_values() -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        for line in WORKER_ENV.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            values[key.strip()] = value.strip()
+    except OSError:
+        pass
+    return values
+
+
+def persist_worker_env(url: str, key: str) -> None:
+    if not url.startswith("https://") or not key:
+        return
+    try:
+        WORKER_ENV.parent.mkdir(parents=True, exist_ok=True)
+        WORKER_ENV.write_text(
+            f"SUPABASE_URL={url}\nSUPABASE_SERVICE_ROLE_KEY={key}\n",
+            encoding="utf-8",
+        )
+        WORKER_ENV.chmod(0o600)
+    except OSError:
+        pass
+
+
 def keychain_value(service: str) -> str:
     try:
         result = subprocess.run(
@@ -269,8 +314,43 @@ def mark_boot_greeting(booted: float) -> None:
         pass
 
 
+def busy_mode_active(now: float | None = None) -> bool:
+    stamp = now if now is not None else time.time()
+    try:
+        last = float(BUSY_STATE.read_text().strip() or 0)
+    except (OSError, ValueError):
+        return False
+    return stamp - last < BUSY_TTL_SECONDS
+
+
+def mark_busy(now: float | None = None) -> None:
+    try:
+        BUSY_STATE.parent.mkdir(parents=True, exist_ok=True)
+        BUSY_STATE.write_text(str(now if now is not None else time.time()))
+    except OSError:
+        pass
+
+
+def clear_busy() -> None:
+    try:
+        BUSY_STATE.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def sync_busy_from_job(job: dict) -> None:
+    envelope = request_envelope(job)
+    text = str(envelope.get("original_request") or job_request_text(job) or "")
+    if BUSY_REQUEST_PATTERN.search(text):
+        mark_busy()
+    elif PREPARE_REQUEST_PATTERN.search(text):
+        clear_busy()
+
+
 def arrival_allowed(now: float, reason: str = "worker") -> bool:
     if os.environ.get("JARVIS_ARRIVAL") == "0":
+        return False
+    if busy_mode_active(now):
         return False
     # O boot já tem a própria trava (uma por ligada); passar pelo cooldown de
     # chegada faria a saudação sumir quando o Mac reinicia logo depois de um
@@ -327,8 +407,23 @@ def speak_on_mac(text: str) -> str:
         return "failed"
 
 
+def widget_already_running() -> bool:
+    try:
+        result = subprocess.run(
+            ["/usr/bin/pgrep", "-f", WIDGET_PROCESS_MARK],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def _open_widget(reason: str, spoken: str) -> bool:
-    """Abre o canto JARVIS. No boot o LaunchAgent já sobe o .app."""
+    """Abre o canto JARVIS. Se já estiver no ar, não empilha janela."""
+    if widget_already_running():
+        return True
     try:
         app = subprocess.run(
             ["/usr/bin/open", "-a", "JARVIS"],
@@ -367,16 +462,20 @@ def announce_arrival(now: float, reason: str = "worker") -> bool:
 
 
 def configuration() -> tuple[str, str]:
+    cached = worker_env_values()
     base_url = (
         os.environ.get("SUPABASE_URL")
+        or cached.get("SUPABASE_URL")
         or keychain_value("jarvis-agent-os.supabase-url")
     ).strip().rstrip("/")
     api_key = (
         os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or cached.get("SUPABASE_SERVICE_ROLE_KEY")
         or keychain_value("jarvis-agent-os.supabase-service-role-key")
     ).strip()
     if not base_url.startswith("https://") or not api_key:
         raise WorkerError("Supabase URL/chave server-side não estão disponíveis no ambiente ou Chaves do macOS.")
+    persist_worker_env(base_url, api_key)
     return base_url, api_key
 
 
@@ -1098,6 +1197,7 @@ def message_details(request_text: str, expected_phone: str) -> dict | None:
 
 def execute_job(job: dict) -> tuple[bool, str]:
     action = str(job.get("action") or "")
+    sync_busy_from_job(job)
     effective_job = dict(job)
     if action == "save_note":
         return persist_mac_note(effective_job)

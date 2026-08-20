@@ -5666,8 +5666,8 @@ def daily_brief_payload(owner_authenticated=False):
 
 
 PREPARE_DAY_STEPS = (
-    {"index": 1, "intent": "open_application", "command": "abre o Calendar"},
-    {"index": 2, "intent": "open_application", "command": "abre o JARVIS"},
+    {"index": 1, "intent": "open_url", "command": "abre https://calendar.google.com no mac"},
+    {"index": 2, "intent": "notify", "command": "avisa no mac: dia preparado"},
 )
 BUSY_MODE_STEPS = (
     {"index": 1, "intent": "volume_set", "command": "volume do mac para 20"},
@@ -5730,7 +5730,7 @@ def prepare_day_payload(owner_authenticated=False, local_execute=False):
         return pairing_required_payload()
     brief, _status = daily_brief_payload(owner_authenticated=True)
     message = clean_text(brief.get("message"), 800)
-    extra = "Vou abrir o calendário e o sistema."
+    extra = "Vou abrir a agenda."
     return _named_device_plan(
         "prepare_day",
         "prepara o dia",
@@ -5743,7 +5743,7 @@ def prepare_day_payload(owner_authenticated=False, local_execute=False):
 
 
 def busy_mode_payload(owner_authenticated=False, local_execute=False):
-    return _named_device_plan(
+    payload, status = _named_device_plan(
         "busy_mode",
         "estou ocupado",
         BUSY_MODE_STEPS,
@@ -5751,6 +5751,9 @@ def busy_mode_payload(owner_authenticated=False, local_execute=False):
         local_execute=local_execute,
         message="Volume baixo e Spotify em pausa. Não te interrompo.",
     )
+    if isinstance(payload, dict) and payload.get("ok"):
+        payload["client_action"] = "quiet_mode"
+    return payload, status
 
 
 def status_payload(owner_authenticated=False, identity=None):

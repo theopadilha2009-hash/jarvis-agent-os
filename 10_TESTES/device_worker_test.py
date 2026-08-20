@@ -36,35 +36,53 @@ class DeviceWorkerTest(unittest.TestCase):
                 opened = []
                 spoken = []
 
-                class Ok:
-                    returncode = 0
+                class Result:
+                    def __init__(self, code=0):
+                        self.returncode = code
+                        self.stdout = ""
+                        self.stderr = ""
+
+                def record_run(argv, **_kwargs):
+                    opened.append(list(argv))
+                    if argv and str(argv[0]).endswith("pgrep"):
+                        return Result(1)
+                    return Result(0)
 
                 with patch.object(MODULE, "speak_on_mac", lambda text: spoken.append(text) or "say"), \
-                        patch.object(MODULE.subprocess, "run", lambda *a, **k: opened.append(list(a[0])) or Ok()):
+                        patch.object(MODULE.subprocess, "run", record_run):
                     self.assertTrue(MODULE.announce_arrival(10_000.0))
                     # Ele fala pelo alto-falante antes de abrir a aba: o
                     # navegador silencia áudio que ninguém pediu com um clique.
                     self.assertEqual(spoken, [MODULE.ARRIVAL_GREETING])
-                    self.assertEqual(opened[0], ["/usr/bin/open", "-a", "JARVIS"])
+                    self.assertEqual(opened[0][:1], ["/usr/bin/pgrep"])
+                    self.assertEqual(opened[1], ["/usr/bin/open", "-a", "JARVIS"])
                     spoken.clear()
                     # Dentro do cooldown não abre de novo.
                     self.assertFalse(MODULE.announce_arrival(10_600.0))
                     self.assertTrue(MODULE.announce_arrival(10_000.0 + MODULE.ARRIVAL_COOLDOWN_SECONDS + 1))
                 opened.clear()
 
-                class Fail:
-                    returncode = 1
-
                 def fallback_open(argv, **_kwargs):
                     opened.append(list(argv))
-                    return Fail() if argv[:2] == ["/usr/bin/open", "-a"] else Ok()
+                    if argv and str(argv[0]).endswith("pgrep"):
+                        return Result(1)
+                    if argv[:2] == ["/usr/bin/open", "-a"]:
+                        return Result(1)
+                    return Result(0)
 
                 with patch.object(MODULE, "speak_on_mac", lambda text: "say"), \
                         patch.object(MODULE.subprocess, "run", fallback_open), \
                         patch.object(MODULE, "arrival_allowed", return_value=True):
                     self.assertTrue(MODULE.announce_arrival(20_000.0))
-                    self.assertEqual(opened[0], ["/usr/bin/open", "-a", "JARVIS"])
-                    self.assertTrue(opened[1][1].endswith("/fala?app=1&arrival=worker&spoken=1"), opened[1][1])
+                    self.assertEqual(opened[1], ["/usr/bin/open", "-a", "JARVIS"])
+                    self.assertTrue(opened[2][1].endswith("/fala?app=1&arrival=worker&spoken=1"), opened[2][1])
+                opened.clear()
+                with patch.object(MODULE, "speak_on_mac", lambda text: "say"), \
+                        patch.object(MODULE, "widget_already_running", return_value=True), \
+                        patch.object(MODULE.subprocess, "run", record_run), \
+                        patch.object(MODULE, "arrival_allowed", return_value=True):
+                    self.assertTrue(MODULE.announce_arrival(30_000.0))
+                    self.assertFalse(any(cmd[:2] == ["/usr/bin/open", "-a"] for cmd in opened))
                 with patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "0"}):
                     self.assertFalse(MODULE.announce_arrival(99_999.0))
         # Boot: uma saudação por ligada, e só depois do sistema subir.
@@ -110,6 +128,49 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertLessEqual(MODULE.BOOT_QUIET_SECONDS, 30)
         self.assertEqual(MODULE.resolve_application_target("sistema", {}), "JARVIS")
         self.assertEqual(MODULE.resolve_application_target("cockpit", {}), "JARVIS")
+        self.assertEqual(MODULE.resolve_application_target("jarvis", {}), "JARVIS")
+        self.assertIn("volume_set", MODULE.ALLOWED_ACTIONS)
+        volume = MODULE.command_argv({
+            "action": "volume_set",
+            "target": "20",
+            "request_text": "volume do mac para 20",
+        })
+        self.assertEqual(volume[0], "osascript")
+        self.assertIn("output volume 20", volume[-1])
+
+    def test_busy_mode_blocks_arrival_greeting(self):
+        with tempfile.TemporaryDirectory() as folder:
+            busy = Path(folder) / "busy-mode"
+            with patch.object(MODULE, "BUSY_STATE", busy):
+                self.assertFalse(MODULE.busy_mode_active(1_000.0))
+                MODULE.mark_busy(1_000.0)
+                self.assertTrue(MODULE.busy_mode_active(1_100.0))
+                self.assertFalse(MODULE.arrival_allowed(1_100.0, "boot"))
+                self.assertFalse(MODULE.arrival_allowed(1_100.0, "worker"))
+                MODULE.sync_busy_from_job({"request_text": json.dumps({
+                    "schema": "jarvis-device-run/2",
+                    "original_request": "prepara o dia",
+                    "request": "abre https://calendar.google.com no mac",
+                })})
+                self.assertFalse(MODULE.busy_mode_active(1_200.0))
+                MODULE.sync_busy_from_job({"request_text": json.dumps({
+                    "schema": "jarvis-device-run/2",
+                    "original_request": "estou ocupado",
+                    "request": "volume do mac para 20",
+                })})
+                self.assertTrue(MODULE.busy_mode_active(1_300.0))
+
+    def test_worker_env_file_feeds_configuration_without_keychain(self):
+        with tempfile.TemporaryDirectory() as folder:
+            env_path = Path(folder) / "worker.env"
+            env_path.write_text("SUPABASE_URL=https://example.supabase.co\nSUPABASE_SERVICE_ROLE_KEY=test-role-key\n")
+            with patch.object(MODULE, "WORKER_ENV", env_path), patch.object(
+                MODULE, "keychain_value", return_value=""
+            ), patch.dict(MODULE.os.environ, {"SUPABASE_URL": "", "SUPABASE_SERVICE_ROLE_KEY": ""}, clear=False):
+                url, key = MODULE.configuration()
+            self.assertEqual(url, "https://example.supabase.co")
+            self.assertEqual(key, "test-role-key")
+            self.assertEqual(env_path.stat().st_mode & 0o777, 0o600)
 
     def test_boot_greeting_survives_a_recent_arrival(self):
         """Reiniciar logo depois de um desbloqueio não pode engolir o bem-vindo."""

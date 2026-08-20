@@ -111,6 +111,12 @@ W=280
 H=380
 X=1100
 Y=22
+PROFILE="${{HOME}}/Library/Application Support/JARVIS/chrome-profile"
+mkdir -p "$PROFILE"
+# Um processo só: open -a de novo no Chrome --app empilha janela.
+if pgrep -f 'Application Support/JARVIS/chrome-profile' >/dev/null 2>&1; then
+  exit 0
+fi
 if command -v osascript >/dev/null 2>&1; then
   BOUNDS=$(osascript -e 'tell application "Finder" to get bounds of window of desktop' 2>/dev/null || true)
   if [ -n "$BOUNDS" ]; then
@@ -120,8 +126,6 @@ if command -v osascript >/dev/null 2>&1; then
     fi
   fi
 fi
-PROFILE="${{HOME}}/Library/Application Support/JARVIS/chrome-profile"
-mkdir -p "$PROFILE"
 for BIN in \\
   "{CHROME}" \\
   "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \\
@@ -144,7 +148,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "1.6") -> dict:
+def bundle_info(version: str = "1.7") -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
@@ -297,7 +301,7 @@ def install(url: str, system_wide: bool) -> Path:
 
 
 def install_login_agent() -> None:
-    """Sobe o widget de canto no login, sem exigir o ZIP de novo."""
+    """Abre o canto uma vez no login. Sem loop — open -a de novo empilha janela."""
     launch = Path.home() / "Library" / "LaunchAgents"
     launch.mkdir(parents=True, exist_ok=True)
     path = launch / f"{LAUNCH_AGENT_LABEL}.plist"
