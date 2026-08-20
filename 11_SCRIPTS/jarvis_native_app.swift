@@ -44,7 +44,7 @@ enum Jarvis {
         AppDelegate.shared = delegate
         app.delegate = delegate
         app.setActivationPolicy(.regular)
-        app.activate(ignoringOtherApps: true)
+        app.activate(ignoringOtherApps: false)
         app.run()
     }
 }
@@ -75,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var lastOpenedURL = ""
     private var lastOpenedAt: TimeInterval = 0
     private var idleTimer: Timer?
-    private let idleHideAfter: TimeInterval = 180
+    private let idleHideAfter: TimeInterval = 45
     private let fullSize = NSSize(width: 280, height: 380)
     private let orbSize = NSSize(width: 92, height: 92)
     private var compact = false
@@ -93,9 +93,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         let webView = makeWebView()
         window.delegate = self
         window.contentView = webView
-        window.makeKeyAndOrderFront(nil)
         self.window = window
         self.webView = webView
+        setCompact(true)
+        window.orderFrontRegardless()
         webView.load(URLRequest(url: cockpitURL()))
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
         DispatchQueue.main.async { [weak self] in
@@ -111,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        revealWindow()
+        revealWindow(takeFocus: true)
         return true
     }
 
@@ -196,8 +197,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         } else if message.name == "jarvisWindow" {
             if body == "hide" || body == "minimize" {
                 hideWindow()
+            } else if body == "focus" {
+                revealWindow(takeFocus: true)
             } else if body == "show" {
-                revealWindow()
+                revealWindow(takeFocus: false)
             } else {
                 resetIdle()
             }
@@ -215,10 +218,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         setCompact(true)
     }
 
-    private func revealWindow() {
+    private func revealWindow(takeFocus: Bool = false) {
         setCompact(false)
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        guard let window else { return }
+        if takeFocus {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            window.orderFrontRegardless()
+        }
     }
 
     private func setCompact(_ on: Bool) {
@@ -275,9 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             finishSpeak()
             return
         }
-        paused = true
         player?.stop()
-        revealWindow()
         fetchPocketTTS(text) { [weak self] data in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -321,6 +327,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if wantListen { startListen() }
+        if compact {
+            webView.evaluateJavaScript(
+                "window.__jarvisSetIdle && window.__jarvisSetIdle(true)",
+                completionHandler: nil
+            )
+        }
     }
 
     func speechRecognizer(_ speechRecognizer: SFSpeechRecognizer, availabilityDidChange available: Bool) {
@@ -642,8 +654,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private func deliverHeard(_ text: String, final: Bool) {
         lastPartial = text
         lastWasFinal = final
-        if containsWake(text), window?.isMiniaturized == true || window?.isVisible == false {
-            revealWindow()
+        if containsWake(text) {
+            if player?.isPlaying == true {
+                player?.stop()
+                finishSpeak()
+            }
+            if compact { revealWindow(takeFocus: false) }
         }
         let flag = final ? "true" : "false"
         webView?.evaluateJavaScript(
