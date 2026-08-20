@@ -35,6 +35,9 @@ class MacAppTest(unittest.TestCase):
                 source = MODULE.SWIFT_SOURCE.read_text(encoding="utf-8")
                 self.assertIn("WKWebView", source)
                 self.assertIn("requestMediaCapturePermissionFor", source)
+                self.assertIn("AVSpeechSynthesizer", source)
+                self.assertIn("SFSpeechRecognizer", source)
+                self.assertIn("jarvisSpeak", source)
                 self.assertNotIn("Google Chrome", source)
 
                 info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
@@ -88,6 +91,8 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn(macho[:4], {b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xce", b"\xca\xfe\xba\xbe"})
                 source = archive.read("JARVIS.app/Contents/MacOS/jarvis_native_app.swift").decode("utf-8")
                 self.assertIn("WKWebView", source)
+                self.assertIn("AVSpeechSynthesizer", source)
+                self.assertIn("jarvisSpeak", source)
                 self.assertNotIn("Google Chrome", source)
                 self.assertNotIn("sleep 1.1", source)
                 self.assertIn("Theo Lorentz Padilha", archive.read("NOTICE.txt").decode("utf-8"))

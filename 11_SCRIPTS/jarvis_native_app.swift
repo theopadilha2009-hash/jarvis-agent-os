@@ -1,4 +1,6 @@
 import AppKit
+import AVFoundation
+import Speech
 import WebKit
 
 private let bundleID = "ai.theopadilha.jarvis.cockpit"
@@ -24,12 +26,23 @@ enum Jarvis {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
     static var shared: AppDelegate?
     private var window: NSWindow?
     private var webView: WKWebView?
+    private let synth = AVSpeechSynthesizer()
+    private var player: AVAudioPlayer?
+    private var speakDone: (() -> Void)?
+    private var wantListen = false
+    private var recognizer: SFSpeechRecognizer?
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var task: SFSpeechRecognitionTask?
+    private let engine = AVAudioEngine()
+    private var tapInstalled = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        synth.delegate = self
+        recognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
         let window = makeWindow()
         let webView = makeWebView()
         window.contentView = webView
@@ -89,7 +102,157 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         decisionHandler(.allow)
     }
 
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {}
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        let body = String(describing: message.body)
+        if message.name == "jarvisSpeak" {
+            speakNative(body)
+        } else if message.name == "jarvisListen" {
+            if body == "start" {
+                startListen()
+            } else {
+                stopListen()
+            }
+        }
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        finishSpeak()
+    }
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        finishSpeak()
+    }
+
+    private func speakNative(_ raw: String) {
+        let text = String(raw.prefix(220)).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            finishSpeak()
+            return
+        }
+        stopListen()
+        synth.stopSpeaking(at: .immediate)
+        player?.stop()
+        fetchPocketTTS(text) { [weak self] data in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let data, self.playAudio(data) { return }
+                self.speakAV(text)
+            }
+        }
+    }
+
+    private func fetchPocketTTS(_ text: String, done: @escaping (Data?) -> Void) {
+        guard let url = URL(string: "http://127.0.0.1:8123/speech") else {
+            done(nil)
+            return
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 8
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "persona": "jarvis"])
+        URLSession.shared.dataTask(with: req) { data, response, _ in
+            let ok = (response as? HTTPURLResponse)?.statusCode == 200
+            done(ok && (data?.count ?? 0) > 44 ? data : nil)
+        }.resume()
+    }
+
+    private func playAudio(_ data: Data) -> Bool {
+        do {
+            let player = try AVAudioPlayer(data: data)
+            player.delegate = self
+            self.player = player
+            return player.play()
+        } catch {
+            return false
+        }
+    }
+
+    private func speakAV(_ text: String) {
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "pt-BR")
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.pitchMultiplier = 1.02
+        synth.speak(utterance)
+    }
+
+    private func finishSpeak() {
+        webView?.evaluateJavaScript("window.__jarvisOnSpeakDone && window.__jarvisOnSpeakDone()", completionHandler: nil)
+        if wantListen {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                self?.beginRecognition()
+            }
+        }
+    }
+
+    private func startListen() {
+        wantListen = true
+        SFSpeechRecognizer.requestAuthorization { [weak self] status in
+            DispatchQueue.main.async {
+                guard status == .authorized else { return }
+                self?.beginRecognition()
+            }
+        }
+    }
+
+    private func stopListen() {
+        wantListen = false
+        task?.cancel()
+        task = nil
+        request?.endAudio()
+        request = nil
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        if engine.isRunning { engine.stop() }
+    }
+
+    private func beginRecognition() {
+        guard wantListen, let recognizer, recognizer.isAvailable else { return }
+        task?.cancel()
+        request?.endAudio()
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        if engine.isRunning { engine.stop() }
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = false
+        self.request = request
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            request.append(buffer)
+        }
+        tapInstalled = true
+        engine.prepare()
+        do {
+            try engine.start()
+        } catch {
+            return
+        }
+        task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self else { return }
+            if let text = result?.bestTranscription.formattedString, result?.isFinal == true, !text.isEmpty {
+                self.deliverHeard(text)
+            }
+            if error != nil || result?.isFinal == true {
+                DispatchQueue.main.async {
+                    if self.wantListen {
+                        self.beginRecognition()
+                    }
+                }
+            }
+        }
+    }
+
+    private func deliverHeard(_ text: String) {
+        guard let data = try? JSONSerialization.data(withJSONObject: [text], options: []),
+              let wrapped = String(data: data, encoding: .utf8) else { return }
+        let arg = String(wrapped.dropFirst().dropLast())
+        webView?.evaluateJavaScript("window.__jarvisNativeHeard && window.__jarvisNativeHeard(\(arg))", completionHandler: nil)
+    }
 
     private func cockpitURL() -> URL {
         let raw = (
@@ -125,6 +288,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         let config = WKWebViewConfiguration()
         config.mediaTypesRequiringUserActionForPlayback = []
         config.websiteDataStore = .default()
+        config.userContentController.add(self, name: "jarvisSpeak")
+        config.userContentController.add(self, name: "jarvisListen")
         if #available(macOS 11.0, *) {
             config.defaultWebpagePreferences.allowsContentJavaScript = true
         }
