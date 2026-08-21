@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-see1";
+  const SHELL_VERSION = "20260821-quiet1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -527,7 +527,7 @@
         strength: ownerToken() ? "strong" : "auto",
       };
       if (attachment) payload.attachments = [attachment];
-      if (attachment) nativeWindow("show");
+      if (attachment) nativeWindow("touch");
       const { response, data } = await postJson("/command", payload);
       const message = data.message || data.error || "Sem resposta.";
       lastError = data.ok === false ? message : "";
@@ -861,7 +861,7 @@
     window.clearTimeout(heardTimer);
     pendingHeard = "";
     try { nativeHandlers()?.jarvisListen.postMessage("restart"); } catch { /* web */ }
-    nativeWindow("focus");
+    nativeWindow("touch");
     startWakeLoop({ force: true });
     startWebBackup();
   }
@@ -1027,7 +1027,6 @@
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
   say("JARVIS", "Às suas ordens, senhor.");
-  if (hasNativeListen()) document.documentElement.classList.add("idle-orb");
   refreshAccess();
   refreshVoiceChip();
   watchShellVersion();

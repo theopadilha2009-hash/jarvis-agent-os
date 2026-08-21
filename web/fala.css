@@ -96,8 +96,8 @@ html.app-mode:not(.idle-orb) body {
   animation: vizwing .7s ease-in-out 2;
 }
 #orb {
-  width: 128px;
-  height: 128px;
+  width: 88px;
+  height: 88px;
   border: 0;
   padding: 0;
   border-radius: 50%;
@@ -112,8 +112,8 @@ html.app-mode:not(.idle-orb) body {
   z-index: 4;
   -webkit-app-region: no-drag;
   box-shadow:
-    0 0 0 1px rgba(var(--glow), .28),
-    0 0 22px rgba(var(--glow), .35);
+    0 0 0 1px rgba(var(--glow), .22),
+    0 0 14px rgba(var(--glow), .22);
 }
 #orb img {
   width: 80%;
@@ -167,8 +167,8 @@ html.idle-orb #orb {
   -webkit-app-region: drag;
   cursor: grab;
   box-shadow:
-    0 0 0 1px rgba(var(--glow), .38),
-    0 0 26px rgba(var(--glow), .42);
+    0 0 0 1px rgba(var(--glow), .28),
+    0 0 12px rgba(var(--glow), .28);
 }
 html.idle-orb #orb img {
   width: 80%;
@@ -176,10 +176,10 @@ html.idle-orb #orb img {
 }
 html.idle-orb #orb i { display: none; }
 html.idle-orb .halo {
-  inset: 10%;
+  inset: 18%;
   height: auto;
-  filter: blur(8px);
-  opacity: .65;
+  filter: blur(6px);
+  opacity: .4;
 }
 html.idle-orb.needs-login #loginToggle {
   display: none !important;
