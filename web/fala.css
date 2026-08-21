@@ -360,7 +360,7 @@ html:not(.armed) #heardLine { display: none !important; }
   color: var(--muted);
   font-size: 11px;
 }
-#askForm, #loginForm, .launch, .quick { display: flex; gap: 8px; width: 100%; }
+#askForm, #loginForm, .quick { display: flex; gap: 8px; width: 100%; }
 #askForm, #loginForm, .launch, .quick, #moreButton, #extras { -webkit-app-region: no-drag; }
 .btn,
 .quick a,
@@ -427,24 +427,21 @@ html:not(.armed) #heardLine { display: none !important; }
   flex-direction: column;
   gap: 8px;
 }
-.launch { justify-content: center; }
-.launch .btn {
-  flex: 1 1 0;
-  min-height: 42px;
-}
+.launch,
 .face-actions {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: stretch;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   width: 100%;
   -webkit-app-region: no-drag;
 }
+.launch .btn,
 .face-actions .btn {
-  flex: 1 1 0;
-  min-height: 34px;
-  padding: 0 8px;
-  font-size: 11px;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 html.app-mode.signed-in #loginToggle { display: none; }
 #extras {
