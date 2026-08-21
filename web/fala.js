@@ -978,6 +978,7 @@
   watchShellVersion();
   window.setInterval(refreshVoiceChip, 8000);
   tryAutoListen();
+  window.setTimeout(() => document.documentElement.classList.remove("booting"), 650);
   if (/[?&]debug=1(?:&|$)/.test(location.search)) mountDebug(false);
 
   function restartForUpdate() {
