@@ -1,6 +1,8 @@
 import AppKit
 import AVFoundation
+import CoreGraphics
 import Darwin
+import ScreenCaptureKit
 import Speech
 import WebKit
 
@@ -220,6 +222,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 revealWindow(takeFocus: false)
             } else {
                 resetIdle()
+            }
+        } else if message.name == "jarvisSee" {
+            captureScreen { [weak self] payload in
+                self?.webView?.evaluateJavaScript(
+                    "window.__jarvisOnScreen && window.__jarvisOnScreen(\(self?.jsString(payload) ?? "\"empty\""))",
+                    completionHandler: nil
+                )
             }
         }
     }
@@ -736,6 +745,122 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         )
     }
 
+    private func captureScreen(done: @escaping (String) -> Void) {
+        if #available(macOS 10.15, *), !CGPreflightScreenCaptureAccess() {
+            CGRequestScreenCaptureAccess()
+            done("denied")
+            return
+        }
+        if #available(macOS 14.0, *) {
+            captureModern(done)
+            return
+        }
+        captureLegacy(done)
+    }
+
+    @available(macOS 14.0, *)
+    private func captureModern(_ done: @escaping (String) -> Void) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                guard let window = self.window else {
+                    self.finishCapture("empty", done)
+                    return
+                }
+                let screen = window.screen ?? NSScreen.main
+                let number = screen.flatMap { $0.deviceDescription[NSDeviceDescriptionKey(rawValue: "NSScreenNumber")] as? NSNumber }
+                let displayID = number.map { CGDirectDisplayID($0.uint32Value) }
+                let display = content.displays.first(where: { displayID != nil && $0.displayID == displayID }) ?? content.displays.first
+                guard let display else {
+                    self.finishCapture("empty", done)
+                    return
+                }
+                let excluded = content.windows.filter { $0.owningApplication?.bundleIdentifier == bundleID }
+                let filter = SCContentFilter(display: display, excludingWindows: excluded)
+                let config = SCStreamConfiguration()
+                let maxW = 1280
+                config.width = min(maxW, display.width)
+                config.height = max(1, Int(Double(display.height) * (Double(config.width) / max(Double(display.width), 1))))
+                config.showsCursor = true
+                let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+                guard let data = self.jpegData(from: image), data.count > 1200 else {
+                    self.finishCapture("empty", done)
+                    return
+                }
+                self.finishCapture("data:image/jpeg;base64," + data.base64EncodedString(), done)
+            } catch {
+                self.finishCapture("denied", done)
+            }
+        }
+    }
+
+    private func captureLegacy(_ done: @escaping (String) -> Void) {
+        guard let window else {
+            done("empty")
+            return
+        }
+        let screen = window.screen ?? NSScreen.main
+        let index = ((screen.flatMap { NSScreen.screens.firstIndex(of: $0) }) ?? 0) + 1
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("jarvis-see.jpg")
+        let keepCompact = compact
+        window.alphaValue = 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            guard let self else { return }
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            task.arguments = ["-x", "-t", "jpg", "-D", "\(index)", url.path]
+            do {
+                try task.run()
+                task.waitUntilExit()
+            } catch {
+                window.alphaValue = 1
+                self.paintChrome(keepCompact)
+                done("empty")
+                return
+            }
+            window.alphaValue = 1
+            self.paintChrome(keepCompact)
+            guard task.terminationStatus == 0,
+                  let data = try? Data(contentsOf: url),
+                  data.count > 1200
+            else {
+                done("empty")
+                return
+            }
+            try? FileManager.default.removeItem(at: url)
+            done("data:image/jpeg;base64," + data.base64EncodedString())
+        }
+    }
+
+    private func finishCapture(_ payload: String, _ done: @escaping (String) -> Void) {
+        DispatchQueue.main.async { done(payload) }
+    }
+
+    private func jpegData(from image: CGImage) -> Data? {
+        let maxW: CGFloat = 1280
+        let srcW = CGFloat(image.width)
+        let srcH = CGFloat(image.height)
+        let scale = min(1, maxW / max(srcW, 1))
+        let outW = max(1, Int((srcW * scale).rounded()))
+        let outH = max(1, Int((srcH * scale).rounded()))
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil,
+            width: outW,
+            height: outH,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.interpolationQuality = .medium
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: outW, height: outH))
+        guard let scaled = ctx.makeImage() else { return nil }
+        let rep = NSBitmapImageRep(cgImage: scaled)
+        return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.52])
+    }
+
     private func jsString(_ raw: String) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: [raw], options: []),
               let wrapped = String(data: data, encoding: .utf8) else { return "\"\"" }
@@ -801,6 +926,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.userContentController.add(self, name: "jarvisListen")
         config.userContentController.add(self, name: "jarvisRestart")
         config.userContentController.add(self, name: "jarvisWindow")
+        config.userContentController.add(self, name: "jarvisSee")
         if #available(macOS 11.0, *) {
             config.defaultWebpagePreferences.allowsContentJavaScript = true
         }

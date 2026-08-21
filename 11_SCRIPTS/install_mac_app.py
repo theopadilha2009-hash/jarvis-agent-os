@@ -125,6 +125,7 @@ def compile_native_binary(destination: Path) -> None:
             "-framework", "WebKit",
             "-framework", "AVFoundation",
             "-framework", "Speech",
+            "-framework", "ScreenCaptureKit",
             "-o", str(destination),
             str(SWIFT_SOURCE),
         ],
@@ -180,7 +181,7 @@ def launch_agent_plist() -> bytes:
     })
 
 
-def bundle_info(version: str = "3.4", url: str = DEFAULT_URL) -> dict:
+def bundle_info(version: str = "3.5", url: str = DEFAULT_URL) -> dict:
     author = creator_seal.creator_name()
     return {
         "CFBundleName": APP_NAME,
@@ -196,6 +197,7 @@ def bundle_info(version: str = "3.4", url: str = DEFAULT_URL) -> dict:
         "CFBundleGetInfoString": f"JARVIS · {author}",
         "NSMicrophoneUsageDescription": f"O JARVIS de {author} ouve o pedido para responder por voz.",
         "NSSpeechRecognitionUsageDescription": f"O JARVIS de {author} ouve “Jarvis” para executar o pedido.",
+        "NSScreenCaptureUsageDescription": f"O JARVIS de {author} olha a tela quando você pede para analisar o que está vendo.",
         "JarvisCockpitURL": app_url(url),
         "LSUIElement": False,
         "NSQuitAlwaysKeepsWindows": False,
