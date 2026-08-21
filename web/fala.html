@@ -12,8 +12,8 @@
   <meta name="creator-seal" content="ggCZbZFBcds2X3zL5N5jloFWuxA=">
   <title>JARVIS</title>
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
-  <meta name="jarvis-shell" content="20260821-fit2">
-  <link rel="stylesheet" href="/ui/fala.css?v=20260821-fit2">
+  <meta name="jarvis-shell" content="20260821-once1">
+  <link rel="stylesheet" href="/ui/fala.css?v=20260821-once1">
 </head>
 <body>
   <main class="orb-shell">
@@ -25,11 +25,8 @@
     </button>
     <strong id="statusLine">JARVIS</strong>
     <p id="caption">Diga Jarvis.</p>
+    <p id="hint">Arraste. Diga Jarvis, analisa isso.</p>
     <p id="heardLine" hidden></p>
-    <p class="meta">
-      <span id="voiceChip" hidden>voz</span>
-      <span id="buildLine" title="Versão desta janela">v20260821-fit2</span>
-    </p>
     <aside id="updateToast" class="update-toast" hidden>
       <span>
         <small>atualização disponível</small>
@@ -48,9 +45,6 @@
       <button class="btn btn-accent" type="button" data-open="https://web.whatsapp.com">WhatsApp</button>
     </nav>
     <div class="face-actions">
-      <button id="reloadButton" class="btn" type="button">atualizar</button>
-      <button id="minimizeButton" class="btn" type="button" hidden>minimizar</button>
-      <button id="loginToggle" class="btn btn-accent" type="button">entrar</button>
       <button id="moreButton" class="btn" type="button">mais</button>
     </div>
     <div id="extras" hidden>
@@ -62,6 +56,14 @@
         <button class="btn btn-accent" type="submit">Entrar</button>
         <button id="logoutButton" class="btn" type="button" hidden>Sair</button>
       </form>
+      <div class="extra-tools">
+        <button id="reloadButton" class="btn" type="button">atualizar</button>
+        <button id="minimizeButton" class="btn" type="button" hidden>recolher</button>
+      </div>
+      <p class="meta">
+        <span id="voiceChip" hidden>voz</span>
+        <span id="buildLine" title="Versão desta janela">v20260821-once1</span>
+      </p>
       <nav class="quick">
         <button class="btn" type="button" data-open="https://www.youtube.com">YouTube</button>
         <button class="btn" type="button" data-open="https://open.spotify.com">Spotify</button>
@@ -80,6 +82,6 @@
   </main>
   <script src="/ui/creator-seal.js?v=20260817-app1"></script>
   <script src="/ui/local-voice.js?v=20260818-voice2"></script>
-  <script src="/ui/fala.js?v=20260821-fit2"></script>
+  <script src="/ui/fala.js?v=20260821-once1"></script>
 </body>
 </html>
