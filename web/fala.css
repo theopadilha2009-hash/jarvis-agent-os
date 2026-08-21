@@ -22,6 +22,10 @@ html, body {
   background: var(--bg);
   overflow: hidden;
 }
+html.app-mode:not(.idle-orb),
+html.app-mode:not(.idle-orb) body {
+  border-radius: 18px;
+}
 .orb-shell {
   min-height: 100dvh;
   display: flex;
@@ -138,55 +142,43 @@ html.booting .viz {
 }
 html.idle-orb,
 html.idle-orb body {
-  background: transparent;
+  background: transparent !important;
   min-height: 100%;
   overflow: hidden;
 }
 html.idle-orb .orb-shell {
   min-height: 100%;
-  padding: 10px;
+  height: 100dvh;
+  padding: 0;
   justify-content: center;
   gap: 0;
 }
-html.idle-orb .orb-shell > :not(#orb):not(.halo):not(.viz) {
+html.idle-orb .orb-shell > :not(#orb):not(.halo) {
   display: none !important;
 }
+html.idle-orb .viz { display: none !important; }
 html.idle-orb #orb {
-  width: 88px;
-  height: 88px;
+  width: min(100vw, 100vh);
+  height: min(100vw, 100vh);
   -webkit-app-region: drag;
   cursor: grab;
+  box-shadow:
+    0 0 0 1px rgba(var(--glow), .38),
+    0 0 26px rgba(var(--glow), .42);
 }
 html.idle-orb #orb img {
-  width: 88px;
-  height: 88px;
+  width: 100%;
+  height: 100%;
 }
-html.idle-orb #orb i { inset: -6px; }
-html.idle-orb #orb i:last-of-type { inset: -11px; }
-html.idle-orb .viz {
-  top: 50%;
-  width: 120px;
-  height: 100px;
-  transform: translate(-50%, -50%);
-  filter: blur(10px);
-}
-html.idle-orb .viz b:nth-child(1),
-html.idle-orb .viz b:nth-child(2) { width: 36px; height: 64px; }
-html.idle-orb .viz b:nth-child(3),
-html.idle-orb .viz b:nth-child(4) { width: 28px; height: 48px; }
+html.idle-orb #orb i { display: none; }
 html.idle-orb .halo {
-  inset: 8%;
+  inset: 10%;
   height: auto;
-  filter: blur(6px);
+  filter: blur(8px);
+  opacity: .65;
 }
 html.idle-orb.needs-login #loginToggle {
-  display: block !important;
-  position: absolute;
-  bottom: 2px;
-  font-size: 9px;
-  letter-spacing: .12em;
-  min-height: 18px;
-  padding: 0 6px;
+  display: none !important;
 }
 html.voice-down #orb {
   filter: grayscale(1) brightness(.7);

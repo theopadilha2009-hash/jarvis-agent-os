@@ -16,7 +16,7 @@ function ownerToken() {
 }
 
 function assistantName() {
-  return document.documentElement.dataset.persona === "ultron" ? "ULTRON" : "JARVIS";
+  return "JARVIS";
 }
 
 function formatMoment(value) {
@@ -93,7 +93,7 @@ async function refresh() {
     if (data.protocol !== "jarvis-mission-control/1") throw new Error("O núcleo respondeu sem o contrato de ferramentas.");
     render(data);
   } catch (error) {
-    renderUnavailable(error.status === 401 ? `Entre no modo Ultron para abrir as ferramentas privadas do ${assistantName()}.` : error.message);
+    renderUnavailable(error.status === 401 ? `Entre com a conta dono para abrir as ferramentas privadas do ${assistantName()}.` : error.message);
   } finally {
     loading = false;
     panel?.removeAttribute("aria-busy");

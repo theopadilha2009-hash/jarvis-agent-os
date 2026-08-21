@@ -77,7 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var lastOpenedAt: TimeInterval = 0
     private var idleTimer: Timer?
     private var voiceTimer: Timer?
+    private var lastKickAt: TimeInterval = 0
     private let idleHideAfter: TimeInterval = 45
+    private let kickCooldown: TimeInterval = 90
     private let fullSize = NSSize(width: 280, height: 380)
     private let orbSize = NSSize(width: 120, height: 120)
     private var compact = false
@@ -109,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             self?.resetIdle()
             self?.registerHotKey()
             self?.pokeVoice()
-            self?.voiceTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [weak self] _ in
+            self?.voiceTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
                 self?.pokeVoice()
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
@@ -249,22 +251,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         if window.isMiniaturized { window.deminiaturize(nil) }
         compact = on
         window.level = .floating
-        window.isOpaque = false
-        window.hasShadow = !on
-        window.backgroundColor = on
-            ? .clear
-            : NSColor(calibratedRed: 0.03, green: 0.02, blue: 0.05, alpha: 1)
-        window.standardWindowButton(.closeButton)?.isHidden = on
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = on
+        paintChrome(on)
         layouting = true
         window.setFrame(frameKeepingPlace(on ? orbSize : fullSize), display: true, animate: true)
         layouting = false
+        paintChrome(on)
         let flag = on ? "true" : "false"
         webView?.evaluateJavaScript(
             "window.__jarvisSetIdle && window.__jarvisSetIdle(\(flag))",
             completionHandler: nil
         )
         if !on { resetIdle() }
+    }
+
+    private func paintChrome(_ compactOn: Bool) {
+        guard let window else { return }
+        window.isOpaque = false
+        window.hasShadow = !compactOn
+        window.backgroundColor = .clear
+        window.standardWindowButton(.closeButton)?.isHidden = compactOn
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = compactOn
+        window.standardWindowButton(.zoomButton)?.isHidden = true
+        let radius = compactOn ? min(orbSize.width, orbSize.height) / 2 : 18
+        if let view = window.contentView {
+            view.wantsLayer = true
+            view.layer?.cornerRadius = radius
+            view.layer?.masksToBounds = true
+            view.layer?.backgroundColor = NSColor.clear.cgColor
+        }
+        webView?.wantsLayer = true
+        webView?.layer?.cornerRadius = radius
+        webView?.layer?.masksToBounds = true
+        if #available(macOS 12.0, *) {
+            webView?.underPageBackgroundColor = .clear
+        }
     }
 
     private func pokeVoice() {
@@ -281,9 +301,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private func kickVoice() {
+        let now = Date().timeIntervalSince1970
+        if now - lastKickAt < kickCooldown { return }
+        lastKickAt = now
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        task.arguments = ["kickstart", "-k", "gui/\(getuid())/ai.theopadilha.jarvis-voice"]
+        task.arguments = ["kickstart", "gui/\(getuid())/ai.theopadilha.jarvis-voice"]
         try? task.run()
     }
 
@@ -763,8 +786,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.setFrameAutosaveName("")
         window.setFrame(rect, display: true)
         window.isMovable = true
-        window.backgroundColor = NSColor(calibratedRed: 0.03, green: 0.02, blue: 0.05, alpha: 1)
+        window.isOpaque = false
+        window.backgroundColor = .clear
         window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = true
         return window
     }
 
@@ -784,6 +809,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         view.navigationDelegate = self
         view.allowsBackForwardNavigationGestures = false
         view.setValue(false, forKey: "drawsBackground")
+        if #available(macOS 12.0, *) {
+            view.underPageBackgroundColor = .clear
+        }
         return view
     }
 

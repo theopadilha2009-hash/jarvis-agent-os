@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
   <meta name="theme-color" content="#130824">
-  <meta name="description" content="JARVIS — assistente pessoal por convite. Chat, pesquisa e modo code. Ultron e Mac só do dono.">
+  <meta name="description" content="JARVIS — assistente pessoal por convite. Chat, pesquisa e modo code. Memória e Mac só do dono.">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -331,7 +331,7 @@
         <span>Conexão privada</span>
         <strong id="workerValue">verificando worker do Mac</strong>
         <div class="admin-login">
-          <input id="adminUsername" autocomplete="username" value="theo" placeholder="Login Ultron" aria-label="Login Ultron">
+          <input id="adminUsername" autocomplete="username" value="theo" placeholder="Login do dono" aria-label="Login do dono">
           <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha">
           <button id="adminLoginButton" type="button">Entrar</button>
         </div>
@@ -343,8 +343,8 @@
           <label class="signup-terms"><input id="signupTerms" type="checkbox" aria-label="Aceito os termos de uso e a política de privacidade"> Aceito os <a href="/termos" target="_blank" rel="noopener">termos</a> e a <a href="/privacidade" target="_blank" rel="noopener">privacidade</a></label>
           <button id="signupButton" type="button">Criar conta JARVIS</button>
         </div>
-        <button class="leave-owner-mode" id="leaveOwnerMode" type="button" hidden>Sair do modo Ultron</button>
-        <small id="pairingHint">Seu login do Ultron entra no JARVIS e no Ultron. Contas novas só usam o JARVIS + modo code depois da aprovação.</small>
+        <button class="leave-owner-mode" id="leaveOwnerMode" type="button" hidden>Sair da conta dono</button>
+        <small id="pairingHint">O login do dono libera memória, Mac e orçamento 3× no JARVIS. Contas novas só usam o JARVIS + modo code depois da aprovação.</small>
         <details class="advanced-pairing">
           <summary>Pareamento avançado</summary>
           <div class="pairing-controls">
@@ -511,11 +511,11 @@
               <button type="button" class="integration-primary" id="n8nCreateButton">Criar inativo</button>
               <button type="button" id="n8nListButton">Meus workflows</button>
             </div>
-            <small class="n8n-power-hint">No Ultron, separe até 3 workflows com <b>||</b>. Ex.: captar lead || avisar no Slack || salvar no banco.</small>
+            <small class="n8n-power-hint">Com a conta dono, separe até 3 workflows com <b>||</b>. Ex.: captar lead || avisar no Slack || salvar no banco.</small>
             <div class="n8n-workflow-preview" id="n8nWorkflowPreview">
               <div class="n8n-workflow-map" id="n8nWorkflowMap" aria-label="Mapa visual do workflow"></div>
               <div class="n8n-workflow-list" id="n8nWorkflowList" aria-live="polite"></div>
-              <div class="n8n-workflow-summary" id="n8nWorkflowSummary">Descreva um fluxo. O JARVIS monta 1×; no modo Ultron o orçamento operacional sobe para 3×.</div>
+              <div class="n8n-workflow-summary" id="n8nWorkflowSummary">Descreva um fluxo. Visitante monta 1×; com a conta dono o orçamento operacional sobe para 3×.</div>
             </div>
           </section>
         </section>
