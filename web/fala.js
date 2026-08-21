@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-quiet1";
+  const SHELL_VERSION = "20260821-btn1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -1036,15 +1036,16 @@
   if (/[?&]debug=1(?:&|$)/.test(location.search)) mountDebug(false);
 
   function restartForUpdate() {
+    const url = new URL(location.href);
+    url.searchParams.set("r", Date.now().toString(36));
     try {
       const native = nativeHandlers() && nativeHandlers().jarvisRestart;
       if (native) {
         native.postMessage("now");
+        window.setTimeout(() => location.replace(url.href), 500);
         return;
       }
     } catch { /* web */ }
-    const url = new URL(location.href);
-    url.searchParams.set("r", Date.now().toString(36));
     location.replace(url.href);
   }
 
@@ -1068,7 +1069,7 @@
     try {
       const response = await fetch("/status", { headers: apiHeaders() });
       const data = await response.json().catch(() => ({}));
-      paintShellVersion(data?.shell?.version || "");
+      paintShellVersion(data?.shell?.overlay || data?.shell?.version || "");
     } catch {
       paintShellVersion("");
     }

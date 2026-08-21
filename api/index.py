@@ -2485,7 +2485,9 @@ def paid_elevenlabs_allowed():
 
 
 _SHELL_VERSION_RE = re.compile(r'CACHE_VERSION\s*=\s*"jarvis-mobile-shell-([^"]+)"')
+_OVERLAY_VERSION_RE = re.compile(r'jarvis-shell"\s+content="([^"]+)"')
 _shell_version_cache = None
+_overlay_version_cache = None
 
 
 def web_shell_version():
@@ -2501,6 +2503,21 @@ def web_shell_version():
     match = _SHELL_VERSION_RE.search(text)
     _shell_version_cache = match.group(1) if match else ""
     return _shell_version_cache
+
+
+def overlay_shell_version():
+    """Versão do overlay /fala, lida do meta jarvis-shell."""
+    global _overlay_version_cache
+    if _overlay_version_cache is not None:
+        return _overlay_version_cache
+    try:
+        text = (WEB_DIR / "fala.html").read_text(encoding="utf-8")
+    except OSError:
+        _overlay_version_cache = ""
+        return _overlay_version_cache
+    match = _OVERLAY_VERSION_RE.search(text)
+    _overlay_version_cache = match.group(1) if match else ""
+    return _overlay_version_cache
 
 
 def owner_pairing_required():
@@ -5901,6 +5918,7 @@ def status_payload(owner_authenticated=False, identity=None):
         "shell": {
             "version": web_shell_version(),
             "label": f"v{web_shell_version()}" if web_shell_version() else "",
+            "overlay": overlay_shell_version(),
         },
         "mac_app": {
             "download": "/download/mac",
