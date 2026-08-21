@@ -56,7 +56,7 @@ class MacAppTest(unittest.TestCase):
                 self.assertEqual(info["CFBundleIdentifier"], MODULE.BUNDLE_ID)
                 self.assertEqual(info["CFBundleExecutable"], "JARVIS")
                 self.assertFalse(info.get("NSQuitAlwaysKeepsWindows", True))
-                self.assertEqual(info["CFBundleShortVersionString"], "3.1")
+                self.assertEqual(info["CFBundleShortVersionString"], "3.2")
                 self.assertIn("pause", source)
                 self.assertIn("openExternal", source)
                 self.assertIn('body == "stop"', source)
