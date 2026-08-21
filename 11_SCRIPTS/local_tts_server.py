@@ -72,6 +72,7 @@ SPEECH_CACHE_MAX = 24
 SPEECH_CACHE_CHARS = 72
 _SPEECH_CACHE = {}
 _SPEECH_CACHE_LOCK = threading.Lock()
+_SPEECH_LOCK = threading.Lock()
 
 
 def voice_lock_dir(home=None, environ=None) -> Path:
@@ -332,7 +333,7 @@ def apply_pocket_adult(audio: bytes, rate: int) -> bytes:
             ["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-af", chain, "-f", "wav", "pipe:1"],
             input=audio,
             capture_output=True,
-            timeout=2.0,
+            timeout=4.0,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
@@ -716,29 +717,35 @@ def make_handler(args, pocket, piper, sample_rate: int, config: dict):
             cached = speech_cache_get(cache_id)
             if cached:
                 return self._send(200, cached["audio"], cached["content_type"], cached.get("engine") or "")
-            result = synthesize_speech(
-                text,
-                pocket=pocket,
-                piper=piper,
-                piper_opts={
-                    "raw": args.raw,
-                    "sample_rate": sample_rate,
-                    "pitch": bounded("pitch", args.pitch, 0.70, 1.10),
-                    "tempo": bounded("tempo", args.tempo, 0.80, 1.40),
-                },
-                voice=chosen["pocket"],
-                edge_voice=chosen["edge"],
-                prefer_edge=prefer_edge,
-                edge_rate=chosen.get("edge_rate") or "-5%",
-                edge_pitch=chosen.get("edge_pitch") or "-8Hz",
-            )
+            with _SPEECH_LOCK:
+                cached = speech_cache_get(cache_id)
+                if cached:
+                    result = cached
+                else:
+                    result = synthesize_speech(
+                        text,
+                        pocket=pocket,
+                        piper=piper,
+                        piper_opts={
+                            "raw": args.raw,
+                            "sample_rate": sample_rate,
+                            "pitch": bounded("pitch", args.pitch, 0.70, 1.10),
+                            "tempo": bounded("tempo", args.tempo, 0.80, 1.40),
+                        },
+                        voice=chosen["pocket"],
+                        edge_voice=chosen["edge"],
+                        prefer_edge=prefer_edge,
+                        edge_rate=chosen.get("edge_rate") or "-5%",
+                        edge_pitch=chosen.get("edge_pitch") or "-8Hz",
+                    )
+                    if result.get("ok"):
+                        speech_cache_put(cache_id, result)
             if not result.get("ok"):
                 return self._json(500, {
                     "ok": False,
                     "error": result.get("error") or "falha na síntese",
                     "engine": result.get("engine"),
                 })
-            speech_cache_put(cache_id, result)
             return self._send(200, result["audio"], result["content_type"], result.get("engine") or "")
 
     return VoiceHandler

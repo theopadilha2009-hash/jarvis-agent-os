@@ -80,6 +80,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var idleTimer: Timer?
     private var voiceTimer: Timer?
     private var lastKickAt: TimeInterval = 0
+    private var voiceMisses = 0
+    private var speakingNow = false
     private let idleHideAfter: TimeInterval = 45
     private let kickCooldown: TimeInterval = 90
     private let fullSize = NSSize(width: 280, height: 380)
@@ -297,14 +299,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private func pokeVoice() {
+        if speakingNow { return }
         guard let url = URL(string: "http://127.0.0.1:8123/health") else { return }
         var req = URLRequest(url: url)
-        req.timeoutInterval = 0.8
-        URLSession.shared.dataTask(with: req) { [weak self] _, response, _ in
+        req.timeoutInterval = 2.0
+        URLSession.shared.dataTask(with: req) { [weak self] _, response, error in
             let ok = (response as? HTTPURLResponse)?.statusCode == 200
+            let code = (error as? URLError)?.code
+            let dead = !ok && (code == .cannotConnectToHost || code == .cannotFindHost)
             DispatchQueue.main.async {
-                self?.tellJS(ok ? "voice:ok" : "voice:down")
-                if !ok { self?.kickVoice() }
+                guard let self else { return }
+                if ok {
+                    self.voiceMisses = 0
+                    self.tellJS("voice:ok")
+                    return
+                }
+                if self.speakingNow { return }
+                if dead {
+                    self.voiceMisses += 1
+                    if self.voiceMisses >= 3 {
+                        self.tellJS("voice:down")
+                        self.kickVoice()
+                    }
+                }
             }
         }.resume()
     }
@@ -383,14 +400,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             finishSpeak()
             return
         }
+        speakingNow = true
         player?.stop()
         fetchPocketTTS(text) { [weak self] data in
             DispatchQueue.main.async {
                 guard let self else { return }
-                if let data, self.playAudio(data) { return }
+                if let data, self.playAudio(data) {
+                    self.voiceMisses = 0
+                    self.tellJS("voice:ok")
+                    return
+                }
                 self.fetchPocketTTS(text) { retry in
                     DispatchQueue.main.async {
-                        if let retry, self.playAudio(retry) { return }
+                        if let retry, self.playAudio(retry) {
+                            self.voiceMisses = 0
+                            self.tellJS("voice:ok")
+                            return
+                        }
                         self.finishSpeak()
                     }
                 }
@@ -405,7 +431,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.timeoutInterval = 4.0
+        req.timeoutInterval = 15.0
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "persona": "jarvis"])
         URLSession.shared.dataTask(with: req) { data, response, _ in
@@ -443,6 +469,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private func finishSpeak() {
+        speakingNow = false
         paused = false
         webView?.evaluateJavaScript("window.__jarvisOnSpeakDone && window.__jarvisOnSpeakDone()", completionHandler: nil)
     }
