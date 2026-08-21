@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var voiceTimer: Timer?
     private let idleHideAfter: TimeInterval = 45
     private let fullSize = NSSize(width: 280, height: 380)
-    private let orbSize = NSSize(width: 92, height: 92)
+    private let orbSize = NSSize(width: 120, height: 120)
     private var compact = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
