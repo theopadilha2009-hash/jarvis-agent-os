@@ -164,10 +164,15 @@ html.idle-orb .orb-shell > :not(#orb):not(.halo) {
   display: none !important;
 }
 html.idle-orb .viz { display: none !important; }
+html.idle-orb,
+html.idle-orb body,
+html.idle-orb .orb-shell {
+  -webkit-app-region: drag;
+}
 html.idle-orb #orb {
   width: min(100vw, 100vh);
   height: min(100vw, 100vh);
-  -webkit-app-region: drag;
+  -webkit-app-region: drag !important;
   cursor: grab;
   box-shadow:
     0 0 0 1px rgba(var(--glow), .28),

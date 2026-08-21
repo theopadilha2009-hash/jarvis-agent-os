@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-btn1";
+  const SHELL_VERSION = "20260821-drag1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -60,6 +60,7 @@
       window.localStorage.setItem(REMEMBER_KEY, rememberLoginEnabled() ? "1" : "0");
       window.localStorage.setItem(OWNER_IDLE_KEY, String(Date.now()));
     } catch { /* private mode */ }
+    try { nativeHandlers()?.jarvisWindow.postMessage("token:" + (token || "")); } catch { /* web */ }
   }
 
   function apiHeaders() {
@@ -124,6 +125,7 @@
 
   function clearStaleSession() {
     try { window.localStorage.removeItem(OWNER_TOKEN_KEY); } catch { /* private */ }
+    try { nativeHandlers()?.jarvisWindow.postMessage("token:"); } catch { /* web */ }
   }
 
   function renderAccess(label, signedIn) {
@@ -524,7 +526,7 @@
         command: attachment
           ? `${command}. Isto é um print da tela do Mac onde o JARVIS está; diga o que aparece e o que eu devo fazer agora.`
           : command,
-        strength: ownerToken() ? "strong" : "auto",
+        strength: ownerToken() ? "maximum" : "auto",
       };
       if (attachment) payload.attachments = [attachment];
       if (attachment) nativeWindow("touch");
@@ -570,6 +572,26 @@
 
   function nativeWindow(action) {
     try { nativeHandlers()?.jarvisWindow.postMessage(action); } catch { /* web */ }
+  }
+
+  let dragging = false;
+  let lastDragAt = 0;
+  function bindWindowDrag() {
+    if (!hasNativeListen()) return;
+    const blocked = (node) => node && node.closest && node.closest("input,textarea,select,a,label,form,nav,.face-actions,#extras,#updateToast,.update-toast,#askForm,#loginForm");
+    window.addEventListener("mousedown", (event) => {
+      if (event.button !== 0 || blocked(event.target)) return;
+      dragging = true;
+      lastDragAt = 0;
+      nativeWindow("dragstart");
+    }, true);
+    window.addEventListener("mousemove", (event) => {
+      if (!dragging) return;
+      lastDragAt = Date.now();
+      nativeWindow("drag");
+      event.preventDefault();
+    }, true);
+    window.addEventListener("mouseup", () => { dragging = false; }, true);
   }
 
   function keepArmed() {
@@ -950,6 +972,7 @@
   }
 
   orb.addEventListener("click", () => {
+    if (Date.now() - lastDragAt < 400) return;
     window.clearTimeout(clickWait);
     clickWait = window.setTimeout(() => forceListen(), 280); // user-gesture
   });
@@ -1027,6 +1050,7 @@
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
   say("JARVIS", "Às suas ordens, senhor.");
+  bindWindowDrag();
   refreshAccess();
   refreshVoiceChip();
   watchShellVersion();
