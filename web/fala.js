@@ -38,6 +38,8 @@
   let lastOpenAt = 0;
   let stayQuiet = false;
   let askQueue = [];
+  let meeting = false;
+  let clickWait = 0;
 
   if (appMode) document.documentElement.classList.add("app-mode");
 
@@ -130,6 +132,7 @@
     applyPersona(label);
     const inSession = Boolean(signedIn);
     document.documentElement.classList.toggle("signed-in", inSession);
+    document.documentElement.classList.toggle("needs-login", !inSession);
     const loginToggle = document.getElementById("loginToggle");
     if (loginToggle) loginToggle.hidden = inSession;
     logoutButton.hidden = !inSession;
@@ -226,14 +229,6 @@
     return Promise.resolve(window.JarvisLocalVoice?.speakBlob(clip, { persona }))
       .then((localBlob) => {
         if (localBlob) return playBlob(localBlob);
-        return fetch("/speech", {
-          method: "POST",
-          headers: apiHeaders(),
-          body: JSON.stringify({ text: clip, persona }),
-        }).then((response) => {
-          if (!response.ok) throw new Error("speech");
-          return response.blob();
-        }).then((blob) => playBlob(blob));
       })
       .catch(() => {})
       .finally(() => unmuteMicAfterSpeech());
@@ -375,7 +370,7 @@
     const folded = foldSpeech(text);
     if (!folded || folded.length < 3) return false;
     if (WAKE_NAME.test(folded)) return true;
-    return /\b(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|spotify|whatsapp|youtube|google|hora|horas|data|pesquisa|busca|procura|volume|proximo|proxima|calendario|agenda|gmail|maps|mapa|silencio|quieto|cala|foco|ocupado|copia|cockpit)\b/.test(folded);
+    return /\b(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|spotify|whatsapp|youtube|google|hora|horas|data|pesquisa|busca|procura|volume|proximo|proxima|calendario|agenda|gmail|maps|mapa|silencio|quieto|cala|foco|ocupado|copia|cockpit|repete|de novo|outra vez)\b/.test(folded);
   }
 
   function expandCommands(text) {
@@ -478,6 +473,9 @@
         return;
       }
       say("…", command);
+      if (!stayQuiet && hasNativeSpeak()) {
+        try { nativeHandlers().jarvisSpeak.postMessage("Certo."); } catch { /* web */ }
+      }
       const { response, data } = await postJson("/command", {
         command,
         strength: ownerToken() ? "strong" : "auto",
@@ -504,6 +502,9 @@
       if (response.status === 429) {
         say("Limite.", message);
         return;
+      }
+      if (!stayQuiet && hasNativeSpeak()) {
+        try { nativeHandlers().jarvisSpeak.postMessage("stop"); } catch { /* web */ }
       }
       say(data.ok === false ? "Não." : "Pronto.", "");
       if (data.status_real === "free_web_search_unavailable") {
@@ -550,6 +551,14 @@
       orb.classList.add("listening");
       say("Ouvindo.", "Preparando fala no Mac…");
       listenPainted = false;
+      return;
+    }
+    if (raw === "voice:down") {
+      document.documentElement.classList.add("voice-down");
+      return;
+    }
+    if (raw === "voice:ok") {
+      document.documentElement.classList.remove("voice-down");
       return;
     }
     if (raw === "denied") {
@@ -620,10 +629,16 @@
     if (stayQuiet && !hit) return;
     if (hit) {
       stayQuiet = false;
-      nativeWindow("show");
+      nativeWindow("touch");
       keepArmed();
       if (!hit.command) {
         say("Pode falar.", "Diz o pedido.");
+        return;
+      }
+      if (isRepeatAsk(hit.command)) {
+        lastAsked = "";
+        lastAskedAt = 0;
+        if (lastCommand) fireAsk(lastCommand);
         return;
       }
       if (!isFinal) {
@@ -637,6 +652,12 @@
       if (!looksLikeCommand(text)) return;
       if (!isFinal) {
         say("Ouvindo.", text);
+        return;
+      }
+      if (isRepeatAsk(text)) {
+        lastAsked = "";
+        lastAskedAt = 0;
+        if (lastCommand) fireAsk(lastCommand);
         return;
       }
       keepArmed();
@@ -654,6 +675,10 @@
     lastAskedAt = Date.now();
     for (let index = 1; index < items.length; index += 1) enqueue(items[index]);
     ask(items[0]);
+  }
+
+  function isRepeatAsk(text) {
+    return /^(?:repete|repete isso|de novo|outra vez|diz de novo|fala de novo|repete o ultimo)$/.test(foldSpeech(text));
   }
 
   function spokenReply(text) {
@@ -774,6 +799,8 @@
   function forceListen() {
     speaking = false;
     stayQuiet = false;
+    meeting = false;
+    document.documentElement.classList.remove("meeting");
     keepListening = false;
     listenPainted = false;
     window.clearTimeout(heardTimer);
@@ -838,6 +865,7 @@
     moreButton.textContent = extras.hidden ? "mais" : "fechar";
   });
   document.getElementById("loginToggle")?.addEventListener("click", () => {
+    nativeWindow("focus");
     revealLogin();
   });
   document.getElementById("retryButton")?.addEventListener("click", () => {
@@ -852,8 +880,28 @@
     minimizeButton.hidden = !hasNativeListen();
     minimizeButton.addEventListener("click", () => nativeWindow("hide"));
   }
+  function toggleMeeting() {
+    meeting = !meeting;
+    document.documentElement.classList.toggle("meeting", meeting);
+    if (meeting) {
+      stayQuiet = true;
+      armed = false;
+      try { nativeHandlers()?.jarvisListen.postMessage("pause"); } catch { /* web */ }
+      say("Reunião.", "Mic off. Duplo clique no brilho.");
+      return;
+    }
+    stayQuiet = false;
+    forceListen();
+  }
+
   orb.addEventListener("click", () => {
-    forceListen(); // user-gesture — never persist off
+    window.clearTimeout(clickWait);
+    clickWait = window.setTimeout(() => forceListen(), 280); // user-gesture
+  });
+  orb.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    window.clearTimeout(clickWait);
+    toggleMeeting();
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();

@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import Darwin
 import Speech
 import WebKit
 
@@ -75,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var lastOpenedURL = ""
     private var lastOpenedAt: TimeInterval = 0
     private var idleTimer: Timer?
+    private var voiceTimer: Timer?
     private let idleHideAfter: TimeInterval = 45
     private let fullSize = NSSize(width: 280, height: 380)
     private let orbSize = NSSize(width: 92, height: 92)
@@ -103,7 +105,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             self?.startListen()
             self?.scheduleRecycle()
             self?.resetIdle()
+            self?.registerHotKey()
             self?.pokeVoice()
+            self?.voiceTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [weak self] _ in
+                self?.pokeVoice()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+                self?.maybeMorningHello()
+            }
         }
     }
 
@@ -254,7 +263,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         guard let url = URL(string: "http://127.0.0.1:8123/health") else { return }
         var req = URLRequest(url: url)
         req.timeoutInterval = 0.8
-        URLSession.shared.dataTask(with: req).resume()
+        URLSession.shared.dataTask(with: req) { [weak self] _, response, _ in
+            let ok = (response as? HTTPURLResponse)?.statusCode == 200
+            DispatchQueue.main.async {
+                self?.tellJS(ok ? "voice:ok" : "voice:down")
+                if !ok { self?.kickVoice() }
+            }
+        }.resume()
+    }
+
+    private func kickVoice() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        task.arguments = ["kickstart", "-k", "gui/\(getuid())/ai.theopadilha.jarvis-voice"]
+        try? task.run()
+    }
+
+    private func registerHotKey() {
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if self?.isToggleHotKey(event) == true {
+                self?.toggleFromHotKey()
+                return nil
+            }
+            return event
+        }
+        NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if self?.isToggleHotKey(event) == true {
+                self?.toggleFromHotKey()
+            }
+        }
+    }
+
+    private func isToggleHotKey(_ event: NSEvent) -> Bool {
+        event.keyCode == 49
+            && event.modifierFlags.contains(.option)
+            && !event.modifierFlags.contains(.command)
+            && !event.modifierFlags.contains(.control)
+    }
+
+    private func toggleFromHotKey() {
+        if compact { revealWindow(takeFocus: true) }
+        else { setCompact(true) }
+    }
+
+    private func maybeMorningHello() {
+        let now = Date()
+        let hour = Calendar.current.component(.hour, from: now)
+        guard (5..<12).contains(hour) else { return }
+        let stamp = DateFormatter.localizedString(from: now, dateStyle: .short, timeStyle: .none)
+        let key = "JarvisLastMorning"
+        if UserDefaults.standard.string(forKey: key) == stamp { return }
+        UserDefaults.standard.set(stamp, forKey: key)
+        speakNative("Bom dia.")
     }
 
     private func containsWake(_ text: String) -> Bool {
@@ -659,7 +719,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 player?.stop()
                 finishSpeak()
             }
-            if compact { revealWindow(takeFocus: false) }
         }
         let flag = final ? "true" : "false"
         webView?.evaluateJavaScript(

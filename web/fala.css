@@ -110,6 +110,27 @@ html.idle-orb .halo {
   height: 120%;
   filter: blur(6px);
 }
+html.idle-orb.needs-login #loginToggle {
+  display: block !important;
+  position: absolute;
+  bottom: 2px;
+  font-size: 9px;
+  letter-spacing: .12em;
+  min-height: 18px;
+  padding: 0 6px;
+}
+html.voice-down #orb {
+  filter: grayscale(1) brightness(.7);
+  box-shadow:
+    0 0 0 1px rgba(239, 68, 68, .5),
+    0 0 28px rgba(239, 68, 68, .4);
+}
+html.meeting #orb {
+  filter: grayscale(.8) brightness(.75);
+  box-shadow:
+    0 0 0 1px rgba(148, 163, 184, .45),
+    0 0 22px rgba(148, 163, 184, .3);
+}
 #orb.listening {
   box-shadow:
     0 0 0 1px rgba(52, 211, 153, .35),
