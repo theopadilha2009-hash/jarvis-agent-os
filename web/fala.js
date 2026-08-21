@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-once2";
+  const SHELL_VERSION = "20260821-park1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -978,6 +978,7 @@
     mountDebug(true);
   });
   document.getElementById("reloadButton")?.addEventListener("click", restartForUpdate);
+  document.getElementById("meetingButton")?.addEventListener("click", toggleMeeting);
   const minimizeButton = document.getElementById("minimizeButton");
   if (minimizeButton) {
     minimizeButton.hidden = !hasNativeListen();
@@ -990,7 +991,7 @@
       stayQuiet = true;
       armed = false;
       try { nativeHandlers()?.jarvisListen.postMessage("pause"); } catch { /* web */ }
-      say("Reunião.", "Mic off. Duplo clique no brilho.");
+      say("Reunião.", "Mic off. Em mais, reunião de novo.");
       return;
     }
     stayQuiet = false;
@@ -999,12 +1000,18 @@
 
   orb.addEventListener("click", () => {
     window.clearTimeout(clickWait);
-    clickWait = window.setTimeout(() => forceListen(), 280); // user-gesture
+    clickWait = window.setTimeout(() => {
+      if (document.documentElement.classList.contains("idle-orb")) {
+        nativeWindow("focus");
+        return;
+      }
+      forceListen(); // user-gesture
+    }, 280);
   });
   orb.addEventListener("dblclick", (event) => {
     event.preventDefault();
     window.clearTimeout(clickWait);
-    toggleMeeting();
+    nativeWindow("hide");
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();

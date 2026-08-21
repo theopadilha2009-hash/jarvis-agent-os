@@ -88,7 +88,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20260821-once2", FALA_HTML)
+        self.assertIn("20260821-park1", FALA_HTML)
+        self.assertIn('nativeWindow("hide")', FALA_JS)
+        self.assertIn("idle-orb", FALA_JS)
         self.assertIn('id="hint"', FALA_HTML)
         self.assertIn("A mesma conta do site.", FALA_JS)
         self.assertIn("Neste Mac você entra só agora.", FALA_JS)
@@ -124,6 +126,8 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("voice:down", FALA_JS)
         self.assertIn("function isRepeatAsk", FALA_JS)
         self.assertIn("toggleMeeting", FALA_JS)
+        self.assertIn("meetingButton", FALA_HTML)
+        self.assertIn('addEventListener("dblclick"', FALA_JS)
         self.assertIn("needs-login", FALA_JS)
         self.assertIn("idle-orb", FALA_JS)
         self.assertIn("__jarvisSetIdle", FALA_JS)
@@ -204,7 +208,10 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("await speak(spokenReply(message))", FALA_JS)
 
     def test_orb_click_does_not_permanently_disable_listen(self):
-        click = re.search(r'orb\.addEventListener\("click", \(\) => \{([^}]+)\}', FALA_JS)
+        click = re.search(
+            r'orb\.addEventListener\("click", \(\) => \{([\s\S]*?)\n  \}\);',
+            FALA_JS,
+        )
         self.assertIsNotNone(click)
         self.assertIn("forceListen", click.group(1))
         self.assertNotIn("stopWakeLoop", click.group(1))
