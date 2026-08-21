@@ -3046,7 +3046,7 @@
         messages: session.history,
         input_mode: options.source || "text",
         attachments,
-        strength: session.paired && session.strength === "auto" ? "strong" : session.strength,
+        strength: session.paired && session.strength === "auto" ? "maximum" : session.strength,
         persona_style: window.JarvisPersonaPanel?.current() || personaStyleFallback(),
         client_integrations: clientIntegrations,
       };

@@ -508,7 +508,7 @@ def execution_power_profile(owner_authenticated=False, strength="auto"):
         "max_workflows_per_request": 3 if owner_authenticated else 1,
         "max_workflow_nodes": 18 if owner_authenticated else 6,
         "max_tokens_cap": 2400 if peak else 1800,
-        "default_response_strength": "strong" if owner_authenticated else "auto",
+        "default_response_strength": "maximum" if owner_authenticated else "auto",
         "strength": level,
     }
 
@@ -8937,7 +8937,7 @@ def resolved_response_strength(command, body=None, owner_authenticated=False):
     elif requested == "auto" and STRENGTH_STRONG_PATTERN.search(text):
         requested = "strong"
     if owner_authenticated and requested == "auto":
-        return "strong"
+        return "maximum"
     return requested
 
 

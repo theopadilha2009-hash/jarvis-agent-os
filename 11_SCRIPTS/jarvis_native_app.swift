@@ -88,7 +88,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private let orbSize = NSSize(width: 72, height: 72)
     private var compact = false
     private var layouting = false
+    private var dragOrigin: NSPoint?
+    private var dragMouse: NSPoint?
     private let parkKey = "JarvisParkedOrigin"
+    private let tokenKey = "JarvisOwnerToken"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
@@ -222,6 +225,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 revealWindow(takeFocus: true)
             } else if body == "show" {
                 revealWindow(takeFocus: false)
+            } else if body == "dragstart" {
+                beginDrag()
+            } else if body == "drag" {
+                followDrag()
+            } else if body.hasPrefix("token:") {
+                saveToken(String(body.dropFirst(6)))
             } else {
                 resetIdle()
             }
@@ -279,7 +288,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         guard let window else { return }
         window.isOpaque = false
         window.hasShadow = !compactOn
-        window.isMovableByWindowBackground = compactOn
+        window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
@@ -976,6 +985,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.userContentController.add(self, name: "jarvisRestart")
         config.userContentController.add(self, name: "jarvisWindow")
         config.userContentController.add(self, name: "jarvisSee")
+        if let token = UserDefaults.standard.string(forKey: tokenKey), !token.isEmpty {
+            let source = "try{localStorage.setItem('jarvis-owner-token-v1',\(jsString(token)));}catch(e){}"
+            config.userContentController.addUserScript(
+                WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+            )
+        }
         if #available(macOS 11.0, *) {
             config.defaultWebpagePreferences.allowsContentJavaScript = true
         }
@@ -988,6 +1003,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             view.underPageBackgroundColor = .clear
         }
         return view
+    }
+
+    private func beginDrag() {
+        guard let window else { return }
+        dragOrigin = window.frame.origin
+        dragMouse = NSEvent.mouseLocation
+        resetIdle()
+    }
+
+    private func followDrag() {
+        guard let window, let origin = dragOrigin, let start = dragMouse else { return }
+        let mouse = NSEvent.mouseLocation
+        layouting = true
+        window.setFrameOrigin(NSPoint(x: origin.x + mouse.x - start.x, y: origin.y + mouse.y - start.y))
+        layouting = false
+        savePark()
+    }
+
+    private func saveToken(_ token: String) {
+        let clipped = String(token.prefix(2000))
+        if clipped.isEmpty {
+            UserDefaults.standard.removeObject(forKey: tokenKey)
+        } else {
+            UserDefaults.standard.set(clipped, forKey: tokenKey)
+        }
     }
 
     private func savePark() {
