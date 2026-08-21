@@ -37,13 +37,15 @@ from urllib.request import Request, urlopen
 import wave
 
 
-# Perfil sonoro do cockpit: só no fallback Piper. Pocket sai cru, como a CLI.
+# Perfil sonoro do cockpit: só no fallback Piper.
 VOICE_PROFILE = (
     "asetrate={rate}*{pitch},aresample={rate},atempo={tempo},"
     "highpass=f=70,"
     "acompressor=threshold=-18dB:ratio=2.5:attack=10:release=200,"
     "volume=1.15"
 )
+# Pocket: um semitom mais grave. Se o ffmpeg atrasar, devolve o WAV cru.
+POCKET_ADULT = "asetrate={rate}*0.96,aresample={rate},atempo=1.035,highpass=f=85,volume=1.06"
 MAX_TEXT = 2_200
 DEFAULT_ENGINE = "auto"
 DEFAULT_LANGUAGE = "portuguese"
@@ -320,6 +322,26 @@ def apply_profile(audio: bytes, rate: int, pitch: float, tempo: float) -> tuple[
     return result.stdout, "audio/mpeg"
 
 
+def apply_pocket_adult(audio: bytes, rate: int) -> bytes:
+    """Abaixa o timbre um pouco. Falhou ou atrasou → áudio original."""
+    if not audio or audio[:4] != b"RIFF" or not shutil.which("ffmpeg"):
+        return audio
+    chain = POCKET_ADULT.format(rate=int(rate or 24_000))
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-af", chain, "-f", "wav", "pipe:1"],
+            input=audio,
+            capture_output=True,
+            timeout=2.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return audio
+    if result.returncode != 0 or not result.stdout or result.stdout[:4] != b"RIFF":
+        return audio
+    return result.stdout
+
+
 def synthesize_edge(text: str, voice: str, rate: str = "-5%", pitch: str = "-8Hz") -> dict:
     """Neural gratuita da Microsoft (Edge Read Aloud). Sem chave; precisa de rede."""
     try:
@@ -364,9 +386,10 @@ def synthesize_speech(text: str, pocket=None, piper=None, piper_opts=None, voice
             except TypeError:
                 audio = pocket.generate(text)
             if audio:
+                rate = int(getattr(pocket, "sample_rate", 24_000) or 24_000)
                 return {
                     "ok": True,
-                    "audio": audio,
+                    "audio": apply_pocket_adult(audio, rate),
                     "content_type": "audio/wav",
                     "engine": "pocket_tts",
                     "voice": voice or getattr(pocket, "voice", ""),

@@ -329,9 +329,9 @@
     if (opened) {
       return {
         run: () => openTarget(opened.url),
-        speak: opened.label,
-        title: "Aberto.",
+        title: "Abrindo.",
         detail: opened.label,
+        speak: `Abrindo o ${opened.label}.`,
       };
     }
     if (/\bhoras?\b|\bque dia\b|\bdata de hoje\b/.test(value)) {
@@ -341,7 +341,7 @@
           say("Agora.", now);
           showAnswer(now);
         },
-        speak: () => localClock(),
+        speak: () => `São ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}, senhor.`,
       };
     }
     if (/^copia/.test(value)) {
@@ -474,7 +474,7 @@
       }
       say("…", command);
       if (!stayQuiet && hasNativeSpeak()) {
-        try { nativeHandlers().jarvisSpeak.postMessage("Certo."); } catch { /* web */ }
+        try { nativeHandlers().jarvisSpeak.postMessage("Sim, senhor."); } catch { /* web */ }
       }
       const { response, data } = await postJson("/command", {
         command,
@@ -506,7 +506,7 @@
       if (!stayQuiet && hasNativeSpeak()) {
         try { nativeHandlers().jarvisSpeak.postMessage("stop"); } catch { /* web */ }
       }
-      say(data.ok === false ? "Não." : "Pronto.", "");
+      say(data.ok === false ? "Não." : "Senhor.", "");
       if (data.status_real === "free_web_search_unavailable") {
         showAnswerLink(message, `https://www.google.com/search?q=${encodeURIComponent(command)}`, "Buscar no Google");
       } else if (!opened) {
@@ -572,7 +572,7 @@
       orb.classList.add("listening");
       if (!listenPainted) {
         listenPainted = true;
-        say("Ouvindo.", "Pode falar: Jarvis.");
+        say("Ouvindo.", "Às suas ordens, senhor.");
       }
     }
   };
@@ -632,7 +632,7 @@
       nativeWindow("touch");
       keepArmed();
       if (!hit.command) {
-        say("Pode falar.", "Diz o pedido.");
+        say("Senhor.", "Pode falar.");
         return;
       }
       if (isRepeatAsk(hit.command)) {
@@ -721,7 +721,7 @@
     if (hasNativeListen()) {
       try { nativeHandlers().jarvisListen.postMessage("start"); } catch { /* web */ }
       orb.classList.add("listening");
-      say("Ouvindo.", "Pode falar: Jarvis.");
+      say("Ouvindo.", "Às suas ordens, senhor.");
       return;
     }
     if (!Recognition) return;
@@ -751,7 +751,7 @@
     try {
       rec.start();
       orb.classList.add("listening");
-      say("Ouvindo.", "Pode falar: Jarvis.");
+      say("Ouvindo.", "Às suas ordens, senhor.");
     } catch {
       if (keepListening && !speaking) window.setTimeout(listenLoop, 600);
     }
@@ -824,7 +824,7 @@
     if (keepListening && !force) return;
     keepListening = true;
     persistListen(true);
-    say("Ouvindo.", "Pode falar: Jarvis.");
+    say("Ouvindo.", "Às suas ordens, senhor.");
     listenLoop();
   }
 
@@ -971,7 +971,7 @@
     const keep = document.getElementById("rememberLogin");
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
-  say("Jarvis", "Pode falar: Jarvis.");
+  say("JARVIS", "Às suas ordens, senhor.");
   if (hasNativeListen()) document.documentElement.classList.add("idle-orb");
   refreshAccess();
   refreshVoiceChip();
