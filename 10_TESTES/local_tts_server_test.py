@@ -278,6 +278,10 @@ class LocalTtsServerTest(unittest.TestCase):
         raw = silent_wav()
         with patch.object(MODULE.shutil, "which", return_value=None):
             self.assertEqual(MODULE.apply_pocket_adult(raw, 24_000), raw)
+        self.assertIn("_SPEECH_LOCK", MODULE.__dict__)
+        source = (ROOT / "11_SCRIPTS" / "local_tts_server.py").read_text(encoding="utf-8")
+        self.assertIn("timeout=4.0", source)
+        self.assertIn("with _SPEECH_LOCK:", source)
         self.assertIn("0.96", MODULE.POCKET_ADULT)
 
     def test_warmup_and_short_speech_cache(self):
