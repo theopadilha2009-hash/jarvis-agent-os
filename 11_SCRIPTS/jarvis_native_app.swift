@@ -81,6 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private let fullSize = NSSize(width: 280, height: 380)
     private let orbSize = NSSize(width: 120, height: 120)
     private var compact = false
+    private var layouting = false
+    private let parkKey = "JarvisParkedOrigin"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
@@ -134,6 +136,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         setCompact(false)
         wantListen = true
         startListen()
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        savePark()
     }
 
     func webView(
@@ -250,7 +256,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             : NSColor(calibratedRed: 0.03, green: 0.02, blue: 0.05, alpha: 1)
         window.standardWindowButton(.closeButton)?.isHidden = on
         window.standardWindowButton(.miniaturizeButton)?.isHidden = on
-        window.setFrame(cornerFrame(on ? orbSize : fullSize), display: true, animate: true)
+        layouting = true
+        window.setFrame(frameKeepingPlace(on ? orbSize : fullSize), display: true, animate: true)
+        layouting = false
         let flag = on ? "true" : "false"
         webView?.evaluateJavaScript(
             "window.__jarvisSetIdle && window.__jarvisSetIdle(\(flag))",
@@ -738,7 +746,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     private func makeWindow() -> NSWindow {
         let size = fullSize
-        let rect = cornerFrame(size)
+        let rect = frameKeepingPlace(size)
         let window = NSWindow(
             contentRect: rect,
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
@@ -754,6 +762,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.setFrameAutosaveName("")
         window.setFrame(rect, display: true)
+        window.isMovable = true
         window.backgroundColor = NSColor(calibratedRed: 0.03, green: 0.02, blue: 0.05, alpha: 1)
         window.standardWindowButton(.miniaturizeButton)?.isHidden = false
         return window
@@ -778,10 +787,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         return view
     }
 
-    private func cornerFrame(_ size: NSSize) -> NSRect {
+    private func savePark() {
+        guard !layouting, let window else { return }
+        let origin = window.frame.origin
+        UserDefaults.standard.set("\(origin.x),\(origin.y)", forKey: parkKey)
+    }
+
+    private func parkedOrigin() -> NSPoint? {
+        let parts = (UserDefaults.standard.string(forKey: parkKey) ?? "").split(separator: ",")
+        guard parts.count == 2, let x = Double(parts[0]), let y = Double(parts[1]) else { return nil }
+        return NSPoint(x: x, y: y)
+    }
+
+    private func frameKeepingPlace(_ size: NSSize) -> NSRect {
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let x = screen.maxX - size.width - 12
-        let y = screen.maxY - size.height - 8
-        return NSRect(x: x, y: y, width: size.width, height: size.height)
+        var origin: NSPoint
+        if let window {
+            let current = window.frame
+            origin = NSPoint(x: current.midX - size.width / 2, y: current.midY - size.height / 2)
+        } else if let saved = parkedOrigin() {
+            origin = saved
+        } else {
+            origin = NSPoint(x: screen.maxX - size.width - 16, y: screen.minY + 24)
+        }
+        var rect = NSRect(origin: origin, size: size)
+        if rect.maxX > screen.maxX { rect.origin.x = screen.maxX - size.width }
+        if rect.maxY > screen.maxY { rect.origin.y = screen.maxY - size.height }
+        if rect.minX < screen.minX { rect.origin.x = screen.minX }
+        if rect.minY < screen.minY { rect.origin.y = screen.minY }
+        return rect
     }
 }

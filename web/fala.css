@@ -147,6 +147,8 @@ html.idle-orb .orb-shell > :not(#orb):not(.halo):not(.viz) {
 html.idle-orb #orb {
   width: 88px;
   height: 88px;
+  -webkit-app-region: drag;
+  cursor: grab;
 }
 html.idle-orb #orb img {
   width: 88px;
