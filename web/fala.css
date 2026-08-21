@@ -259,13 +259,19 @@ html.meeting #orb {
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, .65);
 }
-#caption, #accessLine {
+#caption, #accessLine, #hint {
   margin: 0;
   color: var(--muted);
   max-width: 18rem;
   font-size: 13px;
   font-weight: 500;
   text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
+}
+#hint {
+  color: var(--text);
+  font-weight: 600;
+  max-width: none;
+  width: 100%;
 }
 #heardLine {
   margin: 0;
@@ -430,7 +436,7 @@ html:not(.armed) #heardLine { display: none !important; }
 .launch,
 .face-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 8px;
   width: 100%;
   -webkit-app-region: no-drag;
@@ -443,7 +449,29 @@ html:not(.armed) #heardLine { display: none !important; }
   padding: 0 10px;
   white-space: nowrap;
 }
-html.app-mode.signed-in #loginToggle { display: none; }
+html.app-mode.needs-login #askForm,
+html.app-mode.needs-login .launch,
+html.app-mode.needs-login .face-actions,
+html.app-mode.needs-login .quick,
+html.app-mode.needs-login .extra-tools,
+html.app-mode.needs-login #debugToggle,
+html.app-mode.needs-login .download,
+html.app-mode.needs-login .by,
+html.app-mode.needs-login .meta {
+  display: none !important;
+}
+html.app-mode.needs-login #extras {
+  display: grid !important;
+  max-height: none;
+  overflow: visible;
+}
+html.app-mode.signed-in #loginForm { display: none; }
+.extra-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
 #extras {
   width: 100%;
   display: grid;

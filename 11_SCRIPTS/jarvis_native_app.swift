@@ -97,7 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var speakingNow = false
     private let idleHideAfter: TimeInterval = 12
     private let kickCooldown: TimeInterval = 90
-    private let fullSize = NSSize(width: 268, height: 408)
+    private let fullSize = NSSize(width: 268, height: 380)
     private let orbSize = NSSize(width: 72, height: 72)
     private var compact = false
     private var wakeOnly = true
@@ -1109,6 +1109,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             UserDefaults.standard.removeObject(forKey: tokenKey)
         } else {
             UserDefaults.standard.set(clipped, forKey: tokenKey)
+            if #available(macOS 10.15, *), !CGPreflightScreenCaptureAccess() {
+                CGRequestScreenCaptureAccess()
+            }
         }
     }
 

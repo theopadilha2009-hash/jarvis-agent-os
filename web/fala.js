@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-fit2";
+  const SHELL_VERSION = "20260821-once1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -42,6 +42,8 @@
   let clickWait = 0;
 
   if (appMode) document.documentElement.classList.add("app-mode");
+  document.documentElement.classList.toggle("needs-login", !ownerToken());
+  document.documentElement.classList.toggle("signed-in", Boolean(ownerToken()));
 
   const creator = () => window.JarvisCreator?.name?.() || "Theo Lorentz Padilha";
 
@@ -57,7 +59,7 @@
     try {
       if (token) window.localStorage.setItem(OWNER_TOKEN_KEY, token);
       if (username) window.localStorage.setItem(LAST_LOGIN_KEY, username);
-      window.localStorage.setItem(REMEMBER_KEY, rememberLoginEnabled() ? "1" : "0");
+      window.localStorage.setItem(REMEMBER_KEY, appMode || rememberLoginEnabled() ? "1" : "0");
       window.localStorage.setItem(OWNER_IDLE_KEY, String(Date.now()));
     } catch { /* private mode */ }
     try { nativeHandlers()?.jarvisWindow.postMessage("token:" + (token || "")); } catch { /* web */ }
@@ -128,20 +130,30 @@
     try { nativeHandlers()?.jarvisWindow.postMessage("token:"); } catch { /* web */ }
   }
 
+  function paintHome() {
+    const hint = document.getElementById("hint");
+    if (ownerToken()) {
+      say("JARVIS", "Diga Jarvis.");
+      if (hint) hint.textContent = "Arraste pra tela e peça analisa isso.";
+      return;
+    }
+    say("JARVIS", appMode ? "Entre uma vez. Depois é 3×." : "Diga Jarvis.");
+    if (hint) hint.textContent = "Arraste. Diga Jarvis, analisa isso.";
+  }
+
   function renderAccess(label, signedIn) {
     accessLine.textContent = label;
     applyPersona(label);
     const inSession = Boolean(signedIn);
     document.documentElement.classList.toggle("signed-in", inSession);
     document.documentElement.classList.toggle("needs-login", !inSession);
-    const loginToggle = document.getElementById("loginToggle");
-    if (loginToggle) loginToggle.hidden = inSession;
     logoutButton.hidden = !inSession;
     loginForm.querySelector("#loginUser").hidden = inSession;
     loginForm.querySelector("#loginPass").hidden = inSession;
     loginForm.querySelector("button[type='submit']").hidden = inSession;
     const remember = document.getElementById("rememberLogin");
     if (remember) remember.closest("label").hidden = inSession;
+    paintHome();
   }
 
   async function refreshAccess() {
@@ -601,7 +613,7 @@
     document.documentElement.classList.remove("armed");
     paintHeard("");
     nativeListen("sleep");
-    if (!busy && !speaking && !meeting) say("JARVIS", "Diga Jarvis.");
+    if (!busy && !speaking && !meeting) paintHome();
   }
 
   window.__jarvisNativeListen = function (state) {
@@ -1023,9 +1035,11 @@
       persistSession(data.session_token, username);
       nativeWindow("touch");
       document.getElementById("loginPass").value = "";
+      extras.hidden = true;
+      moreButton.textContent = "mais";
       await refreshAccess();
       startWakeLoop();
-      say("Entrou.", "");
+      say("JARVIS · 3×", "Diga Jarvis. Arraste e peça analisa isso.");
     } catch {
       say("Rede.", "Tente o login de novo.");
     }
@@ -1061,7 +1075,7 @@
     const keep = document.getElementById("rememberLogin");
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
-  say("JARVIS", "Diga Jarvis.");
+  paintHome();
   refreshAccess();
   refreshVoiceChip();
   watchShellVersion();
