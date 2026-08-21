@@ -103,6 +103,10 @@ html.app-mode:not(.idle-orb) body {
   border-radius: 50%;
   cursor: pointer;
   flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
   background: #0c0814;
   isolation: isolate;
   z-index: 4;
@@ -112,12 +116,12 @@ html.app-mode:not(.idle-orb) body {
     0 0 22px rgba(var(--glow), .35);
 }
 #orb img {
-  width: 128px;
-  height: 128px;
-  border-radius: 50%;
+  width: 80%;
+  height: 80%;
+  border-radius: 0;
   display: block;
-  object-fit: cover;
-  background: #0c0814;
+  object-fit: contain;
+  background: transparent;
   position: relative;
   z-index: 2;
   pointer-events: none;
@@ -167,8 +171,8 @@ html.idle-orb #orb {
     0 0 26px rgba(var(--glow), .42);
 }
 html.idle-orb #orb img {
-  width: 100%;
-  height: 100%;
+  width: 80%;
+  height: 80%;
 }
 html.idle-orb #orb i { display: none; }
 html.idle-orb .halo {
