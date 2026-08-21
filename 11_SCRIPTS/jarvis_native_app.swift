@@ -97,7 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var speakingNow = false
     private let idleHideAfter: TimeInterval = 12
     private let kickCooldown: TimeInterval = 90
-    private let fullSize = NSSize(width: 220, height: 280)
+    private let fullSize = NSSize(width: 268, height: 408)
     private let orbSize = NSSize(width: 72, height: 72)
     private var compact = false
     private var wakeOnly = true
