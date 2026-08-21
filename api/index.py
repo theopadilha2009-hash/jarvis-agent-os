@@ -220,6 +220,12 @@ DEFAULT_DEEP_MODEL_POOL = (
     "google/gemma-4-31b-it:free",
     "openrouter/free",
 )
+DEFAULT_VISION_MODEL_POOL = (
+    "nvidia/nemotron-nano-12b-v2-vl:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "google/gemma-4-31b-it:free",
+    "openrouter/free",
+)
 OWNER_SESSION_SECONDS = 30 * 24 * 60 * 60
 CLIENT_INTEGRATION_PROVIDERS = {
     "n8n",
@@ -531,6 +537,8 @@ def capability_briefing(owner_authenticated=False):
         "Falo com a voz da ElevenLabs e escuto pelo microfone do cockpit.",
         "Atendo quando Theo me chama pelo nome — 'Jarvis', 'oi Jarvis', 'bom dia Jarvis' — "
         "sem ele clicar em nada; o indicador ao lado do microfone mostra se a escuta está armada.",
+        "Quando Theo diz 'analisa isso', 'olha a tela' ou 'o que eu estou vendo', olho a tela do Mac "
+        "onde o overlay está e digo o próximo passo concreto. Não invento botões que não aparecem.",
         "Minha voz é configurável por Theo e por mim: 'muda sua voz', 'deixa mais grave' ou "
         "'melhora sua voz' abre o painel com todas as vozes, gravidade e cadência.",
         "Minha personalidade também troca sob comando: 'muda sua personalidade' ou 'responde mais "
@@ -7426,8 +7434,19 @@ def is_automotive_research(prompt):
 def openrouter_model_candidates(attachments=False, profile="concise"):
     """Return free-model fallbacks ordered for either speed or answer quality."""
     if attachments:
-        attachment_model = clean_text(os.environ.get("OPENROUTER_ATTACHMENT_MODEL"), 200) or DEFAULT_MODEL
-        return [attachment_model] if re.fullmatch(r"[A-Za-z0-9_.~:-]+/[A-Za-z0-9_.~:-]+", attachment_model) else [DEFAULT_MODEL]
+        attachment_model = clean_text(os.environ.get("OPENROUTER_ATTACHMENT_MODEL"), 200)
+        if attachment_model and re.fullmatch(r"[A-Za-z0-9_.~:-]+/[A-Za-z0-9_.~:-]+", attachment_model):
+            return [attachment_model]
+        raw = list(DEFAULT_VISION_MODEL_POOL)
+        candidates = []
+        for model in raw:
+            if not re.fullmatch(r"[A-Za-z0-9_.~:-]+/[A-Za-z0-9_.~:-]+", model):
+                continue
+            if model not in candidates:
+                candidates.append(model)
+            if len(candidates) >= 6:
+                break
+        return candidates or [DEFAULT_MODEL]
     configured_pool = clean_text(os.environ.get("OPENROUTER_MODEL_POOL"), 2_000)
     configured_deep_pool = clean_text(os.environ.get("OPENROUTER_DEEP_MODEL_POOL"), 2_000)
     configured_primary = clean_text(
@@ -10241,6 +10260,13 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             + "\n\nO QUE VOCÊ É (fatos do sistema, não suposição):\n"
             + capability_briefing(owner_authenticated)
             + (
+                "\n\nA mensagem inclui um print da tela do Mac de Theo. Diga o que está visível "
+                "e o próximo passo concreto. Não invente botões, textos ou janelas que não aparecem. "
+                "Resposta curta, em português, fácil de falar em voz alta."
+                if attachments
+                else ""
+            )
+            + (
                 "\n\nMemórias persistentes fornecidas por Theo; use somente quando forem relevantes e "
                 "não invente informações além delas:\n"
                 + "\n".join(
@@ -10808,6 +10834,20 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
         attachments = normalize_attachments(body)
     except ValueError:
         attachments = []
+
+    if any(str(item.get("type") or "").startswith("image/") for item in attachments):
+        return assistant_response(
+            {
+                "command": command,
+                "messages": body.get("messages"),
+                "attachments": body.get("attachments"),
+                "strength": resolved_response_strength(command, body, owner_authenticated=owner_authenticated),
+                "client_integrations": body.get("client_integrations"),
+            },
+            origin=origin,
+            local_execute=local_execute,
+            owner_authenticated=owner_authenticated,
+        )
 
     device_plan = compound_device_plan(command)
     if device_plan:

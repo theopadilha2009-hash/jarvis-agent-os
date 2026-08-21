@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-name1";
+  const SHELL_VERSION = "20260821-see1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -77,7 +77,7 @@
           method: "POST",
           headers: apiHeaders(),
           body: JSON.stringify(payload),
-          signal: window.AbortSignal?.timeout ? window.AbortSignal.timeout(path === "/command" ? 22000 : 14000) : undefined,
+          signal: window.AbortSignal?.timeout ? window.AbortSignal.timeout(path === "/command" ? (payload && payload.attachments ? 40000 : 22000) : 14000) : undefined,
         });
         const data = await response.json().catch(() => ({ ok: false, error: "Resposta inválida." }));
         if (response.status >= 500 && attempt === 0) {
@@ -369,7 +369,7 @@
     const folded = foldSpeech(text);
     if (!folded || folded.length < 3) return false;
     if (WAKE_NAME.test(folded)) return true;
-    return /\b(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|spotify|whatsapp|youtube|google|hora|horas|data|pesquisa|busca|procura|volume|proximo|proxima|calendario|agenda|gmail|maps|mapa|silencio|quieto|cala|foco|ocupado|copia|cockpit|repete|de novo|outra vez)\b/.test(folded);
+    return /\b(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|spotify|whatsapp|youtube|google|hora|horas|data|pesquisa|busca|procura|volume|proximo|proxima|calendario|agenda|gmail|maps|mapa|silencio|quieto|cala|foco|ocupado|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|tela|vendo)\b/.test(folded);
   }
 
   function expandCommands(text) {
@@ -440,7 +440,52 @@
     if (next) ask(next);
   }
 
-  async function ask(text) {
+  function hasNativeSee() {
+    return Boolean(nativeHandlers() && nativeHandlers().jarvisSee);
+  }
+
+  function isLookAsk(text) {
+    const folded = foldSpeech(text);
+    if (!folded) return false;
+    if (/\b(?:o que|oq|que)\b.{0,24}\b(?:estou|to|eu to|eu estou)\s+vendo\b/.test(folded)) return true;
+    if (/\b(?:analis|olh|veja|ve |leia|le )\w*.{0,48}\b(?:isso|aqui|tela|pagina|navegador|site|print)\b/.test(folded)) return true;
+    if (/\b(?:o que|oq)\s+(?:eu\s+)?(?:faco|fazer)\s+(?:com\s+)?(?:isso|aqui)\b/.test(folded)) return true;
+    return /^(?:analisa|analise|olha|olhe|veja|ve|le|leia)(?:\s+(?:isso|aqui|a tela))?$/.test(folded);
+  }
+
+  function seeScreen(command) {
+    if (!hasNativeSee()) {
+      say("Tela.", "No Mac, use o app JARVIS para eu ver o que você está vendo.");
+      speak("No Mac eu preciso do aplicativo para ver a tela.");
+      return;
+    }
+    say("Olhando.", "Vou ver a tela.");
+    nativeWindow("touch");
+    window.__jarvisOnScreen = (raw) => {
+      window.__jarvisOnScreen = null;
+      const dataUrl = String(raw || "");
+      if (dataUrl === "denied") {
+        say("Tela.", "Ajustes → Privacidade → Gravação de Tela → JARVIS.");
+        speak("Preciso da permissão de gravação de tela.");
+        return;
+      }
+      if (!dataUrl.startsWith("data:image")) {
+        say("Tela.", "Não consegui ver. Tente de novo.");
+        speak("Não consegui ver a tela.");
+        return;
+      }
+      ask(command || "analisa o que está na tela e me diz o que fazer", {
+        type: "image/jpeg",
+        name: "tela.jpg",
+        data_url: dataUrl,
+      });
+    };
+    try { nativeHandlers().jarvisSee.postMessage("screen"); } catch {
+      say("Tela.", "Não consegui ver.");
+    }
+  }
+
+  async function ask(text, attachment) {
     const command = String(text || "").trim();
     if (!command) return;
     if (busy) {
@@ -463,7 +508,7 @@
         if (!stayQuiet) await speak("Sem internet");
         return;
       }
-      const local = localAction(command);
+      const local = attachment ? null : localAction(command);
       if (local) {
         local.run();
         if (local.title) say(local.title, local.detail || command);
@@ -472,13 +517,18 @@
         return;
       }
       say("…", command);
-      if (!stayQuiet && hasNativeSpeak()) {
+      if (!stayQuiet && hasNativeSpeak() && !attachment) {
         try { nativeHandlers().jarvisSpeak.postMessage("Sim, senhor."); } catch { /* web */ }
       }
-      const { response, data } = await postJson("/command", {
-        command,
+      const payload = {
+        command: attachment
+          ? `${command}. Isto é um print da tela do Mac onde o JARVIS está; diga o que aparece e o que eu devo fazer agora.`
+          : command,
         strength: ownerToken() ? "strong" : "auto",
-      });
+      };
+      if (attachment) payload.attachments = [attachment];
+      if (attachment) nativeWindow("show");
+      const { response, data } = await postJson("/command", payload);
       const message = data.message || data.error || "Sem resposta.";
       lastError = data.ok === false ? message : "";
       const retry = document.getElementById("retryButton");
@@ -669,6 +719,12 @@
     if (!clip) return;
     const folded = foldSpeech(clip);
     if (folded === foldSpeech(lastAsked) && Date.now() - lastAskedAt < 4000) return;
+    if (isLookAsk(clip)) {
+      lastAsked = clip;
+      lastAskedAt = Date.now();
+      seeScreen(clip);
+      return;
+    }
     const items = expandCommands(clip);
     lastAsked = items[0];
     lastAskedAt = Date.now();
@@ -684,7 +740,7 @@
     const clip = String(text || "").replace(/\s+/g, " ").trim();
     if (!clip) return "";
     const first = clip.match(/^.+?[.!?…](?=\s|$)/);
-    return (first ? first[0] : clip).trim().slice(0, 160);
+    return (first ? first[0] : clip).trim().slice(0, 220);
   }
 
   function hearSpoken(spoken, isFinal = true) {

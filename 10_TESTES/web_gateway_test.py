@@ -3761,6 +3761,44 @@ São Paulo - SP
         self.assertTrue(file_part["file"]["file_data"].startswith("data:application/pdf;base64,"))
         self.assertEqual(sent["plugins"][0]["pdf"]["engine"], "cloudflare-ai")
 
+    def test_image_attachment_uses_vision_pool_and_skips_screen_capture_intent(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "model": "nvidia/nemotron-nano-12b-v2-vl:free",
+                    "choices": [{"message": {"content": "Você está no Chrome. Clique em Entrar."}}],
+                }).encode("utf-8")
+
+        encoded = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        )
+        env = {"OPENROUTER_API_KEY": "test-key", "OPENROUTER_ATTACHMENT_MODEL": ""}
+        with patch.dict(os.environ, env, clear=False):
+            models = MODULE.openrouter_model_candidates(attachments=True)
+            self.assertIn("nvidia/nemotron-nano-12b-v2-vl:free", models)
+            with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+                payload, status = MODULE.command_payload({
+                    "command": "analisa isso aqui",
+                    "attachments": [{
+                        "name": "tela.jpg",
+                        "type": "image/png",
+                        "data_url": f"data:image/png;base64,{encoded}",
+                    }],
+                })
+        self.assertEqual(status, 200)
+        self.assertNotEqual(payload.get("intent"), "screen_capture")
+        self.assertEqual(payload["attachments_received"][0]["name"], "tela.jpg")
+        sent = json.loads(request.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(sent["models"][0], "nvidia/nemotron-nano-12b-v2-vl:free")
+        self.assertEqual(sent["messages"][-1]["content"][1]["type"], "image_url")
+        self.assertIn("print da tela do Mac", sent["messages"][0]["content"])
+
     def test_text_attachment_with_secret_is_refused_before_provider(self):
         secret = "api_key=" + ("x" * 24)
         encoded = base64.b64encode(secret.encode("utf-8")).decode("ascii")
