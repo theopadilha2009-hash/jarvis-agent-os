@@ -82,10 +82,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var lastKickAt: TimeInterval = 0
     private var voiceMisses = 0
     private var speakingNow = false
-    private let idleHideAfter: TimeInterval = 45
+    private let idleHideAfter: TimeInterval = 12
     private let kickCooldown: TimeInterval = 90
-    private let fullSize = NSSize(width: 280, height: 380)
-    private let orbSize = NSSize(width: 120, height: 120)
+    private let fullSize = NSSize(width: 220, height: 280)
+    private let orbSize = NSSize(width: 72, height: 72)
     private var compact = false
     private var layouting = false
     private let parkKey = "JarvisParkedOrigin"
@@ -280,8 +280,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.isOpaque = false
         window.hasShadow = !compactOn
         window.backgroundColor = .clear
-        window.standardWindowButton(.closeButton)?.isHidden = compactOn
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = compactOn
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
         let radius = compactOn ? min(orbSize.width, orbSize.height) / 2 : 18
         if let view = window.contentView {
@@ -453,12 +453,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if wantListen { startListen() }
-        if compact {
-            webView.evaluateJavaScript(
-                "window.__jarvisSetIdle && window.__jarvisSetIdle(true)",
-                completionHandler: nil
-            )
-        }
+        let flag = compact ? "true" : "false"
+        webView.evaluateJavaScript(
+            "window.__jarvisSetIdle && window.__jarvisSetIdle(\(flag))",
+            completionHandler: nil
+        )
     }
 
     func speechRecognizer(_ speechRecognizer: SFSpeechRecognizer, availabilityDidChange available: Bool) {
@@ -472,6 +471,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         speakingNow = false
         paused = false
         webView?.evaluateJavaScript("window.__jarvisOnSpeakDone && window.__jarvisOnSpeakDone()", completionHandler: nil)
+        resetIdle()
     }
 
     private func startListen() {
@@ -940,7 +940,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.isMovable = true
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
         return window
     }
