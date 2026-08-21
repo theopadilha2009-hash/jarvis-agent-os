@@ -14,6 +14,11 @@
   --line: rgba(168, 85, 247, 0.32);
   --line-hot: rgba(192, 132, 252, 0.6);
   --state: var(--cyan);
+  --accent: #7c3aed;
+  --on-accent: #fbf7ff;
+  --surface: #16101f;
+  --surface-2: #1e1630;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @property --state {
@@ -1433,23 +1438,28 @@ button {
 .starter-actions:empty { display: none; }
 
 .starter-actions button {
-  min-height: 28px;
-  padding: 5px 10px;
-  border: 1px solid rgba(168, 85, 247, 0.12);
-  border-radius: 999px;
-  background: rgba(8, 4, 16, 0.48);
-  color: #d8b4fe;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
   cursor: pointer;
-  font-size: 9px;
-  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  box-shadow: none;
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), color 0.2s var(--ease);
 }
 
 .starter-actions button:hover,
 .starter-actions button:focus-visible {
-  border-color: rgba(168, 85, 247, 0.34);
+  border-color: var(--accent);
   outline: none;
-  background: rgba(192, 132, 252, 0.075);
-  color: #f3e8ff;
+  background: var(--accent);
+  color: var(--on-accent);
+  transform: none;
 }
 
 .message {
@@ -1738,21 +1748,22 @@ button {
 .composer input,
 .composer textarea {
   min-width: 0;
-  border: 1px solid rgba(168, 85, 247, 0.15);
-  border-radius: 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
   outline: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--surface);
   color: var(--text);
   padding: 11px 15px;
   font: inherit;
   font-size: 14px;
   line-height: 1.4;
+  box-shadow: none;
 }
 
 .composer input:focus,
 .composer textarea:focus {
-  border-color: var(--line-hot);
-  box-shadow: 0 0 0 3px rgba(192, 132, 252, 0.06);
+  border-color: var(--accent);
+  box-shadow: none;
 }
 
 .voice-button,
@@ -2840,7 +2851,7 @@ dialog::backdrop {
   .request-progress span { gap: 4px; }
   .request-progress span::after { display: none; }
   .starter-actions { gap: 5px; }
-  .starter-actions button { min-height: 42px; padding: 8px 11px; font-size: 9px; }
+  .starter-actions button { min-height: 38px; padding: 0 14px; font-size: 12px; }
   .composer input,
   .composer textarea { padding: 10px 12px; border-radius: 14px; }
   .voice-button,
@@ -2891,12 +2902,13 @@ dialog::backdrop {
   justify-items: center;
   gap: 0;
   padding: 3px 6px 4px;
-  border: 1px solid rgba(192, 132, 252, 0.34);
-  border-radius: 11px;
-  background: linear-gradient(145deg, rgba(76, 29, 149, 0.46), rgba(32, 15, 53, 0.78));
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
   color: #eadcff;
   cursor: pointer;
-  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+  box-shadow: none;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
 }
 
 .strength-gauge {
@@ -2941,17 +2953,17 @@ dialog::backdrop {
 .strength-button[data-strength="strong"] .strength-gauge-needle { transform: rotate(0deg); }
 
 .strength-button[data-strength="maximum"] {
-  border-color: rgba(233, 213, 255, 0.7);
-  background: linear-gradient(145deg, #7c3aed, #4c1d95);
-  box-shadow: 0 8px 22px rgba(109, 40, 217, 0.3), inset 0 1px rgba(255, 255, 255, 0.16);
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: none;
 }
 .strength-button[data-strength="maximum"] .strength-gauge-needle { transform: rotate(30deg); }
 
 .strength-button:hover,
 .strength-button:focus-visible {
   outline: none;
-  border-color: rgba(233, 213, 255, 0.82);
-  transform: translateY(-1px);
+  border-color: var(--accent);
+  transform: none;
 }
 
 html[data-persona="ultron"] {
@@ -3414,7 +3426,7 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
   .welcome strong { font-size: 18px; }
   .welcome span { font-size: 13px; line-height: 1.5; }
   .starter-actions { justify-content: flex-start; gap: 7px; margin-top: 10px; }
-  .starter-actions button { min-height: 34px; border-radius: 11px; }
+  .starter-actions button { min-height: 36px; border-radius: 6px; }
 
   .message {
     max-width: 100%;
@@ -3706,21 +3718,21 @@ dialog {
 
 .new-conversation-button,
 .starter-actions button {
-  border-color: rgba(216, 180, 254, 0.34);
-  border-radius: 9px;
-  background: linear-gradient(145deg, rgba(109, 40, 217, 0.44), rgba(76, 29, 149, 0.3));
-  color: #fff7ff;
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 7px 20px rgba(50, 18, 92, 0.18);
+  border-color: var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: none;
 }
 
 .new-conversation-button:hover,
 .new-conversation-button:focus-visible,
 .starter-actions button:hover,
 .starter-actions button:focus-visible {
-  border-color: rgba(233, 213, 255, 0.72);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.64), rgba(109, 40, 217, 0.5));
-  color: #fff;
-  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  transform: none;
 }
 
 .message { color: #fffaff; }
