@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-drag1";
+  const SHELL_VERSION = "20260821-move1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -146,7 +146,7 @@
 
   async function refreshAccess() {
     if (!ownerToken()) {
-      renderAccess("Visitante", false);
+      renderAccess("Visitante · 1×", false);
       return;
     }
     try {
@@ -154,10 +154,11 @@
       const mode = data.access?.mode;
       if (mode !== "owner" && mode !== "member") {
         clearStaleSession();
-        renderAccess("Visitante", false);
+        renderAccess("Visitante · 1×", false);
         return;
       }
-      renderAccess(mode === "owner" ? "JARVIS" : "Conta JARVIS", true);
+      const power = data.power_profile?.mode === "jarvis_3x" || mode === "owner";
+      renderAccess(power ? "JARVIS · 3×" : "Conta JARVIS", true);
     } catch {
       renderAccess("Sessão", Boolean(ownerToken()));
     }
@@ -537,7 +538,7 @@
       if (retry) retry.hidden = !lastError;
       if (response.status === 401 || data.pairing_required) {
         clearStaleSession();
-        renderAccess("Visitante", false);
+        renderAccess("Visitante · 1×", false);
         revealLogin();
       }
       const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
@@ -572,26 +573,6 @@
 
   function nativeWindow(action) {
     try { nativeHandlers()?.jarvisWindow.postMessage(action); } catch { /* web */ }
-  }
-
-  let dragging = false;
-  let lastDragAt = 0;
-  function bindWindowDrag() {
-    if (!hasNativeListen()) return;
-    const blocked = (node) => node && node.closest && node.closest("input,textarea,select,a,label,form,nav,.face-actions,#extras,#updateToast,.update-toast,#askForm,#loginForm");
-    window.addEventListener("mousedown", (event) => {
-      if (event.button !== 0 || blocked(event.target)) return;
-      dragging = true;
-      lastDragAt = 0;
-      nativeWindow("dragstart");
-    }, true);
-    window.addEventListener("mousemove", (event) => {
-      if (!dragging) return;
-      lastDragAt = Date.now();
-      nativeWindow("drag");
-      event.preventDefault();
-    }, true);
-    window.addEventListener("mouseup", () => { dragging = false; }, true);
   }
 
   function keepArmed() {
@@ -972,7 +953,6 @@
   }
 
   orb.addEventListener("click", () => {
-    if (Date.now() - lastDragAt < 400) return;
     window.clearTimeout(clickWait);
     clickWait = window.setTimeout(() => forceListen(), 280); // user-gesture
   });
@@ -1010,6 +990,7 @@
       const keep = document.getElementById("rememberLogin");
       try { localStorage.setItem(REMEMBER_KEY, keep && !keep.checked ? "0" : "1"); } catch { /* ignore */ }
       persistSession(data.session_token, username);
+      nativeWindow("touch");
       document.getElementById("loginPass").value = "";
       await refreshAccess();
       startWakeLoop();
@@ -1050,7 +1031,6 @@
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
   say("JARVIS", "Às suas ordens, senhor.");
-  bindWindowDrag();
   refreshAccess();
   refreshVoiceChip();
   watchShellVersion();
