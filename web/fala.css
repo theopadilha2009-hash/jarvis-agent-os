@@ -26,6 +26,9 @@ html.app-mode:not(.idle-orb),
 html.app-mode:not(.idle-orb) body {
   border-radius: 18px;
 }
+button:not(#orb), a, input, label, textarea, select {
+  -webkit-app-region: no-drag;
+}
 .orb-shell {
   min-height: 100dvh;
   display: flex;
@@ -248,10 +251,10 @@ html.meeting #orb {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(251, 191, 36, .45);
-  background: rgba(28, 16, 8, .94);
-  color: #fde68a;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(12, 8, 20, .96);
+  color: var(--ink);
   text-align: left;
   -webkit-app-region: no-drag;
 }
@@ -261,39 +264,20 @@ html.meeting #orb {
   font-size: 9px;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: #fbbf24;
+  color: var(--core);
 }
 .update-toast em {
   display: block;
   font-style: normal;
   font-size: 11px;
+  color: var(--muted);
 }
 .update-toast button {
   flex: 0 0 auto;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 999px;
-  background: #fbbf24;
-  color: #1c1408;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
 }
 #retryButton, #debugToggle {
-  min-height: 26px;
+  min-height: 28px;
   padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 10px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
 }
 #retryButton[hidden] { display: none; }
 #lastAnswer {
@@ -321,29 +305,65 @@ html.meeting #orb {
 }
 #askForm, #loginForm, .launch, .quick { display: flex; gap: 6px; width: 100%; }
 #askForm, #loginForm, .launch, .quick, #moreButton, #extras { -webkit-app-region: no-drag; }
-#askInput, #loginUser, #loginPass, #loginForm button, .launch button, .quick button, .quick a, .download, #moreButton {
+button:not(#orb), .quick a, .download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 32px;
-  border-radius: 999px;
+  padding: 0 12px;
+  border: 1px solid rgba(var(--glow), .28);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .2s cubic-bezier(.22, 1, .36, 1), border-color .2s, transform .15s;
+}
+button:not(#orb):hover, .quick a:hover, .download:hover {
+  background: rgba(var(--glow), .14);
+  border-color: rgba(var(--glow), .45);
+  transform: translateY(-1px);
+}
+button:not(#orb):focus-visible, .quick a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--glow), .28);
+}
+#askInput, #loginUser, #loginPass {
+  flex: 1;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 2px;
   border: 1px solid var(--line);
   background: rgba(12, 10, 18, .72);
   color: var(--ink);
   font: inherit;
 }
-#askInput, #loginUser, #loginPass { flex: 1; padding: 0 12px; }
 #askInput::placeholder { color: var(--muted); }
-.launch button, #loginForm button, .quick button, .quick a, .download, #moreButton {
-  padding: 0 12px;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
 .launch { justify-content: center; }
 .launch button {
   flex: 1;
-  background: rgba(var(--glow), .14);
-  border-color: rgba(var(--glow), .32);
+  background: #7c3aed;
+  border-color: transparent;
+  color: #f8f5ff;
+}
+.launch button:hover {
+  background: #6d28d9;
+  border-color: transparent;
+}
+#loginForm button[type="submit"],
+.update-toast button {
+  background: #7c3aed;
+  border-color: transparent;
+  color: #f8f5ff;
+}
+#loginForm button[type="submit"]:hover,
+.update-toast button:hover {
+  background: #6d28d9;
 }
 .face-actions {
   display: flex;
@@ -353,21 +373,20 @@ html.meeting #orb {
   width: 100%;
   -webkit-app-region: no-drag;
 }
-#loginToggle, #moreButton, #reloadButton, #minimizeButton {
-  background: transparent;
-  color: var(--muted);
-  font-size: 10px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  min-height: 24px;
-  padding: 0 8px;
+#loginToggle, #moreButton, #reloadButton, #minimizeButton, #retryButton, #debugToggle, #logoutButton {
+  min-height: 28px;
+  padding: 0 10px;
   flex: 0 0 auto;
+  color: var(--muted);
+  border-color: var(--line);
+  background: transparent;
 }
 #loginToggle {
-  color: var(--ink);
-  border-color: rgba(var(--glow), .4);
-  background: rgba(var(--glow), .16);
+  color: #f8f5ff;
+  border-color: transparent;
+  background: #7c3aed;
 }
+#loginToggle:hover { background: #6d28d9; color: #f8f5ff; }
 html.app-mode.signed-in #loginToggle { display: none; }
 #extras { width: 100%; display: grid; gap: 8px; justify-items: center; }
 #extras[hidden] { display: none; }

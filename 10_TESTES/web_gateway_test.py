@@ -132,6 +132,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["shell"]["version"], MODULE.web_shell_version())
         self.assertTrue(payload["shell"]["version"])
         self.assertEqual(payload["shell"]["label"], f"v{payload['shell']['version']}")
+        self.assertEqual(payload["shell"]["overlay"], MODULE.overlay_shell_version())
+        self.assertTrue(payload["shell"]["overlay"])
 
     def test_fala_app_and_mac_download_pack(self):
         status, headers, html = self.request("/fala")

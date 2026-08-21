@@ -214,7 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 stopListen()
             }
         } else if message.name == "jarvisRestart" {
-            webView?.reloadFromOrigin()
+            restartFromOrigin()
         } else if message.name == "jarvisWindow" {
             if body == "hide" || body == "minimize" {
                 hideWindow()
@@ -279,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         guard let window else { return }
         window.isOpaque = false
         window.hasShadow = !compactOn
+        window.isMovableByWindowBackground = compactOn
         window.backgroundColor = .clear
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
@@ -910,6 +911,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         )
     }
 
+    private func restartFromOrigin() {
+        let types: Set<String> = [WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache]
+        webView?.configuration.websiteDataStore.removeData(ofTypes: types, modifiedSince: .distantPast) { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                var comps = URLComponents(url: self.cockpitURL(), resolvingAgainstBaseURL: false)
+                var items = (comps?.queryItems ?? []).filter { $0.name != "r" }
+                items.append(URLQueryItem(name: "r", value: String(Int(Date().timeIntervalSince1970))))
+                comps?.queryItems = items
+                guard let url = comps?.url else {
+                    self.webView?.reloadFromOrigin()
+                    return
+                }
+                let req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
+                self.webView?.load(req)
+            }
+        }
+    }
+
     private func cockpitURL() -> URL {
         let raw = (
             ProcessInfo.processInfo.environment["JARVIS_COCKPIT_URL"]
@@ -939,6 +959,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.setFrame(rect, display: true)
         window.isMovable = true
         window.isOpaque = false
+        window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
