@@ -274,6 +274,12 @@ class LocalTtsServerTest(unittest.TestCase):
         self.assertTrue(payload["RunAtLoad"])
         self.assertTrue(MODULE.ExclusiveHTTPServer.allow_reuse_address)
 
+    def test_pocket_adult_timbre_keeps_wav_or_original(self):
+        raw = silent_wav()
+        with patch.object(MODULE.shutil, "which", return_value=None):
+            self.assertEqual(MODULE.apply_pocket_adult(raw, 24_000), raw)
+        self.assertIn("0.96", MODULE.POCKET_ADULT)
+
     def test_warmup_and_short_speech_cache(self):
         MODULE._SPEECH_CACHE.clear()
         model = FakeModel()

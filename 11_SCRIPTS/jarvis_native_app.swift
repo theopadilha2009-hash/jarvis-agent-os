@@ -314,7 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         let key = "JarvisLastMorning"
         if UserDefaults.standard.string(forKey: key) == stamp { return }
         UserDefaults.standard.set(stamp, forKey: key)
-        speakNative("Bom dia.")
+        speakNative("Bom dia, senhor.")
     }
 
     private func containsWake(_ text: String) -> Bool {
