@@ -100,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private let fullSize = NSSize(width: 220, height: 280)
     private let orbSize = NSSize(width: 72, height: 72)
     private var compact = false
+    private var wakeOnly = true
     private var layouting = false
     private var dragTracking: (origin: NSPoint, mouse: NSPoint)?
     private var dragMoved = false
@@ -230,6 +231,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             } else if body == "resume" {
                 paused = false
                 wantListen = true
+            } else if body == "arm" {
+                wakeOnly = false
+                paused = false
+                wantListen = true
+                startListen()
+            } else if body == "sleep" {
+                wakeOnly = true
             } else {
                 stopListen()
             }
@@ -304,7 +312,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.hasShadow = !compactOn
         window.isMovable = true
         window.isMovableByWindowBackground = false
-        window.backgroundColor = .clear
+        let card = NSColor(srgbRed: 0.07, green: 0.047, blue: 0.11, alpha: 1)
+        window.backgroundColor = compactOn ? .clear : card
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
@@ -313,13 +322,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             view.wantsLayer = true
             view.layer?.cornerRadius = radius
             view.layer?.masksToBounds = true
-            view.layer?.backgroundColor = NSColor.clear.cgColor
+            view.layer?.backgroundColor = compactOn ? NSColor.clear.cgColor : card.cgColor
         }
         webView?.wantsLayer = true
         webView?.layer?.cornerRadius = radius
         webView?.layer?.masksToBounds = true
         if #available(macOS 12.0, *) {
-            webView?.underPageBackgroundColor = .clear
+            webView?.underPageBackgroundColor = compactOn ? .clear : NSColor(srgbRed: 0.07, green: 0.047, blue: 0.11, alpha: 1)
         }
     }
 
@@ -779,6 +788,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var lastLevelAt: TimeInterval = 0
 
     private func emitLevel(_ buffer: AVAudioPCMBuffer) {
+        if wakeOnly || compact { return }
         let now = Date().timeIntervalSince1970
         guard now - lastLevelAt > 0.4 else { return }
         lastLevelAt = now
@@ -929,10 +939,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         lastPartial = text
         lastWasFinal = final
         if containsWake(text) {
+            wakeOnly = false
+            if compact { revealWindow(takeFocus: false) }
             if player?.isPlaying == true {
                 player?.stop()
                 finishSpeak()
             }
+        } else if wakeOnly {
+            return
         }
         let flag = final ? "true" : "false"
         webView?.evaluateJavaScript(

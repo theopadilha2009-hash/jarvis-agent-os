@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-move1";
+  const SHELL_VERSION = "20260821-sleep1";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -575,15 +575,39 @@
     try { nativeHandlers()?.jarvisWindow.postMessage(action); } catch { /* web */ }
   }
 
+  function nativeListen(action) {
+    try { nativeHandlers()?.jarvisListen.postMessage(action); } catch { /* web */ }
+  }
+
+  let armTimer = 0;
   function keepArmed() {
     armed = true;
     armUntil = Date.now() + 45_000;
+    document.documentElement.classList.add("armed");
+    orb.classList.add("listening");
     nativeWindow("touch");
+    nativeListen("arm");
+    window.clearTimeout(armTimer);
+    armTimer = window.setTimeout(sleepUntilWake, 45_000);
+  }
+
+  function sleepUntilWake() {
+    armed = false;
+    armUntil = 0;
+    window.clearTimeout(armTimer);
+    pendingHeard = "";
+    window.clearTimeout(heardTimer);
+    orb.classList.remove("listening");
+    document.documentElement.classList.remove("armed");
+    paintHeard("");
+    nativeListen("sleep");
+    if (!busy && !speaking && !meeting) say("JARVIS", "Diga Jarvis.");
   }
 
   window.__jarvisNativeListen = function (state) {
     const raw = String(state || "");
     if (raw.startsWith("level:")) {
+      if (!armed) return;
       const n = Number(raw.slice(6));
       const node = document.getElementById("heardLine");
       if (node && node.hidden && n > 0.008) {
@@ -600,8 +624,7 @@
     }
     if (raw === "waiting") {
       keepListening = true;
-      orb.classList.add("listening");
-      say("Ouvindo.", "Preparando fala no Mac…");
+      if (armed) say("Ouvindo.", "Preparando fala no Mac…");
       listenPainted = false;
       return;
     }
@@ -621,10 +644,10 @@
     }
     if (raw === "listening" || raw === "waiting") {
       keepListening = true;
-      orb.classList.add("listening");
-      if (!listenPainted) {
-        listenPainted = true;
-        say("Ouvindo.", "Às suas ordens, senhor.");
+      listenPainted = true;
+      if (armed) {
+        orb.classList.add("listening");
+        say("Ouvindo.", "Pode falar.");
       }
     }
   };
@@ -636,6 +659,7 @@
   window.__jarvisSetIdle = function (on) {
     const idle = on === true || on === "true";
     document.documentElement.classList.toggle("idle-orb", idle);
+    if (idle) sleepUntilWake();
   };
 
   function foldSpeech(text) {
@@ -749,7 +773,9 @@
   function hearSpoken(spoken, isFinal = true) {
     const text = String(spoken || "").trim();
     if (!text) return;
-    paintHeard(text);
+    const woke = Boolean(splitWake(text));
+    if (!armed && !woke && !(isQuietAsk(text) && armed)) return;
+    if (armed || woke) paintHeard(text);
     if (speaking) {
       const hit = splitWake(text);
       if (!hit && !(isQuietAsk(text) && (armed || hit))) return;
@@ -777,9 +803,11 @@
   function listenLoop() {
     if (!keepListening || speaking) return;
     if (hasNativeListen()) {
-      try { nativeHandlers().jarvisListen.postMessage("start"); } catch { /* web */ }
-      orb.classList.add("listening");
-      say("Ouvindo.", "Às suas ordens, senhor.");
+      nativeListen(armed ? "arm" : "start");
+      if (armed) {
+        orb.classList.add("listening");
+        say("Ouvindo.", "Pode falar.");
+      }
       return;
     }
     if (!Recognition) return;
@@ -808,8 +836,10 @@
     };
     try {
       rec.start();
-      orb.classList.add("listening");
-      say("Ouvindo.", "Às suas ordens, senhor.");
+      if (armed) {
+        orb.classList.add("listening");
+        say("Ouvindo.", "Pode falar.");
+      }
     } catch {
       if (keepListening && !speaking) window.setTimeout(listenLoop, 600);
     }
@@ -863,7 +893,7 @@
     listenPainted = false;
     window.clearTimeout(heardTimer);
     pendingHeard = "";
-    try { nativeHandlers()?.jarvisListen.postMessage("restart"); } catch { /* web */ }
+    nativeListen("restart");
     nativeWindow("touch");
     startWakeLoop({ force: true });
     startWebBackup();
@@ -882,7 +912,8 @@
     if (keepListening && !force) return;
     keepListening = true;
     persistListen(true);
-    say("Ouvindo.", "Às suas ordens, senhor.");
+    if (force) keepArmed();
+    else sleepUntilWake();
     listenLoop();
   }
 
@@ -1030,7 +1061,7 @@
     const keep = document.getElementById("rememberLogin");
     if (keep) keep.checked = rememberLoginEnabled();
   } catch { /* first visit */ }
-  say("JARVIS", "Às suas ordens, senhor.");
+  say("JARVIS", "Diga Jarvis.");
   refreshAccess();
   refreshVoiceChip();
   watchShellVersion();
