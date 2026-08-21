@@ -35,65 +35,66 @@ html, body {
   -webkit-app-region: drag;
 }
 .orb-shell > * { position: relative; z-index: 1; }
+.halo,
+.viz { z-index: 0; }
 .halo {
   position: absolute;
-  inset: -8% 10% auto;
-  height: 52%;
-  z-index: 0;
+  inset: -4% 14% auto;
+  height: 48%;
   pointer-events: none;
-  background: radial-gradient(ellipse at 50% 42%, rgba(var(--glow), .38), transparent 60%);
-  filter: blur(10px);
+  background: radial-gradient(ellipse at 50% 48%, rgba(var(--glow), .22), transparent 68%);
+  filter: blur(12px);
 }
 .viz {
   position: absolute;
   left: 50%;
-  top: 8px;
-  width: 240px;
-  height: 196px;
+  top: 4px;
+  width: 248px;
+  height: 168px;
   transform: translateX(-50%);
-  z-index: 0;
   pointer-events: none;
-  filter: blur(8px);
+  filter: blur(14px);
 }
 .viz b {
   position: absolute;
-  left: 50%;
-  top: 52%;
+  top: 50%;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  mix-blend-mode: screen;
-  opacity: .85;
+  opacity: .75;
 }
 .viz b:nth-child(1) {
-  width: 168px;
-  height: 78px;
-  background: radial-gradient(circle, rgba(192, 80, 255, .85), transparent 72%);
-  animation: vizwave 2.2s ease-in-out infinite;
+  left: 4%;
+  width: 72px;
+  height: 108px;
+  background: radial-gradient(circle, rgba(168, 85, 247, .9), transparent 70%);
+  animation: vizwing 2.3s ease-in-out infinite;
 }
 .viz b:nth-child(2) {
-  width: 78px;
-  height: 168px;
-  background: radial-gradient(circle, rgba(124, 58, 237, .7), transparent 72%);
-  animation: vizwave 2.6s ease-in-out infinite reverse;
+  right: 4%;
+  left: auto;
+  width: 72px;
+  height: 108px;
+  background: radial-gradient(circle, rgba(192, 80, 255, .85), transparent 70%);
+  animation: vizwing 2.3s ease-in-out infinite reverse;
 }
 .viz b:nth-child(3) {
-  width: 150px;
-  height: 96px;
-  transform: translate(-50%, -50%) rotate(28deg);
-  background: radial-gradient(circle, rgba(232, 121, 249, .55), transparent 70%);
-  animation: vizwave 1.9s ease-in-out infinite;
+  left: 10%;
+  width: 54px;
+  height: 86px;
+  background: radial-gradient(circle, rgba(124, 58, 237, .55), transparent 72%);
+  animation: vizwing 1.8s ease-in-out infinite;
 }
 .viz b:nth-child(4) {
-  width: 96px;
-  height: 150px;
-  transform: translate(-50%, -50%) rotate(-22deg);
-  background: radial-gradient(circle, rgba(99, 102, 241, .5), transparent 70%);
-  animation: vizwave 2.8s ease-in-out infinite reverse;
+  right: 10%;
+  left: auto;
+  width: 54px;
+  height: 86px;
+  background: radial-gradient(circle, rgba(232, 121, 249, .5), transparent 72%);
+  animation: vizwing 1.8s ease-in-out infinite reverse;
 }
-.orb-shell:has(#orb.listening) .viz b { animation-duration: 1.15s; }
+.orb-shell:has(#orb.listening) .viz b { animation-duration: 1.1s; opacity: .9; }
 .orb-shell:has(#orb.speaking) .viz b {
   animation-duration: .55s;
-  filter: saturate(1.35) brightness(1.15);
+  opacity: 1;
 }
 #orb {
   width: 128px;
@@ -103,32 +104,36 @@ html, body {
   border-radius: 50%;
   cursor: pointer;
   flex: 0 0 auto;
-  background: transparent;
-  position: relative;
-  z-index: 2;
+  background: #0c0814;
+  isolation: isolate;
+  z-index: 4;
   -webkit-app-region: no-drag;
   box-shadow:
-    0 0 0 1px rgba(var(--glow), .22),
-    0 0 28px rgba(var(--glow), .42);
+    0 0 0 1px rgba(var(--glow), .28),
+    0 0 22px rgba(var(--glow), .35);
 }
 #orb img {
   width: 128px;
   height: 128px;
   border-radius: 50%;
   display: block;
-  object-fit: contain;
+  object-fit: cover;
+  background: #0c0814;
+  position: relative;
+  z-index: 2;
   pointer-events: none;
 }
 html[data-persona="ultron"] #orb img { filter: hue-rotate(312deg) saturate(1.25); }
 #orb i {
   position: absolute;
   inset: -8px;
+  z-index: 1;
   border-radius: 50%;
-  border: 1px solid rgba(var(--glow), .32);
+  border: 1px solid rgba(var(--glow), .28);
   animation: pulse 2.8s ease-in-out infinite;
   pointer-events: none;
 }
-#orb i:last-of-type { inset: -16px; animation-delay: .7s; opacity: .5; }
+#orb i:last-of-type { inset: -15px; animation-delay: .7s; opacity: .45; }
 html.idle-orb,
 html.idle-orb body {
   background: transparent;
@@ -158,15 +163,15 @@ html.idle-orb #orb i { inset: -6px; }
 html.idle-orb #orb i:last-of-type { inset: -11px; }
 html.idle-orb .viz {
   top: 50%;
-  width: 118px;
-  height: 118px;
+  width: 120px;
+  height: 100px;
   transform: translate(-50%, -50%);
-  filter: blur(6px);
+  filter: blur(10px);
 }
-html.idle-orb .viz b:nth-child(1) { width: 108px; height: 52px; }
-html.idle-orb .viz b:nth-child(2) { width: 52px; height: 108px; }
-html.idle-orb .viz b:nth-child(3) { width: 96px; height: 60px; }
-html.idle-orb .viz b:nth-child(4) { width: 60px; height: 96px; }
+html.idle-orb .viz b:nth-child(1),
+html.idle-orb .viz b:nth-child(2) { width: 36px; height: 64px; }
+html.idle-orb .viz b:nth-child(3),
+html.idle-orb .viz b:nth-child(4) { width: 28px; height: 48px; }
 html.idle-orb .halo {
   inset: 8%;
   height: auto;
@@ -375,23 +380,9 @@ html.app-mode .download { display: none; }
   0%, 100% { transform: scale(1); opacity: .4; }
   50% { transform: scale(1.05); opacity: 1; }
 }
-@keyframes vizwave {
-  0%, 100% { transform: translate(-50%, -50%) scale(0.88); opacity: .55; }
-  50% { transform: translate(-50%, -50%) scale(1.18); opacity: 1; }
-}
-.viz b:nth-child(3) {
-  animation-name: vizwave-tilt;
-}
-.viz b:nth-child(4) {
-  animation-name: vizwave-tilt2;
-}
-@keyframes vizwave-tilt {
-  0%, 100% { transform: translate(-50%, -50%) rotate(28deg) scale(0.9); opacity: .5; }
-  50% { transform: translate(-50%, -50%) rotate(38deg) scale(1.2); opacity: .95; }
-}
-@keyframes vizwave-tilt2 {
-  0%, 100% { transform: translate(-50%, -50%) rotate(-22deg) scale(0.9); opacity: .5; }
-  50% { transform: translate(-50%, -50%) rotate(-32deg) scale(1.18); opacity: .9; }
+@keyframes vizwing {
+  0%, 100% { transform: translateY(-50%) scale(0.86); opacity: .45; }
+  50% { transform: translateY(-50%) scale(1.12); opacity: .9; }
 }
 @media (prefers-reduced-motion: reduce) {
   #orb i, .viz b { animation: none; }
