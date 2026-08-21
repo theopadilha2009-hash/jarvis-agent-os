@@ -131,7 +131,7 @@
       tools: [{
         name: "send_event",
         label: "Enviar evento",
-        description: "Envia um JSON real. Exige modo Ultron e uma confirmação explícita.",
+        description: "Envia um JSON real. Exige conta dono e uma confirmação explícita.",
         effect: "external_write",
         fields: [{ name: "payload", label: "Evento JSON", placeholder: '{\n  "event": "jarvis.test"\n}', type: "textarea" }],
       }],
@@ -282,7 +282,7 @@
       "BUG JARVIS (visitante)",
       `quando: ${new Date().toISOString()}`,
       `url: ${window.location.origin}${window.location.pathname}`,
-      `modo: ${session.paired ? "ULTRON (não deveria estar assim num amigo)" : "visitante"}`,
+      `modo: ${session.paired ? "JARVIS dono" : "visitante"}`,
       `pedido: ${lastUser?.content || session.currentCommand || "—"}`,
       `resposta: ${(lastAssistant?.content || "").slice(0, 280) || "—"}`,
       `erro: ${session.lastError || "nenhum erro gravado"}`,
@@ -300,14 +300,11 @@
   }
 
   function assistantName() {
-    return session.paired ? "ULTRON" : "JARVIS";
+    return "JARVIS";
   }
 
   function identityText(value) {
-    const text = String(value || "");
-    if (!session.paired) return text;
-    return text
-      .replace(/\bJARVIS\b/gi, "ULTRON");
+    return String(value || "");
   }
 
   function renderStrength() {
@@ -330,9 +327,9 @@
 
   function renderApiPower() {
     const badge = byId("apiPowerBadge");
-    if (badge) badge.textContent = session.paired ? "ULTRON · 3×" : "JARVIS · 1×";
+    if (badge) badge.textContent = session.paired ? "JARVIS · 3×" : "JARVIS · 1×";
     if (byId("integrationsDialogTitle")) {
-      byId("integrationsDialogTitle").textContent = session.paired ? "ARSENAL DE APIs · ULTRON" : "CENTRAL DE APIs · JARVIS";
+      byId("integrationsDialogTitle").textContent = session.paired ? "ARSENAL DE APIs · JARVIS 3×" : "CENTRAL DE APIs · JARVIS";
     }
   }
 
@@ -457,7 +454,7 @@
     }
     if (tool.effect === "external_write") {
       if (!session.paired) {
-        setIntegrationFeedback("Entre no modo Ultron para autorizar um envio externo.", "error");
+        setIntegrationFeedback("Entre com a conta dono para autorizar um envio externo.", "error");
         return;
       }
       if (!await window.JarvisFeatureLoader?.authorize("outbound", `Enviar evento para ${definition.label}`)) {
@@ -786,15 +783,14 @@
 
   function applyIdentityMode() {
     const name = assistantName();
-    const ultron = session.paired;
-    document.documentElement.dataset.persona = ultron ? "ultron" : "jarvis";
+    document.documentElement.dataset.persona = "jarvis";
     document.title = `${name} · ${creatorName()}`;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", ultron ? "#190305" : "#130824");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#130824");
     document.querySelector('meta[name="description"]')?.setAttribute("content", `${name}, criado por ${creatorName()}. Central pessoal de memória, automação e controle.`);
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", name);
     byId("identityAssistantName").textContent = name;
     const identityRole = byId("identityCreator") || document.querySelector(".identity-name small");
-    if (identityRole) identityRole.textContent = ultron ? `para ${creatorName()}` : `por ${creatorName()}`;
+    if (identityRole) identityRole.textContent = `por ${creatorName()}`;
     window.JarvisCreator?.lock?.();
     byId("conversationAssistantName").textContent = name;
     byId("systemDialogTitle").textContent = `SISTEMA ${name}`;
@@ -807,14 +803,14 @@
     input.setAttribute("aria-label", `Pedido para ${name}`);
     byId("ownerTokenInput")?.setAttribute("aria-label", `Token privado do ${name}`);
     if (!session.currentCommand) {
-      byId("requestText").textContent = ultron
-        ? "Dê a ordem. ULTRON escolhe a rota mais forte disponível."
+      byId("requestText").textContent = session.paired
+        ? "Dê a ordem. O JARVIS escolhe a rota mais forte disponível."
         : "Fale naturalmente. O JARVIS escolhe as ferramentas por trás.";
     }
     renderMuteState();
     renderApiPower();
     renderIntegrationRegistry();
-    window.dispatchEvent(new CustomEvent("jarvis-persona", { detail: { persona: ultron ? "ultron" : "jarvis" } }));
+    window.dispatchEvent(new CustomEvent("jarvis-persona", { detail: { persona: "jarvis" } }));
   }
 
   function formatSeen(value) {
@@ -1174,7 +1170,7 @@
     byId("contextCount").textContent = "0 turnos";
     byId("requestTitle").textContent = "Pronto para você";
     byId("requestText").textContent = session.paired
-      ? "Dê a ordem. ULTRON escolhe a rota mais forte disponível."
+      ? "Dê a ordem. O JARVIS escolhe a rota mais forte disponível."
       : "Fale naturalmente. O JARVIS escolhe as ferramentas por trás.";
     byId("sceneEyebrow").textContent = "SISTEMA ONLINE";
     byId("sceneMission").textContent = "Aguardando comando";
@@ -1347,7 +1343,7 @@
         ? `${assistantName()} escolheu uma ferramenta real. Você pode encadear outra ação.`
         : session.paired
           ? "Escolha uma ação real ou continue conversando normalmente."
-          : "Conversa e pesquisa são públicas; ações pessoais exigem o modo Ultron.";
+          : "Conversa e pesquisa são públicas; ações pessoais exigem a conta dono.";
     const hasContext = Boolean(
       data.job?.id
       || data.agentic
@@ -1369,12 +1365,12 @@
       session.deviceOnline = Boolean(summary.worker_online);
       byId("hubWorkerValue").textContent = session.paired
         ? session.deviceOnline ? "online" : "offline · aceita fila"
-        : "modo Ultron necessário";
+        : "conta dono necessária";
       byId("hubMemoryValue").textContent = summary.memory_count == null ? "privada" : `${summary.memory_count} registros`;
       byId("hubAgendaValue").textContent = summary.agenda_count == null ? "privada" : `${summary.agenda_count} pendentes`;
       byId("hubLastActionValue").textContent = summary.latest_action || "nenhuma execução registrada";
       byId("hubReadyValue").textContent = summary.ready_actions == null
-        ? "entre no modo Ultron"
+        ? "entre com a conta dono"
         : `${summary.ready_actions} disponíveis`;
       byId("actionHubOverview").textContent = identityText(data.message || "Central pessoal carregada.");
       updateActionHub(session.currentCommand, data);
@@ -2819,9 +2815,9 @@
     byId("requestTitle").textContent = data.memory_suggestion ? "Memória sugerida" : data.jobs?.length > 1 ? "Execução enviada ao Mac" : data.job?.id ? "Ação enviada ao Mac" : data.executed_locally ? "Ação local" : data.provider === "n8n" ? "Automação concluída" : "Resposta pronta";
     renderLiveCanvas(data);
     updateActionHub(session.currentCommand, data);
-    const ultronMoment = data.persona?.id === "ultron_private"
+    const jarvisMoment = data.persona?.id === "jarvis_owner"
       && (data.response_strength === "maximum" || data.executed_locally || data.external_processing || data.provider === "n8n");
-    if (ultronMoment) signalUltron(data.executed_locally || data.provider === "n8n" ? "victory" : "response");
+    if (jarvisMoment) signalUltron(data.executed_locally || data.provider === "n8n" ? "victory" : "response");
     if (Array.isArray(data.jobs) && data.jobs.length > 1 && !data.run?.terminal) {
       monitorDeviceRun(data.jobs.map((job) => job.id), message);
     } else if (data.job?.id && ["pending", "running"].includes(data.job.status)) {
@@ -3021,7 +3017,7 @@
     }
     const permissionCategory = session.paired ? window.JarvisFeatureLoader?.categoryForCommand(command) : "";
     if (permissionCategory && !await window.JarvisFeatureLoader?.authorize(permissionCategory, command)) {
-      addMessage("Ação cancelada pela política de permissões do Ultron.", "error");
+      addMessage("Ação cancelada pela política de permissões do JARVIS.", "error");
       return;
     }
     session.responseState = "";
@@ -3416,20 +3412,20 @@
       applyIdentityMode();
       const canLeaveOwnerMode = Boolean((session.paired || session.codeMode) && status.owner_pairing?.required);
       byId("accessModeLabel").textContent = canLeaveOwnerMode
-        ? (session.paired ? "Sair do Ultron" : "Sair da conta")
+        ? (session.paired ? "Sair do JARVIS dono" : "Sair da conta")
         : session.paired
-          ? "Theo · modo Ultron"
+          ? "Theo · JARVIS"
           : session.codeMode
             ? `${session.accountName || "conta"} · code`
             : "Entrar";
       byId("accessMode").dataset.action = canLeaveOwnerMode ? "logout" : "details";
       byId("accessMode").title = canLeaveOwnerMode
         ? "Voltar ao modo visitante"
-        : session.paired ? "Ver detalhes do modo Ultron" : session.codeMode ? "Conta JARVIS · modo code" : "Entrar no modo Ultron";
+        : session.paired ? "Ver detalhes da conta dono" : session.codeMode ? "Conta JARVIS · modo code" : "Entrar no JARVIS";
       byId("leaveOwnerMode").hidden = !canLeaveOwnerMode;
-      byId("leaveOwnerMode").textContent = session.paired ? "Sair do modo Ultron" : "Sair da conta";
+      byId("leaveOwnerMode").textContent = session.paired ? "Sair da conta dono" : "Sair da conta";
       byId("accessValue").textContent = session.paired
-        ? "Modo Ultron · memória, GitHub e Mac privados disponíveis"
+        ? "JARVIS dono · memória, GitHub e Mac privados disponíveis"
         : session.codeMode
           ? "Conta JARVIS · modo code ativo. Mac e memória do Theo bloqueados."
           : status.access?.public_chat
@@ -3459,8 +3455,7 @@
         if (!base) return;
         const info = window.JarvisLocalVoice.info();
         session.localVoice = true;
-        const persona = document.documentElement.dataset.persona || "jarvis";
-        const label = persona === "ultron" ? (info.ultronVoice || "javert") : (info.voice || "rafael");
+        const label = info.voice || "rafael";
         byId("voiceValue").textContent = `Pocket TTS · ${label}`;
       }).catch(() => {});
       request("/voice-status").then((voice) => {
@@ -3479,7 +3474,7 @@
       ].filter(Boolean);
       byId("integrationValue").textContent = ready.join(" · ") || "sem integrações externas";
       byId("integrationHint").textContent = browserProviders.length
-        ? `${browserProviders.length} integração(ões) protegida(s) neste dispositivo. ${session.paired ? "Ultron opera com orçamento 3×." : "JARVIS opera em 1×; ações externas protegidas pedem Ultron."}`
+        ? `${browserProviders.length} integração(ões) protegida(s) neste dispositivo. ${session.paired ? "JARVIS opera com orçamento 3×." : "JARVIS opera em 1×; ações externas protegidas pedem a conta dono."}`
         : !status.web_search?.configured
         ? "Pesquisa ao vivo aguarda o OpenRouter; as demais integrações continuam independentes."
         : status.automations?.n8n?.configured || browserN8n
@@ -3505,12 +3500,12 @@
       document.querySelector(".advanced-pairing").hidden = !status.owner_pairing?.required;
       byId("pairingHint").textContent = session.paired
         ? (rememberLoginEnabled()
-          ? "Modo Ultron ativo neste aparelho. Fica conectado até você tocar em Sair."
-          : "Modo Ultron ativo neste navegador. Sem “manter conectado”, a sessão cai após 12h parado.")
+          ? "Conta dono ativa neste aparelho. Fica conectado até você tocar em Sair."
+          : "Conta dono ativa neste navegador. Sem “manter conectado”, a sessão cai após 12h parado.")
         : status.owner_pairing?.required
           ? status.owner_pairing?.admin_login_configured
             ? "Entre como admin para liberar memória, agenda, GitHub e ações no Mac."
-            : "Login do modo Ultron ainda não configurado; use o pareamento avançado."
+            : "Login do dono ainda não configurado; use o pareamento avançado."
           : "Pareamento ainda não foi exigido neste ambiente.";
       const workerValue = byId("workerValue");
       if (session.paired && status.device_bridge?.configured) {
@@ -3985,13 +3980,13 @@
     const openScene = () => {
       const mode = item.dataset.sceneMode;
       if (mode === "forge" && !session.paired && !session.codeMode) {
-        byId("pairingHint").textContent = "Entre com o login do Ultron ou crie conta para o modo code.";
+        byId("pairingHint").textContent = "Entre com o login do dono ou crie conta para o modo code.";
         dialog.showModal();
         window.setTimeout(() => byId("adminPassword").focus(), 30);
         return;
       }
       if (mode === "memory" && !session.paired) {
-        byId("pairingHint").textContent = "A memória privada pede o modo Ultron.";
+        byId("pairingHint").textContent = "A memória privada pede a conta dono.";
         dialog.showModal();
         window.setTimeout(() => byId("adminPassword").focus(), 30);
         return;
@@ -4089,7 +4084,7 @@
         `shell ${SHELL_VERSION}`,
         `token ${ownerToken() ? "sim" : "não"}`,
         `remember ${rememberLoginEnabled() ? "sim" : "não"}`,
-        `paired ${session.paired ? "ultron" : session.codeMode ? "code" : "visitante"}`,
+        `paired ${session.paired ? "owner" : session.codeMode ? "code" : "visitante"}`,
         `tts ${tts.ok ? `${tts.engine || "ok"} ${tts.voice || ""}`.trim() : "offline"}`,
         `lastOpen ${session.lastOpenUrl || "—"}`,
         `lastError ${session.lastError || "—"}`,

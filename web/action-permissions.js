@@ -64,7 +64,7 @@ function renderSettings() {
   const saved = policies();
   const allowed = sessionAllows();
   mount.innerHTML = `
-    <div class="dialog-head permissions-head"><span><small>CONTROLE DO ULTRON</small><b>Permissões de ações</b></span><button id="permissionsClose" type="button" aria-label="Fechar permissões">×</button></div>
+    <div class="dialog-head permissions-head"><span><small>CONTROLE DO JARVIS</small><b>Permissões de ações</b></span><button id="permissionsClose" type="button" aria-label="Fechar permissões">×</button></div>
     <section class="permissions-body"><p>Nenhuma ação externa recebe permissão permanente. Escolha perguntar sempre ou bloquear; liberações duram somente esta aba.</p>
       <div class="permissions-list">${Object.entries(categories).map(([id, item]) => `
         <article><span><strong>${item.label}</strong><small>${item.detail}</small></span>
@@ -89,7 +89,7 @@ function renderRequest(category, operation) {
   if (!mount || !item) return;
   mount.innerHTML = `
     <div class="dialog-head permissions-head"><span><small>AUTORIZAÇÃO NECESSÁRIA</small><b>${item.label}</b></span><button id="permissionDenyTop" type="button" aria-label="Cancelar ação">×</button></div>
-    <section class="permission-request"><i>ULTRON</i><strong>Permitir esta ação?</strong><p id="permissionOperation"></p><small>${item.detail}</small>
+    <section class="permission-request"><i>JARVIS</i><strong>Permitir esta ação?</strong><p id="permissionOperation"></p><small>${item.detail}</small>
       <div><button id="permissionDeny" type="button">Cancelar</button><button id="permissionOnce" type="button">Permitir uma vez</button><button id="permissionSession" type="button">Liberar nesta sessão</button></div>
       <em>Fechar ou pressionar Esc cancela. Não existe “permitir para sempre”.</em>
     </section>`;

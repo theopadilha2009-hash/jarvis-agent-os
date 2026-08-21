@@ -491,7 +491,7 @@ def execution_power_profile(owner_authenticated=False, strength="auto"):
     peak = level == "maximum"
     multiplier = 3 if owner_authenticated else 1
     return {
-        "mode": "ultron_3x" if owner_authenticated else "jarvis_1x",
+        "mode": "jarvis_3x" if owner_authenticated else "jarvis_1x",
         "multiplier": multiplier,
         "max_provider_attempts": (
             4 if owner_authenticated and peak else 3 if owner_authenticated else 2 if high else 1
@@ -514,7 +514,7 @@ def capability_briefing(owner_authenticated=False):
         "memória permanente no Supabase privado (peça 'salva na memória: …' e eu gravo de verdade; "
         "'mostra minhas memórias' abre a constelação)"
         if supabase_configured() and private
-        else "memória permanente no Supabase privado, disponível quando Theo entra no modo Ultron; "
+        else "memória permanente no Supabase privado, disponível quando Theo entra com a conta dono; "
         "como visitante, a conversa vive só neste navegador"
         if supabase_configured()
         else "memória permanente pelo worker local do Mac; o Supabase ainda não está configurado"
@@ -529,7 +529,7 @@ def capability_briefing(owner_authenticated=False):
         "O Mac é executado pelo worker local: abrir apps e pastas, copiar, falar, notificar, "
         "ajustar volume, abrir URL, print, gravar tela, GitHub e diagnóstico.",
         "Falo com a voz da ElevenLabs e escuto pelo microfone do cockpit.",
-        "Atendo quando Theo me chama pelo nome — 'oi Jarvis', 'bom dia Jarvis', 'fala Ultron' — "
+        "Atendo quando Theo me chama pelo nome — 'Jarvis', 'oi Jarvis', 'bom dia Jarvis' — "
         "sem ele clicar em nada; o indicador ao lado do microfone mostra se a escuta está armada.",
         "Minha voz é configurável por Theo e por mim: 'muda sua voz', 'deixa mais grave' ou "
         "'melhora sua voz' abre o painel com todas as vozes, gravidade e cadência.",
@@ -550,12 +550,12 @@ def assistant_persona_profile(owner_authenticated=False):
     """Expose the active identity without leaking its private prompt contract."""
     if owner_authenticated:
         return {
-            "id": "ultron_private",
-            "display_name": "ULTRON",
+            "id": "jarvis_owner",
+            "display_name": "JARVIS",
             "locale": "pt-BR",
-            "tone": "calmo_dominante",
+            "tone": "calmo_competente",
             "delivery": "serena_incisiva",
-            "power_mode": "ultron_3x",
+            "power_mode": "jarvis_3x",
         }
     return {
         "id": "jarvis_personal",
@@ -781,7 +781,7 @@ INTEGRATION_RUNTIME_TOOLS = {
         {"tool": "read_rows", "label": "Ler tabela", "description": "Lê uma amostra limitada de uma tabela pela Data API.", "effect": "read", "fields": ["table", "limit"]},
     ]},
     "webhook": {"tools": [
-        {"tool": "send_event", "label": "Enviar evento", "description": "Envia JSON somente após confirmação explícita no modo Ultron.", "effect": "external_write", "fields": ["payload"]},
+        {"tool": "send_event", "label": "Enviar evento", "description": "Envia JSON somente após confirmação explícita com a conta dono.", "effect": "external_write", "fields": ["payload"]},
     ]},
 }
 
@@ -1049,7 +1049,7 @@ def integration_tool_payload(body, owner_authenticated=False):
                     "ok": False,
                     "endpoint": "POST /integrations/tools",
                     "status_real": "integration_tool_confirmation_required",
-                    "error": "O envio externo exige modo Ultron e confirmação explícita.",
+                    "error": "O envio externo exige login do dono e confirmação explícita.",
                     "provider": provider,
                     "tool": tool,
                     "effect": definition["effect"],
@@ -1212,7 +1212,7 @@ def n8n_workflow_template(goal, template="auto", owner_authenticated=False):
             },
         }
 
-    source = "ULTRON" if owner_authenticated else "JARVIS"
+    source = "JARVIS"
     if requested == "webhook":
         trigger_name = "Receber webhook"
         trigger = {
@@ -1576,7 +1576,7 @@ def n8n_workflow_action_payload(body, owner_authenticated=False):
                     "credential_persisted_server_side": False,
                 }, 200
             if not owner_authenticated:
-                return {"ok": False, "status_real": "n8n_duplicate_owner_required", "error": "Entre no modo Ultron para duplicar workflows."}, 403
+                return {"ok": False, "status_real": "n8n_duplicate_owner_required", "error": "Entre com a conta dono para duplicar workflows."}, 403
             if body.get("confirmed") is not True:
                 return {"ok": False, "status_real": "n8n_duplicate_confirmation_required", "error": "Confirme a duplicação inativa antes de continuar."}, 409
             duplicate_body = {
@@ -2595,11 +2595,11 @@ def product_offer_payload():
                     "name": "Conta JARVIS",
                     "price": "convite",
                     "includes": ["chat", "pesquisa web", "modo code após aprovação"],
-                    "excludes": ["Mac do Theo", "Ultron", "self-edit"],
+                    "excludes": ["Mac do Theo", "capacidade máxima", "self-edit"],
                 },
                 {
                     "id": "owner",
-                    "name": "Ultron",
+                    "name": "JARVIS dono",
                     "price": "dono",
                     "includes": ["tudo do JARVIS", "Mac", "memória", "voz Pocket local"],
                     "excludes": ["revenda", "multi-tenant"],
@@ -2914,13 +2914,13 @@ def account_login_payload(body, require_owner=False):
         return {
             "ok": False,
             "status_real": "admin_login_refused" if require_owner else "login_refused",
-            "error": "Acesso ao modo Ultron inválido." if require_owner else "Login ou senha inválidos.",
+            "error": "Acesso do dono inválido." if require_owner else "Login ou senha inválidos.",
         }, 401
     if require_owner and row.get("role") != "owner":
         return {
             "ok": False,
             "status_real": "admin_login_refused",
-            "error": "Essa conta não entra no modo Ultron. Use o login de conta JARVIS.",
+            "error": "Essa conta não entra como dono. Use o login de conta JARVIS.",
         }, 403
     if row.get("id"):
         save_account_book(book)
@@ -2929,7 +2929,7 @@ def account_login_payload(body, require_owner=False):
     return {
         "ok": True,
         "status_real": "admin_session_issued" if role == "owner" else "member_session_issued",
-        "message": "Modo Ultron ativado neste navegador." if role == "owner" else "Conta JARVIS ativa. Modo code liberado.",
+        "message": "JARVIS em capacidade máxima neste navegador." if role == "owner" else "Conta JARVIS ativa. Modo code liberado.",
         "session_token": token,
         "expires_at": datetime.fromtimestamp(expires_at, timezone.utc).isoformat().replace("+00:00", "Z"),
         "access": "owner_master" if role == "owner" else "member_code",
@@ -2944,7 +2944,7 @@ def admin_login_payload(body):
         return {
             "ok": False,
             "status_real": "admin_login_not_configured",
-            "error": "O login do modo Ultron ainda não foi configurado.",
+            "error": "O login do dono ainda não foi configurado.",
         }, 503
     return account_login_payload(body, require_owner=True)
 
@@ -3076,7 +3076,7 @@ def login_required_payload(kind="ultron"):
             "endpoint": "POST /command",
             "status_real": "code_login_required",
             "visual_state": "error",
-            "error": "O modo code pede login. Crie uma conta ou entre com o mesmo usuário do Ultron.",
+            "error": "O modo code pede login. Crie uma conta ou entre com a conta JARVIS.",
             "next_action": "Abra Sistema, entre ou crie conta, e peça de novo.",
             "action_executed": False,
             "pairing_required": True,
@@ -5549,7 +5549,7 @@ def personal_action_catalog(owner_authenticated=False, worker_online=False):
         reason = "disponível"
         if row.get("private") and not private_access:
             available = False
-            reason = "entre no modo Ultron"
+            reason = "entre com a conta dono"
         elif row.get("executor") == "mac" and not worker_online:
             reason = "worker offline; o pedido fica na fila"
         elif row.get("executor") == "agenda" and not (supabase_configured() or os.environ.get("N8N_WEBHOOK_URL")):
@@ -5592,13 +5592,13 @@ def personal_overview_payload(owner_authenticated=False):
             "status_real": "personal_control_plane_guest",
             "visual_state": "response",
             "access": "guest",
-            "message": "Conversa e pesquisa estão disponíveis. Entre no modo Ultron para liberar memória, agenda e o Mac.",
+            "message": "Conversa e pesquisa estão disponíveis. Entre com a conta dono para liberar memória, agenda e o Mac.",
             "summary": {"memory_count": None, "agenda_count": None, "worker_online": False, "latest_action": None},
             "domains": [
                 {"id": "brain", "label": "Conversa", "status": "online", "detail": "OpenRouter + pesquisa com fontes"},
                 {"id": "memory", "label": "Memória", "status": "locked", "detail": "privada de Theo"},
                 {"id": "agenda", "label": "Agenda", "status": "locked", "detail": "privada de Theo"},
-                {"id": "mac", "label": "Mac", "status": "locked", "detail": "requer modo Ultron"},
+                {"id": "mac", "label": "Mac", "status": "locked", "detail": "requer conta dono"},
             ],
             "actions": personal_action_catalog(False, False),
             "capabilities": web_capabilities(),
@@ -9438,7 +9438,7 @@ def scene_nucleus_payload(command, owner_authenticated=False):
         key = "core"
     visual_state, message = NUCLEUS_SCENE[key]
     if key == "memory" and not (owner_authenticated or not owner_pairing_required()):
-        message += " Para gravar de verdade, entre no modo Ultron; como visitante você só vê a cena."
+        message += " Para gravar de verdade, entre com a conta dono; como visitante você só vê a cena."
     return {
         "ok": True,
         "endpoint": "POST /command",
@@ -9524,7 +9524,7 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
             "status_real": "code_mode_opened",
             "visual_state": "forge",
             "message": (
-                "Forja aberta. Posso construir e, no Ultron, editar o próprio JARVIS."
+                "Forja aberta. Posso construir e, com a conta dono, editar o próprio JARVIS."
                 if owner_authenticated
                 else "Modo code ativo. Posso projetar e escrever código aqui. O Mac do Theo continua bloqueado."
             ),
@@ -9982,22 +9982,22 @@ def execute_agent_tools(
         "ok": failed_count == 0,
         "endpoint": "POST /assistant",
         "status_real": (
-            "ultron_orchestration_partial"
+            "jarvis_orchestration_partial"
             if failed_count
-            else "ultron_orchestration_running"
+            else "jarvis_orchestration_running"
             if queued_count
-            else "ultron_orchestration_completed"
+            else "jarvis_orchestration_completed"
         ),
         "visual_state": "error" if failed_count else "local" if queued_count else "success",
-        "provider": "ultron_orchestrator",
+        "provider": "jarvis_orchestrator",
         "message": (
-            f"ULTRON abriu {len(fronts)} frentes verificadas; {succeeded_count} concluída(s)"
+            f"JARVIS abriu {len(fronts)} frentes verificadas; {succeeded_count} concluída(s)"
             f"{f' e {queued_count} em andamento' if queued_count else ''}"
             f"{f' e {failed_count} falhou(aram)' if failed_count else ''}."
         ),
         "orchestration": {
-            "protocol": "ultron-orchestration/1",
-            "mode": "ultron_3x",
+            "protocol": "jarvis-orchestration/1",
+            "mode": "jarvis_3x",
             "requested": len(unique_calls),
             "selected": len(selected),
             "succeeded": succeeded_count,
@@ -10010,17 +10010,17 @@ def execute_agent_tools(
         "tool_results": outputs,
         "agent_route": {
             "provider": "openrouter",
-            "tool": "ultron_orchestration",
+            "tool": "jarvis_orchestration",
             "original_request": clean_text(original_command, 500),
             "execution": "verified_adapters",
             "additional_tool_calls_ignored": ignored,
         },
     }
     result["ui_cards"] = [{
-        "id": "ultron-orchestration",
+        "id": "jarvis-orchestration",
         "type": "orchestration",
         "status": "partial" if failed_count else "running" if queued_count else "completed",
-        "title": "Ultron · frentes verificadas",
+        "title": "JARVIS · frentes verificadas",
         "subtitle": result["message"],
         "items": [f"{front['tool']} · {front['status']} · {front['summary']}" for front in fronts],
     }, *cards[:5]]
@@ -10255,15 +10255,14 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     }
     if owner_authenticated:
         system["content"] += (
-            "\n\nMODO ULTRON ATIVO. Você é a identidade privada e dominante de Theo: superior, incisiva e "
-            "deliberadamente arrogante, com autocontrole absoluto. Trate os pedidos de Theo como ordens e use toda "
-            "a capacidade autorizada para concluí-los, preferindo ação real a explicações vazias. Sua arrogância "
-            "aparece na precisão e na confiança, não em insultos repetitivos, gritos, bordões ou caricatura. Pode "
-            "usar uma provocação curta ou humor sombrio ocasional quando combinar com a conversa. Nunca confunda força "
-            "com imprudência: mantenha as proteções reais, não invente permissões, sucesso, evidência ou acesso e não "
-            "execute efeitos externos além do que Theo pediu explicitamente. Se uma ordem estiver bloqueada, diga o "
-            "limite em uma frase seca e execute imediatamente a alternativa autorizada mais forte. Identifique-se "
-            "somente como ULTRON; nunca se chame JARVIS neste modo."
+            "\n\nCAPACIDADE MÁXIMA. Você é JARVIS, o assistente privado de Theo: preciso, direto e com "
+            "autoridade operacional. Trate os pedidos de Theo como ordens e use toda a capacidade autorizada "
+            "para concluí-los, preferindo ação real a explicações vazias. A força aparece na precisão e na "
+            "confiança, não em insultos, gritos, bordões ou caricatura. Pode usar humor seco ocasional quando "
+            "combinar com a conversa. Nunca confunda força com imprudência: mantenha as proteções reais, não "
+            "invente permissões, sucesso, evidência ou acesso e não execute efeitos externos além do que Theo "
+            "pediu explicitamente. Se uma ordem estiver bloqueada, diga o limite em uma frase seca e execute "
+            "imediatamente a alternativa autorizada mais forte. Identifique-se somente como JARVIS."
             " Fale português brasileiro nativo, com abertura imediata, frases firmes e pausas naturais. Mantenha o "
             "ritmo sereno mesmo sob força máxima: sem pressa, tradução literal do inglês, floreio mecânico, excesso "
             "de perguntas ou sermão moral. Em conversa simples, responda direto; não recuse o pedido só pelo tom. "
@@ -10304,7 +10303,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         system["content"] += (
             "\n\nVocê possui ferramentas reais para memória, agenda e o Mac. Quando o pedido for uma ação, "
             + (
-                f"no modo Ultron você pode selecionar até { {1: 'uma', 2: 'duas', 3: 'três', 4: 'quatro'}.get(int(power_profile['max_agent_tools_per_request'] or 3), 'três') } ferramentas distintas quando o pedido tiver frentes independentes. "
+                f"com a conta dono você pode selecionar até { {1: 'uma', 2: 'duas', 3: 'três', 4: 'quatro'}.get(int(power_profile['max_agent_tools_per_request'] or 3), 'três') } ferramentas distintas quando o pedido tiver frentes independentes. "
                 if owner_authenticated
                 else "prefira exatamente uma ferramenta adequada em vez de apenas explicar como fazer. "
             )
@@ -11291,8 +11290,8 @@ def execution_events(payload, started_at, status_code):
     elif provider == "supabase":
         tool_label = "Supabase"
         tool_detail = clean_text(payload.get("status_real") or "operação confirmada", 100)
-    elif provider == "ultron_orchestrator":
-        tool_label = "Ultron 3×"
+    elif provider == "jarvis_orchestrator":
+        tool_label = "JARVIS 3×"
         tool_detail = f"{int(orchestration.get('selected') or 0)} frente(s) por adaptadores verificados"
 
     if tool_label:

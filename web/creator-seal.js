@@ -37,7 +37,7 @@
       const first = name.split(" ")[0];
       const link = document.getElementById("identityCreator");
       if (link && !String(link.textContent || "").includes(first)) {
-        const prefix = document.documentElement.dataset.persona === "ultron" ? "para " : "por ";
+        const prefix = "por ";
         link.textContent = prefix + name;
         if (!link.getAttribute("href")) link.setAttribute("href", "/theo");
       }
