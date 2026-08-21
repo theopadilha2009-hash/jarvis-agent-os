@@ -368,6 +368,7 @@ html:not(.armed) #heardLine { display: none !important; }
 }
 #askForm, #loginForm, .quick { display: flex; gap: 8px; width: 100%; }
 #askForm, #loginForm, .launch, .quick, #moreButton, #extras { -webkit-app-region: no-drag; }
+[hidden], .btn[hidden] { display: none !important; }
 .btn,
 .quick a,
 .download {
@@ -457,13 +458,22 @@ html.app-mode.needs-login .extra-tools,
 html.app-mode.needs-login #debugToggle,
 html.app-mode.needs-login .download,
 html.app-mode.needs-login .by,
-html.app-mode.needs-login .meta {
+html.app-mode.needs-login .meta,
+html.app-mode.needs-login #accessLine,
+html.app-mode.needs-login #logoutButton {
   display: none !important;
 }
 html.app-mode.needs-login #extras {
   display: grid !important;
   max-height: none;
   overflow: visible;
+}
+html.app-mode.needs-login #loginForm {
+  display: flex;
+  flex-direction: column;
+}
+html.app-mode.needs-login #loginForm button[type="submit"] {
+  width: 100%;
 }
 html.app-mode.signed-in #loginForm { display: none; }
 .extra-tools {

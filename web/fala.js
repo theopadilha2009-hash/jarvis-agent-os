@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-once1";
+  const SHELL_VERSION = "20260821-once2";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -137,8 +137,10 @@
       if (hint) hint.textContent = "Arraste pra tela e peça analisa isso.";
       return;
     }
-    say("JARVIS", appMode ? "Entre uma vez. Depois é 3×." : "Diga Jarvis.");
-    if (hint) hint.textContent = "Arraste. Diga Jarvis, analisa isso.";
+    say("JARVIS", appMode ? "A mesma conta do site." : "Diga Jarvis.");
+    if (hint) hint.textContent = appMode
+      ? "Neste Mac você entra só agora."
+      : "Arraste. Diga Jarvis, analisa isso.";
   }
 
   function renderAccess(label, signedIn) {
@@ -158,7 +160,7 @@
 
   async function refreshAccess() {
     if (!ownerToken()) {
-      renderAccess("Visitante · 1×", false);
+      renderAccess("Visitante", false);
       return;
     }
     try {
@@ -166,7 +168,7 @@
       const mode = data.access?.mode;
       if (mode !== "owner" && mode !== "member") {
         clearStaleSession();
-        renderAccess("Visitante · 1×", false);
+        renderAccess("Visitante", false);
         return;
       }
       const power = data.power_profile?.mode === "jarvis_3x" || mode === "owner";
@@ -550,7 +552,7 @@
       if (retry) retry.hidden = !lastError;
       if (response.status === 401 || data.pairing_required) {
         clearStaleSession();
-        renderAccess("Visitante · 1×", false);
+        renderAccess("Visitante", false);
         revealLogin();
       }
       const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
