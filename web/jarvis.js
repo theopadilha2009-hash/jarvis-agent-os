@@ -38,7 +38,7 @@
   const LAST_LOGIN_KEY = "jarvis-last-login";
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
-  const SHELL_VERSION = "20260820-update1";
+  const SHELL_VERSION = "20260821-move1";
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   // v3: a janela nasce como painel à direita. Trocar a chave descarta as
@@ -186,7 +186,7 @@
     strength: (() => {
       try {
         const saved = localStorage.getItem("jarvis-response-strength");
-        return RESPONSE_STRENGTH.includes(saved) ? saved : "strong";
+        return RESPONSE_STRENGTH.includes(saved) ? saved : "maximum";
       } catch {
         return "auto";
       }
@@ -3389,7 +3389,19 @@
       if (ownerToken() && status.owner_pairing?.required && !status.owner_pairing?.authenticated && !status.access?.code) {
         try { localStorage.removeItem(OWNER_TOKEN_KEY); } catch { /* private */ }
       }
-      if (session.paired) touchOwnerActivity();
+      if (session.paired) {
+        touchOwnerActivity();
+        try {
+          if (!localStorage.getItem("jarvis-strength-owner-max-v1")) {
+            localStorage.setItem("jarvis-strength-owner-max-v1", "1");
+            if (session.strength !== "maximum") {
+              session.strength = "maximum";
+              localStorage.setItem("jarvis-response-strength", "maximum");
+            }
+          }
+        } catch { /* session only */ }
+        renderStrength();
+      }
       const crown = byId("crownButton");
       if (crown) {
         crown.hidden = !session.canManageAccounts;
@@ -3425,7 +3437,7 @@
       byId("leaveOwnerMode").hidden = !canLeaveOwnerMode;
       byId("leaveOwnerMode").textContent = session.paired ? "Sair da conta dono" : "Sair da conta";
       byId("accessValue").textContent = session.paired
-        ? "JARVIS dono · memória, GitHub e Mac privados disponíveis"
+        ? "JARVIS dono · 3× · memória, GitHub e Mac privados"
         : session.codeMode
           ? "Conta JARVIS · modo code ativo. Mac e memória do Theo bloqueados."
           : status.access?.public_chat

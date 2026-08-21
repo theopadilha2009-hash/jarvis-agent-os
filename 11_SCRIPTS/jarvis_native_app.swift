@@ -32,6 +32,19 @@ final class PCMConverter {
     }
 }
 
+final class OverlayWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+final class OverlayWebView: WKWebView {
+    override var isOpaque: Bool { false }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override var mouseDownCanMoveWindow: Bool { false }
+}
+
 @main
 enum Jarvis {
     static func main() {
@@ -88,8 +101,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private let orbSize = NSSize(width: 72, height: 72)
     private var compact = false
     private var layouting = false
-    private var dragOrigin: NSPoint?
-    private var dragMouse: NSPoint?
+    private var dragTracking: (origin: NSPoint, mouse: NSPoint)?
+    private var dragMoved = false
+    private var localDragMonitor: Any?
+    private var globalDragMonitor: Any?
     private let parkKey = "JarvisParkedOrigin"
     private let tokenKey = "JarvisOwnerToken"
 
@@ -108,7 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.contentView = webView
         self.window = window
         self.webView = webView
-        setCompact(true)
+        let paired = !(UserDefaults.standard.string(forKey: tokenKey) ?? "").isEmpty
+        setCompact(paired)
+        installDrag()
         window.orderFrontRegardless()
         webView.load(URLRequest(url: cockpitURL()))
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
@@ -225,10 +242,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 revealWindow(takeFocus: true)
             } else if body == "show" {
                 revealWindow(takeFocus: false)
-            } else if body == "dragstart" {
-                beginDrag()
-            } else if body == "drag" {
-                followDrag()
             } else if body.hasPrefix("token:") {
                 saveToken(String(body.dropFirst(6)))
             } else {
@@ -246,6 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     private func resetIdle() {
         idleTimer?.invalidate()
+        if (UserDefaults.standard.string(forKey: tokenKey) ?? "").isEmpty { return }
         idleTimer = Timer.scheduledTimer(withTimeInterval: idleHideAfter, repeats: false) { [weak self] _ in
             self?.hideWindow()
         }
@@ -288,7 +302,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         guard let window else { return }
         window.isOpaque = false
         window.hasShadow = !compactOn
-        window.isMovableByWindowBackground = true
+        window.isMovable = true
+        window.isMovableByWindowBackground = false
         window.backgroundColor = .clear
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
@@ -463,6 +478,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if wantListen { startListen() }
+        if let token = UserDefaults.standard.string(forKey: tokenKey), !token.isEmpty {
+            webView.evaluateJavaScript(
+                "try{localStorage.setItem('jarvis-owner-token-v1',\(jsString(token)));}catch(e){}",
+                completionHandler: nil
+            )
+        }
         let flag = compact ? "true" : "false"
         webView.evaluateJavaScript(
             "window.__jarvisSetIdle && window.__jarvisSetIdle(\(flag))",
@@ -951,9 +972,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private func makeWindow() -> NSWindow {
         let size = fullSize
         let rect = frameKeepingPlace(size)
-        let window = NSWindow(
+        let window = OverlayWindow(
             contentRect: rect,
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            styleMask: [.borderless, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -961,18 +982,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.isRestorable = false
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
+        window.isMovable = true
+        window.isMovableByWindowBackground = false
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.setFrameAutosaveName("")
         window.setFrame(rect, display: true)
-        window.isMovable = true
         window.isOpaque = false
-        window.isMovableByWindowBackground = true
+        window.hasShadow = false
         window.backgroundColor = .clear
-        window.standardWindowButton(.closeButton)?.isHidden = true
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        window.standardWindowButton(.zoomButton)?.isHidden = true
+        window.acceptsMouseMovedEvents = true
+        window.ignoresMouseEvents = false
         return window
     }
 
@@ -994,9 +1014,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         if #available(macOS 11.0, *) {
             config.defaultWebpagePreferences.allowsContentJavaScript = true
         }
-        let view = WKWebView(frame: .zero, configuration: config)
+        let view = OverlayWebView(frame: .zero, configuration: config)
         view.uiDelegate = self
         view.navigationDelegate = self
+        view.autoresizingMask = [.width, .height]
         view.allowsBackForwardNavigationGestures = false
         view.setValue(false, forKey: "drawsBackground")
         if #available(macOS 12.0, *) {
@@ -1005,20 +1026,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         return view
     }
 
-    private func beginDrag() {
-        guard let window else { return }
-        dragOrigin = window.frame.origin
-        dragMouse = NSEvent.mouseLocation
-        resetIdle()
+    private func installDrag() {
+        localDragMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        ) { [weak self] event in
+            self?.handleWindowDrag(event, consume: true) ?? event
+        }
+        globalDragMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDragged, .leftMouseUp]
+        ) { [weak self] event in
+            guard let self, self.dragTracking != nil else { return }
+            _ = self.handleWindowDrag(event, consume: false)
+        }
     }
 
-    private func followDrag() {
-        guard let window, let origin = dragOrigin, let start = dragMouse else { return }
-        let mouse = NSEvent.mouseLocation
-        layouting = true
-        window.setFrameOrigin(NSPoint(x: origin.x + mouse.x - start.x, y: origin.y + mouse.y - start.y))
-        layouting = false
-        savePark()
+    private func dragAllowed(for event: NSEvent) -> Bool {
+        guard let window else { return false }
+        if compact { return true }
+        return event.locationInWindow.y > 96
+    }
+
+    private func handleWindowDrag(_ event: NSEvent, consume: Bool) -> NSEvent? {
+        guard let window else { return event }
+        let ours = event.window == window
+            || event.windowNumber == window.windowNumber
+            || dragTracking != nil
+        if !ours { return event }
+        switch event.type {
+        case .leftMouseDown:
+            guard dragAllowed(for: event) else {
+                dragTracking = nil
+                dragMoved = false
+                return event
+            }
+            dragTracking = (window.frame.origin, NSEvent.mouseLocation)
+            dragMoved = false
+            resetIdle()
+            return event
+        case .leftMouseDragged:
+            guard let track = dragTracking else { return event }
+            let mouse = NSEvent.mouseLocation
+            let dx = mouse.x - track.mouse.x
+            let dy = mouse.y - track.mouse.y
+            if !dragMoved && abs(dx) < 4 && abs(dy) < 4 { return event }
+            dragMoved = true
+            layouting = true
+            window.setFrameOrigin(NSPoint(x: track.origin.x + dx, y: track.origin.y + dy))
+            layouting = false
+            return consume ? nil : event
+        case .leftMouseUp:
+            let moved = dragMoved
+            dragTracking = nil
+            dragMoved = false
+            if moved {
+                savePark()
+                resetIdle()
+                return consume ? nil : event
+            }
+            return event
+        default:
+            return event
+        }
     }
 
     private func saveToken(_ token: String) {
@@ -1042,8 +1110,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         return NSPoint(x: x, y: y)
     }
 
+    private func activeScreenFrame() -> NSRect {
+        if let window {
+            if let screen = window.screen { return screen.visibleFrame }
+            let frame = window.frame
+            if let screen = NSScreen.screens.first(where: { NSIntersectionRect($0.frame, frame).width > 8 }) {
+                return screen.visibleFrame
+            }
+        }
+        return NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+    }
+
     private func frameKeepingPlace(_ size: NSSize) -> NSRect {
-        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let screen = activeScreenFrame()
         var origin: NSPoint
         if let window {
             let current = window.frame
