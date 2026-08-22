@@ -17,7 +17,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-park1";
+  const SHELL_VERSION = "20260821-park2";
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
@@ -40,6 +40,7 @@
   let askQueue = [];
   let meeting = false;
   let clickWait = 0;
+  let parkTimer = 0;
 
   if (appMode) document.documentElement.classList.add("app-mode");
   document.documentElement.classList.toggle("needs-login", !ownerToken());
@@ -107,6 +108,7 @@
     if (!clean) return;
     lastAnswer.hidden = false;
     lastAnswer.textContent = clean.length > 180 ? `${clean.slice(0, 177)}…` : clean;
+    holdReply();
   }
 
   function showAnswerLink(prefix, href, label) {
@@ -119,6 +121,7 @@
     link.rel = "noopener noreferrer";
     link.textContent = label;
     lastAnswer.append(link);
+    holdReply();
   }
 
   function applyPersona(_label) {
@@ -437,7 +440,7 @@
     armed = false;
     askQueue = [];
     try { nativeHandlers()?.jarvisSpeak.postMessage("stop"); } catch { /* web */ }
-    nativeWindow("hide");
+    parkNow();
     say("Quieto.", "Diga Jarvis quando quiser.");
   }
 
@@ -477,6 +480,7 @@
       return;
     }
     say("Olhando.", "Vou ver a tela.");
+    cancelPark();
     nativeWindow("touch");
     window.__jarvisOnScreen = (raw) => {
       window.__jarvisOnScreen = null;
@@ -511,6 +515,7 @@
     }
     busy = true;
     lastCommand = command;
+    cancelPark();
     try {
       if (isQuietAsk(command)) enterQuiet();
       if (navigator.onLine === false) {
@@ -554,6 +559,8 @@
         clearStaleSession();
         renderAccess("Visitante", false);
         revealLogin();
+        cancelPark();
+        nativeWindow("focus");
       }
       const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
       if (data.client_action === "quiet_mode" || isQuietAsk(command)) {
@@ -582,11 +589,47 @@
     } finally {
       busy = false;
       drainQueue();
+      if (!busy && !stayQuiet) parkSoon();
     }
   }
 
   function nativeWindow(action) {
     try { nativeHandlers()?.jarvisWindow.postMessage(action); } catch { /* web */ }
+  }
+
+  function cancelPark() {
+    window.clearTimeout(parkTimer);
+    parkTimer = 0;
+  }
+
+  function compactReply() {
+    const text = String(lastAnswer.textContent || "").replace(/\s+/g, " ").trim();
+    if (!text) return "";
+    return text.length > 42 ? `${text.slice(0, 39)}…` : text;
+  }
+
+  function holdReply() {
+    const chip = compactReply();
+    nativeWindow(chip ? `reply:${chip}` : "reply:");
+  }
+
+  function parkNow() {
+    cancelPark();
+    holdReply();
+    nativeWindow("hide");
+  }
+
+  function parkSoon() {
+    cancelPark();
+    if (!appMode || !ownerToken()) return;
+    if (busy || speaking || meeting || stayQuiet) return;
+    parkTimer = window.setTimeout(() => {
+      if (busy || speaking || meeting || stayQuiet) return;
+      if (document.documentElement.classList.contains("needs-login")) return;
+      if (document.activeElement === input) return;
+      if (extras && !extras.hidden) return;
+      parkNow();
+    }, 2000);
   }
 
   function nativeListen(action) {
@@ -599,6 +642,7 @@
     armUntil = Date.now() + 45_000;
     document.documentElement.classList.add("armed");
     orb.classList.add("listening");
+    cancelPark();
     nativeWindow("touch");
     nativeListen("arm");
     window.clearTimeout(armTimer);
@@ -672,7 +716,10 @@
 
   window.__jarvisSetIdle = function (on) {
     const idle = on === true || on === "true";
+    const text = String(lastAnswer.textContent || "").replace(/\s+/g, " ").trim();
+    if (idle && text) lastAnswer.hidden = false;
     document.documentElement.classList.toggle("idle-orb", idle);
+    document.documentElement.classList.toggle("has-reply", idle && Boolean(text));
     if (idle) sleepUntilWake();
   };
 
@@ -899,6 +946,7 @@
   }
 
   function forceListen() {
+    cancelPark();
     speaking = false;
     stayQuiet = false;
     meeting = false;
@@ -964,6 +1012,8 @@
   }
 
   moreButton.addEventListener("click", () => {
+    cancelPark();
+    nativeWindow("touch");
     extras.hidden = !extras.hidden;
     moreButton.textContent = extras.hidden ? "mais" : "fechar";
   });
@@ -982,7 +1032,7 @@
   const minimizeButton = document.getElementById("minimizeButton");
   if (minimizeButton) {
     minimizeButton.hidden = !hasNativeListen();
-    minimizeButton.addEventListener("click", () => nativeWindow("hide"));
+    minimizeButton.addEventListener("click", () => parkNow());
   }
   function toggleMeeting() {
     meeting = !meeting;
@@ -1011,7 +1061,18 @@
   orb.addEventListener("dblclick", (event) => {
     event.preventDefault();
     window.clearTimeout(clickWait);
-    nativeWindow("hide");
+    parkNow();
+  });
+  lastAnswer.addEventListener("click", () => {
+    if (document.documentElement.classList.contains("idle-orb")) nativeWindow("focus");
+  });
+  input.addEventListener("focus", () => {
+    cancelPark();
+    nativeWindow("touch");
+  });
+  input.addEventListener("input", () => {
+    cancelPark();
+    nativeWindow("touch");
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
