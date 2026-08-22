@@ -99,6 +99,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private let kickCooldown: TimeInterval = 90
     private let fullSize = NSSize(width: 268, height: 380)
     private let orbSize = NSSize(width: 72, height: 72)
+    private let replySize = NSSize(width: 220, height: 84)
+    private var replyChip = ""
     private var compact = false
     private var wakeOnly = true
     private var layouting = false
@@ -250,6 +252,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 revealWindow(takeFocus: true)
             } else if body == "show" {
                 revealWindow(takeFocus: false)
+            } else if body.hasPrefix("reply:") {
+                holdReply(String(body.dropFirst(6)))
             } else if body.hasPrefix("token:") {
                 saveToken(String(body.dropFirst(6)))
             } else {
@@ -269,8 +273,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         idleTimer?.invalidate()
         if (UserDefaults.standard.string(forKey: tokenKey) ?? "").isEmpty { return }
         idleTimer = Timer.scheduledTimer(withTimeInterval: idleHideAfter, repeats: false) { [weak self] _ in
-            self?.hideWindow()
+            guard let self else { return }
+            if self.speakingNow {
+                self.resetIdle()
+                return
+            }
+            self.hideWindow()
         }
+    }
+
+    private func holdReply(_ raw: String) {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.count > 48 {
+            text = String(text.prefix(45)) + "…"
+        }
+        replyChip = text
+        if compact { setCompact(true) }
+    }
+
+    private func compactFrameSize() -> NSSize {
+        replyChip.isEmpty ? orbSize : replySize
     }
 
     private func hideWindow() {
@@ -295,7 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.level = .floating
         paintChrome(on)
         layouting = true
-        window.setFrame(frameKeepingPlace(on ? orbSize : fullSize), display: true, animate: true)
+        window.setFrame(frameKeepingPlace(on ? compactFrameSize() : fullSize), display: true, animate: true)
         layouting = false
         paintChrome(on)
         let flag = on ? "true" : "false"
@@ -309,26 +331,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private func paintChrome(_ compactOn: Bool) {
         guard let window else { return }
         window.isOpaque = false
-        window.hasShadow = !compactOn
+        let chip = compactOn && !replyChip.isEmpty
+        window.hasShadow = !compactOn || chip
         window.isMovable = true
         window.isMovableByWindowBackground = false
         let card = NSColor(srgbRed: 0.07, green: 0.047, blue: 0.11, alpha: 1)
-        window.backgroundColor = compactOn ? .clear : card
+        window.backgroundColor = compactOn && !chip ? .clear : card
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
-        let radius = compactOn ? min(orbSize.width, orbSize.height) / 2 : 18
+        let radius: CGFloat = compactOn ? (chip ? 22 : min(orbSize.width, orbSize.height) / 2) : 18
         if let view = window.contentView {
             view.wantsLayer = true
             view.layer?.cornerRadius = radius
             view.layer?.masksToBounds = true
-            view.layer?.backgroundColor = compactOn ? NSColor.clear.cgColor : card.cgColor
+            view.layer?.backgroundColor = compactOn && !chip ? NSColor.clear.cgColor : card.cgColor
         }
         webView?.wantsLayer = true
         webView?.layer?.cornerRadius = radius
         webView?.layer?.masksToBounds = true
         if #available(macOS 12.0, *) {
-            webView?.underPageBackgroundColor = compactOn ? .clear : NSColor(srgbRed: 0.07, green: 0.047, blue: 0.11, alpha: 1)
+            webView?.underPageBackgroundColor = compactOn && !chip ? .clear : NSColor(srgbRed: 0.07, green: 0.047, blue: 0.11, alpha: 1)
         }
     }
 
@@ -1107,6 +1130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         let clipped = String(token.prefix(2000))
         if clipped.isEmpty {
             UserDefaults.standard.removeObject(forKey: tokenKey)
+            replyChip = ""
         } else {
             UserDefaults.standard.set(clipped, forKey: tokenKey)
             if #available(macOS 10.15, *), !CGPreflightScreenCaptureAccess() {

@@ -196,7 +196,10 @@ html.idle-orb .orb-shell {
   justify-content: center;
   gap: 0;
 }
-html.idle-orb .orb-shell > :not(#orb):not(.halo) {
+html.idle-orb:not(.has-reply) .orb-shell > :not(#orb):not(.halo) {
+  display: none !important;
+}
+html.idle-orb.has-reply .orb-shell > :not(#orb):not(.halo):not(#lastAnswer) {
   display: none !important;
 }
 html.idle-orb .viz { display: none !important; }
@@ -227,6 +230,42 @@ html.idle-orb .halo {
 }
 html.idle-orb.needs-login #loginToggle {
   display: none !important;
+}
+html.idle-orb.has-reply,
+html.idle-orb.has-reply body {
+  background: #120c1c !important;
+}
+html.idle-orb.has-reply .orb-shell {
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 8px 10px 8px 8px;
+  gap: 8px;
+}
+html.idle-orb.has-reply #orb {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+}
+html.idle-orb.has-reply #lastAnswer {
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-height: none;
+  width: auto;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: left;
+  color: #fbf7ff;
+  text-shadow: 0 0 12px rgba(var(--glow), .45);
+  -webkit-app-region: drag;
 }
 html.voice-down #orb {
   filter: grayscale(1) brightness(.7);
