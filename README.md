@@ -1,148 +1,197 @@
-# JARVIS — Theo Padilha AI Worker
+<p align="center">
+  <img src="assets/jarvis-purple-presence.jpg" alt="JARVIS purple cognitive presence" width="560">
+</p>
+
+<h1 align="center">JARVIS Agent OS</h1>
+
+<p align="center">
+  A personal AI operations system built by Theo Padilha for controlled execution, project context, memory, planning, and human-approved automation.
+</p>
+
+<p align="center">
+  <a href="https://github.com/theopadilha2009-hash/jarvis-agent-os"><img src="https://img.shields.io/badge/status-active-7c3aed" alt="Status: active"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/runtime-Python-6d28d9" alt="Runtime: Python"></a>
+  <a href="https://vercel.com/"><img src="https://img.shields.io/badge/web-Vercel-4c1d95" alt="Web: Vercel"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-proprietary-2e1065" alt="License: proprietary"></a>
+</p>
+
+> [!IMPORTANT]
+> JARVIS is Theo Padilha's personal local AI worker and operational cockpit. It is not a multi-tenant product. External actions, production changes, credentials, and destructive operations require explicit human approval.
 
 <!-- JARVIS_FOUNDATION_START -->
-## JARVIS Foundation
+## Foundation
 
-JARVIS is Theo's personal local AI worker and terminal cockpit.
+JARVIS turns natural-language requests into structured work: context discovery, safe plans, bounded execution, persistent runs, evidence, memory updates, and clear human handoffs.
 
-## Cockpit web (preparado para Vercel)
+The system combines a local-first command line, a web cockpit, a serverless HTTP gateway, and an allowlisted Mac worker. The hosted interface never imports the local backend that writes arbitrary files or starts unrestricted processes.
 
-O repositório inclui um gateway Python serverless em `api/index.py`, um cockpit
-web compacto em `web/index.html` e a configuração em `vercel.json`. Ele publica status, capacidades,
-planejamento e chat opcional sem importar o backend local que escreve arquivos
-ou inicia processos.
+### System components
+
+| Component | Responsibility |
+| --- | --- |
+| Local CLI | Daily cockpit, project routing, task lifecycle, diagnostics, gates, reports, and safe worker execution |
+| Web cockpit | Conversation workspace, actions, run history, memory, tasks, files, voice controls, and system status |
+| Serverless gateway | Typed HTTP contract for the web interface and approved integrations |
+| Mac worker | Executes a restricted set of paired computer actions and returns evidence |
+| Memory layer | Confirmed Markdown as source of truth, optional SQLite search, and optional Supabase persistence |
+| Action registry | Shared definitions for actions, risks, confirmations, and executors |
+
+### Operating modes
+
+- `PERSONAL_MODE`: Theo's personal projects and workflows
+- `WORK_ASSIST_MODE`: sanitized assistance for company work
+- `FUTURE_COMPANY_MODE`: reserved boundary for a possible official company version
 
 ### Runtime V10
 
-- A presença visual é um busto cognitivo roxo, compacto e frontal. Olhos usam
-  vidro óptico de baixo brilho; uma rede de fluxos percorre internamente rosto,
-  pescoço e ombros. Halo, linha de varredura e triângulos externos são removidos.
-- O cockpit V10 trata a conversa como workspace principal e reduz o núcleo a
-  uma presença lateral compacta. A Central Operacional (`⌘K`) pesquisa ações
-  reais, o composer aceita múltiplas linhas e anexos também podem ser colados
-  ou arrastados. Evidências ficam na resposta, falhas podem ser tentadas de
-  novo e nenhum drawer, navegador ou helper abre sozinho.
-- Respostas chegam progressivamente por NDJSON; histórico de runs, memória,
-  fila de tarefas e arquivos reutilizáveis têm gerenciadores visuais. Pedidos
-  offline ficam numa caixa de saída explícita, tarefas em segundo plano podem
-  notificar com opt-in e a voz aceita interrupção imediata.
-- O núcleo 3D é carregado depois da interface e somente em tela/hardware
-  adequados. Em celular, economia de dados ou movimento reduzido, o cockpit usa
-  a nova logo roxa como núcleo estático; fora da tela, a renderização pausa por completo.
-  Testes estáticos protegem nomes acessíveis, diálogos, responsividade e o
-  orçamento de assets críticos.
-- `./jarvis web` apenas imprime o endereço. O navegador só abre com
-  `./jarvis web --open`.
-- Web e `./jarvis do` compartilham um registro tipado de ações, riscos,
-  confirmações e executores em `11_SCRIPTS/action_registry.py`.
-- Pedidos recebem um run persistente local com plano, eventos, resultado e
-  evidências. Ações externas e autoedição param em confirmação explícita;
-  endpoints de run permitem consultar, confirmar, cancelar e repetir.
-- “Busque na memória por …” usa SQLite local para pesquisar os Markdown
-  confirmados por conteúdo, tipo, origem e projeto. O banco é runtime
-  gitignored; os Markdown continuam sendo a fonte de verdade.
+The web cockpit uses a compact purple cognitive presence as the visual core. Conversation is the primary workspace, while actions, memory, runs, tasks, and evidence remain available without turning the interface into a generic chatbot dashboard.
 
-O cockpit funciona como central pessoal, não como outro chatbot: `GET
-/personal-overview` reúne o estado real de conversa, memória, agenda, worker do
-Mac e atividade recente. Pedidos como “o que você consegue fazer?” e “resumo do
-meu dia” usam esse estado determinístico em vez de pedir ao modelo para inventar
-uma lista de capacidades.
+- Responses stream progressively over NDJSON.
+- Runs persist plans, events, results, and evidence.
+- External actions and self-editing stop for explicit confirmation.
+- The 3D core loads only on suitable screens and hardware.
+- Reduced-motion, mobile, and data-saving modes use a static purple mark.
+- Background rendering pauses when the cockpit is outside the viewport.
+- The command center provides keyboard-driven access to real actions.
+- Offline requests remain visibly queued instead of being reported as completed.
+- Voice supports interruption and reports provider failures honestly.
 
-- Sem credencial, texto livre cai em uma resposta local explícita, sem fingir
-  que executou integrações externas.
-- Com `OPENROUTER_API_KEY` configurada no ambiente da hospedagem, texto livre
-  usa uma lista ordenada de modelos gratuitos e o fallback oficial do
-  OpenRouter. `OPENROUTER_MODEL_POOL` pode definir a ordem sem criar contas ou
-  contornar limites; `OPENROUTER_MODEL` continua sendo aceito. Nunca coloque a
-  chave no repo.
-- Pesquisa gratuita coleta fontes antes da síntese. Consultas de carros leem
-  anúncios OLX com preço, km e local e cruzam referências FIPE/média da
-  Webmotors por versão. Se o modelo estiver sem cota, os dados e links reais
-  ainda são devolvidos sem uma conclusão inventada. O cache dura cinco minutos.
-- Com `ELEVENLABS_API_KEY`, a rota `/speech` usa a voz definida por
-  `ELEVENLABS_VOICE_ID`; sem cota disponível, a interface continua em texto e
-  informa a falha real.
-- Com `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`, pedidos explícitos para
-  guardar algo escrevem em `public.jarvis_memories`, `/memory-tree` lê a
-  constelação persistente e o OpenRouter recebe as memórias recentes como
-  contexto. A chave server-side nunca é enviada ao navegador.
-- Com `JARVIS_OWNER_TOKEN`, memória, agenda e comandos do Mac exigem pareamento
-  no painel Sistema. O valor fica somente no armazenamento local do navegador.
-  Visitantes criam conta em Sistema; o Theo aprova o modo code na coroa.
-  A conta dono entra no Ultron. Sem `JARVIS_GMAIL_APP_PASSWORD` o envio de
-  e-mail por `theopadilha2009@gmail.com` fica recusado de forma honesta.
-- `./jarvis computer-worker --install` mantém uma ponte leve entre a fila
-  privada do Supabase e o Mac. O worker aceita apenas abrir/fechar aplicativo,
-  capturar tela, abrir o gravador, analisar Downloads, diagnosticar memória,
-  consultar GitHub e enviar mensagem com número/texto explícitos. Cada pedido
-  recebe estado e evidência; o worker não aceita shell ou caminho arbitrário.
-- Pedidos explicitamente encadeados, como “abra o Spotify e depois tire um
-  print”, viram um run de duas a seis etapas. O worker respeita dependências,
-  não executa uma etapa depois da falha anterior e a interface só chama o run
-  de concluído quando todas as linhas persistidas confirmam sucesso.
-- Com `N8N_WEBHOOK_URL` (e opcionalmente `N8N_WEBHOOK_TOKEN`), pedidos de
-  agenda e tarefas são executados pelo webhook n8n.
-- Print e análise de armazenamento usam a fila privada do worker. Conversões e
-  organização de arquivos ainda retornam um handoff explícito para o Mac.
-- Sem Supabase, o preview local continua lendo as memórias Markdown do Mac; na
-  Vercel, a memória persistente depende das duas variáveis acima.
+### Deterministic personal context
 
-Preview local do mesmo contrato HTTP:
+`GET /personal-overview` assembles conversation state, memory, agenda, Mac worker status, and recent activity. Requests such as "what can you do?" or "summarize my day" use this real state instead of asking a model to invent capabilities.
+
+### Optional integrations
+
+| Integration | Purpose | Required configuration |
+| --- | --- | --- |
+| OpenRouter | Free-model pool and text synthesis | `OPENROUTER_API_KEY` |
+| ElevenLabs | Hosted voice synthesis | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` |
+| Supabase | Persistent memories, tasks, runs, and worker queue | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
+| n8n | Approved task and agenda workflows | `N8N_WEBHOOK_URL`, optional `N8N_WEBHOOK_TOKEN` |
+| Gmail | Explicit owner-approved email sending | `JARVIS_GMAIL_APP_PASSWORD` |
+| Owner pairing | Protects memory, agenda, and Mac commands | `JARVIS_OWNER_TOKEN` |
+
+No credential belongs in the repository. Missing integrations degrade explicitly to local, text, preview, or refusal modes.
+<!-- JARVIS_FOUNDATION_END -->
+
+## Core workflow
+
+```text
+Request
+  -> intent and project resolution
+  -> safety classification
+  -> plan or bounded action
+  -> evidence and real status
+  -> human approval when required
+  -> memory and lifecycle update
+```
+
+The standard local loop is:
+
+```bash
+./jarvis resume
+./jarvis work-start "describe the goal"
+./jarvis work-next
+./jarvis report-check --file /tmp/jarvis-claude-out.md
+./jarvis report-apply --file /tmp/jarvis-claude-out.md
+./jarvis gate-run
+./jarvis work-close
+```
+
+## Quick start
+
+Requirements:
+
+- macOS for the complete local-worker experience
+- Python 3
+- Bash
+- Claude Code only when a generated mission requires manual model execution
+
+```bash
+git clone https://github.com/theopadilha2009-hash/jarvis-agent-os.git
+cd jarvis-agent-os
+chmod +x ./jarvis
+./jarvis first-run-check
+./jarvis daily
+```
+
+Start the local HTTP preview:
 
 ```bash
 python3 api/index.py --port 8790
 ```
 
-Main foundation docs:
+`./jarvis web` prints the address. The browser opens only when `./jarvis web --open` is used.
 
-- `00_IDENTITY/JARVIS_IDENTITY.md`
-- `00_IDENTITY/MODES.md`
-- `00_IDENTITY/JARVIS_RESEARCH_LESSONS.md`
-- `02_SOURCES/DEEP_RESEARCH/README.md`
+## Primary commands
 
-Operating modes:
+| Command | Purpose |
+| --- | --- |
+| `./jarvis daily` | Compact start-of-day dashboard |
+| `./jarvis go "request"` | Route a request and prepare the next safe action |
+| `./jarvis do "request"` | Run the bounded local worker engine |
+| `./jarvis now` | Resume the current lifecycle |
+| `./jarvis next` | Print the single next safe command |
+| `./jarvis health` | Diagnose the JARVIS environment |
+| `./jarvis project-cockpit --project ALIAS` | Show project status, mission, and next action |
+| `./jarvis task-list` | Show pending, blocked, and completed tasks |
+| `./jarvis run-list` | List persistent run packages |
+| `./jarvis capabilities` | Show available, manual, blocked, and future capabilities |
+| `./jarvis gates` | Run safety, smoke, and doctrine validation |
+| `./jarvis handoff-self` | Produce a sanitized operational handoff |
 
-- `PERSONAL_MODE`: Theo's own projects.
-- `WORK_ASSIST_MODE`: sanitized support for VAMOO AI/company work.
-- `FUTURE_COMPANY_MODE`: placeholder for a possible official company version later.
+Run `./jarvis cheatsheet` for the compact command catalog or read [AGENTS.md](AGENTS.md) for the complete operational contract.
 
-Private GitHub is sync, not a secret vault.
-<!-- JARVIS_FOUNDATION_END -->
+## Safety model
 
+- The worker uses a narrow allowlist and never accepts arbitrary shell commands.
+- Risky actions require an explicit confirmation boundary.
+- A queued request is not reported as completed.
+- Failed dependencies stop subsequent run steps.
+- Runtime state, generated reports, work sessions, and private caches are gitignored.
+- Secret scanning, storage checks, smoke tests, and doctrine checks are part of the release gate.
+- The hosted cockpit cannot directly control the Mac without an authenticated paired worker.
 
-Creator / Owner: Theo Padilha  
-Status real: cockpit local + runtime web em evolução  
-Produção: Vercel pessoal do Theo  
-Credenciais: não armazenar aqui  
-Ações perigosas: sempre exigem aprovação humana
+## Project structure
 
-## O que é
-JARVIS é um AI Operations Worker criado por Theo Padilha para transformar pedidos soltos em tarefas, contexto, planos seguros, execução controlada, memória, logs e relatórios.
+| Path | Contents |
+| --- | --- |
+| `00_IDENTITY/` | Identity, modes, doctrine, and research lessons |
+| `01_SISTEMA/` | System rules, command catalog, registries, and decision logic |
+| `03_MEMORIA/` | Confirmed project and operational memory |
+| `04_PROJETOS/` | Project-specific status and next actions |
+| `05_EXECUCAO/` | Missions, runs, work sessions, gates, and worker artifacts |
+| `07_RELATORIOS/` | Generated reports and validation evidence |
+| `09_LOGS/` | Structured logs |
+| `10_TESTES/` | Test assets and acceptance material |
+| `11_SCRIPTS/` | Python implementation of the local JARVIS runtime |
+| `api/` | Serverless gateway and local HTTP preview |
+| `web/` | Cockpit interface and visual assets |
+| `supabase/` | Database migrations and persistence setup |
 
-## Como funciona agora
-No estado atual, JARVIS já possui estrutura local de laboratório, inbox para entradas, CLI local, criação automática de tasks, scan/processamento de inbox, logs, arquivo morto para entradas processadas e memória inicial de projetos.
+## Validation
 
-## Limites atuais
-O runtime na Vercel não acessa o Mac diretamente: ele grava um pedido
-allowlisted no Supabase, e o worker local pareado executa e devolve a evidência.
-Aceitação da fila não é apresentada como conclusão; runs pendentes permanecem
-visivelmente em andamento até o worker devolver estado terminal.
-ElevenLabs e n8n só ficam ativos quando suas variáveis de ambiente estão
-configuradas no projeto Vercel. A voz continua em texto quando a cota externa
-acaba.
+```bash
+bash -n ./jarvis
+./jarvis command-audit
+env JARVIS_NO_REPORT=1 ./jarvis smoke-test
+env JARVIS_NO_REPORT=1 ./jarvis safety-gate
+./jarvis release-check
+```
 
-## Regra principal
-Nada de produção, token, senha, API key, QR Code, .env, deploy, push/main, envio real, banco real ou VPS real sem aprovação humana.
+Checks must report real results. No untested build, prepared integration, queued action, or unverified deployment is described as completed.
 
-## Comandos atuais
-- ./jarvis doctor
-- ./jarvis report
-- ./jarvis intake "pedido"
-- ./jarvis scan-inbox
-- ./jarvis process-inbox
+## Status
 
-## Visão
-JARVIS deve evoluir para um cockpit operacional capaz de receber goals, entender contexto, escolher ferramentas, executar com segurança, se revisar, atualizar memória e chamar humano só quando houver risco.
+JARVIS is an active personal lab with a local CLI, evolving web cockpit, persistent run lifecycle, project memory, bounded worker engine, and optional external integrations. Availability of hosted voice, model inference, persistent cloud memory, email, and n8n depends on the corresponding environment configuration and service quota.
 
-## Autoria
-Este sistema foi criado por Theo Padilha com apoio de IA. Toda versão futura deve preservar a autoria original.
+## Support development
+
+- [GitHub Sponsors](https://github.com/sponsors/theopadilha2009-hash)
+- [Patreon](https://www.patreon.com/c/TheoPadilha)
+
+## Author and license
+
+Created and maintained by [Theo Lorentz Padilha](https://github.com/theopadilha2009-hash).
+
+Copyright 2026 Theo Lorentz Padilha. All rights reserved. This repository is source-available under the terms in [LICENSE](LICENSE); copying, redistribution, rebranding, hosted derivatives, prompt extraction, and model training are not permitted without prior written authorization.
