@@ -1013,36 +1013,11 @@ async function start() {
 
   function syncAccessModel() {
     const ownerAccess = stage.dataset.access === "owner";
-    visitorModel.visible = !ownerAccess;
-    visitorLife.surface.visible = !ownerAccess;
-    if (ownerAccess) {
-      presenceValue.textContent = "Busto Ultron carregando";
-      if (ownerLoadPromise) {
-        loadOwnerModel()
-          .then(() => {
-            presenceValue.textContent = "Busto Ultron · acesso privado";
-            wakeRender();
-          })
-          .catch(() => {
-            presenceValue.textContent = "Busto Ultron indisponível";
-          });
-      } else {
-        window.setTimeout(() => {
-          loadOwnerModel()
-            .then(() => {
-              presenceValue.textContent = "Busto Ultron · acesso privado";
-              wakeRender();
-            })
-            .catch(() => {
-              presenceValue.textContent = "Busto Ultron indisponível";
-            });
-        }, 0);
-      }
-    } else {
-      ownerModel.visible = false;
-      presenceValue.textContent = "Busto visitante roxo · volume facial · malha sutil";
-      wakeRender();
-    }
+    visitorModel.visible = true;
+    visitorLife.surface.visible = true;
+    ownerModel.visible = false;
+    presenceValue.textContent = ownerAccess ? "Busto JARVIS · acesso do dono" : "Busto visitante roxo · volume facial · malha sutil";
+    wakeRender();
   }
   const accessObserver = new MutationObserver(syncAccessModel);
   accessObserver.observe(stage, { attributes: true, attributeFilter: ["data-access"] });
@@ -1090,20 +1065,34 @@ async function start() {
       modeBlend[mode] += (target - modeBlend[mode]) * blendEase;
     });
     const isOwner = stage.dataset.access === "owner";
-    visitorModel.visible = !isOwner;
-    visitorLife.surface.visible = !isOwner;
-    ownerModel.visible = isOwner;
-    ambient.color.setHex(isOwner ? 0x1a0708 : 0x2b174d);
-    ambient.intensity = isOwner ? 0.48 : 1.04;
-    key.color.setHex(isOwner ? 0xff6b63 : 0xb899ff);
-    key.intensity = isOwner ? 1.25 : 3.1;
-    rim.color.setHex(isOwner ? 0xef4444 : 0x6d5cff);
-    rim.intensity = isOwner ? 0.95 : 2.45;
-    faceFill.color.setHex(isOwner ? 0xff7a70 : 0xdacfff);
-    faceFill.intensity = isOwner ? 1.45 : 8.2;
-    lowerFill.color.setHex(isOwner ? 0x7f1d1d : 0x8b5cf6);
-    lowerFill.intensity = isOwner ? 1.2 : 4.8;
-    const activeColor = isOwner ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
+    const isUltron = document.documentElement.dataset.persona === "ultron";
+    visitorModel.visible = !isUltron;
+    visitorLife.surface.visible = !isUltron;
+    ownerModel.visible = isOwner && isUltron;
+    if (isUltron) {
+      ambient.color.setHex(0x3b101e);
+      ambient.intensity = 1.1;
+      key.color.setHex(0xff4d5a);
+      key.intensity = 3.0;
+      rim.color.setHex(0xef4444);
+      rim.intensity = 2.4;
+      faceFill.color.setHex(0xff7a70);
+      faceFill.intensity = 6.0;
+      lowerFill.color.setHex(0x991b1b);
+      lowerFill.intensity = 3.5;
+    } else {
+      ambient.color.setHex(0x2b174d);
+      ambient.intensity = isOwner ? 1.2 : 1.04;
+      key.color.setHex(0xb899ff);
+      key.intensity = 3.2;
+      rim.color.setHex(0x6d5cff);
+      rim.intensity = 2.45;
+      faceFill.color.setHex(0xdacfff);
+      faceFill.intensity = 8.2;
+      lowerFill.color.setHex(0x8b5cf6);
+      lowerFill.intensity = 4.8;
+    }
+    const activeColor = isUltron ? OWNER_RED : (COLORS[visualState] || COLORS.idle);
     const isWorking = modeBlend.forge > 0.08;
     targetColor.setHex(activeColor);
     const colorEase = 1 - Math.exp(-Math.max(deltaSeconds, 0.016) * 1.8);

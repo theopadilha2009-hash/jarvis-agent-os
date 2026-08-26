@@ -11855,6 +11855,22 @@ class handler(BaseHTTPRequestHandler):
         body = windows_pack.windows_pack_bytes(pack_public_origin(self))
         return self.serve_zip_download("/download/windows", windows_pack.PACK_NAME, body)
 
+    def serve_windows_exe(self):
+        exe_path = UI_ASSET_DIR / "JARVIS.exe"
+        if not exe_path.is_file():
+            exe_path = WEB_DIR / "JARVIS.exe"
+        if not exe_path.is_file():
+            return self.serve_windows_pack()
+        body = exe_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/vnd.microsoft.portable-executable")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", 'attachment; filename="JARVIS.exe"')
+        self.send_header("Cache-Control", "public, max-age=3600")
+        self._security_headers()
+        self.end_headers()
+        self._write_body(body)
+
     def serve_asset(self, relative):
         try:
             base = UI_ASSET_DIR.resolve()
@@ -11936,6 +11952,8 @@ class handler(BaseHTTPRequestHandler):
             return self.serve_vscode_pack("windows")
         if path in {"/download/windows", "/download/JARVIS.windows.zip"}:
             return self.serve_windows_pack()
+        if path in {"/download/JARVIS.exe", "/download/windows/exe", "/download/app/windows"}:
+            return self.serve_windows_exe()
         if path == "/oferta":
             payload = product_offer_payload()
             return self.send_json(200, payload)

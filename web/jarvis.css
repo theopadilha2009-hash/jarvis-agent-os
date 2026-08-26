@@ -2079,22 +2079,30 @@ dialog::backdrop {
 .leave-owner-mode[hidden] { display: none; }
 
 .crown-button {
-  width: 36px;
-  height: 36px;
-  border: 1px solid rgba(255, 154, 46, 0.42);
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
   border-radius: 999px;
-  background: radial-gradient(circle at 50% 28%, rgba(255, 214, 90, 0.22), rgba(24, 10, 4, 0.45));
-  color: #ffb020;
+  background: radial-gradient(circle at 50% 30%, rgba(245, 158, 11, 0.22), rgba(26, 12, 38, 0.7));
+  color: #fbbf24;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  box-shadow: 0 0 14px rgba(255, 140, 20, 0.22);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+  transition: all 0.2s ease;
+  vertical-align: middle;
 }
-.crown-button svg { width: 20px; height: 20px; overflow: visible; }
+.crown-button svg { width: 16px; height: 16px; display: block; }
 .crown-button[hidden] { display: none; }
-.crown-button:hover { background: rgba(250, 204, 21, 0.16); }
+.crown-button:hover {
+  background: radial-gradient(circle at 50% 30%, rgba(245, 158, 11, 0.38), rgba(38, 16, 52, 0.8));
+  border-color: rgba(251, 191, 36, 0.75);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.38);
+  transform: scale(1.05);
+}
 .crown-button[data-count]:not([data-count=""]) { position: relative; }
 .crown-button[data-count]:not([data-count=""])::after {
   content: attr(data-count);

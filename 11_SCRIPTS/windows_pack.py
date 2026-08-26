@@ -71,6 +71,10 @@ def installer() -> str:
         "@echo off\n"
         "setlocal\n"
         "set ROOT=%~dp0\n"
+        "if exist \"%ROOT%JARVIS.exe\" (\n"
+        "  start \"\" \"%ROOT%JARVIS.exe\"\n"
+        "  exit /b 0\n"
+        ")\n"
         "set DEST=%LOCALAPPDATA%\\JARVIS\n"
         "if not exist \"%DEST%\" mkdir \"%DEST%\"\n"
         "copy /Y \"%ROOT%JARVIS.cmd\" \"%DEST%\\JARVIS.cmd\" >nul\n"
@@ -91,12 +95,9 @@ def readme(url: str) -> str:
         "=================\n\n"
         f"Cockpit: {cockpit}\n"
         f"{creator_seal.copyright_line()}\n\n"
-        "1. Descompacte o ZIP.\n"
-        "2. Clique duas vezes em INSTALAR.cmd.\n"
-        "3. O JARVIS vai para %%LOCALAPPDATA%%\\JARVIS e ganha atalho na Área de Trabalho.\n"
-        "4. JARVIS.cmd abre o cockpit em janela (Edge ou Chrome).\n"
-        "5. jarvis-theo.cmd no terminal abre o mesmo cockpit "
-        "(ou o cérebro local se JARVIS_HOME apontar para o repositório).\n\n"
+        "1. Dê dois cliques em JARVIS.exe para abrir o app e criar o atalho na Área de Trabalho.\n"
+        "2. JARVIS.cmd ou INSTALAR.cmd servem como alternativa em terminal.\n"
+        "3. jarvis-theo.cmd abre o cockpit ou cérebro local se JARVIS_HOME estiver configurado.\n\n"
         "Visitante não controla o Mac do dono.\n"
     )
 
@@ -104,7 +105,12 @@ def readme(url: str) -> str:
 def build_windows_pack(url: str = DEFAULT_ORIGIN) -> bytes:
     target = cockpit_url(url)
     buffer = BytesIO()
+    exe_path = SCRIPTS / "jarvis_ui_assets" / "JARVIS.exe"
+    if not exe_path.is_file():
+        exe_path = SCRIPTS.parent / "web" / "JARVIS.exe"
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        if exe_path.is_file():
+            _zip_bytes(archive, "JARVIS.exe", exe_path.read_bytes(), executable=True)
         _zip_bytes(archive, "JARVIS.cmd", launcher_cmd(target).encode("utf-8"))
         _zip_bytes(archive, "jarvis-theo.cmd", launcher_theo(target).encode("utf-8"))
         _zip_bytes(archive, "INSTALAR.cmd", installer().encode("utf-8"))

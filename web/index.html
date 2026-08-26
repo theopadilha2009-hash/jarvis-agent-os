@@ -68,22 +68,13 @@
         <button class="crown-button" id="crownButton" type="button" hidden title="Contas do JARVIS" aria-label="Abrir contas">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <defs>
-              <linearGradient id="jarvisCrownGrad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
-                <stop offset="0" stop-color="#ffe566"/>
-                <stop offset=".48" stop-color="#ff9a1f"/>
-                <stop offset="1" stop-color="#ff5a00"/>
+              <linearGradient id="jarvisCrownGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#fef08a"/>
+                <stop offset="50%" stop-color="#f59e0b"/>
+                <stop offset="100%" stop-color="#d97706"/>
               </linearGradient>
-              <filter id="jarvisCrownGlow" x="-25%" y="-25%" width="150%" height="150%">
-                <feGaussianBlur stdDeviation=".85" result="g"/>
-                <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
             </defs>
-            <g fill="none" stroke="url(#jarvisCrownGrad)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" filter="url(#jarvisCrownGlow)">
-              <path d="M4.1 16.9c.55-3.5.2-7.1-1-9.8 2.55 1.7 3.7 4.7 4 8.7"/>
-              <path d="M12 3.7c-1.2 2.7-1.65 6-1.5 9.7h3c.15-3.7-.3-7-1.5-9.7z"/>
-              <path d="M19.9 16.9c-.55-3.5-.2-7.1 1-9.8-2.55 1.7-3.7 4.7-4 8.7"/>
-              <path d="M4.2 17.6c2.5-1.2 4.8-1.75 7.8-1.75s5.3.55 7.8 1.75"/>
-            </g>
+            <path fill="url(#jarvisCrownGrad)" d="M5 18h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1zm-.7-3.2L2.6 7.4a.7.7 0 0 1 1.2-.6l3.8 3.5 3.7-6.2a.7.7 0 0 1 1.2 0l3.7 6.2 3.8-3.5a.7.7 0 0 1 1.2.6l-1.7 7.4a1 1 0 0 1-1 .8H5.3a1 1 0 0 1-1-.8z"/>
           </svg>
         </button>
         <button class="access-mode" id="accessMode" type="button" title="Ver acesso atual">
@@ -408,10 +399,11 @@
     <div class="download-body">
       <p>App no desktop: Mac e Windows. JARVIS Code (VS Code + terminal) também nos dois.</p>
       <div class="download-grid">
+        <a class="quiet-button app-download-button" id="windowsDownloadButton" href="/download/JARVIS.exe" download="JARVIS.exe">App · Windows (.exe)</a>
         <a class="quiet-button" id="macDownloadButton" href="/download/mac">App · Mac</a>
-        <a class="quiet-button" id="windowsDownloadButton" href="/download/windows">App · Windows</a>
-        <a class="quiet-button" href="/download/vscode/mac">Code · Mac</a>
+        <a class="quiet-button" href="/download/windows">Windows (.zip)</a>
         <a class="quiet-button" href="/download/vscode/windows">Code · Windows</a>
+        <a class="quiet-button" href="/download/vscode/mac">Code · Mac</a>
       </div>
     </div>
   </dialog>

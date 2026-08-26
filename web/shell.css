@@ -198,19 +198,26 @@
   display: inline-flex;
   align-items: stretch;
   height: 28px;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  background: #fff;
-  color: #24292f;
+  border: 1px solid rgba(168, 85, 247, 0.38);
+  border-radius: 999px;
+  background: rgba(147, 51, 234, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #f3e8ff;
   font: 600 12px/26px ui-sans-serif, system-ui, sans-serif;
   text-decoration: none;
   overflow: hidden;
   white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  vertical-align: middle;
 }
 .github-star-button:is(:hover, :focus-visible) {
-  background: #f6f8fa;
-  border-color: #afb8c1;
-  color: #1f2328;
+  background: rgba(168, 85, 247, 0.24);
+  border-color: rgba(216, 180, 254, 0.6);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.35);
+  transform: translateY(-1px);
 }
 .github-star-button .github-star-action {
   display: inline-flex;
@@ -218,13 +225,23 @@
   gap: 6px;
   padding: 0 10px;
 }
-.github-star-button svg { width: 16px; height: 16px; fill: currentColor; }
+.github-star-button svg {
+  width: 14px;
+  height: 14px;
+  fill: #e9d5ff;
+  transition: transform 0.2s ease, fill 0.2s ease;
+}
+.github-star-button:hover svg {
+  fill: #ffd700;
+  transform: scale(1.1);
+}
 .github-star-button b {
   display: inline-flex;
   align-items: center;
-  padding: 0 9px;
-  border-left: 1px solid #d0d7de;
-  background: #f6f8fa;
+  padding: 0 8px;
+  border-left: 1px solid rgba(168, 85, 247, 0.28);
+  background: rgba(124, 58, 237, 0.22);
+  color: #fae8ff;
   font-weight: 600;
 }
 .github-star-button b[hidden] { display: none; }

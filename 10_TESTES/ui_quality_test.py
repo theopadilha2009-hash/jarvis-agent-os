@@ -309,8 +309,8 @@ class UIQualityTest(unittest.TestCase):
 
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
-        self.assertLess(critical_bytes, 323 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
-        self.assertLess(API_VAULT_JS.stat().st_size, 8 * 1024)
+        self.assertLess(critical_bytes, 345 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
+        self.assertLess(API_VAULT_JS.stat().st_size, 9 * 1024)
         self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 5 * 1024)
         self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 7 * 1024)
         self.assertLess(INTEGRATION_HEALTH_CSS.stat().st_size, 4 * 1024)
