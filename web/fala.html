@@ -40,11 +40,20 @@
     <form id="askForm">
       <input id="askInput" type="text" autocomplete="off" placeholder="ou escreva…" aria-label="Pedido para o JARVIS">
     </form>
+        <div class="jarvis-quick-chips" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:8px 0;">
+      <button class="btn btn-chip" type="button" data-action="resumo do dia" style="padding:4px 8px;font-size:11px;border-radius:8px;">☀️ Resumo</button>
+      <button class="btn btn-chip" type="button" data-action="como ta a bateria" style="padding:4px 8px;font-size:11px;border-radius:8px;">🔋 Bateria</button>
+      <button class="btn btn-chip" type="button" data-action="cotacao do dolar" style="padding:4px 8px;font-size:11px;border-radius:8px;">💵 Cotações</button>
+      <button class="btn btn-chip" type="button" data-action="lista os meus projetos" style="padding:4px 8px;font-size:11px;border-radius:8px;">📁 Projetos</button>
+      <button class="btn btn-chip" type="button" data-action="esvazia a lixeira" style="padding:4px 8px;font-size:11px;border-radius:8px;">🗑️ Lixeira</button>
+    </div>
     <nav class="launch" aria-label="Abrir agora">
       <button class="btn btn-accent" type="button" data-open="https://www.google.com">Google</button>
       <button class="btn btn-accent" type="button" data-open="https://web.whatsapp.com">WhatsApp</button>
     </nav>
-    <div class="face-actions">
+    <div class="face-actions" style="display:flex;gap:8px;align-items:center;">
+      <button id="btnBolinha" class="btn btn-control" type="button" title="Minimizar para bolinha">🟡 Bolinha</button>
+      <button id="btnDesligar" class="btn btn-control btn-danger" type="button" style="color:#ff8888;" title="Desligar o JARVIS completamente">🔴 Desligar</button>
       <button id="moreButton" class="btn" type="button">mais</button>
     </div>
     <div id="extras" hidden>
