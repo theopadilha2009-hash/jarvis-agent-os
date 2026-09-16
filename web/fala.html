@@ -17,6 +17,11 @@
 </head>
 <body>
   <main class="orb-shell">
+    <div class="mac-traffic-lights" id="macWindowControls" aria-label="Controles da janela">
+      <button class="traffic-btn traffic-close" id="btnMacClose" type="button" title="Desligar JARVIS" aria-label="Desligar JARVIS"></button>
+      <button class="traffic-btn traffic-min" id="btnMacMin" type="button" title="Minimizar para bolinha" aria-label="Minimizar para bolinha"></button>
+      <button class="traffic-btn traffic-zoom" id="btnMacZoom" type="button" title="Alternar tamanho" aria-label="Alternar tamanho"></button>
+    </div>
     <div class="halo" aria-hidden="true"></div>
     <div class="viz" aria-hidden="true"><b></b><b></b><b></b><b></b></div>
     <button id="orb" type="button" aria-label="Falar com o JARVIS">
@@ -51,9 +56,7 @@
       <button class="btn btn-accent" type="button" data-open="https://www.google.com">Google</button>
       <button class="btn btn-accent" type="button" data-open="https://web.whatsapp.com">WhatsApp</button>
     </nav>
-    <div class="face-actions" style="display:flex;gap:8px;align-items:center;">
-      <button id="btnBolinha" class="btn btn-control" type="button" title="Minimizar para bolinha">🟡 Bolinha</button>
-      <button id="btnDesligar" class="btn btn-control btn-danger" type="button" style="color:#ff8888;" title="Desligar o JARVIS completamente">🔴 Desligar</button>
+    <div class="face-actions">
       <button id="moreButton" class="btn" type="button">mais</button>
     </div>
     <div id="extras" hidden>

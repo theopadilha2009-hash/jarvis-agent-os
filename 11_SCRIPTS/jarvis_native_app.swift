@@ -101,6 +101,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private let idleHideAfter: TimeInterval = 12
     private let kickCooldown: TimeInterval = 90
     private let fullSize = NSSize(width: 268, height: 380)
+    private let zoomSize = NSSize(width: 320, height: 560)
+    private var isZoomed = false
     private let orbSize = NSSize(width: 72, height: 72)
     private let replySize = NSSize(width: 220, height: 84)
     private var replyChip = ""
@@ -250,6 +252,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 hideWindow()
             } else if body == "shutdown" || body == "quit" || body == "close" || body == "exit" {
                 NSApplication.shared.terminate(nil)
+            } else if body == "zoom" || body == "toggleSize" || body == "maximize" {
+                toggleZoom()
             } else if body == "focus" {
                 revealWindow(takeFocus: true)
             } else if body == "show" {
@@ -263,11 +267,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             }
         } else if message.name == "jarvisAction" {
             let cmd = String(describing: message.body)
+            let script = self.actionsScriptPath()
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
                 proc.arguments = [
-                    "/Users/usuario1/orca/workspaces/Terminal/ultron-opus-redo/11_SCRIPTS/jarvis_actions.py",
+                    script,
                     cmd
                 ]
                 let pipe = Pipe()
@@ -338,14 +343,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
     }
 
+    private func toggleZoom() {
+        guard let window, !compact else { return }
+        isZoomed.toggle()
+        let target = isZoomed ? zoomSize : fullSize
+        layouting = true
+        window.setFrame(frameKeepingPlace(target), display: true, animate: true)
+        layouting = false
+    }
+
+    private func actionsScriptPath() -> String {
+        let candidates = [
+            "/Users/usuario1/Projetos pessoais/jarvis/11_SCRIPTS/jarvis_actions.py",
+            "/Users/usuario1/orca/workspaces/Terminal/ultron-opus-redo/11_SCRIPTS/jarvis_actions.py"
+        ]
+        for path in candidates where FileManager.default.fileExists(atPath: path) {
+            return path
+        }
+        return "/Users/usuario1/Projetos pessoais/jarvis/11_SCRIPTS/jarvis_actions.py"
+    }
+
     private func setCompact(_ on: Bool) {
         guard let window else { return }
         if window.isMiniaturized { window.deminiaturize(nil) }
         compact = on
+        if on { isZoomed = false }
         window.level = .floating
         paintChrome(on)
         layouting = true
-        window.setFrame(frameKeepingPlace(on ? compactFrameSize() : fullSize), display: true, animate: true)
+        let targetSize = on ? compactFrameSize() : (isZoomed ? zoomSize : fullSize)
+        window.setFrame(frameKeepingPlace(targetSize), display: true, animate: true)
         layouting = false
         paintChrome(on)
         let flag = on ? "true" : "false"
@@ -1016,11 +1043,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             return
         }
         if final {
+            let script = self.actionsScriptPath()
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
                 proc.arguments = [
-                    "/Users/usuario1/orca/workspaces/Terminal/ultron-opus-redo/11_SCRIPTS/jarvis_actions.py",
+                    script,
                     text
                 ]
                 let pipe = Pipe()
@@ -1177,33 +1205,151 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         let controlsScript = """
         (() => {
           function injectJarvisBar() {
-            if (document.getElementById("jarvisGlobalBar")) return;
+            const oldBar = document.getElementById("jarvisGlobalBar");
+            if (oldBar) oldBar.remove();
+
+            if (document.getElementById("macWindowControls")) return;
+
+            if (!document.getElementById("macTrafficLightsStyle")) {
+              const style = document.createElement("style");
+              style.id = "macTrafficLightsStyle";
+              style.textContent = `
+                #macWindowControls {
+                  position: fixed;
+                  top: 14px;
+                  left: 14px;
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  z-index: 999999;
+                  padding: 0;
+                  margin: 0;
+                  user-select: none;
+                  -webkit-user-select: none;
+                  -webkit-app-region: no-drag;
+                }
+                .traffic-dot {
+                  width: 12px;
+                  height: 12px;
+                  border-radius: 50%;
+                  border: none;
+                  outline: none;
+                  padding: 0;
+                  margin: 0;
+                  cursor: pointer;
+                  position: relative;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  box-shadow: 0 0.5px 1px rgba(0,0,0,0.35);
+                  transition: transform 0.1s ease, filter 0.15s ease;
+                }
+                .traffic-dot:active {
+                  transform: scale(0.92);
+                }
+                .traffic-dot-close {
+                  background-color: #ff5f56;
+                  border: 0.5px solid #e0443e;
+                }
+                .traffic-dot-close:active {
+                  background-color: #bf4942;
+                }
+                .traffic-dot-min {
+                  background-color: #ffbd2e;
+                  border: 0.5px solid #dea123;
+                }
+                .traffic-dot-min:active {
+                  background-color: #bf8e22;
+                }
+                .traffic-dot-zoom {
+                  background-color: #27c93f;
+                  border: 0.5px solid #1aab29;
+                }
+                .traffic-dot-zoom:active {
+                  background-color: #1d9730;
+                }
+                .traffic-dot::after {
+                  content: '';
+                  position: absolute;
+                  opacity: 0;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                  line-height: 12px;
+                  text-align: center;
+                  transition: opacity 0.15s ease;
+                  pointer-events: none;
+                }
+                #macWindowControls:hover .traffic-dot::after {
+                  opacity: 0.75;
+                }
+                #macWindowControls:hover .traffic-dot:hover::after {
+                  opacity: 1;
+                }
+                .traffic-dot-close::after {
+                  content: '✕';
+                  font-size: 7.5px;
+                  font-weight: 900;
+                  color: #4d0000;
+                }
+                .traffic-dot-min::after {
+                  content: '—';
+                  font-size: 7.5px;
+                  font-weight: 900;
+                  color: #5c3b00;
+                }
+                .traffic-dot-zoom::after {
+                  content: '＋';
+                  font-size: 7.5px;
+                  font-weight: 900;
+                  color: #004708;
+                }
+                .idle-orb #macWindowControls {
+                  display: none !important;
+                }
+              `;
+              document.head.appendChild(style);
+            }
+
             const bar = document.createElement("div");
-            bar.id = "jarvisGlobalBar";
-            bar.style.cssText = "position:fixed;top:10px;right:10px;display:flex;gap:6px;z-index:999999;font-family:-apple-system,BlinkMacSystemFont,sans-serif;";
-            
-            const btnMin = document.createElement("button");
-            btnMin.id = "btnMinOrb";
-            btnMin.title = "Minimizar para bolinha (resumir)";
-            btnMin.innerHTML = "🟡 Bolinha";
-            btnMin.style.cssText = "background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer;color:#fff;backdrop-filter:blur(10px);box-shadow:0 2px 8px rgba(0,0,0,0.3);";
-            btnMin.onclick = (e) => {
-              e.stopPropagation();
-              try { window.webkit.messageHandlers.jarvisWindow.postMessage("minimize"); } catch(e){}
-            };
+            bar.id = "macWindowControls";
+            bar.setAttribute("aria-label", "Controles da janela JARVIS");
 
             const btnClose = document.createElement("button");
-            btnClose.id = "btnShutdownJarvis";
-            btnClose.title = "Desligar o JARVIS completamente";
-            btnClose.innerHTML = "🔴 Desligar";
-            btnClose.style.cssText = "background:rgba(255,50,50,0.25);border:1px solid rgba(255,80,80,0.4);border-radius:10px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer;color:#ff9999;backdrop-filter:blur(10px);box-shadow:0 2px 8px rgba(0,0,0,0.3);";
+            btnClose.className = "traffic-dot traffic-dot-close";
+            btnClose.id = "btnMacClose";
+            btnClose.title = "Desligar JARVIS";
+            btnClose.setAttribute("aria-label", "Desligar JARVIS");
             btnClose.onclick = (e) => {
               e.stopPropagation();
               try { window.webkit.messageHandlers.jarvisWindow.postMessage("shutdown"); } catch(e){}
             };
 
-            bar.appendChild(btnMin);
+            const btnMin = document.createElement("button");
+            btnMin.className = "traffic-dot traffic-dot-min";
+            btnMin.id = "btnMacMin";
+            btnMin.title = "Minimizar para bolinha";
+            btnMin.setAttribute("aria-label", "Minimizar para bolinha");
+            btnMin.onclick = (e) => {
+              e.stopPropagation();
+              try { window.webkit.messageHandlers.jarvisWindow.postMessage("minimize"); } catch(e){}
+            };
+
+            const btnZoom = document.createElement("button");
+            btnZoom.className = "traffic-dot traffic-dot-zoom";
+            btnZoom.id = "btnMacZoom";
+            btnZoom.title = "Alternar tamanho";
+            btnZoom.setAttribute("aria-label", "Alternar tamanho");
+            btnZoom.onclick = (e) => {
+              e.stopPropagation();
+              try { window.webkit.messageHandlers.jarvisWindow.postMessage("zoom"); } catch(e){}
+              const extras = document.getElementById("extras");
+              if (extras) {
+                extras.hidden = !extras.hidden;
+              }
+            };
+
             bar.appendChild(btnClose);
+            bar.appendChild(btnMin);
+            bar.appendChild(btnZoom);
             document.body.appendChild(bar);
 
             const obs = new MutationObserver(() => {

@@ -1067,6 +1067,30 @@
     minimizeButton.hidden = !hasNativeListen();
     minimizeButton.addEventListener("click", () => parkNow());
   }
+  const btnMacClose = document.getElementById("btnMacClose");
+  if (btnMacClose) {
+    btnMacClose.addEventListener("click", (e) => {
+      e.stopPropagation();
+      nativeWindow("shutdown");
+    });
+  }
+  const btnMacMin = document.getElementById("btnMacMin");
+  if (btnMacMin) {
+    btnMacMin.addEventListener("click", (e) => {
+      e.stopPropagation();
+      nativeWindow("minimize");
+      if (window.__jarvisSetIdle) window.__jarvisSetIdle(true);
+    });
+  }
+  const btnMacZoom = document.getElementById("btnMacZoom");
+  if (btnMacZoom) {
+    btnMacZoom.addEventListener("click", (e) => {
+      e.stopPropagation();
+      nativeWindow("zoom");
+      extras.hidden = !extras.hidden;
+      moreButton.textContent = extras.hidden ? "mais" : "fechar";
+    });
+  }
   function toggleMeeting() {
     meeting = !meeting;
     document.documentElement.classList.toggle("meeting", meeting);
