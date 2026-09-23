@@ -124,6 +124,16 @@ ACTION_SPECS = (
     ActionSpec("self_edit", "Autoeditar JARVIS", "Editar, testar e commitar o próprio JARVIS em ambiente isolado.", "local_worker", "code_write", "interactive", True, intents=("self_edit", "self_evolve")),
     ActionSpec("planning", "Planejar", "Gerar plano, brief ou checklist sem executar produção.", "planner", "runtime_write", "explicit_request", intents=("planning", "blueprint", "n8n_blueprint", "app_blueprint", "automation_blueprint", "no_claude", "unclear")),
     ActionSpec("project_inspect", "Inspecionar projeto", "Ler arquivos, Git e testes de projeto registrado.", "local_worker", private=True, intents=("project_inspect", "project_fix_or_inspect", "project_fix", "project_qa", "browser_qa", "final_gate", "open_project")),
+    ActionSpec("battery_telemetry", "Telemetria de Bateria", "Consultar porcentagem, fonte de energia, tempo restante e saúde da bateria.", "mac", "read_only", "none", True, intents=("battery", "battery_status")),
+    ActionSpec("wifi_telemetry", "Telemetria de Wi-Fi", "Consultar SSID, IP local, sinal e status da rede sem fio.", "mac", "read_only", "none", True, intents=("wifi_info", "wifi_status")),
+    ActionSpec("mac_specs", "Especificações do Mac", "Consultar chip, memória RAM, armazenamento em disco e uptime.", "mac", "read_only", "none", True, intents=("mac_specs", "system_specs")),
+    ActionSpec("network_quality", "Qualidade de Rede", "Medir taxa de download, upload e responsividade de rede.", "mac", "read_only", "none", True, intents=("network_quality", "speed_test")),
+    ActionSpec("weather_forecast", "Previsão do Tempo", "Consultar condições climáticas e previsão meteorológica.", "web", "read_only", "none", False, intents=("weather", "weather_forecast")),
+    ActionSpec("crypto_telemetry", "Cotações Financeiras", "Consultar preços em tempo real de criptomoedas e câmbio comercial.", "web", "read_only", "none", False, intents=("crypto_stock", "exchange_rates")),
+    ActionSpec("tech_brief", "Briefing de Tecnologia", "Ler as principais novidades e manchetes do Hacker News.", "web", "read_only", "none", False, intents=("tech_brief", "hackernews")),
+    ActionSpec("wiki_summary", "Consulta Enciclopédica", "Pesquisar conceitos e resumos enciclopédicos na Wikipédia.", "web", "read_only", "none", False, intents=("wiki", "wikipedia")),
+    ActionSpec("workspace_mode", "Modo de Trabalho", "Alternar ambiente operacional (foco, reunião, código ou repouso).", "mac", "runtime_write", "explicit_request", True, intents=("workspace", "workspace_mode")),
+    ActionSpec("file_organize", "Organizador de Arquivos", "Agrupar arquivos soltos por categoria com proteção contra sobrescrita.", "mac", "local_write", "interactive", True, intents=("file_organize",)),
 )
 
 ACTION_REGISTRY = {item.name: item for item in ACTION_SPECS}

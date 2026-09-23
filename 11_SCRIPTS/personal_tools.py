@@ -20,6 +20,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, urlencode
+import urllib.request
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1079,6 +1080,663 @@ def cmd_files_triage(args: argparse.Namespace) -> None:
     print("Produção: nada alterado.")
 
 
+def cmd_battery(args: argparse.Namespace) -> None:
+    print("JARVIS — Battery Telemetry")
+    print("Status real: leitura local da bateria do Mac. Nada foi alterado.")
+    if getattr(args, "dry_run", False):
+        print("Modo: --dry-run (telemetria não consultada).")
+        print("Produção: nada alterado.")
+        return
+
+    state_str = "Desconhecido"
+    pct_str = "0%"
+    source_str = "Desconhecida"
+    remaining_str = "N/A"
+    try:
+        res = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            lines = res.stdout.strip().splitlines()
+            if lines:
+                if "AC Power" in lines[0]:
+                    source_str = "Carregador (AC Power)"
+                elif "Battery Power" in lines[0]:
+                    source_str = "Bateria (Battery Power)"
+            if len(lines) > 1:
+                m = re.search(r"(\d+)%", lines[1])
+                if m:
+                    pct_str = f"{m.group(1)}%"
+                if "charging;" in lines[1]:
+                    state_str = "Carregando"
+                elif "charged;" in lines[1]:
+                    state_str = "Carregada (100%)"
+                elif "discharging;" in lines[1]:
+                    state_str = "Descarregando"
+                else:
+                    state_str = "Conectada"
+                m_rem = re.search(r"(\d+:\d+) remaining", lines[1])
+                if m_rem:
+                    remaining_str = f"{m_rem.group(1)} restantes"
+    except Exception as e:
+        state_str = f"Erro ao ler pmset: {e}"
+
+    cycle_str = "N/A"
+    condition_str = "N/A"
+    capacity_str = "N/A"
+    try:
+        res_prof = subprocess.run(["system_profiler", "SPPowerDataType"], capture_output=True, text=True, check=False, timeout=10)
+        if res_prof.returncode == 0:
+            for line in res_prof.stdout.splitlines():
+                if "Cycle Count:" in line:
+                    cycle_str = line.split(":", 1)[1].strip()
+                elif "Condition:" in line:
+                    condition_str = line.split(":", 1)[1].strip()
+                elif "Maximum Capacity:" in line:
+                    capacity_str = line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+
+    print(f"Fonte de energia: {source_str}")
+    print(f"Carga atual:      {pct_str} ({state_str})")
+    print(f"Tempo restante:   {remaining_str}")
+    print(f"Ciclos de carga:  {cycle_str}")
+    print(f"Condição:         {condition_str}")
+    if capacity_str != "N/A":
+        print(f"Saúde da bateria: {capacity_str}")
+    print("Produção: nada alterado.")
+
+
+def cmd_system_volume(args: argparse.Namespace) -> None:
+    print("JARVIS — Mac System Volume")
+    print("Status real: controle ou inspeção de volume do macOS.")
+    action = getattr(args, "action", None)
+    if getattr(args, "dry_run", False):
+        print(f"Modo: --dry-run (ação {action or 'status'} não executada).")
+        print("Produção: nada alterado.")
+        return
+
+    binary = _require_binary("osascript")
+    if not action or action == "status":
+        res = subprocess.run([binary, "-e", "get volume settings"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            print(f"Volume do sistema: {res.stdout.strip()}")
+        else:
+            _fail("não foi possível ler as configurações de volume.")
+        print("Produção: nada alterado.")
+        return
+
+    if action == "mute":
+        res = subprocess.run([binary, "-e", "set volume output muted true"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            print("OK — Som do Mac silenciado (mute).")
+        else:
+            _fail("falha ao silenciar o som.")
+        print("Produção: volume do Mac alterado localmente; nenhum deploy alterado.")
+        return
+
+    if action == "unmute":
+        res = subprocess.run([binary, "-e", "set volume output muted false"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            print("OK — Som do Mac ativado (unmute).")
+        else:
+            _fail("falha ao desativar mudo.")
+        print("Produção: volume do Mac alterado localmente; nenhum deploy alterado.")
+        return
+
+    try:
+        vol = int(action)
+        if not 0 <= vol <= 100:
+            _fail("volume deve estar entre 0 e 100.")
+        subprocess.run([binary, "-e", f"set volume output volume {vol}"], capture_output=True, text=True, check=False)
+        print(f"OK — Volume do Mac ajustado para {vol}%.")
+        print("Produção: volume do Mac alterado localmente; nenhum deploy alterado.")
+        return
+    except ValueError:
+        _fail("ação de volume inválida; use: status, mute, unmute ou um número de 0 a 100.")
+
+
+def cmd_wifi_info(args: argparse.Namespace) -> None:
+    print("JARVIS — Wi-Fi & Network Telemetry")
+    print("Status real: leitura da rede local do Mac. Nada foi editado.")
+    if getattr(args, "dry_run", False):
+        print("Modo: --dry-run (leitura de rede não executada).")
+        print("Produção: nada alterado.")
+        return
+
+    ssid = "N/A"
+    phy_mode = "N/A"
+    channel = "N/A"
+    signal_str = "N/A"
+    tx_rate = "N/A"
+    status_str = "Desconectado"
+
+    try:
+        res = subprocess.run(["system_profiler", "SPAirPortDataType"], capture_output=True, text=True, check=False, timeout=12)
+        if res.returncode == 0:
+            in_current = False
+            for line in res.stdout.splitlines():
+                if "Current Network Information:" in line:
+                    in_current = True
+                    continue
+                if in_current:
+                    stripped = line.strip()
+                    if stripped.endswith(":") and not stripped.startswith("Other Local"):
+                        ssid = stripped.rstrip(":")
+                    if "Status: Connected" in line:
+                        status_str = "Conectado"
+                    if "PHY Mode:" in line:
+                        phy_mode = line.split(":", 1)[1].strip()
+                    if "Channel:" in line:
+                        channel = line.split(":", 1)[1].strip()
+                    if "Signal / Noise:" in line:
+                        signal_str = line.split(":", 1)[1].strip()
+                    if "Transmit Rate:" in line:
+                        tx_rate = line.split(":", 1)[1].strip()
+                    if "Other Local Wi-Fi Networks:" in line:
+                        break
+    except Exception:
+        pass
+
+    local_ip = "N/A"
+    try:
+        res_ip = subprocess.run(["ipconfig", "getifaddr", "en0"], capture_output=True, text=True, check=False)
+        if res_ip.returncode == 0 and res_ip.stdout.strip():
+            local_ip = res_ip.stdout.strip()
+    except Exception:
+        pass
+
+    gateway = "N/A"
+    try:
+        res_gw = subprocess.run(["route", "-n", "get", "default"], capture_output=True, text=True, check=False)
+        for line in res_gw.stdout.splitlines():
+            if "gateway:" in line:
+                gateway = line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+
+    if local_ip != "N/A" and ssid != "N/A":
+        status_str = "Conectado"
+
+    print(f"Status:       {status_str}")
+    print(f"Rede (SSID):  {ssid}")
+    print(f"IP Local:     {local_ip}")
+    print(f"Gateway:      {gateway}")
+    print(f"Canal/Freq:   {channel}")
+    print(f"Sinal/Ruído:  {signal_str}")
+    print(f"Modo PHY:     {phy_mode}")
+    print(f"Taxa TX:      {tx_rate} Mbps")
+    print("Produção: nada alterado.")
+
+
+def cmd_wifi_passwords(args: argparse.Namespace) -> None:
+    print("JARVIS — Wi-Fi Keychain Assistant")
+    print("Status real: inspeção de redes salvas no Keychain do macOS.")
+    if getattr(args, "dry_run", False):
+        print("Modo: --dry-run (consulta ao Keychain não executada).")
+        print("Produção: nada alterado.")
+        return
+
+    ssid = getattr(args, "ssid", None)
+    if not ssid:
+        try:
+            res = subprocess.run(["networksetup", "-listpreferredwirelessnetworks", "en0"], capture_output=True, text=True, check=False)
+            if res.returncode == 0:
+                print("Redes Wi-Fi conhecidas neste Mac:")
+                lines = [l.strip() for l in res.stdout.splitlines() if l.strip() and not l.startswith("Preferred networks")]
+                limit = getattr(args, "limit", 25) or 25
+                for net in lines[:limit]:
+                    print(f"  • {net}")
+                if len(lines) > limit:
+                    print(f"  ... e mais {len(lines) - limit} redes. Use `./jarvis wifi-passwords \"NOME\"` para consultar uma específica.")
+            else:
+                _fail("não foi possível listar redes salvas.")
+        except Exception as e:
+            _fail(f"erro ao listar redes: {e}")
+        print("Produção: nada alterado.")
+        return
+
+    print(f"Consultando credenciais da rede: {ssid}")
+    try:
+        res = subprocess.run(
+            ["security", "find-generic-password", "-D", "AirPort network password", "-a", ssid, "-gw"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=8,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            retrieved = res.stdout.strip()
+            masked = retrieved[0] + ("*" * (len(retrieved) - 2)) + retrieved[-1] if len(retrieved) > 2 else "***"
+            if getattr(args, "show_clear", False):
+                print(f"Senha recuperada: {retrieved}")
+            else:
+                print(f"Senha recuperada: {masked} (use --show-clear para exibir texto puro)")
+        else:
+            print(f"Senha não encontrada no Keychain ou acesso não autorizado para '{ssid}'.")
+    except subprocess.TimeoutExpired:
+        print("O macOS aguardou autorização no Keychain e expirou o tempo limite.")
+    except Exception as e:
+        print(f"Erro ao consultar Keychain: {e}")
+    print("Produção: nada alterado.")
+
+
+def cmd_mac_specs(args: argparse.Namespace) -> None:
+    print("JARVIS — Mac Hardware & System Specifications")
+    print("Status real: telemetria de hardware local.")
+    if getattr(args, "dry_run", False):
+        print("Modo: --dry-run.")
+        print("Produção: nada alterado.")
+        return
+
+    os_ver = "macOS"
+    try:
+        r = subprocess.run(["sw_vers", "-productVersion"], capture_output=True, text=True, check=False)
+        os_ver = f"macOS {r.stdout.strip()}"
+    except Exception:
+        pass
+
+    chip = "Apple Silicon"
+    try:
+        r = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True, check=False)
+        chip = r.stdout.strip() or chip
+    except Exception:
+        pass
+
+    ram_gb = "16 GB"
+    try:
+        r = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, check=False)
+        b = int(r.stdout.strip())
+        ram_gb = f"{round(b / (1024**3))} GB"
+    except Exception:
+        pass
+
+    cores = "8"
+    try:
+        r = subprocess.run(["sysctl", "-n", "hw.ncpu"], capture_output=True, text=True, check=False)
+        cores = r.stdout.strip() or cores
+    except Exception:
+        pass
+
+    disk_info = "N/A"
+    try:
+        r = subprocess.run(["df", "-h", "/"], capture_output=True, text=True, check=False)
+        lines = r.stdout.strip().splitlines()
+        if len(lines) > 1:
+            parts = lines[1].split()
+            disk_info = f"Total: {parts[1]} · Usado: {parts[2]} · Livre: {parts[3]} ({parts[4]} ocupado)"
+    except Exception:
+        pass
+
+    uptime_str = "N/A"
+    try:
+        r = subprocess.run(["uptime"], capture_output=True, text=True, check=False)
+        uptime_str = r.stdout.strip()
+    except Exception:
+        pass
+
+    print(f"Sistema Operacional: {os_ver}")
+    print(f"Processador / Chip:  {chip} ({cores} núcleos)")
+    print(f"Memória RAM Total:   {ram_gb}")
+    print(f"Armazenamento (/):   {disk_info}")
+    print(f"Tempo de Atividade:  {uptime_str}")
+    print("Produção: nada alterado.")
+
+
+def cmd_network_quality(args: argparse.Namespace) -> None:
+    print("JARVIS — Network Quality & Speed Test")
+    print("Status real: teste nativo de velocidade de conexão do macOS.")
+    if getattr(args, "dry_run", False):
+        print("Modo: --dry-run (teste de velocidade não executado).")
+        print("Produção: nada alterado.")
+        return
+
+    binary = "/usr/bin/networkQuality"
+    if not os.path.exists(binary):
+        _fail("utilitário /usr/bin/networkQuality ausente neste macOS.")
+
+    print("Executando teste de capacidade de rede (aguarde alguns segundos)...")
+    try:
+        res = subprocess.run([binary, "-c"], capture_output=True, text=True, check=False, timeout=35)
+        if res.returncode == 0:
+            data = json.loads(res.stdout)
+            dl_mbps = round((data.get("dl_throughput", 0) / 1_000_000) * 8, 2)
+            ul_mbps = round((data.get("ul_throughput", 0) / 1_000_000) * 8, 2)
+            responsiveness = round(data.get("responsiveness", 0))
+            interface = data.get("interface_name", "en0")
+            print(f"Interface:       {interface}")
+            print(f"Download:        {dl_mbps} Mbps")
+            print(f"Upload:          {ul_mbps} Mbps")
+            print(f"Responsividade:  {responsiveness} RPM (Round-trips Per Minute)")
+        else:
+            res_seq = subprocess.run([binary, "-s"], capture_output=True, text=True, check=False, timeout=20)
+            print(res_seq.stdout.strip())
+    except Exception as e:
+        _fail(f"falha durante o teste de qualidade de rede: {e}")
+    print("Produção: nada alterado.")
+
+
+def cmd_weather(args: argparse.Namespace) -> None:
+    import urllib.parse
+    print("JARVIS — Weather Intelligence")
+    print("Status real: previsão do tempo consultada via wttr.in. Nada alterado.")
+    location = getattr(args, "location", "") or ""
+    if getattr(args, "dry_run", False):
+        print(f"Modo: --dry-run (previsão para '{location or 'local'}' não consultada).")
+        print("Produção: nada alterado.")
+        return
+
+    encoded = urllib.parse.quote(location)
+    url = f"https://wttr.in/{encoded}?format=j1"
+    req = urllib.request.Request(url, headers={"User-Agent": "curl/7.68.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        curr = data["current_condition"][0]
+        area = data.get("nearest_area", [{}])[0]
+        city = area.get("areaName", [{}])[0].get("value", location or "Local")
+        region = area.get("region", [{}])[0].get("value", "")
+        country = area.get("country", [{}])[0].get("value", "")
+        temp_c = curr.get("temp_C")
+        feels_c = curr.get("FeelsLikeC")
+        desc = curr.get("weatherDesc", [{}])[0].get("value", "")
+        humidity = curr.get("humidity")
+        wind = curr.get("windspeedKmph")
+        precip = curr.get("precipMM")
+
+        loc_str = f"{city}" + (f", {region}" if region else "") + (f" ({country})" if country else "")
+        print(f"Localização:     {loc_str}")
+        print(f"Condição:        {desc}")
+        print(f"Temperatura:     {temp_c}°C (Sensação térmica: {feels_c}°C)")
+        print(f"Umidade do ar:   {humidity}%")
+        print(f"Velocidade vento:{wind} km/h")
+        print(f"Precipitação:    {precip} mm")
+
+        weather_days = data.get("weather", [])
+        if weather_days:
+            today = weather_days[0]
+            print(f"Previsão hoje:   Mín {today.get('mintempC')}°C / Máx {today.get('maxtempC')}°C")
+            if len(weather_days) > 1:
+                tomorrow = weather_days[1]
+                print(f"Previsão amanhã: Mín {tomorrow.get('mintempC')}°C / Máx {tomorrow.get('maxtempC')}°C")
+    except Exception as e:
+        _fail(f"não foi possível obter previsão do tempo: {e}")
+    print("Produção: nada alterado.")
+
+
+def cmd_qr(args: argparse.Namespace) -> None:
+    import urllib.parse
+    print("JARVIS — QR Code Generator")
+    print("Status real: geração de código QR local/visual.")
+    text = " ".join(args.text) if isinstance(args.text, list) else str(args.text)
+    if not text.strip():
+        _fail("informe o texto ou URL para gerar o QR Code.")
+    if getattr(args, "dry_run", False):
+        print(f"Modo: --dry-run (QR Code para '{text[:30]}...' não gerado).")
+        print("Produção: nada alterado.")
+        return
+
+    output = getattr(args, "output", None)
+    if output:
+        out_path = Path(output).expanduser()
+        if not out_path.is_absolute():
+            out_path = Path.cwd() / out_path
+        if out_path.exists():
+            _fail(f"o arquivo de saída já existe: {out_path}")
+        encoded_data = urllib.parse.quote(text)
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={encoded_data}"
+        req = urllib.request.Request(qr_url, headers={"User-Agent": "curl/7.68.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                content = resp.read()
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_bytes(content)
+            print(f"OK — QR Code salvo com sucesso em: {_safe_path(out_path)}")
+        except Exception as e:
+            _fail(f"falha ao gerar imagem do QR Code: {e}")
+    else:
+        encoded_data = urllib.parse.quote(text)
+        qr_url = f"https://qrenco.de/{encoded_data}"
+        req = urllib.request.Request(qr_url, headers={"User-Agent": "curl/7.68.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                ascii_qr = resp.read().decode("utf-8")
+            print(f"QR Code para: {text}\n")
+            print(ascii_qr)
+        except Exception as e:
+            _fail(f"falha ao gerar QR Code no terminal: {e}")
+    print("Produção: nada alterado.")
+
+
+def cmd_crypto_stock(args: argparse.Namespace) -> None:
+    print("JARVIS — Market & Crypto Telemetry")
+    print("Status real: cotações em tempo real de ativos e moedas.")
+    if getattr(args, "dry_run", False):
+        print("Modo: --dry-run (cotações não consultadas).")
+        print("Produção: nada alterado.")
+        return
+
+    try:
+        url_crypto = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd,brl"
+        req = urllib.request.Request(url_crypto, headers={"User-Agent": "curl/7.68.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        btc = data.get("bitcoin", {})
+        eth = data.get("ethereum", {})
+        sol = data.get("solana", {})
+        print("— CRIPTOMOEDAS —")
+        print(f"Bitcoin (BTC):  USD ${btc.get('usd', 0):,.2f}  |  R$ {btc.get('brl', 0):,.2f}")
+        print(f"Ethereum (ETH): USD ${eth.get('usd', 0):,.2f}  |  R$ {eth.get('brl', 0):,.2f}")
+        print(f"Solana (SOL):   USD ${sol.get('usd', 0):,.2f}  |  R$ {sol.get('brl', 0):,.2f}")
+    except Exception as e:
+        print(f"Criptomoedas: indisponível no momento ({e})")
+
+    try:
+        url_fiat = "https://open.er-api.com/v6/latest/USD"
+        req = urllib.request.Request(url_fiat, headers={"User-Agent": "curl/7.68.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            fiat_data = json.loads(resp.read().decode("utf-8"))
+        rates = fiat_data.get("rates", {})
+        brl_usd = rates.get("BRL", 0)
+        eur_usd = rates.get("EUR", 0)
+        print("\n— CÂMBIO COMERCIAL —")
+        print(f"Dólar (USD / BRL): R$ {brl_usd:.4f}")
+        if eur_usd and brl_usd:
+            eur_brl = brl_usd / eur_usd
+            print(f"Euro (EUR / BRL):  R$ {eur_brl:.4f}")
+    except Exception as e:
+        print(f"Câmbio: indisponível no momento ({e})")
+
+    print("Produção: nada alterado.")
+
+
+def cmd_tech_brief(args: argparse.Namespace) -> None:
+    print("JARVIS — Tech Intelligence Briefing (Hacker News)")
+    print("Status real: leitura das principais novidades de tecnologia.")
+    limit = getattr(args, "limit", 5) or 5
+    if getattr(args, "dry_run", False):
+        print(f"Modo: --dry-run (top {limit} não coletado).")
+        print("Produção: nada alterado.")
+        return
+
+    try:
+        top_url = "https://hacker-news.firebaseio.com/v0/topstories.json"
+        req = urllib.request.Request(top_url, headers={"User-Agent": "curl/7.68.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            ids = json.loads(resp.read().decode("utf-8"))[:limit]
+
+        print(f"Top {len(ids)} histórias em destaque agora:\n")
+        for idx, item_id in enumerate(ids, 1):
+            item_url = f"https://hacker-news.firebaseio.com/v0/item/{item_id}.json"
+            item_req = urllib.request.Request(item_url, headers={"User-Agent": "curl/7.68.0"})
+            with urllib.request.urlopen(item_req, timeout=8) as item_resp:
+                story = json.loads(item_resp.read().decode("utf-8"))
+            title = story.get("title", "")
+            score = story.get("score", 0)
+            url = story.get("url", f"https://news.ycombinator.com/item?id={item_id}")
+            print(f"{idx}. {title}")
+            print(f"   Pontos: {score} · Link: {url}")
+    except Exception as e:
+        _fail(f"falha ao coletar tech brief: {e}")
+    print("\nProdução: nada alterado.")
+
+
+def cmd_wiki(args: argparse.Namespace) -> None:
+    import urllib.parse
+    print("JARVIS — Wikipedia Summary Assistant")
+    print("Status real: consulta enciclopédica rápida via Wikipedia REST API.")
+    term = " ".join(args.term) if isinstance(args.term, list) else str(args.term)
+    if not term.strip():
+        _fail("informe o termo a ser pesquisado.")
+    lang = getattr(args, "lang", "pt") or "pt"
+    if getattr(args, "dry_run", False):
+        print(f"Modo: --dry-run (pesquisa para '{term}' em {lang} não executada).")
+        print("Produção: nada alterado.")
+        return
+
+    slug = urllib.parse.quote(term.strip().replace(" ", "_"))
+    url = f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/{slug}"
+    req = urllib.request.Request(url, headers={"User-Agent": "JARVIS-Assistant/1.0 (theopadilha)"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        title = data.get("title", term)
+        desc = data.get("description", "")
+        extract = data.get("extract", "")
+        if not extract:
+            print(f"Nenhum resumo encontrado para '{term}'.")
+            return
+        print(f"Título: {title}" + (f" ({desc})" if desc else ""))
+        print("")
+        print(extract)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            print(f"Tópico '{term}' não encontrado na Wikipedia ({lang}).")
+        else:
+            _fail(f"erro HTTP ao consultar Wikipedia: {e.code}")
+    except Exception as e:
+        _fail(f"falha ao acessar Wikipedia: {e}")
+    print("\nProdução: nada alterado.")
+
+
+def cmd_workspace(args: argparse.Namespace) -> None:
+    print("JARVIS — Workspace & Operational Modes")
+    mode = args.mode.lower()
+    print(f"Status real: alternância para modo de trabalho: {mode.upper()}.")
+    if getattr(args, "dry_run", False):
+        print(f"Modo: --dry-run (modo {mode} não aplicado).")
+        print("Produção: nada alterado.")
+        return
+
+    binary_osascript = _require_binary("osascript")
+
+    if mode == "foco":
+        subprocess.run([binary_osascript, "-e", "set volume output volume 40"], check=False)
+        _spotify_script("play")
+        notify_script = 'display notification "Modo Foco Ativado. Volume em 40% e som ambiente iniciado." with title "JARVIS"'
+        subprocess.run([binary_osascript, "-e", notify_script], check=False)
+        print("OK — Modo Foco ativado: volume em 40%, Spotify iniciado e notificações ajustadas.")
+
+    elif mode == "reuniao":
+        _spotify_script("pause")
+        subprocess.run([binary_osascript, "-e", "set volume output volume 60"], check=False)
+        notify_script = 'display notification "Modo Reunião Ativado. Spotify pausado e volume em 60%." with title "JARVIS"'
+        subprocess.run([binary_osascript, "-e", notify_script], check=False)
+        print("OK — Modo Reunião ativado: Spotify pausado, áudio ajustado.")
+
+    elif mode == "codigo":
+        subprocess.run(["open", "-a", "Visual Studio Code"], check=False)
+        subprocess.run([binary_osascript, "-e", "set volume output volume 50"], check=False)
+        notify_script = 'display notification "Ambiente de Desenvolvimento pronto." with title "JARVIS"'
+        subprocess.run([binary_osascript, "-e", notify_script], check=False)
+        print("OK — Modo Código ativado: VS Code aberto e áudio em 50%.")
+
+    elif mode == "off":
+        _spotify_script("pause")
+        subprocess.run([binary_osascript, "-e", "set volume output volume 20"], check=False)
+        notify_script = 'display notification "Expediente encerrado. Descanse!" with title "JARVIS"'
+        subprocess.run([binary_osascript, "-e", notify_script], check=False)
+        print("OK — Modo Off ativado: Spotify pausado e sistema em repouso.")
+    else:
+        _fail(f"modo desconhecido: '{mode}'. Opções válidas: foco, reuniao, codigo, off.")
+
+    print("Produção: ambiente local configurado; nenhum deploy alterado.")
+
+
+def cmd_file_organize(args: argparse.Namespace) -> None:
+    target = Path(args.path).expanduser()
+    if not target.is_absolute():
+        target = Path.cwd() / target
+    target = target.resolve()
+    if not target.is_dir():
+        _fail("diretório não encontrado.")
+    if target == Path(target.anchor):
+        _fail("organização da raiz inteira recusada; escolha uma pasta específica.")
+
+    is_apply = getattr(args, "apply", False) and not getattr(args, "dry_run", False)
+
+    print("JARVIS — File Organizer")
+    if is_apply:
+        print("Status real: organização ativa de arquivos soltos. Proteção contra sobrescrita ativada.")
+    else:
+        print("Status real: preview seguro (dry-run). Nenhum arquivo foi movido.")
+    print(f"Pasta alvo: {_safe_path(target)}")
+
+    items = []
+    skipped = 0
+    try:
+        candidates = sorted(target.iterdir(), key=lambda path: path.name.lower())
+    except OSError:
+        _fail("não foi possível listar a pasta.")
+
+    for path in candidates:
+        if path.name.startswith(".") or path.name == "JARVIS_ORGANIZED":
+            skipped += 1
+            continue
+        if not path.is_file() or path.is_symlink():
+            skipped += 1
+            continue
+        category = _file_category(path)
+        dest_folder = target / "JARVIS_ORGANIZED" / category
+        destination = dest_folder / path.name
+
+        if destination.exists() and is_apply:
+            base = path.stem
+            ext = path.suffix
+            counter = 1
+            while (dest_folder / f"{base}_{counter}{ext}").exists():
+                counter += 1
+            destination = dest_folder / f"{base}_{counter}{ext}"
+
+        items.append((path, destination))
+        if len(items) >= args.limit:
+            break
+
+    print(f"Arquivos identificados: {len(items)} (ignorados: {skipped})")
+    print("")
+
+    if not items:
+        print("(nenhum arquivo solto para organizar)")
+        print("Produção: nada alterado.")
+        return
+
+    moved = 0
+    for source, destination in items:
+        if is_apply:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(destination))
+            print(f"- MOVIDO  {_safe_path(source)} -> {_safe_path(destination)}")
+            moved += 1
+        else:
+            print(f"- PLANO   {_safe_path(source)} -> {_safe_path(destination)}")
+
+    print("")
+    if is_apply:
+        print(f"Concluído: {moved} arquivos movidos com segurança para subpastas em JARVIS_ORGANIZED/.")
+        print("Produção: arquivos locais organizados; nenhum deploy alterado.")
+    else:
+        print("Dica: para aplicar as mudanças de fato, execute com a flag `--apply`.")
+        print("Produção: nada alterado.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="personal_tools.py")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1159,6 +1817,62 @@ def build_parser() -> argparse.ArgumentParser:
     triage = sub.add_parser("files-triage")
     triage.add_argument("path", nargs="?", default=".")
     triage.add_argument("--limit", type=int, default=100, choices=range(1, 1001))
+
+    # Novas ferramentas (inspiradas no sukeesh/Jarvis)
+    batt = sub.add_parser("battery")
+    batt.add_argument("--dry-run", action="store_true")
+
+    vol = sub.add_parser("system-volume")
+    vol.add_argument("action", nargs="?", default="status")
+    vol.add_argument("--dry-run", action="store_true")
+
+    wifi_inf = sub.add_parser("wifi-info")
+    wifi_inf.add_argument("--dry-run", action="store_true")
+
+    wifi_pwd = sub.add_parser("wifi-passwords")
+    wifi_pwd.add_argument("ssid", nargs="?", default=None)
+    wifi_pwd.add_argument("--limit", type=int, default=25)
+    wifi_pwd.add_argument("--show-clear", action="store_true")
+    wifi_pwd.add_argument("--dry-run", action="store_true")
+
+    specs = sub.add_parser("mac-specs")
+    specs.add_argument("--dry-run", action="store_true")
+
+    net_q = sub.add_parser("network-quality")
+    net_q.add_argument("--dry-run", action="store_true")
+
+    wth = sub.add_parser("weather")
+    wth.add_argument("location", nargs="?", default="")
+    wth.add_argument("--dry-run", action="store_true")
+
+    qr_cmd = sub.add_parser("qr")
+    qr_cmd.add_argument("text", nargs="+")
+    qr_cmd.add_argument("--output")
+    qr_cmd.add_argument("--dry-run", action="store_true")
+
+    cr_stock = sub.add_parser("crypto-stock")
+    cr_stock.add_argument("tickers", nargs="*")
+    cr_stock.add_argument("--dry-run", action="store_true")
+
+    t_brief = sub.add_parser("tech-brief")
+    t_brief.add_argument("--limit", type=int, default=5)
+    t_brief.add_argument("--dry-run", action="store_true")
+
+    wk = sub.add_parser("wiki")
+    wk.add_argument("term", nargs="+")
+    wk.add_argument("--lang", default="pt")
+    wk.add_argument("--dry-run", action="store_true")
+
+    wspace = sub.add_parser("workspace")
+    wspace.add_argument("mode", choices=("foco", "reuniao", "codigo", "off"))
+    wspace.add_argument("--dry-run", action="store_true")
+
+    f_org = sub.add_parser("file-organize")
+    f_org.add_argument("path", nargs="?", default=".")
+    f_org.add_argument("--limit", type=int, default=100, choices=range(1, 1001))
+    f_org.add_argument("--apply", action="store_true")
+    f_org.add_argument("--dry-run", action="store_true")
+
     return parser
 
 
@@ -1180,9 +1894,23 @@ def main() -> None:
         "spotify": cmd_spotify,
         "computer": cmd_computer,
         "files-triage": cmd_files_triage,
+        "battery": cmd_battery,
+        "system-volume": cmd_system_volume,
+        "wifi-info": cmd_wifi_info,
+        "wifi-passwords": cmd_wifi_passwords,
+        "mac-specs": cmd_mac_specs,
+        "network-quality": cmd_network_quality,
+        "weather": cmd_weather,
+        "qr": cmd_qr,
+        "crypto-stock": cmd_crypto_stock,
+        "tech-brief": cmd_tech_brief,
+        "wiki": cmd_wiki,
+        "workspace": cmd_workspace,
+        "file-organize": cmd_file_organize,
     }
     handlers[args.command](args)
 
 
 if __name__ == "__main__":
     main()
+
