@@ -749,6 +749,71 @@ CHECKS = [
         "expect": ["Files Triage", "plano read-only", "não possui --apply", "Produção: nada alterado"],
     },
     {
+        "name": "battery-dry-run",
+        "cmd": ["./jarvis", "battery", "--dry-run"],
+        "expect": ["Battery Telemetry", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "system-volume-dry-run",
+        "cmd": ["./jarvis", "system-volume", "--dry-run"],
+        "expect": ["Mac System Volume", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "wifi-info-dry-run",
+        "cmd": ["./jarvis", "wifi-info", "--dry-run"],
+        "expect": ["Wi-Fi & Network Telemetry", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "wifi-passwords-dry-run",
+        "cmd": ["./jarvis", "wifi-passwords", "--dry-run"],
+        "expect": ["Wi-Fi Keychain Assistant", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "mac-specs-dry-run",
+        "cmd": ["./jarvis", "mac-specs", "--dry-run"],
+        "expect": ["Mac Hardware & System Specifications", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "network-quality-dry-run",
+        "cmd": ["./jarvis", "network-quality", "--dry-run"],
+        "expect": ["Network Quality & Speed Test", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "weather-dry-run",
+        "cmd": ["./jarvis", "weather", "--dry-run"],
+        "expect": ["Weather Intelligence", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "qr-dry-run",
+        "cmd": ["./jarvis", "qr", "https://theopadilha.com", "--dry-run"],
+        "expect": ["QR Code Generator", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "crypto-stock-dry-run",
+        "cmd": ["./jarvis", "crypto-stock", "--dry-run"],
+        "expect": ["Market & Crypto Telemetry", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "tech-brief-dry-run",
+        "cmd": ["./jarvis", "tech-brief", "--dry-run"],
+        "expect": ["Tech Intelligence Briefing", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "wiki-dry-run",
+        "cmd": ["./jarvis", "wiki", "Python", "--dry-run"],
+        "expect": ["Wikipedia Summary Assistant", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "workspace-dry-run",
+        "cmd": ["./jarvis", "workspace", "foco", "--dry-run"],
+        "expect": ["Workspace & Operational Modes", "--dry-run", "Produção: nada alterado"],
+    },
+    {
+        "name": "file-organize-dry-run",
+        "cmd": ["./jarvis", "file-organize", "10_TESTES/FIXTURES", "--dry-run"],
+        "expect": ["File Organizer", "dry-run", "Produção: nada alterado"],
+    },
+    {
         "name": "run-list",
         "cmd": ["./jarvis", "run-list"],
         "expect": [

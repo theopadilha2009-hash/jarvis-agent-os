@@ -2903,6 +2903,58 @@ def files_triage_command(args=None):
     """./jarvis files-triage [PASTA] [--limit N] — plano read-only."""
     _run_py_propagate("11_SCRIPTS/personal_tools.py", ["files-triage", *(args or [])])
 
+def battery_command(args=None):
+    """./jarvis battery [--dry-run] — telemetria e saúde da bateria do Mac."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["battery", *(args or [])])
+
+def system_volume_command(args=None):
+    """./jarvis system-volume [status|mute|unmute|0-100] [--dry-run] — volume master do Mac."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["system-volume", *(args or [])])
+
+def wifi_info_command(args=None):
+    """./jarvis wifi-info [--dry-run] — telemetria de rede e Wi-Fi do Mac."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["wifi-info", *(args or [])])
+
+def wifi_passwords_command(args=None):
+    """./jarvis wifi-passwords [SSID] [--limit N] [--show-clear] [--dry-run] — consulta Keychain Wi-Fi."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["wifi-passwords", *(args or [])])
+
+def mac_specs_command(args=None):
+    """./jarvis mac-specs [--dry-run] — especificações de hardware do Mac."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["mac-specs", *(args or [])])
+
+def network_quality_command(args=None):
+    """./jarvis network-quality [--dry-run] — teste nativo de velocidade de conexão."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["network-quality", *(args or [])])
+
+def weather_command(args=None):
+    """./jarvis weather [cidade] [--dry-run] — previsão do tempo sem chave de API."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["weather", *(args or [])])
+
+def qr_command(args=None):
+    """./jarvis qr "texto/url" [--output P] [--dry-run] — gerador de QR Code no terminal/imagem."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["qr", *(args or [])])
+
+def crypto_stock_command(args=None):
+    """./jarvis crypto-stock [tickers...] [--dry-run] — cotações de criptomoedas e câmbio comercial."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["crypto-stock", *(args or [])])
+
+def tech_brief_command(args=None):
+    """./jarvis tech-brief [--limit N] [--dry-run] — briefing das novidades do Hacker News."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["tech-brief", *(args or [])])
+
+def wiki_command(args=None):
+    """./jarvis wiki "termo" [--lang pt|en] [--dry-run] — consulta enciclopédica rápida."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["wiki", *(args or [])])
+
+def workspace_command(args=None):
+    """./jarvis workspace foco|reuniao|codigo|off [--dry-run] — alternância de modos de trabalho."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["workspace", *(args or [])])
+
+def file_organize_command(args=None):
+    """./jarvis file-organize [PASTA] [--apply] [--limit N] [--dry-run] — organização de arquivos."""
+    _run_py_propagate("11_SCRIPTS/personal_tools.py", ["file-organize", *(args or [])])
+
 def run_list_command(args=None):
     """./jarvis run-list — lista run packages gerados por `go`."""
     _run_py_propagate("11_SCRIPTS/run_log.py", ["list", *(args or [])])
@@ -3239,6 +3291,19 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
   ./jarvis computer-worker --status          ponte Vercel → Supabase → Mac
   ./jarvis promote-production [--dry-run]    alias jarvis-theo.vercel.app no último deploy
   ./jarvis files-triage PASTA                plano de organização, sem mover
+  ./jarvis battery                           telemetria e saúde da bateria do Mac
+  ./jarvis system-volume [N|mute|unmute]     ajusta/mostra volume do macOS
+  ./jarvis wifi-info                         status e sinal da rede Wi-Fi local
+  ./jarvis wifi-passwords [SSID]             consulta redes conhecidas no Keychain
+  ./jarvis mac-specs                         especificações de CPU, RAM e disco
+  ./jarvis network-quality                   teste de velocidade e responsividade de rede
+  ./jarvis weather [cidade]                  previsão meteorológica sem chaves
+  ./jarvis qr "texto/url"                    gerador de QR Code no terminal/imagem
+  ./jarvis crypto-stock [tickers...]         cotações de cripto e moedas em tempo real
+  ./jarvis tech-brief                        top notícias de tecnologia do Hacker News
+  ./jarvis wiki "termo"                      resumo rápido direto da Wikipédia
+  ./jarvis workspace foco|reuniao|codigo|off ativa modo operacional integrado
+  ./jarvis file-organize [PASTA] [--apply]   organização categorizada de arquivos
 
 ## Lifecycle longo (quando `do` não basta)
   ./jarvis start "pedido"                    inicia sessão
@@ -3365,6 +3430,19 @@ def _help_full():
   ./jarvis self-edit "melhoria" [--dry-run] [--publish]  altera/testa; --publish faz PR+merge+deploy apenas no JARVIS autorizado
   ./jarvis promote-production [--dry-run] [--deployment URL]  aponta jarvis-theo.vercel.app para o último deploy de jarvis-agent-os
   ./jarvis files-triage [PASTA] [--limit N]  plano de organização por tipo; não move nada
+  ./jarvis battery [--dry-run]  telemetria da bateria, percentual, ciclo e saúde
+  ./jarvis system-volume [status|mute|unmute|0-100] [--dry-run]  controle de volume do Mac
+  ./jarvis wifi-info [--dry-run]  SSID, IP local, sinal, ruído e velocidade do Wi-Fi
+  ./jarvis wifi-passwords [SSID] [--limit N] [--show-clear] [--dry-run]  consulta ao Keychain
+  ./jarvis mac-specs [--dry-run]  resumo do chip Apple Silicon, RAM, armazenamento e uptime
+  ./jarvis network-quality [--dry-run]  teste nativo de capacidade de rede (download/upload)
+  ./jarvis weather [cidade] [--dry-run]  previsão do tempo com geolocalização automática
+  ./jarvis qr "texto/url" [--output P] [--dry-run]  cria QR Code em ANSI ou PNG
+  ./jarvis crypto-stock [tickers...] [--dry-run]  cotações de BTC, ETH, SOL, Dólar e Euro
+  ./jarvis tech-brief [--limit N] [--dry-run]  manchetes em destaque do Hacker News
+  ./jarvis wiki "termo" [--lang pt|en] [--dry-run]  resumo enciclopédico de conceitos
+  ./jarvis workspace foco|reuniao|codigo|off [--dry-run]  ambiente de trabalho (som, apps, avisos)
+  ./jarvis file-organize [PASTA] [--apply] [--limit N] [--dry-run]  organização segura de arquivos
   ./jarvis blueprint --type T --goal "..."  blueprint local (n8n|app|automation|research)
   ./jarvis research-digest [--goal "..."]  digest local dos deep research + plano de evolução
   ./jarvis project-open --project A [--print-only|--copy-cd|--code]  abre projeto local com segurança
@@ -3605,6 +3683,32 @@ def main():
         promote_production_command(sys.argv[2:])
     elif cmd == "files-triage":
         files_triage_command(sys.argv[2:])
+    elif cmd == "battery":
+        battery_command(sys.argv[2:])
+    elif cmd == "system-volume":
+        system_volume_command(sys.argv[2:])
+    elif cmd == "wifi-info":
+        wifi_info_command(sys.argv[2:])
+    elif cmd == "wifi-passwords":
+        wifi_passwords_command(sys.argv[2:])
+    elif cmd == "mac-specs":
+        mac_specs_command(sys.argv[2:])
+    elif cmd == "network-quality":
+        network_quality_command(sys.argv[2:])
+    elif cmd == "weather":
+        weather_command(sys.argv[2:])
+    elif cmd == "qr":
+        qr_command(sys.argv[2:])
+    elif cmd == "crypto-stock":
+        crypto_stock_command(sys.argv[2:])
+    elif cmd == "tech-brief":
+        tech_brief_command(sys.argv[2:])
+    elif cmd == "wiki":
+        wiki_command(sys.argv[2:])
+    elif cmd == "workspace":
+        workspace_command(sys.argv[2:])
+    elif cmd == "file-organize":
+        file_organize_command(sys.argv[2:])
     elif cmd == "run-list":
         run_list_command(sys.argv[2:])
     elif cmd == "run-show":

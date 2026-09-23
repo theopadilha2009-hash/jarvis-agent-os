@@ -45,7 +45,7 @@ VOICE_PROFILE = (
     "volume=1.15"
 )
 # Pocket: um semitom mais grave. Se o ffmpeg atrasar, devolve o WAV cru.
-POCKET_ADULT = "asetrate={rate}*0.96,aresample={rate},atempo=1.035,highpass=f=85,volume=1.06"
+POCKET_ADULT = "asetrate={rate}*0.96,aresample={rate},atempo=1.00,highpass=f=85,volume=1.06"
 MAX_TEXT = 2_200
 DEFAULT_ENGINE = "auto"
 DEFAULT_LANGUAGE = "portuguese"
@@ -373,7 +373,7 @@ def synthesize_edge(text: str, voice: str, rate: str = "-5%", pitch: str = "-8Hz
     return {"ok": True, "audio": audio, "content_type": "audio/mpeg", "engine": "edge", "voice": voice}
 
 
-def synthesize_speech(text: str, pocket=None, piper=None, piper_opts=None, voice=None, edge_voice=None, prefer_edge=False, edge_rate="-5%", edge_pitch="-8Hz") -> dict:
+def synthesize_speech(text: str, pocket=None, piper=None, piper_opts=None, voice=None, edge_voice=None, prefer_edge=False, edge_rate="+0%", edge_pitch="-8Hz") -> dict:
     """Gera áudio sem derrubar o processo. Edge neural (se pedido) → Pocket → Piper."""
     opts = piper_opts or {}
     if prefer_edge and edge_voice:
@@ -623,7 +623,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, default=8123)
     parser.add_argument("--token", default="", help="exigido no header X-Jarvis-Voice-Token quando definido")
     parser.add_argument("--pitch", type=float, default=0.94, help="<1 deixa a voz mais grave (só Piper)")
-    parser.add_argument("--tempo", type=float, default=1.02, help="compensa a duração após o pitch (só Piper)")
+    parser.add_argument("--tempo", type=float, default=1.00, help="compensa a duração após o pitch (só Piper)")
     parser.add_argument("--raw", action="store_true", help="devolve o Piper puro, sem o timbre do cockpit")
     return parser
 

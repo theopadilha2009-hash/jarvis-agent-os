@@ -1,3 +1,4 @@
+
 (() => {
   "use strict";
   const statusLine = document.getElementById("statusLine");
@@ -723,6 +724,26 @@
     if (idle) sleepUntilWake();
   };
 
+  window.__jarvisOnActionResult = function(result) {
+    if (!result) return;
+    say("JARVIS", result);
+    paintHeard(result);
+    try {
+      if (lastAnswer) {
+        lastAnswer.textContent = result;
+        lastAnswer.hidden = false;
+      }
+    } catch(e){}
+  };
+
+  document.querySelectorAll(".btn-chip").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const act = btn.getAttribute("data-action");
+      if (act) fireAsk(act);
+    });
+  });
+
+
   function foldSpeech(text) {
     return String(text || "")
       .toLocaleLowerCase("pt-BR")
@@ -806,6 +827,18 @@
     const clip = String(command || "").replace(/\s+/g, " ").trim();
     if (!clip) return;
     const folded = foldSpeech(clip);
+    try {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.jarvisAction) {
+        window.webkit.messageHandlers.jarvisAction.postMessage(clip);
+      }
+    } catch(e){}
+    if (/(?:vai|va)\s+dormir|desliga(?:r)?(?:\s+o)?\s*(?:jarvis)?|fechar?\s*(?:o)?\s*jarvis|encerrar?\s*(?:o)?\s*jarvis/i.test(folded)) {
+      say("Desligando.", "Até logo, senhor.");
+      speak("Até logo, senhor. Desligando.");
+      window.setTimeout(() => nativeWindow("shutdown"), 1800);
+      return;
+    }
+
     if (folded === foldSpeech(lastAsked) && Date.now() - lastAskedAt < 4000) return;
     if (isLookAsk(clip)) {
       lastAsked = clip;
@@ -1034,6 +1067,30 @@
     minimizeButton.hidden = !hasNativeListen();
     minimizeButton.addEventListener("click", () => parkNow());
   }
+  const btnMacClose = document.getElementById("btnMacClose");
+  if (btnMacClose) {
+    btnMacClose.addEventListener("click", (e) => {
+      e.stopPropagation();
+      nativeWindow("shutdown");
+    });
+  }
+  const btnMacMin = document.getElementById("btnMacMin");
+  if (btnMacMin) {
+    btnMacMin.addEventListener("click", (e) => {
+      e.stopPropagation();
+      nativeWindow("minimize");
+      if (window.__jarvisSetIdle) window.__jarvisSetIdle(true);
+    });
+  }
+  const btnMacZoom = document.getElementById("btnMacZoom");
+  if (btnMacZoom) {
+    btnMacZoom.addEventListener("click", (e) => {
+      e.stopPropagation();
+      nativeWindow("zoom");
+      extras.hidden = !extras.hidden;
+      moreButton.textContent = extras.hidden ? "mais" : "fechar";
+    });
+  }
   function toggleMeeting() {
     meeting = !meeting;
     document.documentElement.classList.toggle("meeting", meeting);
@@ -1244,3 +1301,5 @@
     window.setInterval(paint, 2000);
   }
 })();
+
+

@@ -95,9 +95,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var lastKickAt: TimeInterval = 0
     private var voiceMisses = 0
     private var speakingNow = false
+    private var webViewReady = false
+    private var voiceReady = false
+    private var greeted = false
     private let idleHideAfter: TimeInterval = 12
     private let kickCooldown: TimeInterval = 90
     private let fullSize = NSSize(width: 268, height: 380)
+    private let zoomSize = NSSize(width: 320, height: 560)
+    private var isZoomed = false
     private let orbSize = NSSize(width: 72, height: 72)
     private let replySize = NSSize(width: 220, height: 84)
     private var replyChip = ""
@@ -140,9 +145,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             self?.pokeVoice()
             self?.voiceTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
                 self?.pokeVoice()
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
-                self?.maybeMorningHello()
             }
         }
     }
@@ -248,6 +250,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         } else if message.name == "jarvisWindow" {
             if body == "hide" || body == "minimize" {
                 hideWindow()
+            } else if body == "shutdown" || body == "quit" || body == "close" || body == "exit" {
+                NSApplication.shared.terminate(nil)
+            } else if body == "zoom" || body == "toggleSize" || body == "maximize" {
+                toggleZoom()
             } else if body == "focus" {
                 revealWindow(takeFocus: true)
             } else if body == "show" {
@@ -258,6 +264,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 saveToken(String(body.dropFirst(6)))
             } else {
                 resetIdle()
+            }
+        } else if message.name == "jarvisAction" {
+            let cmd = String(describing: message.body)
+            let script = self.actionsScriptPath()
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+                proc.arguments = [
+                    script,
+                    cmd
+                ]
+                let pipe = Pipe()
+                proc.standardOutput = pipe
+                try? proc.run()
+                proc.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !output.isEmpty,
+                   !output.contains("Comando não reconhecido") {
+                    DispatchQueue.main.async {
+                        self?.speakNative(output)
+                        self?.webView?.evaluateJavaScript(
+                            "window.__jarvisOnActionResult && window.__jarvisOnActionResult(\(self?.jsString(output) ?? "\"\""))",
+                            completionHandler: nil
+                        )
+                    }
+                }
             }
         } else if message.name == "jarvisSee" {
             captureScreen { [weak self] payload in
@@ -310,14 +343,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
     }
 
+    private func toggleZoom() {
+        guard let window, !compact else { return }
+        isZoomed.toggle()
+        let target = isZoomed ? zoomSize : fullSize
+        layouting = true
+        window.setFrame(frameKeepingPlace(target), display: true, animate: true)
+        layouting = false
+    }
+
+    private func actionsScriptPath() -> String {
+        let candidates = [
+            "/Users/usuario1/Projetos pessoais/jarvis/11_SCRIPTS/jarvis_actions.py",
+            "/Users/usuario1/orca/workspaces/Terminal/ultron-opus-redo/11_SCRIPTS/jarvis_actions.py"
+        ]
+        for path in candidates where FileManager.default.fileExists(atPath: path) {
+            return path
+        }
+        return "/Users/usuario1/Projetos pessoais/jarvis/11_SCRIPTS/jarvis_actions.py"
+    }
+
     private func setCompact(_ on: Bool) {
         guard let window else { return }
         if window.isMiniaturized { window.deminiaturize(nil) }
         compact = on
+        if on { isZoomed = false }
         window.level = .floating
         paintChrome(on)
         layouting = true
-        window.setFrame(frameKeepingPlace(on ? compactFrameSize() : fullSize), display: true, animate: true)
+        let targetSize = on ? compactFrameSize() : (isZoomed ? zoomSize : fullSize)
+        window.setFrame(frameKeepingPlace(targetSize), display: true, animate: true)
         layouting = false
         paintChrome(on)
         let flag = on ? "true" : "false"
@@ -369,6 +424,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 if ok {
                     self.voiceMisses = 0
                     self.tellJS("voice:ok")
+                    self.voiceReady = true
+                    self.checkAllReadyAndGreet()
                     return
                 }
                 if self.speakingNow { return }
@@ -420,6 +477,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         else { setCompact(true) }
     }
 
+    
+    private func checkAllReadyAndGreet() {
+        guard webViewReady && voiceReady && !greeted else { return }
+        greeted = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.maybeMorningHello()
+        }
+    }
     private func maybeMorningHello() {
         let now = Date()
         let hour = Calendar.current.component(.hour, from: now)
@@ -510,6 +575,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if wantListen { startListen() }
+        webViewReady = true
+        checkAllReadyAndGreet()
         if let token = UserDefaults.standard.string(forKey: tokenKey), !token.isEmpty {
             webView.evaluateJavaScript(
                 "try{localStorage.setItem('jarvis-owner-token-v1',\(jsString(token)));}catch(e){}",
@@ -959,6 +1026,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private func deliverHeard(_ text: String, final: Bool) {
+        let clean = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current).lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.contains("vai dormir") || clean.contains("va dormir") || clean.contains("desliga jarvis") || clean.contains("desligar jarvis") || clean.contains("desligar o jarvis") || clean.contains("fechar jarvis") || clean.contains("fecha o jarvis") || clean.contains("desligar completamente") || clean == "desligar" || clean == "fechar" {
+            if final {
+                speakNative("Até logo, senhor. Desligando.")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                    NSApp.terminate(nil)
+                }
+            }
+            return
+        }
+        if clean.contains("antigravity") && (clean.contains("projeto") || clean.contains("abre") || clean.contains("abrir") || clean.contains("pasta")) {
+            if final {
+                handleOpenAntigravity(speech: text)
+            }
+            return
+        }
+        if final {
+            let script = self.actionsScriptPath()
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+                proc.arguments = [
+                    script,
+                    text
+                ]
+                let pipe = Pipe()
+                proc.standardOutput = pipe
+                try? proc.run()
+                proc.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !output.isEmpty,
+                   !output.contains("Comando não reconhecido") {
+                    DispatchQueue.main.async {
+                        self?.speakNative(output)
+                    }
+                }
+            }
+        }
         lastPartial = text
         lastWasFinal = final
         if containsWake(text) {
@@ -1006,6 +1112,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         return URL(string: raw) ?? URL(string: fallbackURL)!
     }
 
+    
+    private func handleOpenAntigravity(speech: String) {
+        let lower = speech.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current).lowercased()
+        var target = ""
+        if let r = lower.range(of: "projeto") {
+            target = String(lower[r.upperBound...])
+        } else if let r = lower.range(of: "antigravity") {
+            target = String(lower[r.upperBound...])
+        }
+        target = target.replacingOccurrences(of: "da", with: "")
+            .replacingOccurrences(of: "do", with: "")
+            .replacingOccurrences(of: "de", with: "")
+            .replacingOccurrences(of: "no", with: "")
+            .replacingOccurrences(of: "na", with: "")
+            .replacingOccurrences(of: "em", with: "")
+            .replacingOccurrences(of: "antigravity", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = target.replacingOccurrences(of: " ", with: "")
+        let searchDirs = [
+            "/Users/usuario1/Projetos pessoais",
+            "/Users/usuario1/VAMOOAIPROD",
+            "/Users/usuario1"
+        ]
+        let fm = FileManager.default
+        var foundPath: String?
+        for dir in searchDirs {
+            guard let items = try? fm.contentsOfDirectory(atPath: dir) else { continue }
+            for item in items {
+                let norm = item.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                    .lowercased()
+                    .replacingOccurrences(of: "_", with: "")
+                    .replacingOccurrences(of: "-", with: "")
+                    .replacingOccurrences(of: " ", with: "")
+                if (!query.isEmpty && (norm.contains(query) || query.contains(norm))) {
+                    let full = (dir as NSString).appendingPathComponent(item)
+                    var isDir: ObjCBool = false
+                    if fm.fileExists(atPath: full, isDirectory: &isDir), isDir.boolValue {
+                        foundPath = full
+                        break
+                    }
+                }
+            }
+            if foundPath != nil { break }
+        }
+        let finalPath = foundPath ?? "/Users/usuario1/Projetos pessoais"
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        proc.arguments = ["-a", "Antigravity IDE", finalPath]
+        try? proc.run()
+        let dispName = (finalPath as NSString).lastPathComponent.replacingOccurrences(of: "_", with: " ")
+        speakNative("Abrindo o projeto \(dispName) no Antigravity, senhor.")
+    }
+
     private func makeWindow() -> NSWindow {
         let size = fullSize
         let rect = frameKeepingPlace(size)
@@ -1042,6 +1201,173 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.userContentController.add(self, name: "jarvisRestart")
         config.userContentController.add(self, name: "jarvisWindow")
         config.userContentController.add(self, name: "jarvisSee")
+        config.userContentController.add(self, name: "jarvisAction")
+        let controlsScript = """
+        (() => {
+          function injectJarvisBar() {
+            const oldBar = document.getElementById("jarvisGlobalBar");
+            if (oldBar) oldBar.remove();
+
+            if (document.getElementById("macWindowControls")) return;
+
+            if (!document.getElementById("macTrafficLightsStyle")) {
+              const style = document.createElement("style");
+              style.id = "macTrafficLightsStyle";
+              style.textContent = `
+                #macWindowControls {
+                  position: fixed;
+                  top: 14px;
+                  left: 14px;
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  z-index: 999999;
+                  padding: 0;
+                  margin: 0;
+                  user-select: none;
+                  -webkit-user-select: none;
+                  -webkit-app-region: no-drag;
+                }
+                .traffic-dot {
+                  width: 12px;
+                  height: 12px;
+                  border-radius: 50%;
+                  border: none;
+                  outline: none;
+                  padding: 0;
+                  margin: 0;
+                  cursor: pointer;
+                  position: relative;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  box-shadow: 0 0.5px 1px rgba(0,0,0,0.35);
+                  transition: transform 0.1s ease, filter 0.15s ease;
+                }
+                .traffic-dot:active {
+                  transform: scale(0.92);
+                }
+                .traffic-dot-close {
+                  background-color: #ff5f56;
+                  border: 0.5px solid #e0443e;
+                }
+                .traffic-dot-close:active {
+                  background-color: #bf4942;
+                }
+                .traffic-dot-min {
+                  background-color: #ffbd2e;
+                  border: 0.5px solid #dea123;
+                }
+                .traffic-dot-min:active {
+                  background-color: #bf8e22;
+                }
+                .traffic-dot-zoom {
+                  background-color: #27c93f;
+                  border: 0.5px solid #1aab29;
+                }
+                .traffic-dot-zoom:active {
+                  background-color: #1d9730;
+                }
+                .traffic-dot::after {
+                  content: '';
+                  position: absolute;
+                  opacity: 0;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                  line-height: 12px;
+                  text-align: center;
+                  transition: opacity 0.15s ease;
+                  pointer-events: none;
+                }
+                #macWindowControls:hover .traffic-dot::after {
+                  opacity: 0.75;
+                }
+                #macWindowControls:hover .traffic-dot:hover::after {
+                  opacity: 1;
+                }
+                .traffic-dot-close::after {
+                  content: '✕';
+                  font-size: 7.5px;
+                  font-weight: 900;
+                  color: #4d0000;
+                }
+                .traffic-dot-min::after {
+                  content: '—';
+                  font-size: 7.5px;
+                  font-weight: 900;
+                  color: #5c3b00;
+                }
+                .traffic-dot-zoom::after {
+                  content: '＋';
+                  font-size: 7.5px;
+                  font-weight: 900;
+                  color: #004708;
+                }
+                .idle-orb #macWindowControls {
+                  display: none !important;
+                }
+              `;
+              document.head.appendChild(style);
+            }
+
+            const bar = document.createElement("div");
+            bar.id = "macWindowControls";
+            bar.setAttribute("aria-label", "Controles da janela JARVIS");
+
+            const btnClose = document.createElement("button");
+            btnClose.className = "traffic-dot traffic-dot-close";
+            btnClose.id = "btnMacClose";
+            btnClose.title = "Desligar JARVIS";
+            btnClose.setAttribute("aria-label", "Desligar JARVIS");
+            btnClose.onclick = (e) => {
+              e.stopPropagation();
+              try { window.webkit.messageHandlers.jarvisWindow.postMessage("shutdown"); } catch(e){}
+            };
+
+            const btnMin = document.createElement("button");
+            btnMin.className = "traffic-dot traffic-dot-min";
+            btnMin.id = "btnMacMin";
+            btnMin.title = "Minimizar para bolinha";
+            btnMin.setAttribute("aria-label", "Minimizar para bolinha");
+            btnMin.onclick = (e) => {
+              e.stopPropagation();
+              try { window.webkit.messageHandlers.jarvisWindow.postMessage("minimize"); } catch(e){}
+            };
+
+            const btnZoom = document.createElement("button");
+            btnZoom.className = "traffic-dot traffic-dot-zoom";
+            btnZoom.id = "btnMacZoom";
+            btnZoom.title = "Alternar tamanho";
+            btnZoom.setAttribute("aria-label", "Alternar tamanho");
+            btnZoom.onclick = (e) => {
+              e.stopPropagation();
+              try { window.webkit.messageHandlers.jarvisWindow.postMessage("zoom"); } catch(e){}
+              const extras = document.getElementById("extras");
+              if (extras) {
+                extras.hidden = !extras.hidden;
+              }
+            };
+
+            bar.appendChild(btnClose);
+            bar.appendChild(btnMin);
+            bar.appendChild(btnZoom);
+            document.body.appendChild(bar);
+
+            const obs = new MutationObserver(() => {
+              const isOrb = document.documentElement.classList.contains("idle-orb");
+              bar.style.display = isOrb ? "none" : "flex";
+            });
+            obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+          }
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", injectJarvisBar);
+          } else {
+            injectJarvisBar();
+          }
+        })();
+        """
+        config.userContentController.addUserScript(
+            WKUserScript(source: controlsScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        )
         if let token = UserDefaults.standard.string(forKey: tokenKey), !token.isEmpty {
             let source = "try{localStorage.setItem('jarvis-owner-token-v1',\(jsString(token)));}catch(e){}"
             config.userContentController.addUserScript(
