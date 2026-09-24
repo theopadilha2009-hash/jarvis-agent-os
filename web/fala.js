@@ -390,7 +390,7 @@
     const folded = foldSpeech(text);
     if (!folded || folded.length < 3) return false;
     if (WAKE_NAME.test(folded)) return true;
-    return /\b(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|spotify|whatsapp|youtube|google|hora|horas|data|pesquisa|busca|procura|volume|proximo|proxima|calendario|agenda|gmail|maps|mapa|silencio|quieto|cala|foco|ocupado|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|tela|vendo)\b/.test(folded);
+    return /\b(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|spotify|whatsapp|youtube|google|hora|horas|data|pesquisa|busca|procura|volume|proximo|proxima|calendario|agenda|gmail|maps|mapa|silencio|quieto|cala|foco|ocupado|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|tela|vendo|bateria|clima|tempo|previsao|rede|wifi|velocidade|cotacao|dolar|euro|bitcoin|specs|hardware|noticias|tech|wiki|qr)\b/.test(folded);
   }
 
   function expandCommands(text) {

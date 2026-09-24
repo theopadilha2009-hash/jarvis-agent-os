@@ -76,6 +76,19 @@ INTENT_MESSAGE_SEND = "message_send"
 INTENT_MEMORY_SAVE = "memory_save"
 INTENT_STORAGE_SCAN = "storage_scan"
 INTENT_FILES_TRIAGE = "files_triage"
+INTENT_BATTERY = "battery"
+INTENT_SYSTEM_VOLUME = "system_volume"
+INTENT_WIFI_INFO = "wifi_info"
+INTENT_WIFI_PASSWORDS = "wifi_passwords"
+INTENT_MAC_SPECS = "mac_specs"
+INTENT_NETWORK_QUALITY = "network_quality"
+INTENT_WEATHER = "weather"
+INTENT_QR = "qr"
+INTENT_CRYPTO_STOCK = "crypto_stock"
+INTENT_TECH_BRIEF = "tech_brief"
+INTENT_WIKI = "wiki"
+INTENT_WORKSPACE = "workspace"
+INTENT_FILE_ORGANIZE = "file_organize"
 INTENT_UNCLEAR = "unclear"
 
 SAFETY_READONLY = "readonly"
@@ -245,6 +258,45 @@ INTENT_PATTERNS = [
     (INTENT_FILES_TRIAGE, re.compile(
         r"(?i)\b(organizar? arquivos?|arrumar? (?:a pasta|os arquivos|downloads)|"
         r"organizar? downloads|triagem de arquivos|separar? arquivos? por tipo)\b"
+    )),
+    (INTENT_BATTERY, re.compile(
+        r"(?i)\b(bateria|carga da bateria|nível da bateria|nivel da bateria|battery|porcentagem da bateria)\b"
+    )),
+    (INTENT_SYSTEM_VOLUME, re.compile(
+        r"(?i)\b(volume|aumenta(?:r)? o volume|abaixa(?:r)? o volume|diminui(?:r)? o volume|mutar?|desmutar?|som do sistema|mute|unmute)\b"
+    )),
+    (INTENT_WIFI_PASSWORDS, re.compile(
+        r"(?i)\b(senha(?:s)? (?:do |de )?wi[-\s]?fi|senha(?:s)? (?:da )?rede|wifi password)\b"
+    )),
+    (INTENT_WIFI_INFO, re.compile(
+        r"(?i)\b(wi[-\s]?fi|wifi|rede sem fio|qual (?:é a |minha )?rede|qual ssid|status do wifi)\b"
+    )),
+    (INTENT_MAC_SPECS, re.compile(
+        r"(?i)\b(especificaç(?:ão|ões)|especificac(?:ao|oes)|specs|sobre este mac|hardware do mac|processador do mac|chip do mac|quanta ram|mem[oó]ria ram do mac)\b"
+    )),
+    (INTENT_NETWORK_QUALITY, re.compile(
+        r"(?i)\b(velocidade da internet|qualidade da rede|teste de rede|speed test|speedtest|latência|ping da rede|como est[aá] a internet)\b"
+    )),
+    (INTENT_WEATHER, re.compile(
+        r"(?i)\b(clima|tempo|previsão do tempo|previsao do tempo|temperatura|vai chover|weather)\b"
+    )),
+    (INTENT_QR, re.compile(
+        r"(?i)\b(qr[-\s]?code|gerar? qr|criar? qr|código qr|codigo qr)\b"
+    )),
+    (INTENT_CRYPTO_STOCK, re.compile(
+        r"(?i)\b(cotaç(?:ão|ao)|preço d[eo]|preco d[eo]|crypto|cripto|bitcoin|btc|ethereum|eth|solana|ações?|acoes?|stock|bolsa|câmbio|cambio|dólar|dolar|euro)\b"
+    )),
+    (INTENT_TECH_BRIEF, re.compile(
+        r"(?i)\b(tech brief|notícias tech|noticias tech|notícias de tecnologia|noticias de tecnologia|hacker news|tech news)\b"
+    )),
+    (INTENT_WIKI, re.compile(
+        r"(?i)\b(wikipedia|wikipédia|pesquisa(?:r)? na wiki|busca(?:r)? na wiki|resumo da wiki)\b"
+    )),
+    (INTENT_WORKSPACE, re.compile(
+        r"(?i)\b(workspace|modo foco|modo dev|modo comms|modo limpo|organizar janelas|fechar distrações|fechar distracoes)\b"
+    )),
+    (INTENT_FILE_ORGANIZE, re.compile(
+        r"(?i)\b(organizar (?:a pasta |as pastas |os |o )?(?:pastas?|arquivos?|downloads?|desktop)|limpar (?:a pasta |o )?(?:downloads?|desktop)|file organize|arrumar (?:a pasta |os |o )?(?:downloads?|desktop))\b"
     )),
     # JARVIS foundation/docs/research routing.
     # Keeps requests about identity, modes, sources and architecture out of unclear.
@@ -498,6 +550,157 @@ def _next_command_for(intent: str, project: str, text: str, copy_flag):
             SAFETY_READONLY,
             True,
         )
+    if intent == INTENT_BATTERY:
+        return (
+            ["./jarvis", "battery"],
+            "./jarvis battery",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_SYSTEM_VOLUME:
+        lower = text.lower()
+        if any(w in lower for w in ("mute", "mutar", "mudo", "silenciar")):
+            return (
+                ["./jarvis", "system-volume", "--mute"],
+                "./jarvis system-volume --mute",
+                SAFETY_LOCAL_PREP,
+                True,
+            )
+        if any(w in lower for w in ("desmutar", "unmute")):
+            return (
+                ["./jarvis", "system-volume", "--unmute"],
+                "./jarvis system-volume --unmute",
+                SAFETY_LOCAL_PREP,
+                True,
+            )
+        pct_match = re.search(r"(\d{1,3})\s*%", text) or re.search(r"\b(?:para|em|no|set)\s+(\d{1,3})\b", text)
+        if pct_match:
+            pct = pct_match.group(1)
+            return (
+                ["./jarvis", "system-volume", "--set", pct],
+                f"./jarvis system-volume --set {pct}",
+                SAFETY_LOCAL_PREP,
+                True,
+            )
+        return (
+            ["./jarvis", "system-volume"],
+            "./jarvis system-volume",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_WIFI_PASSWORDS:
+        return (
+            ["./jarvis", "wifi-passwords"],
+            "./jarvis wifi-passwords",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_WIFI_INFO:
+        return (
+            ["./jarvis", "wifi-info"],
+            "./jarvis wifi-info",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_MAC_SPECS:
+        return (
+            ["./jarvis", "mac-specs"],
+            "./jarvis mac-specs",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_NETWORK_QUALITY:
+        return (
+            ["./jarvis", "network-quality"],
+            "./jarvis network-quality",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_WEATHER:
+        city_match = re.search(r"(?i)\b(?:em|de|para|na|no)\s+([a-zA-ZÀ-ÿ\s-]+)$", text.strip(" ?.!"))
+        city = city_match.group(1).strip() if city_match else ""
+        if city and city.lower() in ("hoje", "amanhã", "amanha", "agora"):
+            city = ""
+        cmd = ["./jarvis", "weather"] + ([city] if city else [])
+        human = f'./jarvis weather "{city}"' if city else "./jarvis weather"
+        return (cmd, human, SAFETY_READONLY, True)
+    if intent == INTENT_QR:
+        quoted = re.search(r'["“](.+?)["”]', text)
+        url_match = re.search(r"(https?://[^\s]+|[a-zA-Z0-9.-]+\.[a-z]{2,}[^\s]*)", text)
+        content = quoted.group(1) if quoted else (url_match.group(1) if url_match else "")
+        if not content:
+            content = re.sub(r"(?i)^\s*(?:gerar?|criar?|fazer?)\s+(?:um\s+)?(?:qr[-\s]?code|código qr)\s*(?:para|de|com)?\s*", "", text).strip(" :-\"'")
+        content = content or "https://jarvis-theo.vercel.app"
+        return (
+            ["./jarvis", "qr", content],
+            f'./jarvis qr "{content}"',
+            SAFETY_LOCAL_PREP,
+            True,
+        )
+    if intent == INTENT_CRYPTO_STOCK:
+        sym_match = re.search(r"(?i)\b(btc|bitcoin|eth|ethereum|sol|solana|aapl|apple|nvda|nvidia|tsla|tesla|dolar|dólar|euro)\b", text)
+        sym = sym_match.group(1).lower() if sym_match else ""
+        if sym in ("bitcoin", "btc"): target = "btc"
+        elif sym in ("ethereum", "eth"): target = "eth"
+        elif sym in ("solana", "sol"): target = "sol"
+        elif sym in ("apple", "aapl"): target = "aapl"
+        elif sym in ("nvidia", "nvda"): target = "nvda"
+        elif sym in ("tesla", "tsla"): target = "tsla"
+        elif sym in ("dolar", "dólar"): target = "usd"
+        elif sym in ("euro",): target = "eur"
+        else:
+            quoted = re.search(r'["“](.+?)["”]', text)
+            target = quoted.group(1) if quoted else "btc"
+        return (
+            ["./jarvis", "crypto-stock", target],
+            f"./jarvis crypto-stock {target}",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_TECH_BRIEF:
+        return (
+            ["./jarvis", "tech-brief"],
+            "./jarvis tech-brief",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_WIKI:
+        quoted = re.search(r'["“](.+?)["”]', text)
+        term = quoted.group(1) if quoted else re.sub(
+            r"(?i)^\s*(?:pesquisa(?:r)?|busca(?:r)?|resumo)?\s*(?:na|pela|sobre)?\s*(?:wiki(?:pedia|pédia)?)\s*(?:sobre|de)?\s*",
+            "",
+            text
+        ).strip(" :-?\"'")
+        term = term or "Inteligência Artificial"
+        return (
+            ["./jarvis", "wiki", term],
+            f'./jarvis wiki "{term}"',
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_WORKSPACE:
+        lower = text.lower()
+        profile = "clean" if any(w in lower for w in ("clean", "limpo")) else (
+            "dev" if any(w in lower for w in ("dev", "desenvolvimento", "código", "codigo")) else (
+                "comms" if any(w in lower for w in ("comms", "comunicação", "reunião", "reuniao")) else "foco"
+            )
+        )
+        return (
+            ["./jarvis", "workspace", profile],
+            f"./jarvis workspace {profile}",
+            SAFETY_LOCAL_PREP,
+            True,
+        )
+    if intent == INTENT_FILE_ORGANIZE:
+        target = str(Path.home() / "Downloads") if "download" in text.lower() else (
+            str(Path.home() / "Desktop") if any(w in text.lower() for w in ("desktop", "área de trabalho", "area de trabalho")) else "."
+        )
+        return (
+            ["./jarvis", "file-organize", target, "--dry-run"],
+            f"./jarvis file-organize {target} --dry-run",
+            SAFETY_READONLY,
+            True,
+        )
     if intent == INTENT_SELF_EVOLVE:
         return (
             ["./jarvis", "self-evolve", "--goal", text] + (["--copy"] if copy_flag else []),
@@ -678,6 +881,19 @@ def _explain_intent(intent: str) -> str:
         INTENT_MEMORY_SAVE: "memória operacional local e versionável",
         INTENT_STORAGE_SCAN: "inventário read-only de arquivos grandes — nunca apaga",
         INTENT_FILES_TRIAGE: "plano read-only de organização por tipo — nunca move",
+        INTENT_BATTERY: "telemetria de bateria local (porcentagem, saúde e tempo restante)",
+        INTENT_SYSTEM_VOLUME: "controle e consulta do volume do sistema macOS",
+        INTENT_WIFI_PASSWORDS: "senhas salvas de redes Wi-Fi locais",
+        INTENT_WIFI_INFO: "status e diagnóstico da rede Wi-Fi ativa",
+        INTENT_MAC_SPECS: "especificações completas de hardware, CPU, RAM e disco do Mac",
+        INTENT_NETWORK_QUALITY: "teste local de latência e responsividade de rede",
+        INTENT_WEATHER: "previsão meteorológica e clima atual em tempo real",
+        INTENT_QR: "gerador local autônomo de códigos QR em SVG e terminal",
+        INTENT_CRYPTO_STOCK: "cotações em tempo real de ativos e moedas",
+        INTENT_TECH_BRIEF: "briefing diário das principais manchetes de tecnologia",
+        INTENT_WIKI: "consulta enciclopédica e resumo de tópicos via Wikipédia",
+        INTENT_WORKSPACE: "configuração rápida de ambiente de trabalho (foco, dev, comms, clean)",
+        INTENT_FILE_ORGANIZE: "organização estruturada de arquivos por categoria com simulação segura",
         INTENT_UNCLEAR: "intent não classificada — caindo em self-cockpit como fallback (auto-logged)",
     }.get(intent, intent)
 

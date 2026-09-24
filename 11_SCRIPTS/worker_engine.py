@@ -85,6 +85,19 @@ try:
         INTENT_MEMORY_SAVE,
         INTENT_STORAGE_SCAN,
         INTENT_FILES_TRIAGE,
+        INTENT_BATTERY,
+        INTENT_SYSTEM_VOLUME,
+        INTENT_WIFI_INFO,
+        INTENT_WIFI_PASSWORDS,
+        INTENT_MAC_SPECS,
+        INTENT_NETWORK_QUALITY,
+        INTENT_WEATHER,
+        INTENT_QR,
+        INTENT_CRYPTO_STOCK,
+        INTENT_TECH_BRIEF,
+        INTENT_WIKI,
+        INTENT_WORKSPACE,
+        INTENT_FILE_ORGANIZE,
         INTENT_UNCLEAR,
     )
     from secret_scan import SECRET_PATTERNS  # type: ignore
@@ -116,6 +129,19 @@ except Exception:
     INTENT_MEMORY_SAVE = "memory_save"
     INTENT_STORAGE_SCAN = "storage_scan"
     INTENT_FILES_TRIAGE = "files_triage"
+    INTENT_BATTERY = "battery"
+    INTENT_SYSTEM_VOLUME = "system_volume"
+    INTENT_WIFI_INFO = "wifi_info"
+    INTENT_WIFI_PASSWORDS = "wifi_passwords"
+    INTENT_MAC_SPECS = "mac_specs"
+    INTENT_NETWORK_QUALITY = "network_quality"
+    INTENT_WEATHER = "weather"
+    INTENT_QR = "qr"
+    INTENT_CRYPTO_STOCK = "crypto_stock"
+    INTENT_TECH_BRIEF = "tech_brief"
+    INTENT_WIKI = "wiki"
+    INTENT_WORKSPACE = "workspace"
+    INTENT_FILE_ORGANIZE = "file_organize"
     INTENT_UNCLEAR = "unclear"
 
     def _di(text): return INTENT_UNCLEAR
@@ -628,8 +654,38 @@ def choose_route(text, intent, project, capability_hint, mode, project_override=
         INTENT_MEMORY_SAVE,
         INTENT_STORAGE_SCAN,
         INTENT_FILES_TRIAGE,
+        INTENT_BATTERY,
+        INTENT_SYSTEM_VOLUME,
+        INTENT_WIFI_INFO,
+        INTENT_WIFI_PASSWORDS,
+        INTENT_MAC_SPECS,
+        INTENT_NETWORK_QUALITY,
+        INTENT_WEATHER,
+        INTENT_QR,
+        INTENT_CRYPTO_STOCK,
+        INTENT_TECH_BRIEF,
+        INTENT_WIKI,
+        INTENT_WORKSPACE,
+        INTENT_FILE_ORGANIZE,
     ):
-        risk = RISK_READ_ONLY if intent in (INTENT_IMAGE_TO_PDF, INTENT_STORAGE_SCAN, INTENT_FILES_TRIAGE) else RISK_RUNTIME_WRITE
+        risk = (
+            RISK_READ_ONLY
+            if intent in (
+                INTENT_IMAGE_TO_PDF,
+                INTENT_STORAGE_SCAN,
+                INTENT_FILES_TRIAGE,
+                INTENT_BATTERY,
+                INTENT_WIFI_INFO,
+                INTENT_WIFI_PASSWORDS,
+                INTENT_MAC_SPECS,
+                INTENT_NETWORK_QUALITY,
+                INTENT_WEATHER,
+                INTENT_CRYPTO_STOCK,
+                INTENT_TECH_BRIEF,
+                INTENT_WIKI,
+            )
+            else RISK_RUNTIME_WRITE
+        )
         return (ROUTE_PERSONAL, risk)
     if intent in (INTENT_PROJECT_FIX, INTENT_PROJECT_QA,
                   INTENT_BROWSER_QA, INTENT_FINAL_GATE, INTENT_OPEN_PROJECT):
@@ -896,6 +952,112 @@ def plan_personal(text, intent, dry_run):
     if intent == INTENT_FILES_TRIAGE:
         cmd = ["./jarvis", "files-triage", scan_path, "--limit", "100"]
         return [("Plano read-only de organização", cmd, None)], "revise o plano; nenhum arquivo foi movido", None, {}
+
+    if intent == INTENT_BATTERY:
+        cmd = ["./jarvis", "battery"]
+        return [("Telemetria da bateria", cmd, None)], "./jarvis battery", None, {}
+
+    if intent == INTENT_SYSTEM_VOLUME:
+        lower = text.lower()
+        if any(w in lower for w in ("mute", "mutar", "mudo", "silenciar")):
+            cmd = ["./jarvis", "system-volume", "--mute"]
+            return [("Mutar volume do sistema", cmd, None)], "./jarvis system-volume --mute", None, {}
+        if any(w in lower for w in ("desmutar", "unmute")):
+            cmd = ["./jarvis", "system-volume", "--unmute"]
+            return [("Desmutar volume do sistema", cmd, None)], "./jarvis system-volume --unmute", None, {}
+        match = re.search(r"(\d{1,3})\s*%", text) or re.search(r"\b(?:para|em|no|set)\s+(\d{1,3})\b", text)
+        if match:
+            val = match.group(1)
+            cmd = ["./jarvis", "system-volume", "--set", val]
+            return [(f"Ajustar volume do sistema para {val}%", cmd, None)], f"./jarvis system-volume --set {val}", None, {}
+        cmd = ["./jarvis", "system-volume"]
+        return [("Consultar volume do sistema", cmd, None)], "./jarvis system-volume", None, {}
+
+    if intent == INTENT_WIFI_PASSWORDS:
+        cmd = ["./jarvis", "wifi-passwords"]
+        return [("Consultar senhas de Wi-Fi salvas no Mac", cmd, None)], "./jarvis wifi-passwords", None, {}
+
+    if intent == INTENT_WIFI_INFO:
+        cmd = ["./jarvis", "wifi-info"]
+        return [("Informações de conexão Wi-Fi", cmd, None)], "./jarvis wifi-info", None, {}
+
+    if intent == INTENT_MAC_SPECS:
+        cmd = ["./jarvis", "mac-specs"]
+        return [("Especificações de hardware e sistema do Mac", cmd, None)], "./jarvis mac-specs", None, {}
+
+    if intent == INTENT_NETWORK_QUALITY:
+        cmd = ["./jarvis", "network-quality"]
+        return [("Teste de velocidade e qualidade de rede", cmd, None)], "./jarvis network-quality", None, {}
+
+    if intent == INTENT_WEATHER:
+        city_match = re.search(r"(?i)\b(?:em|de|para|na|no)\s+([a-zA-ZÀ-ÿ\s-]+)$", text.strip(" ?.!"))
+        city = city_match.group(1).strip() if city_match else ""
+        cmd = ["./jarvis", "weather"]
+        if city and city.lower() not in ("hoje", "amanhã", "amanha", "agora"):
+            cmd.append(city)
+        human = " ".join(cmd)
+        return [("Previsão meteorológica", cmd, None)], human, None, {}
+
+    if intent == INTENT_QR:
+        quoted = re.search(r'["“](.+?)["”]', text)
+        url_match = re.search(r"(https?://[^\s]+|[a-zA-Z0-9.-]+\.[a-z]{2,}[^\s]*)", text)
+        content = quoted.group(1) if quoted else (url_match.group(1) if url_match else "")
+        if not content:
+            content = re.sub(r"(?i)^\s*(?:gerar?|criar?|fazer?)\s+(?:um\s+)?(?:qr[-\s]?code|código qr)\s*(?:para|de|com)?\s*", "", text).strip(" :-\"'")
+        content = content or "https://jarvis-theo.vercel.app"
+        cmd = ["./jarvis", "qr", content]
+        return [("Gerar QR Code local", cmd, None)], f'./jarvis qr "{content}"', None, {}
+
+    if intent == INTENT_CRYPTO_STOCK:
+        sym_match = re.search(r"(?i)\b(btc|bitcoin|eth|ethereum|sol|solana|aapl|apple|nvda|nvidia|tsla|tesla|dolar|dólar|euro)\b", text)
+        sym = sym_match.group(1).lower() if sym_match else ""
+        if sym in ("bitcoin", "btc"): target = "btc"
+        elif sym in ("ethereum", "eth"): target = "eth"
+        elif sym in ("solana", "sol"): target = "sol"
+        elif sym in ("apple", "aapl"): target = "aapl"
+        elif sym in ("nvidia", "nvda"): target = "nvda"
+        elif sym in ("tesla", "tsla"): target = "tsla"
+        elif sym in ("dolar", "dólar"): target = "usd"
+        elif sym in ("euro",): target = "eur"
+        else:
+            quoted = re.search(r'["“](.+?)["”]', text)
+            target = quoted.group(1) if quoted else "btc"
+        cmd = ["./jarvis", "crypto-stock", target]
+        return [(f"Cotação em tempo real de {target.upper()}", cmd, None)], f"./jarvis crypto-stock {target}", None, {}
+
+    if intent == INTENT_TECH_BRIEF:
+        cmd = ["./jarvis", "tech-brief"]
+        return [("Briefing de notícias tech", cmd, None)], "./jarvis tech-brief", None, {}
+
+    if intent == INTENT_WIKI:
+        quoted = re.search(r'["“](.+?)["”]', text)
+        term = quoted.group(1) if quoted else re.sub(
+            r"(?i)^\s*(?:pesquisa(?:r)?|busca(?:r)?|resumo)?\s*(?:na|pela|sobre)?\s*(?:wiki(?:pedia|pédia)?)\s*(?:sobre|de)?\s*",
+            "",
+            text
+        ).strip(" :-?\"'")
+        term = term or "Inteligência Artificial"
+        cmd = ["./jarvis", "wiki", term]
+        return [(f'Consulta enciclopédica na Wikipédia para "{term}"', cmd, None)], f'./jarvis wiki "{term}"', None, {}
+
+    if intent == INTENT_WORKSPACE:
+        lower = text.lower()
+        profile = "clean" if any(w in lower for w in ("clean", "limpo")) else (
+            "dev" if any(w in lower for w in ("dev", "desenvolvimento", "código", "codigo")) else (
+                "comms" if any(w in lower for w in ("comms", "comunicação", "reunião", "reuniao")) else "foco"
+            )
+        )
+        cmd = ["./jarvis", "workspace", profile]
+        return [(f"Configurar perfil de workspace: {profile}", cmd, None)], f"./jarvis workspace {profile}", None, {}
+
+    if intent == INTENT_FILE_ORGANIZE:
+        target = str(Path.home() / "Downloads") if "download" in text.lower() else (
+            str(Path.home() / "Desktop") if any(w in text.lower() for w in ("desktop", "área de trabalho", "area de trabalho")) else "."
+        )
+        cmd = ["./jarvis", "file-organize", target]
+        if dry_run or "--confirm" not in text:
+            cmd.append("--dry-run")
+        return [("Organização de arquivos por categoria", cmd, None)], f"./jarvis file-organize {target} --dry-run", None, {}
     return [], None, "Ferramenta pessoal não reconhecida.", {}
 
 

@@ -79,8 +79,8 @@ def load_project(alias):
 def resolve_project_path(project):
     path = Path(str(project["path"])).expanduser()
     if not path.is_absolute():
-        path = ROOT / path
-    return path.resolve()
+        path = (ROOT / path).resolve()
+    return path
 
 
 def _pbcopy(text: str) -> bool:

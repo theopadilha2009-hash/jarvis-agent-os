@@ -94,7 +94,7 @@ def find_projects():
             if score > 0:
                 projects.append({
                     "path": p,
-                    "name": p.name,
+                    "name": p.name.lower(),
                     "score": score,
                     "reasons": reasons,
                 })

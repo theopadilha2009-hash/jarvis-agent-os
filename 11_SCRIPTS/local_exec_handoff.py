@@ -54,7 +54,7 @@ def find_projects():
                 reasons.append("json")
 
             if score > 0:
-                projects.append({"path": p, "name": p.name, "score": score, "reasons": reasons})
+                projects.append({"path": p, "name": p.name.lower(), "score": score, "reasons": reasons})
 
     return sorted(projects, key=lambda x: x["score"], reverse=True)
 

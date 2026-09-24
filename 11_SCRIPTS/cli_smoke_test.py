@@ -912,7 +912,7 @@ CHECKS = [
             "Project Intel",
             "alias: oficina",
             "## Package manager",
-            "bun",
+            "detectado:",
             "Produção: nada alterado",
         ],
     },
