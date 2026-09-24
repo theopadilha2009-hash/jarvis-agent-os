@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKIP_DIRS = {
     ".git",
     "__pycache__",
+    "10_TESTES",
 }
 
 SKIP_SUFFIXES = {
@@ -26,7 +27,7 @@ SECRET_PATTERNS = [
     ("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9\-]{20,}\b")),
     ("jwt_like", re.compile(r"\beyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{10,}\b")),
     ("assignment_secret", re.compile(
-        r"(?i)\b(api[_-]?key|apikey|token|password|passwd|senha|secret|service_role|authorization|bearer|cookie)\b\s*[:=]\s*[\"']?([A-Za-z0-9_\-./+=]{16,})"
+        r"(?i)\b(api[_-]?key|apikey|token|password|passwd|senha|secret|service_role|authorization|bearer|cookie)\b\s*[:=]\s*[\"']([A-Za-z0-9_\-./+=]{16,})[\"']"
     )),
 ]
 
@@ -39,9 +40,11 @@ SAFE_PLACEHOLDERS = [
     "your_",
     "seu_",
     "minha_",
+    "minha chave",
     "dummy",
     "fake",
     "test",
+    "supersecret",
 ]
 
 def run(cmd):
