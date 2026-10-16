@@ -397,16 +397,28 @@ button {
   inset: 46% -32% -55%;
   transform: perspective(640px) rotateX(64deg);
   transform-origin: top center;
+  overflow: hidden;
+}
+
+/* O drift do grid vive num pseudo-elemento com transform: animar
+   background-position repintava um layer de 7000px por frame (85% da CPU
+   idle do cockpit — bench A/B de 16/10). Translate compositável custa ~0. */
+.grid-plane::after {
+  content: "";
+  position: absolute;
+  inset: -88px 0 0;
   background-image:
     linear-gradient(color-mix(in srgb, var(--state) 13%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--state) 13%, transparent) 1px, transparent 1px);
   background-size: 88px 88px;
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent 68%);
+  will-change: transform;
   animation: grid-drift 28s linear infinite;
 }
 
 @keyframes grid-drift {
-  to { background-position: 0 88px; }
+  from { transform: translateY(0); }
+  to { transform: translateY(88px); }
 }
 
 .environment-depth {
@@ -2533,7 +2545,8 @@ dialog::backdrop {
   }
 
   .presence::after { opacity: 0.024; }
-  .grid-plane { inset: 47% -30% -58%; background-size: 104px 104px; opacity: 0.72; }
+  .grid-plane { inset: 47% -30% -58%; opacity: 0.72; }
+  .grid-plane::after { background-size: 104px 104px; }
   .depth-horizon { top: 39%; width: min(86vw, 1340px); height: min(42vw, 620px); }
   .depth-arc-one { width: min(62vw, 920px); }
   .depth-arc-two { width: min(44vw, 660px); }
@@ -3335,7 +3348,7 @@ html[data-persona="ultron"] .stage.ultron-signal .conversation {
 @media (min-width: 941px) {
   .hud-rail { display: none !important; }
   .presence::after { opacity: 0.018; }
-  .grid-plane { animation-duration: 52s; }
+  .grid-plane::after { animation-duration: 52s; }
   .signal-bars i { animation: none; }
 
   .action-hub {
