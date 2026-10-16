@@ -41,7 +41,12 @@ class TheoChatTest(unittest.TestCase):
     def test_dry_run_does_not_call_openrouter(self):
         gateway = FakeBrain()
         output = StringIO()
-        with redirect_stdout(output):
+        # Isolar secrets como no teste vizinho: load_secrets() hidrata chaves
+        # REAIS no os.environ do processo e contamina os testes seguintes.
+        env = {k: v for k, v in os.environ.items() if not k.startswith("OPENROUTER")}
+        with patch.object(MODULE, "secret_files", return_value=[]), \
+                patch.dict(os.environ, env, clear=True), \
+                redirect_stdout(output):
             code = MODULE.execute(["--dry-run", "explica isso"], gateway=gateway)
         self.assertEqual(code, 0)
         self.assertEqual(gateway.calls, [])
