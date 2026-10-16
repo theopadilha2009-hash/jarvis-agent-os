@@ -209,8 +209,7 @@ PUBLIC_SEARCH_CACHE_SECONDS = 300.0
 DEFAULT_FREE_MODEL_POOL = (
     "nvidia/nemotron-3-super-120b-a12b:free",
     "google/gemma-4-26b-a4b-it:free",
-    "nvidia/nemotron-3-nano-30b-a3b:free",
-    "openai/gpt-oss-20b:free",
+    "google/gemma-4-31b-it:free",
     "openrouter/free",
 )
 DEFAULT_DEEP_MODEL_POOL = (
@@ -10553,11 +10552,20 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             result = send_openrouter(openrouter_payload)
         except InvalidModelBody:
             # Corpo 200 inválido tem o mesmo tratamento dos códigos de
-            # compatibilidade: tentar o próximo modelo do pool.
-            if not (openrouter_payload.get("models") and not provider_tools):
+            # compatibilidade: tentar o próximo modelo do pool. Com tools na
+            # chamada (comandos acionáveis do dono), repete sem tools — antes
+            # o erro subia cru e o comando do dono morria (P1 do diagnóstico).
+            if provider_tools:
+                fallback_payload = dict(openrouter_payload)
+                for field in ("tools", "tool_choice", "parallel_tool_calls"):
+                    fallback_payload.pop(field, None)
+                result = send_openrouter(fallback_payload)
+                tool_calling_fallback = True
+            elif openrouter_payload.get("models"):
+                result, model_routing_compatibility_attempts = send_compatible_model_fallbacks()
+                model_routing_compatibility_fallback = True
+            else:
                 raise
-            result, model_routing_compatibility_attempts = send_compatible_model_fallbacks()
-            model_routing_compatibility_fallback = True
         except HTTPError as first_error:
             error = first_error
             if first_error.code in {400, 404, 422} and openrouter_payload.get("models") and not provider_tools:

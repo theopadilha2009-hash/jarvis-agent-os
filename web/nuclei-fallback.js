@@ -63,10 +63,11 @@
 <circle cx="300" cy="300" r="176" stroke-dasharray="2 10" stroke-width="1.2"/>
 </g>
 <g class="nfx-core">
-<circle cx="300" cy="300" r="86" fill="#8a6cff" opacity=".22" filter="url(#nfxBlur)"/>
-<circle cx="300" cy="300" r="58" fill="url(#nfxGlowCore)"/>
-<circle cx="300" cy="300" r="58" fill="none" stroke="#cfc6ff" stroke-opacity=".5" stroke-width="1.2"/>
-<ellipse cx="300" cy="278" rx="30" ry="12" fill="#efe9ff" opacity=".35"/>
+<circle cx="300" cy="300" r="96" fill="#8a6cff" opacity=".16" filter="url(#nfxBlur)"/>
+<circle class="nfx-ring nfx-fast" cx="300" cy="300" r="64" fill="none" stroke="#8a6cff" stroke-opacity=".55" stroke-width="10" stroke-dasharray="196 206" stroke-linecap="round"/>
+<circle class="nfx-ring nfx-mid" cx="300" cy="300" r="46" fill="none" stroke="#7fb6ff" stroke-opacity=".45" stroke-width="5" stroke-dasharray="12 22" stroke-linecap="round"/>
+<circle cx="300" cy="300" r="16" fill="url(#nfxGlowCore)"/>
+<circle cx="300" cy="300" r="6" fill="#efe9ff"/>
 </g>
 <g class="nfx-orbit nfx-orbit-1">
 <g transform="translate(300 88)">
