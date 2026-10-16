@@ -32,7 +32,10 @@ final class PCMConverter {
     }
 }
 
-final class OverlayWindow: NSWindow {
+// Padrão Handy: overlay é NSPanel com .nonactivatingPanel — recebe clique e
+// digitação sem ativar o app nem roubar o foco do que estava em uso. O roubo
+// de foco explícito fica isolado em revealWindow(takeFocus: true).
+final class OverlayWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }
@@ -122,6 +125,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var globalDragMonitor: Any?
     private let parkKey = "JarvisParkedOrigin"
     private let tokenKey = "JarvisOwnerToken"
+    // Padrão Handy: Secure Input de outro app bloqueia atalhos globais e o
+    // teclado seguro; sem monitor, o JARVIS falha em silêncio. O estado vai
+    // para o cockpit pelo tellJS só quando muda (sem spam a cada poll).
+    private var secureInputTimer: Timer?
+    private var secureInputActive = false
+    private var secureInputApp = ""
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))
@@ -149,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             self?.scheduleRecycle()
             self?.resetIdle()
             self?.registerHotKey()
+            self?.startSecureInputMonitor()
             self?.pokeVoice()
             self?.voiceTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
                 self?.pokeVoice()
@@ -507,6 +517,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         else { setCompact(true) }
     }
 
+    private func startSecureInputMonitor() {
+        secureInputTimer?.invalidate()
+        secureInputTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.pollSecureInput()
+        }
+    }
+
+    private func pollSecureInput() {
+        let session = CGSessionCopyCurrentDictionary() as NSDictionary?
+        var pid: Int32 = 0
+        if let raw = session?["kCGSSessionSecureInputPID"] {
+            if let num = raw as? NSNumber {
+                pid = num.int32Value
+            } else if let text = raw as? String, let parsed = Int32(text) {
+                pid = parsed
+            }
+        }
+        guard pid > 0 else {
+            notifySecureInput(active: false, app: "")
+            return
+        }
+        let name = NSRunningApplication(processIdentifier: pid)?.localizedName ?? "um aplicativo"
+        notifySecureInput(active: true, app: name)
+    }
+
+    private func notifySecureInput(active: Bool, app: String) {
+        let changed = active != secureInputActive || (active && app != secureInputApp)
+        guard changed else { return }
+        secureInputActive = active
+        secureInputApp = app
+        if active {
+            tellJS("secureinput:Atalhos globais bloqueados — \(app) está segurando Secure Input")
+        } else {
+            tellJS("secureinput:off")
+        }
+        logListen("secureinput \(active ? app : "off")")
+    }
+
     
     private func checkAllReadyAndGreet() {
         guard webViewReady && voiceReady && !greeted else { return }
@@ -842,8 +890,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             return
         }
         let converter = PCMConverter()
+        hadVoiceInCycle = false
+        silenceStartedAt = 0
         input.installTap(onBus: 0, bufferSize: 4096, format: micFormat) { [weak self] buffer, _ in
             if self?.paused == true { return }
+            self?.observeSilence(buffer)
             self?.emitLevel(buffer)
             let out = analyzerFormat.flatMap { converter.convert(buffer, to: $0) } ?? buffer
             yield(out)
@@ -955,8 +1006,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             return
         }
         do {
+            hadVoiceInCycle = false
+            silenceStartedAt = 0
             input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
                 request.append(buffer)
+                self?.observeSilence(buffer)
                 self?.emitLevel(buffer)
             }
             tapInstalled = true
@@ -999,20 +1053,82 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     private var lastLevelAt: TimeInterval = 0
 
-    private func emitLevel(_ buffer: AVAudioPCMBuffer) {
-        if wakeOnly || compact { return }
-        let now = Date().timeIntervalSince1970
-        guard now - lastLevelAt > 0.4 else { return }
-        lastLevelAt = now
-        guard let data = buffer.floatChannelData?[0] else { return }
+    // Padrão Handy: auto-stop por silêncio. Depois de voz detectada (RMS acima
+    // do piso), 1.8s contínuos abaixo do piso fecham a captura corrente — o
+    // parcial pendente é entregue como final e o ciclo recomeça pelos caminhos
+    // que já existiam (clássico reinicia no recognitionTask; moderno reinicia
+    // o pipeline pelo mesmo caminho do restart do JS). Sem voz nova, nada
+    // acontece: a escuta contínua por wake word segue intacta.
+    private let silenceRmsFloor: Float = 0.008
+    private let silenceStopAfter: TimeInterval = 1.8
+    private var hadVoiceInCycle = false
+    private var silenceStartedAt: TimeInterval = 0
+    private var silenceRestarting = false
+
+    private func bufferRMS(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let data = buffer.floatChannelData?[0] else { return 0 }
         let n = Int(buffer.frameLength)
-        guard n > 0 else { return }
+        guard n > 0 else { return 0 }
         var sum: Float = 0
         for i in 0..<n {
             let v = data[i]
             sum += v * v
         }
-        let rms = sqrt(sum / Float(n))
+        return sqrt(sum / Float(n))
+    }
+
+    private func observeSilence(_ buffer: AVAudioPCMBuffer) {
+        if bufferRMS(buffer) >= silenceRmsFloor {
+            hadVoiceInCycle = true
+            silenceStartedAt = 0
+            return
+        }
+        guard hadVoiceInCycle, !silenceRestarting else { return }
+        let now = Date().timeIntervalSince1970
+        if silenceStartedAt == 0 { silenceStartedAt = now }
+        guard now - silenceStartedAt >= silenceStopAfter else { return }
+        silenceStartedAt = 0
+        hadVoiceInCycle = false
+        endCaptureOnSilence()
+    }
+
+    private func endCaptureOnSilence() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.logListen("silence stop")
+            if self.useModern {
+                self.finalizeModernOnSilence()
+            } else {
+                // Clássico: endAudio flusha o parcial; o próprio
+                // recognitionTask já reabre o ciclo em beginRecognition.
+                self.request?.endAudio()
+            }
+        }
+    }
+
+    private func finalizeModernOnSilence() {
+        guard wantListen, !silenceRestarting else { return }
+        silenceRestarting = true
+        // Fecha o stream: o transcriber finaliza o pendente e o tearDown
+        // entrega o parcial remanescente como final antes de recomeçar.
+        analyzerFinish?()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            guard let self else { return }
+            silenceRestarting = false
+            guard wantListen else { return }
+            stopModern()
+            tearDownRecognition()
+            startListen()
+        }
+    }
+
+    private func emitLevel(_ buffer: AVAudioPCMBuffer) {
+        if wakeOnly || compact { return }
+        let now = Date().timeIntervalSince1970
+        guard now - lastLevelAt > 0.4 else { return }
+        lastLevelAt = now
+        let rms = bufferRMS(buffer)
+        guard rms > 0 else { return }
         DispatchQueue.main.async { [weak self] in
             self?.tellJS(String(format: "level:%.3f", rms))
         }
@@ -1292,7 +1408,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         let rect = frameKeepingPlace(size)
         let window = OverlayWindow(
             contentRect: rect,
-            styleMask: [.borderless, .fullSizeContentView],
+            styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
