@@ -495,11 +495,10 @@ button {
   content: "GPU 3D DESATIVADA · REINICIE O CHROME";
 }
 
-/* Com o fallback SVG animado no ar, o aviso cru some — o banner do
+/* Com o fallback SVG animado no ar, o aviso cru some — o chip do
    nuclei-fallback explica os passos de recuperação com link. */
-.model-error.nuclei-live .avatar::before,
-.model-error.gpu-error.nuclei-live .avatar::before {
-  content: none;
+.avatar.nuclei-live::before {
+  content: none !important;
 }
 .nuclei-live .nucleus-legend {
   visibility: hidden;

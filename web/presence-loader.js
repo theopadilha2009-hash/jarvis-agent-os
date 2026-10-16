@@ -20,7 +20,7 @@ const loadPresence = async () => {
   const [auroraResult, strandsResult, module3d] = await Promise.all([
     settle(import("/ui/aurora.js?v=20260813-apitools1")),
     settle(import("/ui/strands.js?v=20260813-apitools1")),
-    settle(import("/ui/jarvis-3d.js?v=20261016-svgfb").catch((error) => {
+    settle(import("/ui/jarvis-3d.js?v=20261016-draco1").catch((error) => {
       window.JarvisNucleiFallback?.mount(
         /webgl|context/i.test(String(error)) ? "WebGL indisponível neste navegador." : "Cena 3D não carregou.",
       );
