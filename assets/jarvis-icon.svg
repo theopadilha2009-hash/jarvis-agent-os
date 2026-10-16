@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- JARVIS icon: orbe (anel violeta -> azul gelo) sobre fundo escuro. Geometria do template Apple (corpo 824, raio 185). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0912"/>
+      <stop offset="1" stop-color="#1a1430"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a6cff"/>
+      <stop offset="1" stop-color="#7fb6ff"/>
+    </linearGradient>
+    <radialGradient id="glass" cx="0.5" cy="0.42" r="0.65">
+      <stop offset="0" stop-color="#171226"/>
+      <stop offset="1" stop-color="#0d0a18"/>
+    </radialGradient>
+    <radialGradient id="dot" cx="0.4" cy="0.35" r="0.8">
+      <stop offset="0" stop-color="#c7d6ff"/>
+      <stop offset="1" stop-color="#7fb6ff"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="44"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="222" fill="none" stroke="url(#ring)" stroke-width="77" opacity="0.5" filter="url(#glow)"/>
+  <circle cx="512" cy="512" r="184" fill="url(#glass)"/>
+  <circle cx="512" cy="512" r="222" fill="none" stroke="url(#ring)" stroke-width="77"/>
+  <circle cx="512" cy="512" r="43" fill="url(#dot)"/>
+</svg>

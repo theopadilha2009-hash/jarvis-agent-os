@@ -26,6 +26,42 @@ SPEC.loader.exec_module(MODULE)
 
 
 class WebGatewayTest(unittest.TestCase):
+    # Espelha LOCAL_SECRET_KEYS do gateway: outros testes da mesma suite
+    # (ex.: jarvis_theo_chat_test -> load_secrets) hidratam chaves REAIS do
+    # secrets.env local no os.environ compartilhado do processo, e esse estado
+    # vaza para cá. Cada teste roda com o ambiente de segredos zerado.
+    SECRET_ENV_KEYS = (
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_FALLBACK_API_KEY",
+        "OPENROUTER_API_KEYS",
+        "OPENROUTER_MODEL",
+        "OPENROUTER_MODEL_POOL",
+        "OPENROUTER_DEEP_MODEL_POOL",
+        "OPENROUTER_ATTACHMENT_MODEL",
+        "ELEVENLABS_API_KEY",
+        "ELEVENLABS_FALLBACK_API_KEY",
+        "ELEVENLABS_API_KEYS",
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "JARVIS_OWNER_TOKEN",
+        "JARVIS_ADMIN_USERNAME",
+        "JARVIS_ADMIN_PASSWORD_HASH",
+        "JARVIS_GMAIL_APP_PASSWORD",
+        "SELF_HOSTED_TTS_URL",
+    )
+
+    def setUp(self):
+        self.previous_secret_env = {
+            key: os.environ[key] for key in self.SECRET_ENV_KEYS if key in os.environ
+        }
+        for key in self.SECRET_ENV_KEYS:
+            os.environ.pop(key, None)
+
+    def tearDown(self):
+        for key in self.SECRET_ENV_KEYS:
+            os.environ.pop(key, None)
+        os.environ.update(self.previous_secret_env)
+
     @classmethod
     def setUpClass(cls):
         cls.previous_local_exec = os.environ.get("JARVIS_WEB_LOCAL_EXEC")
@@ -3137,9 +3173,13 @@ São Paulo - SP
         def fake_urlopen(request, **_kwargs):
             sent = json.loads(request.data.decode("utf-8"))
             requests.append(sent)
-            if len(requests) == 1:
+            # Decide pela forma do payload, não pela ordem das chamadas: o
+            # primeiro pedido traz a lista "models"; o fallback manda um
+            # "model" por candidato. Chamadas de outras threads não corrompem
+            # o índice.
+            if "models" in sent:
                 raise HTTPError(MODULE.OPENROUTER_URL, 400, "models unsupported", {}, None)
-            if len(requests) == 2:
+            if sent.get("model") == "nvidia/nemotron-3-nano-30b-a3b:free":
                 raise HTTPError(MODULE.OPENROUTER_URL, 429, "first model busy", {}, None)
             return FakeResponse()
 

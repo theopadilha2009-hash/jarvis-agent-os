@@ -10064,6 +10064,15 @@ def execute_agent_tools(
     return result, status_code
 
 
+class InvalidModelBody(ValueError):
+    """200 do provedor com corpo que não é uma resposta de chat válida.
+
+    Um 200 malformado antes escapava de todo fallback (só HTTPError
+    acionava o próximo modelo) e virava "modelo externo retornou uma
+    resposta inválida" na cara do usuário.
+    """
+
+
 def assistant_response(body, origin="", local_execute=False, owner_authenticated=False):
     messages = normalize_messages(body)
     if not messages:
@@ -10448,7 +10457,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                     req = Request(OPENROUTER_URL, data=request_body, headers=request_headers, method="POST")
                     try:
                         with urlopen(req, timeout=timeout) as response:
-                            return json.loads(response.read().decode("utf-8"))
+                            parsed = json.loads(response.read().decode("utf-8"))
+                            if not isinstance(parsed, dict) or not isinstance(parsed.get("choices"), list) or not parsed["choices"]:
+                                raise InvalidModelBody("openrouter_invalid_body")
+                            return parsed
                     except HTTPError as error:
                         last_error = error
                         if index + 1 < len(api_keys) and error.code in key_retryable_codes:
@@ -10491,6 +10503,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                     attempts.append({"model": candidate, "outcome": f"http_{candidate_error.code}"})
                     if candidate_error.code not in retryable_codes:
                         raise
+                except InvalidModelBody as candidate_error:
+                    attempts.append({"model": candidate, "outcome": "invalid_body"})
+                    last_error = candidate_error
                 except (URLError, TimeoutError) as candidate_error:
                     last_error = candidate_error
                     attempts.append({"model": candidate, "outcome": "timeout_or_network"})
@@ -10516,6 +10531,13 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             web_search_mode = "not_requested"
         try:
             result = send_openrouter(openrouter_payload)
+        except InvalidModelBody:
+            # Corpo 200 inválido tem o mesmo tratamento dos códigos de
+            # compatibilidade: tentar o próximo modelo do pool.
+            if not (openrouter_payload.get("models") and not provider_tools):
+                raise
+            result, model_routing_compatibility_attempts = send_compatible_model_fallbacks()
+            model_routing_compatibility_fallback = True
         except HTTPError as first_error:
             error = first_error
             if first_error.code in {400, 404, 422} and openrouter_payload.get("models") and not provider_tools:
@@ -10761,7 +10783,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "occupancy": occupancy_payload(),
             "queue": {"waiting": waiting, "retry_after": 3} if busy else {},
         }, 504
-    except (ValueError, KeyError, json.JSONDecodeError):
+    except (ValueError, KeyError, json.JSONDecodeError, AttributeError):
         if free_search_sources:
             return search_results_without_synthesis(free_search_bundle, "openrouter_invalid_response"), 200
         return {
