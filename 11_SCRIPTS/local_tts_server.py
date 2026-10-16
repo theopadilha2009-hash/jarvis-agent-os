@@ -46,6 +46,9 @@ VOICE_PROFILE = (
 )
 # Pocket: um semitom mais grave. Se o ffmpeg atrasar, devolve o WAV cru.
 POCKET_ADULT = "asetrate={rate}*0.96,aresample={rate},atempo=1.00,highpass=f=85,volume=1.06"
+# Pocket sai em loudness de sussurro (~-28 dB médio); alvo é fala de conversa.
+LOUDNESS_FILTER = "loudnorm=I=-18:TP=-1.5:LRA=7,aresample={rate}"
+LOUDNESS_TIMEOUT = 6.0
 MAX_TEXT = 2_200
 DEFAULT_ENGINE = "auto"
 DEFAULT_LANGUAGE = "portuguese"
@@ -349,6 +352,36 @@ def apply_pocket_adult(audio: bytes, rate: int) -> bytes:
     return result.stdout
 
 
+def wav_sample_rate(audio: bytes) -> int:
+    try:
+        with wave.open(io.BytesIO(bytes(audio)), "rb") as handle:
+            return int(handle.getframerate() or 0)
+    except (wave.Error, EOFError, OSError):
+        return 0
+
+
+def normalize_loudness(audio: bytes) -> bytes:
+    """Levanta a fala para volume de conversa. Falhou ou atrasou → áudio original."""
+    if not audio or audio[:4] != b"RIFF" or not shutil.which("ffmpeg"):
+        return audio
+    rate = wav_sample_rate(audio)
+    if rate <= 0:
+        return audio
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-af", LOUDNESS_FILTER.format(rate=rate), "-f", "wav", "pipe:1"],
+            input=audio,
+            capture_output=True,
+            timeout=LOUDNESS_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return audio
+    if result.returncode != 0 or not result.stdout or result.stdout[:4] != b"RIFF":
+        return audio
+    return result.stdout
+
+
 def synthesize_edge(text: str, voice: str, rate: str = "-5%", pitch: str = "-8Hz") -> dict:
     """Neural gratuita da Microsoft (Edge Read Aloud). Sem chave; precisa de rede."""
     try:
@@ -396,7 +429,7 @@ def synthesize_speech(text: str, pocket=None, piper=None, piper_opts=None, voice
                 rate = int(getattr(pocket, "sample_rate", 24_000) or 24_000)
                 return {
                     "ok": True,
-                    "audio": apply_pocket_adult(audio, rate),
+                    "audio": normalize_loudness(apply_pocket_adult(audio, rate)),
                     "content_type": "audio/wav",
                     "engine": "pocket_tts",
                     "voice": voice or getattr(pocket, "voice", ""),
