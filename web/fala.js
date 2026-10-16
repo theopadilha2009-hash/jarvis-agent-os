@@ -18,7 +18,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261016-voice5";
+  const SHELL_VERSION = "20261016-voice6";
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
@@ -392,6 +392,50 @@
     });
   }
 
+  // Abrir app do Mac não existe client-side: manda pelo gateway, que roda
+  // open_application com allowlist (APPLICATION_ALIASES) no Mac dele.
+  function openAppOnMac(app, label) {
+    cancelPark();
+    nativeWindow("touch");
+    postJson("/command", { command: `abrir aplicativo ${app}`, strength: "auto" }).then(({ data }) => {
+      const message = data.ok === false
+        ? (data.error || "Não consegui abrir o app.")
+        : (data.message || `Abrindo o ${label}.`);
+      say(data.ok === false ? "Não." : "Senhor.", "");
+      showAnswer(message);
+      if (!stayQuiet) speak(spokenReply(message));
+    });
+  }
+
+  // App do Mac: a janela é borderless, então o handler nativo cobre o frame
+  // da tela. Web puro: Fullscreen API, com aviso claro se o gesto for cobrado.
+  function toggleFullscreen() {
+    if (nativeHandlers()) {
+      nativeWindow("fullscreen");
+      return;
+    }
+    const doc = document;
+    if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+      const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+      if (exit) exit.call(doc);
+      say("Saindo.", "Tela cheia desligada.");
+      return;
+    }
+    const root = doc.documentElement;
+    const request = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (!request) {
+      say("Tela cheia.", "Este navegador não suporta.");
+      speak("Este navegador não suporta tela cheia.");
+      return;
+    }
+    Promise.resolve(request.call(root)).then(() => {
+      say("Tela cheia.", "Diga tela cheia de novo para sair.");
+    }).catch(() => {
+      say("Tela cheia.", "O navegador bloqueou. Toque na página e tente de novo.");
+      speak("O navegador bloqueou a tela cheia. Toque na página e tente de novo.");
+    });
+  }
+
   function remainderAfter(value, match) {
     const rest = String(match || "").replace(/\s+(?:pra mim|para mim|por favor)$/i, "").trim();
     if (!rest || /^(?:o|a|o youtube|youtube|mapa|maps)$/i.test(rest)) return "";
@@ -426,6 +470,19 @@
     }
     const opening = /\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(value);
     if (!opening) return null;
+    // Navegadores são apps do Mac, não abas: o gateway tem open_application
+    // com allowlist (aliases em api/index.py). "navegador" cai no Safari,
+    // o padrão do dono.
+    const appTargets = [
+      [/\bchrome\b|\bgoogle\s+chrome\b/, "Google Chrome", "Chrome"],
+      [/\bsafari\b/, "Safari", "Safari"],
+      [/\bedge\b|\bmicrosoft\s+edge\b/, "Microsoft Edge", "Edge"],
+      [/\bbrave\b/, "Brave Browser", "Brave"],
+      [/\b(?:navegador|browser)\b/, "Safari", "navegador"],
+    ];
+    for (const [pattern, app, label] of appTargets) {
+      if (pattern.test(value)) return { app, label };
+    }
     const targets = [
       [/\bwhatsapp\b/, "https://web.whatsapp.com", "WhatsApp"],
       [/\byoutube\b/, "https://www.youtube.com", "YouTube"],
@@ -460,8 +517,19 @@
     if (/^(?:entrar|login|fazer login|conectar)$/.test(value.trim())) {
       return { run: () => revealLogin(), speak: "" };
     }
+    if (/\btela\s+(?:cheia|inteira)\b/.test(value)) {
+      return { run: () => toggleFullscreen(), speak: "" };
+    }
     const opened = resolveOpen(value);
     if (opened) {
+      if (opened.app) {
+        return {
+          run: () => openAppOnMac(opened.app, opened.label),
+          title: "Abrindo.",
+          detail: opened.label,
+          speak: `Abrindo o ${opened.label}.`,
+        };
+      }
       return {
         run: () => openTarget(opened.url),
         title: "Abrindo.",
@@ -507,7 +575,7 @@
     const folded = foldSpeech(text);
     if (!folded || folded.length < 3) return false;
     if (WAKE_NAME.test(folded)) return true;
-    return /^(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|pesquisa|busca|procura|volume|proximo|proxima|silencio|quieto|cala|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|que horas|horas|que dia|data|bateria|clima|tempo|previsao|cotacao|dolar|euro|bitcoin|specs|hardware|noticias|analisa isso)\b/.test(folded);
+    return /^(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|pesquisa|busca|procura|volume|proximo|proxima|silencio|quieto|cala|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|que horas|horas|que dia|data|bateria|clima|tempo|previsao|cotacao|dolar|euro|bitcoin|specs|hardware|noticias|analisa isso|tela cheia|tela inteira)\b/.test(folded);
   }
 
   function expandCommands(text) {
@@ -528,10 +596,15 @@
       ["maps", "abre o maps"],
       ["mapa", "abre o maps"],
       ["google", "abre o google"],
+      ["chrome", "abre o chrome"],
+      ["safari", "abre o safari"],
+      ["edge", "abre o edge"],
+      ["brave", "abre o brave"],
+      ["navegador", "abre o navegador"],
     ];
     const hits = [];
     const seen = new Set();
-    const finder = /whatsapp|youtube|spotify|gmail|instagram|github|discord|notion|drive|agenda|calendario|maps|mapa|google/g;
+    const finder = /whatsapp|youtube|spotify|gmail|instagram|github|discord|notion|drive|agenda|calendario|maps|mapa|google|\bchrome\b|\bsafari\b|\bedge\b|\bbrave\b|\bnavegador\b/g;
     let match = finder.exec(folded);
     while (match) {
       const key = match[0];
@@ -592,36 +665,98 @@
   }
 
   function seeScreen(command) {
-    if (!hasNativeSee()) {
-      say("Tela.", "No Mac, use o app JARVIS para eu ver o que você está vendo.");
-      speak("No Mac eu preciso do aplicativo para ver a tela.");
+    if (hasNativeSee()) {
+      say("Olhando.", "Vou ver a tela.");
+      cancelPark();
+      nativeWindow("touch");
+      window.__jarvisOnScreen = (raw) => {
+        window.__jarvisOnScreen = null;
+        const dataUrl = String(raw || "");
+        if (dataUrl === "denied") {
+          say("Tela.", "Ajustes → Privacidade → Gravação de Tela → JARVIS.");
+          speak("Preciso da permissão de gravação de tela.");
+          return;
+        }
+        if (!dataUrl.startsWith("data:image")) {
+          say("Tela.", "Não consegui ver. Tente de novo.");
+          speak("Não consegui ver a tela.");
+          return;
+        }
+        ask(command || "analisa o que está na tela e me diz o que fazer", {
+          type: "image/jpeg",
+          name: "tela.jpg",
+          data_url: dataUrl,
+        });
+      };
+      try { nativeHandlers().jarvisSee.postMessage("screen"); } catch {
+        say("Tela.", "Não consegui ver.");
+      }
       return;
     }
-    say("Olhando.", "Vou ver a tela.");
-    cancelPark();
-    nativeWindow("touch");
-    window.__jarvisOnScreen = (raw) => {
-      window.__jarvisOnScreen = null;
-      const dataUrl = String(raw || "");
-      if (dataUrl === "denied") {
-        say("Tela.", "Ajustes → Privacidade → Gravação de Tela → JARVIS.");
-        speak("Preciso da permissão de gravação de tela.");
-        return;
-      }
-      if (!dataUrl.startsWith("data:image")) {
-        say("Tela.", "Não consegui ver. Tente de novo.");
-        speak("Não consegui ver a tela.");
-        return;
-      }
+    seeScreenWeb(command);
+  }
+
+  // Web puro: getDisplayMedia pede a tela/janela ao dono, captura UM frame e
+  // segue o mesmo fluxo de attachment do app nativo.
+  async function seeScreenWeb(command) {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      say("Tela.", "Este navegador não permite captura de tela.");
+      speak("Este navegador não permite que eu veja a tela.");
+      return;
+    }
+    say("Olhando.", "Escolha a tela ou a janela para compartilhar.");
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    } catch {
+      say("Tela.", "Permita a captura de tela para eu analisar.");
+      speak("Permita a captura de tela para eu analisar.");
+      return;
+    }
+    try {
+      const dataUrl = await frameFromStream(stream);
       ask(command || "analisa o que está na tela e me diz o que fazer", {
         type: "image/jpeg",
         name: "tela.jpg",
         data_url: dataUrl,
       });
-    };
-    try { nativeHandlers().jarvisSee.postMessage("screen"); } catch {
-      say("Tela.", "Não consegui ver.");
+    } catch {
+      say("Tela.", "Não consegui ver. Tente de novo.");
+      speak("Não consegui ver a tela.");
     }
+  }
+
+  function frameFromStream(stream) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement("video");
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      const cleanup = () => {
+        try { video.pause(); } catch { /* já parado */ }
+        video.srcObject = null;
+        stream.getTracks().forEach((track) => track.stop());
+      };
+      video.addEventListener("error", () => { cleanup(); reject(new Error("frame")); }, { once: true });
+      video.addEventListener("loadedmetadata", () => {
+        video.play().then(() => {
+          const width = Math.min(1280, video.videoWidth || 1280);
+          const scale = width / Math.max(video.videoWidth, 1);
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+          canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+          cleanup();
+          if (!dataUrl.startsWith("data:image")) {
+            reject(new Error("frame"));
+            return;
+          }
+          resolve(dataUrl);
+        }, (error) => { cleanup(); reject(error); });
+      }, { once: true });
+    });
   }
 
   async function ask(text, attachment) {
@@ -659,7 +794,7 @@
       say("…", command);
       const payload = {
         command: attachment
-          ? `${command}. Isto é um print da tela do Mac onde o JARVIS está; diga o que aparece e o que eu devo fazer agora.`
+          ? `${command}. Isto é um print da tela onde o JARVIS está; diga o que aparece e o que eu devo fazer agora.`
           : command,
         strength: ownerToken() ? "maximum" : "auto",
       };

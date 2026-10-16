@@ -77,3 +77,57 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: wait; }
 }
 a { color: #d8b4fe; }
 .by { margin: 22px 0 0; text-align: center; font-size: 13px; color: #c4b5fd; }
+
+.toggle-account {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: #c4b5fd;
+}
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #d8b4fe;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-button:hover { color: #f6eefe; }
+
+#signupDone {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(134, 239, 172, 0.32);
+  border-radius: 12px;
+  background: rgba(22, 101, 52, 0.22);
+  color: #bbf7d0;
+  font-size: 13px;
+}
+#signupDone[hidden] { display: none; }
+
+#signupError {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 13px;
+}
+#signupError[hidden] { display: none; }
+#signupForm[hidden] { display: none; }
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border-radius: 4px;
+  accent-color: #7c3aed;
+  cursor: pointer;
+}
+.terms-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.terms-row span { color: #c4b5fd; font-size: 13px; }
