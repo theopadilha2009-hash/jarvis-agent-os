@@ -231,6 +231,8 @@ CLIENT_INTEGRATION_PROVIDERS = {
     "n8n",
     "openrouter",
     "elevenlabs",
+    "openai",
+    "anthropic",
     "github",
     "supabase",
     "webhook",

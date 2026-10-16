@@ -1,0 +1,219 @@
+/* Cofre BYOK do visitante — painel de chaves por provedor. Mesmo dark do cockpit. */
+
+.integrations-button .vault-provider-chip {
+  letter-spacing: 0.02em;
+}
+
+.integrations-button.vault-connected {
+  border-color: color-mix(in srgb, var(--cyan) 44%, transparent);
+  color: var(--cyan-hot);
+}
+
+.vault-panel-dialog {
+  width: min(880px, calc(100% - 32px));
+  max-height: min(760px, calc(100dvh - 32px));
+  overflow: auto;
+  border-color: color-mix(in srgb, var(--cyan) 34%, transparent);
+  background:
+    radial-gradient(circle at 12% 0, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 34%),
+    linear-gradient(145deg, rgba(13, 7, 22, 0.99), rgba(4, 4, 14, 0.99));
+  color: inherit;
+  padding: 20px 22px;
+}
+
+.vault-panel-dialog::backdrop {
+  background: rgba(2, 2, 8, 0.72);
+}
+
+.vault-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.vault-panel-head b {
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  color: var(--cyan-hot, #67e8f9);
+}
+
+.vault-panel-head small {
+  color: var(--faint, #7c8598);
+  font: 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+  margin-right: auto;
+}
+
+.vault-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.vault-provider-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 22%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cyan) 5%, rgba(6, 6, 16, 0.85));
+}
+
+.vault-provider-card[data-status="pending"] {
+  opacity: 0.82;
+}
+
+.vault-provider-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vault-provider-head b {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.vault-provider-role {
+  color: var(--faint, #7c8598);
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.12em;
+  margin-right: auto;
+}
+
+.vault-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--faint, #7c8598) 40%, transparent);
+  color: var(--faint, #7c8598);
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.vault-badge[data-state="connected"] {
+  border-color: rgba(74, 222, 128, 0.4);
+  color: #86efac;
+}
+
+.vault-badge[data-state="pending"] {
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fcd34d;
+}
+
+.vault-provider-field {
+  display: grid;
+  gap: 5px;
+  font: 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.06em;
+  color: var(--faint, #7c8598);
+}
+
+.vault-provider-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 26%, transparent);
+  background: rgba(3, 3, 12, 0.9);
+  color: inherit;
+  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.vault-provider-field input:focus-visible {
+  outline: 1px solid var(--cyan-hot, #67e8f9);
+}
+
+.vault-provider-hint {
+  color: var(--faint, #7c8598);
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.vault-provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vault-button {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent);
+  background: color-mix(in srgb, var(--cyan) 10%, transparent);
+  color: var(--cyan-hot, #67e8f9);
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.vault-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cyan) 18%, transparent);
+}
+
+.vault-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.vault-button-quiet {
+  border-color: color-mix(in srgb, var(--faint, #7c8598) 34%, transparent);
+  background: transparent;
+  color: var(--faint, #aab3c5);
+}
+
+.vault-panel-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.vault-feedback {
+  margin: 0;
+  margin-right: auto;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--faint, #aab3c5);
+}
+
+.vault-feedback[data-state="success"] {
+  color: #86efac;
+}
+
+.vault-feedback[data-state="error"] {
+  color: #fca5a5;
+}
+
+.message .vault-error-cta {
+  display: inline-flex;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 46%, transparent);
+  background: color-mix(in srgb, var(--cyan) 12%, transparent);
+  color: var(--cyan-hot, #67e8f9);
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.message .vault-error-cta:hover {
+  background: color-mix(in srgb, var(--cyan) 22%, transparent);
+}
+
+@media (max-width: 720px) {
+  .vault-panel-dialog {
+    width: calc(100% - 16px);
+    padding: 16px;
+  }
+
+  .vault-provider-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vault-panel-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
