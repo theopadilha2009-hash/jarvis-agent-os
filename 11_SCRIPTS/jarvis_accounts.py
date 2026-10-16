@@ -178,16 +178,25 @@ def authenticate(store: dict, username: str, password: str):
     return row
 
 
-def manage(store: dict, action: str, username: str) -> dict:
+def manage(store: dict, action: str, username: str, password: str | None = None) -> dict:
     row = find_user(store, username)
     if not row:
         raise ValueError("conta não encontrada")
+    owners = sum(1 for item in store.get("users") or [] if item.get("role") == "owner" and not item.get("disabled"))
+    if row.get("role") == "owner" and action in {"delete", "disable", "demote"} and owners <= 1:
+        raise ValueError("precisa existir outro dono ativo antes de rebaixar o único")
     if row.get("role") == "owner" and action in {"delete", "disable"}:
         raise ValueError("a conta dono não pode ser apagada por aqui")
     if action == "approve":
         row["role"] = "member"
         row["access"] = ["jarvis", "code"]
         row["disabled"] = False
+    elif action == "revoke":
+        row["role"] = "pending"
+        row["access"] = ["jarvis"]
+    elif action == "demote":
+        row["role"] = "member"
+        row["access"] = ["jarvis", "code"]
     elif action == "disable":
         row["disabled"] = True
     elif action == "enable":
@@ -199,6 +208,11 @@ def manage(store: dict, action: str, username: str) -> dict:
         row["role"] = "owner"
         row["access"] = ["jarvis", "ultron", "code"]
         row["disabled"] = False
+    elif action == "set_password":
+        clean_password = str(password or "")
+        if not (8 <= len(clean_password) <= 128):
+            raise ValueError("a senha precisa ter entre 8 e 128 caracteres")
+        row["password_hash"] = hash_password(clean_password)
     else:
         raise ValueError("ação inválida")
     return public_user(row)

@@ -218,4 +218,29 @@
     .catch(() => null);
   if ("requestIdleCallback" in window) window.requestIdleCallback(loadVoicePacing, { timeout: 1200 });
   else window.setTimeout(loadVoicePacing, 160);
+
+  // Cofre BYOK: botão do header abre /ui/vault-panel.js (lazy); segredo segue no AES-GCM acima.
+  let vaultPanelPromise = null;
+  const loadVaultPanel = () => (vaultPanelPromise
+    || (vaultPanelPromise = import("/ui/vault-panel.js?v=20261016-byok1").catch(() => null)));
+  if ("requestIdleCallback" in window) window.requestIdleCallback(loadVaultPanel, { timeout: 2000 });
+  else window.setTimeout(loadVaultPanel, 300);
+
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target.closest("#integrationsButton") : null;
+    if (!target) return;
+    event.stopImmediatePropagation();
+    loadVaultPanel().then((module) => module?.open());
+  }, true);
+
+  try {
+    if (window.JarvisApiVault.configured("openrouter")) {
+      const button = document.getElementById("integrationsButton");
+      const chip = document.createElement("span");
+      chip.className = "vault-provider-chip";
+      chip.textContent = "IA: OpenRouter · ";
+      button?.prepend(chip);
+      button?.classList.add("vault-connected");
+    }
+  } catch { }
 })();

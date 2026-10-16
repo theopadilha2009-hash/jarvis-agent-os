@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Voz própria do JARVIS: síntese neural local, sem cota e sem chave.
 
-Motor principal: Pocket TTS (portuguese + rafael no JARVIS, javert no Ultron).
-rafael é a voz masculina de catálogo em português; bill_boerst é inglês e
-soa torto em pt-BR. Se edge-tts estiver instalado, a camada neural gratuita
-da Microsoft (Antonio / Humberto) entra primeiro — melhor pronúncia.
-O modelo Pocket fica em memória; cada /speech gera a frase inteira.
+Motor principal: Edge neural da Microsoft (pt-BR-AntonioNeural no JARVIS e
+no Ultron) — precisa de rede e sai com o mesmo alvo de loudness do Pocket.
+Se o Edge falhar (rede, DRM), o Pocket TTS local entra na hora (rafael no
+JARVIS, javert no Ultron; modelo em memória) e o Piper é o último recurso.
+Cada /speech gera a frase inteira.
 
 Piper continua como fallback se Pocket falhar. O gateway web chama este
 servidor quando a voz paga não está disponível.
@@ -382,6 +382,25 @@ def normalize_loudness(audio: bytes) -> bytes:
     return result.stdout
 
 
+def normalize_edge_audio(audio: bytes) -> bytes:
+    """O Edge sai em mp3 mais baixo que o Pocket; mesmo alvo de loudness nos dois."""
+    if not audio or not shutil.which("ffmpeg"):
+        return audio
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-af", LOUDNESS_FILTER.format(rate=24_000), "-ar", "24000", "-f", "wav", "pipe:1"],
+            input=audio,
+            capture_output=True,
+            timeout=LOUDNESS_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return audio
+    if result.returncode != 0 or not result.stdout or result.stdout[:4] != b"RIFF":
+        return audio
+    return result.stdout
+
+
 def synthesize_edge(text: str, voice: str, rate: str = "-5%", pitch: str = "-8Hz") -> dict:
     """Neural gratuita da Microsoft (Edge Read Aloud). Sem chave; precisa de rede."""
     try:
@@ -409,7 +428,9 @@ def synthesize_edge(text: str, voice: str, rate: str = "-5%", pitch: str = "-8Hz
         return {"ok": False, "error": f"falha na síntese edge: {error}", "engine": "edge"}
     if not audio:
         return {"ok": False, "error": "edge-tts devolveu áudio vazio", "engine": "edge"}
-    return {"ok": True, "audio": audio, "content_type": "audio/mpeg", "engine": "edge", "voice": voice}
+    normalized = normalize_edge_audio(audio)
+    content_type = "audio/wav" if normalized[:4] == b"RIFF" else "audio/mpeg"
+    return {"ok": True, "audio": normalized, "content_type": content_type, "engine": "edge", "voice": voice}
 
 
 def synthesize_speech(text: str, pocket=None, piper=None, piper_opts=None, voice=None, edge_voice=None, prefer_edge=False, edge_rate="+0%", edge_pitch="-8Hz") -> dict:
@@ -653,7 +674,7 @@ def install_agent(args, config=None) -> Path:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="JARVIS local neural voice")
     parser.add_argument("--voice", default="", help="caminho do modelo .onnx do Piper (fallback)")
-    parser.add_argument("--engine", default="", help="pocket_tts (padrão) ou piper")
+    parser.add_argument("--engine", default="", help="auto (padrão: edge neural com fallback pocket), pocket_tts, edge ou piper")
     parser.add_argument("--language", default="", help="idioma Pocket (padrão: portuguese)")
     parser.add_argument("--tts-voice", default="", dest="tts_voice", help="voz Pocket do JARVIS (padrão: rafael)")
     parser.add_argument("--ultron-voice", default="", dest="ultron_voice", help="voz Pocket do Ultron (padrão: javert)")
@@ -751,7 +772,7 @@ def make_handler(args, pocket, piper, sample_rate: int, config: dict):
                     return default
 
             chosen = resolve_request_voices(body if isinstance(body, dict) else {}, config)
-            prefer_edge = config.get("engine") == "edge"
+            prefer_edge = config.get("engine") in {"edge", "auto"}
             cache_id = (text, chosen["pocket"], chosen["edge"], prefer_edge)
             cached = speech_cache_get(cache_id)
             if cached:

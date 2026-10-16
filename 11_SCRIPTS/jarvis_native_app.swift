@@ -261,6 +261,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 NSApplication.shared.terminate(nil)
             } else if body == "zoom" || body == "toggleSize" || body == "maximize" {
                 toggleZoom()
+            } else if body == "fullscreen" {
+                toggleFullscreen()
             } else if body == "focus" {
                 revealWindow(takeFocus: true)
             } else if body == "show" {
@@ -357,6 +359,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         layouting = true
         window.setFrame(frameKeepingPlace(target), display: true, animate: true)
         layouting = false
+    }
+
+    // A janela é borderless, então toggleFullScreen do NSWindow não tem botão
+    // nem efeito garantido: cobrir o frame da tela é o "tela cheia" real.
+    // Se ela já cobre (ou está no fullscreen do sistema), volta ao tamanho
+    // normal; se entrou no fullscreen do sistema, sai pelo toggle nativo.
+    private func toggleFullscreen() {
+        guard let window else { return }
+        if compact { setCompact(false) }
+        if window.styleMask.contains(.fullScreen) {
+            window.toggleFullScreen(nil)
+            return
+        }
+        guard let screen = window.screen ?? NSScreen.main else { return }
+        let target = NSRect(origin: screen.frame.origin, size: screen.frame.size)
+        let covering = abs(window.frame.width - target.width) < 2
+            && abs(window.frame.height - target.height) < 2
+        layouting = true
+        window.setFrame(covering ? frameKeepingPlace(fullSize) : target, display: true, animate: true)
+        layouting = false
+        savePark()
     }
 
     private func actionsScriptPath() -> String {

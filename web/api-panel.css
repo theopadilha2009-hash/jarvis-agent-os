@@ -609,3 +609,10 @@ html[data-persona="ultron"] .integration-editor-header {
   .integration-editor-header { top: -15px; margin: -15px -15px 0; padding: 14px 15px 10px; }
   .integration-actions-sticky { bottom: -15px; margin: auto -15px -15px; padding: 10px 15px max(14px, env(safe-area-inset-bottom)); }
 }
+/* CONTAS (api-panel.js): selos de papel e faixa de confirmação. */
+.ap-badge{display:inline-block;margin-left:6px;padding:2px 7px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font:8px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;vertical-align:1px}
+.ap-badge[data-kind="owner"]{border-color:color-mix(in srgb,var(--cyan) 45%,transparent);color:var(--cyan-hot)}
+.ap-badge[data-kind="pending"]{border-color:#a16207;color:#fde68a}
+.ap-badge[data-kind="off"]{border-color:#ef4444;color:#fca5a5}
+.ap-confirm{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;color:#fde68a;font-size:10px}
+.account-row button:disabled{opacity:.45;cursor:not-allowed}

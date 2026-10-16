@@ -9,6 +9,77 @@
   const user = document.getElementById("loginUser");
   const pass = document.getElementById("loginPass");
   const sessionHint = document.getElementById("sessionHint");
+  const signupForm = document.getElementById("signupForm");
+  const signupToggle = document.getElementById("signupToggle");
+  const signupError = document.getElementById("signupError");
+  const signupDone = document.getElementById("signupDone");
+  const signupUser = document.getElementById("signupUser");
+  const signupPass = document.getElementById("signupPass");
+  const signupPass2 = document.getElementById("signupPass2");
+  const signupTerms = document.getElementById("signupTerms");
+  const signupSubmit = document.getElementById("signupSubmit");
+
+  const showSignupError = (text) => {
+    signupError.hidden = !text;
+    signupError.textContent = text || "";
+  };
+
+  const showSignup = (visible) => {
+    form.hidden = visible;
+    signupForm.hidden = !visible;
+    if (visible) signupUser.focus();
+    else pass.focus();
+  };
+
+  signupToggle.addEventListener("click", () => {
+    showSignupError("");
+    signupDone.hidden = true;
+    showSignup(signupForm.hidden);
+  });
+
+  signupForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const username = signupUser.value.trim().toLowerCase();
+    const password = signupPass.value;
+    if (!username || !password) {
+      showSignupError("Informe login e senha.");
+      return;
+    }
+    if (password !== signupPass2.value) {
+      showSignupError("As senhas não conferem.");
+      return;
+    }
+    if (!signupTerms.checked) {
+      showSignupError("Aceite os termos de uso para criar a conta.");
+      return;
+    }
+    signupSubmit.disabled = true;
+    showSignupError("");
+    signupDone.hidden = true;
+    try {
+      const response = await fetch("/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, accepted_terms: true }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showSignupError(data.error || "Não consegui criar a conta agora.");
+        return;
+      }
+      user.value = username;
+      pass.value = "";
+      signupPass.value = "";
+      signupPass2.value = "";
+      signupDone.textContent = "Conta criada. " + (data.message || "Aguardando aprovação do Theo para o modo code.") + " Faça login acima.";
+      showSignup(false);
+      signupDone.hidden = false;
+    } catch {
+      showSignupError("Não consegui criar a conta agora.");
+    } finally {
+      signupSubmit.disabled = false;
+    }
+  });
 
   const showError = (text) => {
     errorBox.hidden = !text;

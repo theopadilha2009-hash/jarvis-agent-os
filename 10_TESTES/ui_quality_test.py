@@ -310,7 +310,8 @@ class UIQualityTest(unittest.TestCase):
     def test_startup_assets_stay_within_budget(self):
         critical_bytes = sum(path.stat().st_size for path in (INDEX, CSS, APP_JS))
         self.assertLess(critical_bytes, 345 * 1024, f"Carga crítica cresceu para {critical_bytes} bytes")
-        self.assertLess(API_VAULT_JS.stat().st_size, 9 * 1024)
+        # O cofre virou painel de provedores BYOK (OpenRouter/Claude/OpenAI/ElevenLabs).
+        self.assertLess(API_VAULT_JS.stat().st_size, 28 * 1024)
         self.assertLess(INTEGRATION_HISTORY_JS.stat().st_size, 5 * 1024)
         self.assertLess(INTEGRATION_HEALTH_JS.stat().st_size, 7 * 1024)
         self.assertLess(INTEGRATION_HEALTH_CSS.stat().st_size, 4 * 1024)
@@ -430,8 +431,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("memórias relevantes", self.app_js)
 
     def test_3d_is_lazy_quality_controlled_and_fully_pauses(self):
-        self.assertIn('presence-loader.js?v=20260819-ui2', self.html)
-        self.assertIn('import("/ui/jarvis-3d.js?v=20260819-aug15")', self.presence_loader_js)
+        self.assertIn('presence-loader.js?v=20261016-svgfb', self.html)
+        self.assertIn('import("/ui/jarvis-3d.js?v=20261016-draco1")', self.presence_loader_js)
         self.assertIn("RoomEnvironment", self.presence_js)
         self.assertIn("MeshPhysicalMaterial", self.presence_js)
         self.assertIn("0x7741ad", self.presence_js)
@@ -454,8 +455,8 @@ class UIQualityTest(unittest.TestCase):
         self.assertGreaterEqual(self.html.count("20260813-apitools1"), 1)
         self.assertNotIn("chatfix", self.html)
         self.assertGreaterEqual(self.html.count("20260815-vozes2"), 1)
-        self.assertGreaterEqual(self.html.count("20260819-ui2"), 2)
-        self.assertIn("20260819-ui2", self.html)
+        self.assertGreaterEqual(self.html.count("20261016-svgfb"), 2)
+        self.assertIn("20261016-svgfb", self.html)
         self.assertIn("20260821-edit1", self.html)
         self.assertIn("welcomeLogin", self.html)
         self.assertIn("script interrompido", self.html)

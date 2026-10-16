@@ -26,7 +26,9 @@
 @media (prefers-reduced-motion: reduce){
   .nuclei-fallback .nfx-ring,.nuclei-fallback .nfx-core,.nuclei-fallback .nfx-spark,.nuclei-fallback .nfx-orbit{animation:none}
 }
-.nuclei-banner{pointer-events:auto;display:flex;flex-direction:column;gap:6px;max-width:min(92vw,520px);padding:12px 16px;border:1px solid rgba(160,140,255,.28);border-radius:14px;background:rgba(12,10,22,.82);backdrop-filter:blur(6px);font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfc6ff}
+.nuclei-chip{pointer-events:auto;position:absolute;left:12px;bottom:12px;padding:3px 10px;border:1px solid rgba(160,140,255,.3);border-radius:999px;background:rgba(12,10,22,.7);color:#9c90c9;font:10px/1.4 ui-monospace,Menlo,monospace;letter-spacing:.06em;cursor:pointer}
+.nuclei-chip:hover{color:#cfc6ff;border-color:rgba(160,140,255,.6)}
+.nuclei-banner{pointer-events:auto;display:flex;flex-direction:column;gap:6px;max-width:min(92vw,420px);padding:12px 16px;border:1px solid rgba(160,140,255,.28);border-radius:14px;background:rgba(12,10,22,.88);backdrop-filter:blur(6px);font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfc6ff}
 .nuclei-banner strong{color:#b8a8ff;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
 .nuclei-banner ol{margin:0;padding-left:18px}
 .nuclei-banner a{color:#8fb8ff}
@@ -101,13 +103,15 @@
 
   const HELP_URL = "https://support.google.com/chrome/answer/95346?hl=pt-BR";
 
+  // O aviso não pode poluir a cena: fica num chip discreto e só abre quem clicar.
   function bannerHtml(reason) {
     const steps = [
       "Abra chrome://settings/system",
       "Ative “Usar aceleração de hardware quando disponível”",
       "Reinicie o Chrome e recarregue o cockpit",
-    ].map((step, index) => `<li>${step}</li>`).join("");
-    return `<div class="nuclei-banner" role="status">
+    ].map((step) => `<li>${step}</li>`).join("");
+    return `<button class="nuclei-chip" type="button" data-nfx-toggle aria-expanded="false" title="3D indisponível — ver como reativar">3D off</button>
+<div class="nuclei-banner" role="status" data-nfx-panel hidden>
 <strong>3D indisponível — presença em modo seguro</strong>
 <span>${reason ? String(reason).slice(0, 120) : "O WebGL deste navegador está desligado."} A cena SVG animada assume enquanto isso.</span>
 <ol>${steps}</ol>
@@ -127,6 +131,13 @@
     wrap.innerHTML = sceneSvg() + bannerHtml(reason);
     host.classList.add("nuclei-live");
     host.appendChild(wrap);
+    const chip = wrap.querySelector("[data-nfx-toggle]");
+    const panel = wrap.querySelector("[data-nfx-panel]");
+    chip?.addEventListener("click", () => {
+      const open = panel.hasAttribute("hidden");
+      panel.toggleAttribute("hidden", !open);
+      chip.setAttribute("aria-expanded", String(open));
+    });
     wrap.querySelector("[data-nfx-copy]")?.addEventListener("click", () => {
       const text = [
         "Reativar o 3D do cockpit JARVIS:",

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "./vendor/draco/DRACOLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const mount = document.getElementById("avatar3d");
@@ -849,12 +850,24 @@ async function start() {
     });
   }
 
+  function loadOwnerGltf(loader, url) {
+    return new Promise((resolve, reject) => {
+      loader.load(url, resolve, undefined, reject);
+    });
+  }
+
   async function loadOwnerModel() {
     if (ownerLoadPromise) return ownerLoadPromise;
     stage.dataset.ownerModel = "loading";
-    ownerLoadPromise = new Promise((resolve, reject) => {
-      new GLTFLoader().load("/asset/models/jarvis-humanoid.glb?v=20260807-voicecyan1", resolve, undefined, reject);
+    const dracoLoader = new DRACOLoader().setDecoderPath("/ui/vendor/draco/");
+    const gltfLoader = new GLTFLoader().setDRACOLoader(dracoLoader);
+    ownerLoadPromise = loadOwnerGltf(gltfLoader, "/asset/models/jarvis-humanoid.draco.glb?v=20261016-draco1").catch((error) => {
+      // Decoder Draco roda em blob worker + WASM: CSP sem 'blob:' em worker-src e
+      // sem 'wasm-unsafe-eval' em script-src bloqueia o decode. Cai pro glb original.
+      console.warn("[jarvis-3d] draco.glb falhou, carregando glb original:", error?.message || error);
+      return loadOwnerGltf(new GLTFLoader(), "/asset/models/jarvis-humanoid.glb?v=20260807-voicecyan1");
     }).then((alienGltf) => {
+      dracoLoader.dispose();
       ownerModel = alienGltf.scene || alienGltf.scenes[0];
       normalizeModel(ownerModel);
       prepareOwnerModel(ownerModel);
@@ -871,6 +884,7 @@ async function start() {
       stage.dataset.modelAnimationSeconds = alienGltf.animations[0]?.duration?.toFixed(1) || "0";
       return ownerModel;
     }).catch((error) => {
+      dracoLoader.dispose();
       stage.dataset.ownerModel = "error";
       ownerLoadPromise = null;
       throw error;

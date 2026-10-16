@@ -28,13 +28,34 @@
     localStorage.removeItem("jarvis-chat-height");
     localStorage.removeItem("jarvis-chat-rect-v2");
     localStorage.removeItem("jarvis-chat-rect-v3");
-    const rect = JSON.parse(localStorage.getItem("jarvis-chat-rect-v4") || "null");
-    if (!rect || !rect.width || !rect.height) return;
     const root = document.documentElement.style;
-    root.setProperty("--conversation-left", `${rect.left}px`);
-    root.setProperty("--conversation-top", `${rect.top}px`);
-    root.setProperty("--conversation-width", `${rect.width}px`);
-    root.setProperty("--conversation-height", `${rect.height}px`);
+    const clamp = (value, min, max) => Math.round(Math.min(max, Math.max(min, value)));
+    const rect = JSON.parse(localStorage.getItem("jarvis-chat-rect-v4") || "null");
+    // Primeiro acesso sem rect salvo: pinta já na doca padrão (mesma matemática
+    // de defaultConversationRect + clamps de applyConversationRect em jarvis.js).
+    // Sem isso o painel nasce centralizado no shell.css e salta para a direita
+    // depois do primeiro paint — CLS ~0,33.
+    const innerW = window.innerWidth;
+    const innerH = window.innerHeight;
+    let width;
+    let height;
+    let left;
+    let top;
+    if (rect && rect.width && rect.height) {
+      width = clamp(rect.width, 320, innerW - 16);
+      height = clamp(rect.height, 340, innerH - 76);
+      left = clamp(rect.left, 8, Math.max(8, innerW - width - 8));
+      top = clamp(rect.top, 60, Math.max(60, innerH - height - 8));
+    } else {
+      width = clamp(Math.min(Math.max(360, Math.round(innerW * 0.26)), 480, innerW - 32), 320, innerW - 16);
+      height = clamp(Math.min(Math.max(440, Math.round(innerH * 0.66)), 700, innerH - 96), 340, innerH - 76);
+      left = clamp(Math.max(16, innerW - width - 28), 8, Math.max(8, innerW - width - 8));
+      top = clamp(Math.max(64, Math.round(innerH * 0.13)), 60, Math.max(60, innerH - height - 8));
+    }
+    root.setProperty("--conversation-left", `${left}px`);
+    root.setProperty("--conversation-top", `${top}px`);
+    root.setProperty("--conversation-width", `${width}px`);
+    root.setProperty("--conversation-height", `${height}px`);
     root.setProperty("--conversation-transform", "none");
     root.setProperty("--conversation-bottom", "auto");
   } catch (_error) { /* first visit */ }
@@ -97,7 +118,7 @@
         </button>
         <button class="quiet-button" id="notesPadButton" type="button" title="Abrir bloco de notas">Notas</button>
         <button class="quiet-button" id="actionHubButton" type="button" aria-expanded="false" title="Abrir ferramentas · ⌘K">Ferramentas <kbd>⌘K</kbd></button>
-        <button class="quiet-button integrations-button" id="integrationsButton" type="button" title="Abrir cofre de APIs">APIs <b id="integrationsCount">0</b></button>
+        <button class="quiet-button integrations-button vault-hero-button" id="integrationsButton" type="button" title="Conectar minha IA · abrir cofre de APIs" aria-haspopup="dialog" aria-controls="jarvisVaultPanel">Conectar minha IA <b id="integrationsCount" hidden>0</b></button>
         <button class="quiet-button" id="muteButton" type="button" aria-pressed="false"><span class="desktop-label">Mutar fala</span><span class="mobile-label">Mutar</span></button>
         <button class="quiet-button mobile-install-button" id="installButton" type="button" hidden>Instalar</button>
         <button class="quiet-button app-download-button" id="downloadButton" type="button" title="App JARVIS · Mac e Windows">
@@ -574,6 +595,7 @@
   </footer>
 
 <script src="/ui/api-vault.js?v=20260813-ultronfix1" defer></script>
+<script src="/ui/api-panel.js?v=20261016-contas1" defer></script>
 <script src="/ui/integration-history.js?v=20260813-ultronfix1" defer></script>
 <script src="/ui/feature-loader.js?v=20260819-ui2" defer></script>
 <script src="/ui/device-feedback.js?v=20260819-exec2" defer></script>
