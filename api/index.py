@@ -2521,7 +2521,9 @@ def overlay_shell_version():
 
 
 def owner_pairing_required():
-    return bool(clean_text(os.environ.get("JARVIS_OWNER_TOKEN"), 2_000))
+    # fail-closed: pareamento é sempre exigido. JARVIS_OWNER_TOKEN ausente no
+    # deploy nunca libera rotas de dono (antes: bool(env) abria tudo sem token).
+    return True
 
 
 def load_account_book():
@@ -3024,9 +3026,10 @@ def accounts_manage_payload(body, identity):
         return pairing_required_payload()
     action = clean_text(body.get("action"), 20)
     username = clean_text(body.get("username"), 80)
+    new_password = str(body.get("password") or "")[:128] if action == "set_password" else None
     try:
         book = load_account_book()
-        result = accounts_store.manage(book, action, username)
+        result = accounts_store.manage(book, action, username, password=new_password)
         save_account_book(book)
     except ValueError as error:
         return {"ok": False, "status_real": "account_manage_refused", "error": str(error)}, 400
@@ -11669,13 +11672,13 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("X-Jarvis-Creator-Lock", creator_seal.fingerprint())
         csp = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: blob:; "
             "media-src 'self' blob:; "
             "connect-src 'self' http://127.0.0.1:8123 http://localhost:8123; "
             "font-src 'self' data:; "
-            "worker-src 'self'; "
+            "worker-src 'self' blob:; "
             "manifest-src 'self'; "
             "frame-ancestors 'none'; "
             "base-uri 'self'; "
