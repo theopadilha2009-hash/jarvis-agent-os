@@ -18,7 +18,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261016-voice4";
+  const SHELL_VERSION = "20261016-voice5";
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
@@ -252,6 +252,103 @@
     drainQueue();
   }
 
+  // Mesma regra do app nativo: frases por . ! ? … e quebra de linha; frase
+  // <8 chars gruda na seguinte. Texto sem separador vira frase única —
+  // caminho comum, igual ao comportamento antigo.
+  function pushSpeechPart(parts, current) {
+    const piece = current.trim();
+    if (piece) parts.push(piece);
+  }
+
+  function speechSentences(text) {
+    const parts = [];
+    let current = "";
+    for (const ch of text) {
+      if (ch === "." || ch === "!" || ch === "?" || ch === "…") {
+        current += ch;
+        pushSpeechPart(parts, current);
+        current = "";
+      } else if (ch === "\n" || ch === "\r") {
+        pushSpeechPart(parts, current);
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    pushSpeechPart(parts, current);
+    if (parts.length <= 1) return parts;
+    const merged = [];
+    let index = 0;
+    while (index < parts.length) {
+      let piece = parts[index];
+      while (piece.length < 8 && index + 1 < parts.length) {
+        index += 1;
+        piece += ` ${parts[index]}`;
+      }
+      merged.push(piece);
+      index += 1;
+    }
+    return merged;
+  }
+
+  // Web: busca o blob da frase 1 e toca; em paralelo pré-busca a próxima
+  // (no máximo 1 fetch em voo, como no app) e encadeia playBlob sequencial.
+  // Frase com erro é pulada e a fila segue; o unmute fica no .finally de speak.
+  function speakChunksQueue(chunks, persona) {
+    let next = 0;
+    const ready = [];
+    let fetching = false;
+    let waiting = false;
+    let finish = null;
+
+    const fetchNext = () => {
+      if (fetching || next >= chunks.length) return;
+      const chunk = chunks[next];
+      next += 1;
+      fetching = true;
+      let pending;
+      try {
+        pending = Promise.resolve(window.JarvisLocalVoice?.speakBlob(chunk, { persona }));
+      } catch {
+        pending = Promise.reject(new Error("speakBlob"));
+      }
+      pending.then(
+        (blob) => { if (blob) ready.push(blob); },
+        () => { /* frase falha: pula */ }
+      ).then(() => {
+        fetching = false;
+        fetchNext();
+        if (waiting) {
+          waiting = false;
+          playNext();
+        }
+      });
+    };
+
+    const playNext = () => {
+      if (!ready.length) {
+        if (fetching || next < chunks.length) {
+          fetchNext();
+          waiting = true;
+          return;
+        }
+        finish();
+        return;
+      }
+      const blob = ready.shift();
+      fetchNext();
+      Promise.resolve()
+        .then(() => playBlob(blob))
+        .catch(() => {})
+        .then(playNext);
+    };
+
+    return new Promise((resolveQueue) => {
+      finish = resolveQueue;
+      playNext();
+    });
+  }
+
   function speak(text) {
     const clip = String(text || "").replace(/\s+/g, " ").trim().slice(0, 220);
     if (!clip) return Promise.resolve();
@@ -267,11 +364,7 @@
         try { nativeHandlers().jarvisSpeak.postMessage(clip); } catch { resolve(); }
       }).finally(() => unmuteMicAfterSpeech());
     }
-    const persona = "jarvis";
-    return Promise.resolve(window.JarvisLocalVoice?.speakBlob(clip, { persona }))
-      .then((localBlob) => {
-        if (localBlob) return playBlob(localBlob);
-      })
+    return speakChunksQueue(speechSentences(clip), "jarvis")
       .catch(() => {})
       .finally(() => unmuteMicAfterSpeech());
   }
