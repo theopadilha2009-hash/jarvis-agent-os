@@ -74,6 +74,12 @@ DEFAULT_MODEL = "openrouter/free"
 ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 ELEVENLABS_VOICE_DESIGN_URL = "https://api.elevenlabs.io/v1/text-to-voice/design"
 ELEVENLABS_VOICE_CREATE_URL = "https://api.elevenlabs.io/v1/text-to-voice"
+ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_API_VERSION = "2023-06-01"
+ANTHROPIC_DEFAULT_MODEL = "claude-3-5-haiku-latest"
+OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_DEFAULT_MODEL = "gpt-4o-mini"
+DIRECT_AI_PROVIDERS = {"anthropic", "openai"}
 DEFAULT_ELEVENLABS_VOICE_ID = "nPczCjzI2devNBz1zQrb"
 DEFAULT_ELEVENLABS_MODEL = "eleven_flash_v2_5"
 MAX_BODY_BYTES = 4_000_000
@@ -600,6 +606,160 @@ def client_integrations(body):
 
 def client_integration(body, provider):
     return client_integrations(body).get(provider, {})
+
+
+def direct_ai_provider(body):
+    """Provedor de IA direto (fora do OpenRouter) pedido no body; "" quando não selecionado."""
+    requested = clean_text(body.get("ai_provider"), 20).casefold()
+    return requested if requested in DIRECT_AI_PROVIDERS else ""
+
+
+def direct_provider_api_keys(body, provider):
+    """Chaves do cofre do navegador + ambiente em ordem de failover; nunca expostas nem logadas."""
+    keys = []
+    browser_key = clean_text(client_integration(body, provider).get("api_key", ""), 2_000)
+    if browser_key:
+        keys.append(browser_key)
+    prefix = provider.upper()
+    for name in (f"{prefix}_API_KEY", f"{prefix}_FALLBACK_API_KEY"):
+        value = str(os.environ.get(name) or "").strip()
+        if value and value not in keys:
+            keys.append(value)
+    for value in str(os.environ.get(f"{prefix}_API_KEYS") or "").split(","):
+        value = value.strip()
+        if value and value not in keys:
+            keys.append(value)
+    return keys
+
+
+def text_only_message_content(content):
+    """Aceita string ou lista de partes do OpenRouter e devolve apenas o texto."""
+    if isinstance(content, list):
+        return "\n".join(
+            str(item.get("text") or "")
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
+        ).strip()
+    return str(content or "").strip()
+
+
+def anthropic_messages_payload(system_text, provider_messages, temperature, max_tokens, model):
+    """Converte o chat para a Messages API da Anthropic: system separado e papéis alternados."""
+    converted = []
+    for row in provider_messages:
+        role = row.get("role") if row.get("role") in {"user", "assistant"} else "user"
+        content = text_only_message_content(row.get("content", ""))
+        if not content:
+            continue
+        if converted and converted[-1]["role"] == role:
+            converted[-1]["content"] = f"{converted[-1]['content']}\n{content}"
+        else:
+            converted.append({"role": role, "content": content})
+    if converted and converted[-1]["role"] == "assistant":
+        converted.append({"role": "user", "content": "Continue."})
+    if not converted:
+        converted = [{"role": "user", "content": "Olá."}]
+    return {
+        "model": model,
+        "system": system_text,
+        "messages": converted,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+
+
+def openai_chat_payload(system_text, provider_messages, temperature, max_tokens, model):
+    """Converte o chat para o Chat Completions da OpenAI com conteúdo só-texto."""
+    converted = []
+    for row in provider_messages:
+        role = row.get("role") if row.get("role") in {"user", "assistant"} else "user"
+        content = text_only_message_content(row.get("content", ""))
+        if not content:
+            continue
+        converted.append({"role": role, "content": content})
+    if not converted:
+        converted = [{"role": "user", "content": "Olá."}]
+    return {
+        "model": model,
+        "messages": [{"role": "system", "content": system_text}, *converted],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+
+
+def anthropic_message_content(parsed):
+    """Extrai o texto e o modelo de uma resposta da Messages API (content é lista de blocos)."""
+    if not isinstance(parsed, dict):
+        return "", ""
+    blocks = parsed.get("content") if isinstance(parsed.get("content"), list) else []
+    text = "\n".join(
+        str(block.get("text") or "")
+        for block in blocks
+        if isinstance(block, dict) and block.get("type") == "text"
+    ).strip()
+    return text, clean_text(parsed.get("model"), 200)
+
+
+def send_direct_provider_chat(provider, api_keys, payload, timeout=None):
+    """Chama a API oficial do provedor e devolve o mesmo envelope do OpenRouter
+    (choices[].message.content) para o resto do pipeline não sentir a diferença.
+    Nunca registra nem devolve a chave."""
+    if provider == "anthropic":
+        url = ANTHROPIC_MESSAGES_URL
+        base_headers = {
+            "Content-Type": "application/json",
+            "x-api-key": "",
+            "anthropic-version": ANTHROPIC_API_VERSION,
+        }
+    else:
+        url = OPENAI_CHAT_URL
+        base_headers = {"Content-Type": "application/json", "Authorization": "Bearer "}
+    request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    last_error = None
+    retryable_codes = {401, 403, 408, 409, 429, 500, 502, 503, 504}
+    for index, api_key in enumerate(api_keys):
+        headers = dict(base_headers)
+        if provider == "anthropic":
+            headers["x-api-key"] = api_key
+        else:
+            headers["Authorization"] = f"Bearer {api_key}"
+        req = Request(url, data=request_body, headers=headers, method="POST")
+        try:
+            with urlopen(req, timeout=timeout) as response:
+                parsed = json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            last_error = error
+            if index + 1 < len(api_keys) and error.code in retryable_codes:
+                continue
+            raise
+        except (URLError, TimeoutError) as error:
+            last_error = error
+            if index + 1 < len(api_keys):
+                continue
+            raise
+        if provider == "anthropic":
+            content, model_used = anthropic_message_content(parsed)
+            if not content:
+                raise InvalidModelBody("anthropic_invalid_body")
+            return {
+                "choices": [{"message": {"role": "assistant", "content": content}}],
+                "model": model_used or payload.get("model") or ANTHROPIC_DEFAULT_MODEL,
+            }
+        choices = parsed.get("choices") if isinstance(parsed, dict) else None
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise InvalidModelBody("openai_invalid_body")
+        content = text_only_message_content(choices[0].get("message", {}).get("content", ""))
+        if not content:
+            raise InvalidModelBody("openai_invalid_body")
+        return {
+            "choices": [{"message": {"role": "assistant", "content": content}}],
+            "model": clean_text(parsed.get("model") or payload.get("model") or OPENAI_DEFAULT_MODEL, 200),
+        }
+    if last_error is not None:
+        raise last_error
+    raise TimeoutError("direct provider key failover exhausted")
 
 
 def safe_integration_base_url(value, provider="integration"):
@@ -10237,7 +10397,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     for candidate_key in [browser_openrouter_key, *openrouter_api_keys()]:
         if candidate_key and candidate_key not in api_keys:
             api_keys.append(candidate_key)
-    if not api_keys:
+    direct_provider = direct_ai_provider(body)
+    if direct_provider and not direct_provider_api_keys(body, direct_provider):
+        # Seleção sem chave no cofre nem no ambiente: não há rota direta possível.
+        direct_provider = ""
+    if not api_keys and not direct_provider:
         if free_search_sources:
             return search_results_without_synthesis(free_search_bundle, "openrouter_not_configured"), 200
         payload, status = planning_payload("/assistant", {"goal": latest})
@@ -10399,6 +10563,132 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     provider_messages = [dict(row) for row in messages]
     if attachments:
         provider_messages[-1]["content"] = openrouter_attachment_parts(latest, attachments)
+    if direct_provider and (attachments or (provider_web_search and not free_search_sources)):
+        # Rota direta v1 é chat texto: anexos e busca server-side continuam no OpenRouter.
+        direct_provider = ""
+    if direct_provider:
+        direct_keys = direct_provider_api_keys(body, direct_provider)
+        direct_model = (
+            ANTHROPIC_DEFAULT_MODEL if direct_provider == "anthropic" else OPENAI_DEFAULT_MODEL
+        )
+        direct_temperature = response_profile["temperature"]
+        direct_max_tokens = min(
+            response_profile["max_tokens"] * power_profile["multiplier"],
+            power_profile.get("max_tokens_cap") or 1_800,
+        )
+        direct_timeout = (
+            32 if response_strength == "maximum" else 20 if response_strength == "strong" else 14
+        )
+        direct_payload = (
+            anthropic_messages_payload(
+                system["content"], provider_messages, direct_temperature, direct_max_tokens, direct_model
+            )
+            if direct_provider == "anthropic"
+            else openai_chat_payload(
+                system["content"], provider_messages, direct_temperature, direct_max_tokens, direct_model
+            )
+        )
+        try:
+            result = send_direct_provider_chat(
+                direct_provider, direct_keys, direct_payload, timeout=direct_timeout
+            )
+        except HTTPError as error:
+            return {
+                "ok": False,
+                "endpoint": "POST /assistant",
+                "status_real": f"{direct_provider}_request_failed",
+                "provider": direct_provider,
+                "error": f"{direct_provider.capitalize()} recusou a requisição (HTTP {error.code}).",
+                "retryable": error.code in {408, 409, 429, 500, 502, 503, 504},
+            }, 502
+        except (URLError, TimeoutError):
+            return {
+                "ok": False,
+                "endpoint": "POST /assistant",
+                "status_real": f"{direct_provider}_unreachable",
+                "provider": direct_provider,
+                "error": f"O modelo externo ({direct_provider}) não respondeu a tempo.",
+                "retryable": True,
+            }, 504
+        except (ValueError, KeyError, json.JSONDecodeError, AttributeError):
+            return {
+                "ok": False,
+                "endpoint": "POST /assistant",
+                "status_real": f"{direct_provider}_invalid_response",
+                "provider": direct_provider,
+                "error": "O modelo externo retornou uma resposta inválida.",
+                "retryable": True,
+            }, 502
+        direct_content = result["choices"][0]["message"]["content"]
+        _, direct_internal_leak = sanitize_model_output(direct_content)
+        direct_content, direct_trimmed = concise_assistant_content(
+            direct_content,
+            detailed=response_profile["name"] != "concise",
+        )
+        if not direct_content:
+            direct_content = meta_leak_recovery(messages)
+        direct_payload_result = {
+            "ok": True,
+            "endpoint": "POST /assistant",
+            "status_real": f"assistant_response_from_{direct_provider}",
+            "visual_state": "response",
+            "message": direct_content,
+            "content": direct_content,
+            "model": clean_text(result.get("model") or direct_model, 200),
+            "provider": direct_provider,
+            "external_processing": True,
+            "memory_context_count": len(memory_context),
+            "memory_context_cache_hit": memory_context_cache_hit,
+            "memory_selection": memory_selection,
+            "response_profile": response_profile["name"],
+            "response_strength": response_strength,
+            "power_profile": power_profile,
+            "persona": persona_profile,
+            "client_openrouter_key_used": False,
+            "client_direct_key_used": True,
+            "direct_provider": direct_provider,
+            "ai_provider": direct_provider,
+            "response_trimmed": direct_trimmed,
+            "meta_leak_recovered": bool(direct_internal_leak and direct_content),
+            "language_recovered": False,
+            "tool_calling_fallback": False,
+            "openrouter_key_failover": False,
+            "model_routing": {
+                "strategy": "direct_provider_api",
+                "selected": clean_text(result.get("model") or direct_model, 200),
+                "candidates": [direct_model],
+            },
+        }
+        if web_search_requested and free_search_sources:
+            direct_payload_result.update({
+                "status_real": "assistant_response_grounded_by_live_web",
+                "sources": free_search_sources,
+                "verification": free_search_bundle.get("verification") or research_verification(free_search_sources),
+                "web_search": {
+                    "requested": True,
+                    "used": True,
+                    "synthesized": True,
+                    "provider": free_search_bundle.get("provider") or "public_search",
+                    "mode": free_search_bundle.get("mode") or "public_search",
+                    "source_count": len(free_search_sources),
+                    "attempts": free_search_bundle.get("attempts", []),
+                    "research": free_search_bundle.get("research", {}),
+                    "cache_hit": bool(free_search_bundle.get("cache_hit")),
+                    "searched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                },
+            })
+        if suggested_memory:
+            direct_payload_result["memory_suggestion"] = suggested_memory
+            direct_payload_result["memory_candidate"] = suggested_memory_candidate
+            direct_auto_saved = autosave_memory_candidate(suggested_memory_candidate, owner_authenticated)
+            if direct_auto_saved:
+                direct_payload_result["memory_auto_saved"] = direct_auto_saved
+                direct_payload_result["persistent_write"] = True
+                direct_payload_result["visual_state"] = "memory"
+                direct_payload_result["message"] = clean_text(direct_payload_result.get("message"), 8_000) + (
+                    f"\n\nGuardei na memória: {direct_auto_saved['content'][:160]}"
+                )
+        return direct_payload_result, 200
     model_candidates = openrouter_model_candidates(
         attachments=bool(attachments),
         profile=response_profile["name"],

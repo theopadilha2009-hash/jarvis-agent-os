@@ -1,0 +1,317 @@
+/* Onboarding de primeira experiencia: wizard escuro, sem emoji, 4 passos.
+   Reaproveita os tokens do tema (jarvis.css). Nada aqui toca outros fluxos. */
+
+.onboarding-dialog {
+  width: min(560px, 92vw);
+  max-height: min(84vh, 720px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--glass-strong);
+  color: var(--text);
+  box-shadow: 0 24px 60px rgba(7, 3, 13, 0.6);
+  overscroll-behavior: contain;
+}
+
+.onboarding-dialog::backdrop {
+  background: rgba(7, 3, 13, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.onboarding-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 22px 22px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.onboarding-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.onboarding-eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.onboarding-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.onboarding-close {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.onboarding-close:hover,
+.onboarding-close:focus-visible {
+  border-color: var(--line-hot);
+  color: var(--text);
+}
+
+.onboarding-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px 0;
+}
+
+.onboarding-progress-track {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+
+.onboarding-dot {
+  height: 4px;
+  flex: 1;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 240ms var(--ease);
+}
+
+.onboarding-dot[data-state="current"] {
+  background: var(--cyan-hot);
+}
+
+.onboarding-dot[data-state="done"] {
+  background: var(--green);
+}
+
+.onboarding-progress-label {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.onboarding-steps {
+  display: grid;
+  gap: 10px;
+  padding: 16px 22px;
+  overflow-y: auto;
+}
+
+.onboarding-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(30, 22, 48, 0.55);
+  cursor: pointer;
+}
+
+.onboarding-step:hover,
+.onboarding-step:focus-within {
+  border-color: var(--line-hot);
+}
+
+.onboarding-step[data-done="true"] {
+  border-color: var(--line-hot);
+  background: rgba(30, 22, 48, 0.3);
+}
+
+.onboarding-step input[type="checkbox"] {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  border: 1px solid var(--line-hot);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+}
+
+.onboarding-step input[type="checkbox"]::after {
+  content: "";
+  width: 10px;
+  height: 6px;
+  border-left: 2px solid var(--on-accent);
+  border-bottom: 2px solid var(--on-accent);
+  transform: rotate(-45deg) scale(0);
+  transform-origin: center;
+  transition: transform 160ms var(--ease);
+}
+
+.onboarding-step input[type="checkbox"]:checked::after {
+  transform: rotate(-45deg) scale(1);
+}
+
+.onboarding-step input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.onboarding-step input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--cyan-hot);
+  outline-offset: 2px;
+}
+
+.onboarding-step-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.onboarding-step-title {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.onboarding-step[data-done="true"] .onboarding-step-title {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--line-hot);
+}
+
+.onboarding-step-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.onboarding-step-text a {
+  color: var(--cyan-hot);
+  text-underline-offset: 3px;
+}
+
+.onboarding-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.onboarding-action {
+  border: 1px solid var(--line-hot);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--cyan-hot);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.onboarding-action:hover,
+.onboarding-action:focus-visible {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.onboarding-action-secondary {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.onboarding-action-secondary:hover,
+.onboarding-action-secondary:focus-visible {
+  background: transparent;
+  border-color: var(--line-hot);
+  color: var(--text);
+}
+
+.onboarding-done-chip {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.onboarding-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 22px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.onboarding-skip {
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.onboarding-skip:hover,
+.onboarding-skip:focus-visible {
+  color: var(--text);
+}
+
+.onboarding-finish {
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 9px 22px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.onboarding-finish:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.onboarding-finish:not(:disabled):hover,
+.onboarding-finish:not(:disabled):focus-visible {
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.onboarding-finish:focus-visible,
+.onboarding-skip:focus-visible,
+.onboarding-action:focus-visible,
+.onboarding-close:focus-visible {
+  outline: 2px solid var(--cyan-hot);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .onboarding-head,
+  .onboarding-foot {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .onboarding-progress,
+  .onboarding-steps {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-dot,
+  .onboarding-step input[type="checkbox"]::after {
+    transition: none;
+  }
+}

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "./vendor/draco/DRACOLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { makeForgeEntity } from "./forge-engine.js";
 
 const mount = document.getElementById("avatar3d");
 const stage = document.getElementById("stage");
@@ -674,6 +675,10 @@ async function start() {
   lowerFill.position.set(-1.2, -1.8, 2.4);
   scene.add(lowerFill);
   const coreEntity = makeCoreEntity(scene);
+  // A Forja real (port do engine antigo) só monta geometria e baixa o GLB
+  // quando o modo forja acende; com WebGL fora, nem isto existe aqui.
+  const forgeEntity = makeForgeEntity(scene, { camera, anchorX: compactViewport ? 0.62 : 0.66 });
+  stage.dataset.forge3d = "lazy";
   const MINI_PLANE_Z = 1.35;
   // Cada linha da coluna é o visual real daquele modo: o núcleo 3D, a forja
   // que monta as peças e a árvore de memória. Pedir memória acende na cena
@@ -1151,6 +1156,11 @@ async function start() {
     particleMaterial.opacity = isWorking ? 0.27 : 0.16 + speakingPulse * 0.22;
     particles.rotation.y += deltaSeconds * (isWorking ? 0.022 : 0.008);
     coreEntity.update(time, modeBlend.core, deltaSeconds);
+    // A Forja carrega na primeira entrada no modo e pausa sozinha quando o
+    // blend volta a zero (o update corta cedo com o fade terminado).
+    if (modeBlend.forge > 0.02) forgeEntity.ensureLoaded();
+    forgeEntity.update(time, modeBlend.forge, deltaSeconds);
+    if (stage.dataset.forge3d !== forgeEntity.status) stage.dataset.forge3d = forgeEntity.status;
     miniCore.update(time, 1, deltaSeconds);
     miniCore.group.scale.setScalar(miniCoreScale * (1 + nucleusPulse.core * 0.18));
 
@@ -1160,7 +1170,8 @@ async function start() {
       drawNucleusThumbnails(time);
 
       if (modeBlend.memory > 0.01) drawMemory(effectContext, canvasWidth, canvasHeight, time, memoryLabels, modeBlend.memory);
-      if (modeBlend.forge > 0.01) drawForge(effectContext, canvasWidth, canvasHeight, time, modeBlend.forge);
+      // Com a Forja 3D em cena o scaffold 2D recua e vira só o HUD (legenda e etapas).
+      if (modeBlend.forge > 0.01) drawForge(effectContext, canvasWidth, canvasHeight, time, modeBlend.forge * (forgeEntity.ready ? 0.4 : 1));
       effectLastFrameMs = timeMs;
     }
 
@@ -1205,6 +1216,7 @@ async function start() {
     });
     particleGeometry.dispose();
     particleMaterial.dispose();
+    forgeEntity.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
   }, { once: true });

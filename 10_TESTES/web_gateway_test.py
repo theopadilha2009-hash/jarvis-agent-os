@@ -39,6 +39,12 @@ class WebGatewayTest(unittest.TestCase):
         "OPENROUTER_MODEL_POOL",
         "OPENROUTER_DEEP_MODEL_POOL",
         "OPENROUTER_ATTACHMENT_MODEL",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_FALLBACK_API_KEY",
+        "ANTHROPIC_API_KEYS",
+        "OPENAI_API_KEY",
+        "OPENAI_FALLBACK_API_KEY",
+        "OPENAI_API_KEYS",
         "ELEVENLABS_API_KEY",
         "ELEVENLABS_FALLBACK_API_KEY",
         "ELEVENLABS_API_KEYS",
@@ -2699,6 +2705,93 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(request.call_count, 2)
         self.assertEqual(request.call_args_list[0].args[0].headers["Authorization"], "Bearer primary-test-key")
         self.assertEqual(request.call_args_list[1].args[0].headers["Authorization"], "Bearer fallback-test-key")
+
+    def test_anthropic_direct_route_uses_messages_api_and_returns_envelope(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "id": "msg_01",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-3-5-haiku-latest",
+                    "content": [{"type": "text", "text": "Resposta direta via Claude."}],
+                    "stop_reason": "end_turn",
+                }).encode("utf-8")
+
+        body = {
+            "command": "converse comigo",
+            "ai_provider": "anthropic",
+            "client_integrations": {"anthropic": {"api_key": "sk-ant-test-direct"}},
+        }
+        with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+            payload, status = MODULE.assistant_response(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "anthropic")
+        self.assertEqual(payload["status_real"], "assistant_response_from_anthropic")
+        self.assertEqual(payload["message"], "Resposta direta via Claude.")
+        self.assertTrue(payload["client_direct_key_used"])
+        self.assertFalse(payload["client_openrouter_key_used"])
+        sent_request = request.call_args.args[0]
+        self.assertEqual(sent_request.full_url, MODULE.ANTHROPIC_MESSAGES_URL)
+        self.assertEqual(sent_request.headers["X-api-key"], "sk-ant-test-direct")
+        self.assertEqual(sent_request.headers["Anthropic-version"], "2023-06-01")
+        self.assertNotIn("Authorization", sent_request.headers)
+        sent_payload = json.loads(sent_request.data.decode("utf-8"))
+        self.assertEqual(sent_payload["model"], "claude-3-5-haiku-latest")
+        self.assertEqual(sent_payload["stream"], False)
+        self.assertIsInstance(sent_payload["max_tokens"], int)
+        self.assertIsInstance(sent_payload["system"], str)
+        self.assertIn("Você é JARVIS", sent_payload["system"])
+        self.assertEqual(sent_payload["messages"][0]["role"], "user")
+        self.assertEqual(sent_payload["messages"][-1]["role"], "user")
+        self.assertNotIn("Authorization", sent_request.headers)
+        self.assertNotIn("sk-ant-test-direct", json.dumps(payload, ensure_ascii=False))
+        self.assertNotIn("sk-ant-test-direct", sent_request.data.decode("utf-8"))
+
+    def test_openai_direct_route_uses_chat_completions_and_returns_envelope(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "id": "chatcmpl-1",
+                    "model": "gpt-4o-mini",
+                    "choices": [{"message": {"role": "assistant", "content": "Resposta direta via OpenAI."}}],
+                }).encode("utf-8")
+
+        body = {
+            "command": "converse comigo",
+            "ai_provider": "openai",
+            "client_integrations": {"openai": {"api_key": "sk-openai-test-direct"}},
+        }
+        with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
+            payload, status = MODULE.assistant_response(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["provider"], "openai")
+        self.assertEqual(payload["status_real"], "assistant_response_from_openai")
+        self.assertEqual(payload["message"], "Resposta direta via OpenAI.")
+        self.assertTrue(payload["client_direct_key_used"])
+        sent_request = request.call_args.args[0]
+        self.assertEqual(sent_request.full_url, MODULE.OPENAI_CHAT_URL)
+        self.assertEqual(sent_request.headers["Authorization"], "Bearer sk-openai-test-direct")
+        self.assertNotIn("X-api-key", sent_request.headers)
+        sent_payload = json.loads(sent_request.data.decode("utf-8"))
+        self.assertEqual(sent_payload["model"], "gpt-4o-mini")
+        self.assertEqual(sent_payload["messages"][0]["role"], "system")
+        self.assertIn("Você é JARVIS", sent_payload["messages"][0]["content"])
+        self.assertEqual(sent_payload["messages"][-1]["role"], "user")
+        self.assertNotIn("sk-openai-test-direct", json.dumps(payload, ensure_ascii=False))
+        self.assertNotIn("sk-openai-test-direct", sent_request.data.decode("utf-8"))
 
     def test_live_web_search_uses_openrouter_server_tool_and_returns_sources(self):
         class FakeResponse:

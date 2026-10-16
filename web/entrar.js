@@ -148,6 +148,10 @@
       }
       persist(data.session_token, username);
       pass.value = "";
+      // Onboarding de primeira experiencia: o trigger atravessa a navegação
+      // para /cockpit, onde /ui/onboarding.js escuta o evento e abre o wizard.
+      try { localStorage.setItem("jarvis-onboarding-trigger", username); } catch { /* sem storage */ }
+      window.dispatchEvent(new CustomEvent("jarvis-onboarding", { detail: { username } }));
       goCockpit();
     } catch {
       showError("Não consegui validar o login agora.");
