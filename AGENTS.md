@@ -21,9 +21,11 @@ python3 -m py_compile 11_SCRIPTS/<arquivo>.py   # compile do script alterado
 ./jarvis command-audit                          # core/help/catalog/smoke em sync
 env JARVIS_NO_REPORT=1 ./jarvis smoke-test      # smoke sem gerar relatório
 env JARVIS_NO_REPORT=1 ./jarvis safety-gate     # secret-scan + storage + quality
+python3 -m unittest discover -s 10_TESTES -p "*_test.py"  # suite unittest (355 testes, ~11s)
 ./jarvis release-check                          # bateria completa
 ```
 Sempre rodar `command-audit` e `safety-gate` após mexer em comandos.
+Comando novo que toca gateway/worker precisa do teste correspondente em `10_TESTES/` verde.
 
 ## Como adicionar um comando novo (com segurança)
 1. Criar script em `11_SCRIPTS/<nome>.py` (Python stdlib only).

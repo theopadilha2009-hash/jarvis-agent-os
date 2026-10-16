@@ -90,7 +90,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20261016-voice5", FALA_HTML)
+        self.assertIn("20261016-voice6", FALA_HTML)
         self.assertIn('nativeWindow("hide")', FALA_JS)
         self.assertIn("parkSoon", FALA_JS)
         self.assertIn("parkNow", FALA_JS)
@@ -230,6 +230,29 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("forceListen", click.group(1))
         self.assertNotIn("stopWakeLoop", click.group(1))
         self.assertIn("A mesma conta do site.", FALA_HTML)
+
+    def test_fullscreen_browser_open_and_web_screen_look(self):
+        self.assertIn("20261016-voice6", FALA_HTML)
+        self.assertNotIn("20261016-voice5", FALA_HTML)
+        self.assertNotIn("20261016-voice5", FALA_JS)
+        # tela cheia: web via Fullscreen API, app via mensagem nativa
+        self.assertIn("function toggleFullscreen", FALA_JS)
+        self.assertIn("requestFullscreen", FALA_JS)
+        self.assertIn("exitFullscreen", FALA_JS)
+        self.assertIn('nativeWindow("fullscreen")', FALA_JS)
+        self.assertIn('body == "fullscreen"', (ROOT / "11_SCRIPTS" / "jarvis_native_app.swift").read_text(encoding="utf-8"))
+        # abrir navegador: apps do Mac vão pro gateway (open_application)
+        self.assertIn('"Google Chrome"', FALA_JS)
+        self.assertIn('"Safari"', FALA_JS)
+        self.assertIn('"Microsoft Edge"', FALA_JS)
+        self.assertIn('"Brave Browser"', FALA_JS)
+        self.assertIn("abrir aplicativo", FALA_JS)
+        self.assertIn("function openAppOnMac", FALA_JS)
+        # olhar a tela na web: fallback getDisplayMedia com mensagem de permissão
+        self.assertIn("getDisplayMedia", FALA_JS)
+        self.assertIn("Permita a captura de tela para eu analisar", FALA_JS)
+        self.assertIn("function frameFromStream", FALA_JS)
+        self.assertIn('toDataURL("image/jpeg"', FALA_JS)
 
     def test_native_app_bridge_hooks_speak_and_listen(self):
         self.assertIn("jarvisSpeak", FALA_JS)

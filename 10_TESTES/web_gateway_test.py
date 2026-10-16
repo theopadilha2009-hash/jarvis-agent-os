@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 import base64
 import hashlib
 import importlib.util
+from contextlib import contextmanager
 from datetime import datetime
 import json
 import os
@@ -133,6 +134,25 @@ class WebGatewayTest(unittest.TestCase):
     def json_request(self, path, method="GET", payload=None, extra_headers=None):
         status, headers, raw = self.request(path, method, payload, extra_headers=extra_headers)
         return status, headers, json.loads(raw)
+
+    OWNER_TOKEN = "owner-pairing-test-value"
+
+    @contextmanager
+    def owner_session(self):
+        """Pareamento é fail-closed desde a auditoria P1: rotas de dono exigem
+        token. Este contexto configura o env e autentica os requests daquele
+        teste como dono, sem afetar os testes de visitante."""
+        with patch.dict(os.environ, {"JARVIS_OWNER_TOKEN": self.OWNER_TOKEN}):
+            original_request = self.request
+
+            def request_as_owner(path, method="GET", payload=None, extra_headers=None):
+                headers = {"X-Jarvis-Owner-Token": self.OWNER_TOKEN}
+                if extra_headers:
+                    headers.update(extra_headers)
+                return original_request(path, method, payload, extra_headers=headers)
+
+            with patch.object(self, "request", request_as_owner):
+                yield
 
     def test_status_and_security_headers(self):
         status, headers, payload = self.json_request("/status")
@@ -413,7 +433,7 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/api-panel.css?v=20260813-ultronfix1', html)
         self.assertNotIn(b'/ui/integration-health.css?v=', html)
         self.assertIn(b'/ui/responsive-polish.css?v=20260819-notas1', html)
-        self.assertIn(b'/ui/presence-loader.js?v=20260819-ui2', html)
+        self.assertIn(b'/ui/presence-loader.js?v=20261016-svgfb', html)
         self.assertIn(b'/ui/manifest.webmanifest?v=20260813-apitools1', html)
         self.assertIn(b'viewport-fit=cover', html)
         self.assertIn(b'interactive-widget=resizes-content', html)
@@ -616,7 +636,7 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, presence_loader = self.request("/ui/presence-loader.js")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
-        self.assertIn(b"jarvis-3d.js?v=20260819-aug15", presence_loader)
+        self.assertIn(b"jarvis-3d.js?v=20261016-draco1", presence_loader)
         self.assertIn(b"requestIdleCallback", presence_loader)
         self.assertIn(b'/ui/aurora.js', presence_loader)
         self.assertIn(b'/ui/strands.js', presence_loader)
@@ -796,7 +816,10 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, logo = self.request("/ui/jarvis-logo.png")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "image/png")
-        self.assertGreater(len(logo), 100_000)
+        # O logo foi redimensionado para o tamanho real de uso (148px):
+        # 23KB em vez dos 212KB que carregavam antes da otimização.
+        self.assertGreater(len(logo), 10_000)
+        self.assertLess(len(logo), 60_000)
 
         status, headers, css = self.request("/ui/jarvis.css")
         self.assertEqual(status, 200)
@@ -836,9 +859,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b"visitor topology derived deterministically", topology_model[:200])
 
     def test_local_device_request_becomes_handoff(self):
-        status, _, payload = self.json_request(
-            "/command", "POST", {"command": "tirar um print da tela"}
-        )
+        with self.owner_session():
+            status, _, payload = self.json_request(
+                "/command", "POST", {"command": "tirar um print da tela"}
+            )
         self.assertEqual(status, 200)
         self.assertEqual(payload["intent"], "screen_capture")
         self.assertTrue(payload["requires_local_worker"])
@@ -850,41 +874,42 @@ class WebGatewayTest(unittest.TestCase):
         self.assertGreaterEqual(stream["elapsed_ms"], 0)
 
     def test_agent_run_can_be_read_confirmed_canceled_and_retried(self):
-        status, _, waiting = self.json_request(
-            "/command", "POST", {"command": "mande mensagem para 5511999999999 dizendo teste"}
-        )
-        self.assertEqual(status, 202)
-        self.assertEqual(waiting["state"], "waiting_confirmation")
-        self.assertTrue(waiting["needs_confirmation"])
-        run_id = waiting["run_id"]
+        with self.owner_session():
+            status, _, waiting = self.json_request(
+                "/command", "POST", {"command": "mande mensagem para 5511999999999 dizendo teste"}
+            )
+            self.assertEqual(status, 202)
+            self.assertEqual(waiting["state"], "waiting_confirmation")
+            self.assertTrue(waiting["needs_confirmation"])
+            run_id = waiting["run_id"]
 
-        status, _, loaded = self.json_request(f"/runs/{run_id}")
-        self.assertEqual(status, 200)
-        self.assertEqual(loaded["run_id"], run_id)
-        self.assertIn("created_at", loaded)
+            status, _, loaded = self.json_request(f"/runs/{run_id}")
+            self.assertEqual(status, 200)
+            self.assertEqual(loaded["run_id"], run_id)
+            self.assertIn("created_at", loaded)
 
-        status, _, history = self.json_request("/runs?limit=1&state=waiting_confirmation")
-        self.assertEqual(status, 200)
-        self.assertEqual(history["protocol"], MODULE.RUN_PROTOCOL)
-        self.assertEqual(history["count"], 1)
-        self.assertEqual(history["runs"][0]["run_id"], run_id)
-        self.assertEqual(history["runs"][0]["state"], "waiting_confirmation")
+            status, _, history = self.json_request("/runs?limit=1&state=waiting_confirmation")
+            self.assertEqual(status, 200)
+            self.assertEqual(history["protocol"], MODULE.RUN_PROTOCOL)
+            self.assertEqual(history["count"], 1)
+            self.assertEqual(history["runs"][0]["run_id"], run_id)
+            self.assertEqual(history["runs"][0]["state"], "waiting_confirmation")
 
-        status, _, confirmed = self.json_request(f"/runs/{run_id}/confirm", "POST", {})
-        self.assertEqual(status, 200)
-        self.assertEqual(confirmed["state"], "completed")
-        self.assertTrue(confirmed["requires_local_worker"])
+            status, _, confirmed = self.json_request(f"/runs/{run_id}/confirm", "POST", {})
+            self.assertEqual(status, 200)
+            self.assertEqual(confirmed["state"], "completed")
+            self.assertTrue(confirmed["requires_local_worker"])
 
-        _, _, second = self.json_request(
-            "/command", "POST", {"command": "mande mensagem para 5511999999999 dizendo cancelar"}
-        )
-        status, _, canceled = self.json_request(f"/runs/{second['run_id']}/cancel", "POST", {})
-        self.assertEqual(status, 200)
-        self.assertEqual(canceled["state"], "canceled")
-        status, _, retried = self.json_request(f"/runs/{second['run_id']}/retry", "POST", {})
-        self.assertEqual(status, 202)
-        self.assertEqual(retried["state"], "waiting_confirmation")
-        self.assertNotEqual(retried["run_id"], second["run_id"])
+            _, _, second = self.json_request(
+                "/command", "POST", {"command": "mande mensagem para 5511999999999 dizendo cancelar"}
+            )
+            status, _, canceled = self.json_request(f"/runs/{second['run_id']}/cancel", "POST", {})
+            self.assertEqual(status, 200)
+            self.assertEqual(canceled["state"], "canceled")
+            status, _, retried = self.json_request(f"/runs/{second['run_id']}/retry", "POST", {})
+            self.assertEqual(status, 202)
+            self.assertEqual(retried["state"], "waiting_confirmation")
+            self.assertNotEqual(retried["run_id"], second["run_id"])
 
     def test_mission_control_prioritizes_real_runs_and_safe_operations(self):
         waiting = MODULE.AGENT_RUNS.create(
@@ -905,7 +930,8 @@ class WebGatewayTest(unittest.TestCase):
             failed["id"], state="failed", error="falha verificada",
             evidence=[{"type": "private", "value": "não expor este valor"}], event_type="RUN_FAILED",
         )
-        status, _, control = self.json_request("/mission-control?limit=12")
+        with self.owner_session():
+            status, _, control = self.json_request("/mission-control?limit=12")
         self.assertEqual(status, 200)
         self.assertEqual(control["protocol"], MODULE.MISSION_CONTROL_PROTOCOL)
         self.assertEqual(control["health"], "needs_attention")
@@ -924,10 +950,35 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 401)
         self.assertEqual(payload["endpoint"], "GET /mission-control")
 
+    def test_owner_routes_fail_closed_without_owner_token_env(self):
+        """Contrato fail-closed (auditoria P1): sem JARVIS_OWNER_TOKEN no
+        ambiente, o pareamento continua exigido e rotas de dono não autorizam."""
+        self.assertNotIn("JARVIS_OWNER_TOKEN", os.environ)
+        self.assertTrue(MODULE.owner_pairing_required())
+
+        status, _, runs = self.json_request("/runs")
+        self.assertEqual(status, 401)
+        self.assertEqual(runs["status_real"], "owner_pairing_required")
+        self.assertTrue(runs["pairing_required"])
+
+        status, _, device = self.json_request("/device-command?id=42")
+        self.assertEqual(status, 401)
+        self.assertEqual(device["status_real"], "owner_pairing_required")
+
+        status, _, canceled = self.json_request("/device-cancel", "POST", {"id": "42"})
+        self.assertEqual(status, 401)
+        self.assertEqual(canceled["status_real"], "owner_pairing_required")
+        self.assertFalse(canceled["action_executed"])
+
+        status, _, confirmed = self.json_request("/runs/run-xyz/confirm", "POST", {})
+        self.assertEqual(status, 401)
+        self.assertEqual(confirmed["status_real"], "owner_pairing_required")
+
     def test_memory_search_uses_local_index(self):
-        status, _, payload = self.json_request(
-            "/command", "POST", {"command": "busque na memória por busto"}
-        )
+        with self.owner_session():
+            status, _, payload = self.json_request(
+                "/command", "POST", {"command": "busque na memória por busto"}
+            )
         self.assertEqual(status, 200)
         self.assertEqual(payload["provider"], "sqlite_local_index")
         self.assertEqual(payload["state"], "completed")
@@ -935,7 +986,7 @@ class WebGatewayTest(unittest.TestCase):
 
     def test_memory_manager_updates_and_archives_supabase_rows(self):
         saved = [{"id": "42", "content": "conteúdo atualizado", "kind": "decision"}]
-        with patch.object(MODULE, "supabase_configured", return_value=True), patch.object(
+        with self.owner_session(), patch.object(MODULE, "supabase_configured", return_value=True), patch.object(
             MODULE, "supabase_request", return_value=saved
         ) as request_mock:
             status, _, updated = self.json_request(
@@ -950,39 +1001,41 @@ class WebGatewayTest(unittest.TestCase):
             self.assertEqual(archived["status_real"], "supabase_memory_archived")
 
     def test_memory_manager_refuses_secret_like_content(self):
-        status, _, payload = self.json_request(
-            "/memory-update", "POST", {"id": "42", "content": "api" + "_key=" + "abcdefghijk123456", "kind": "learning"}
-        )
+        with self.owner_session():
+            status, _, payload = self.json_request(
+                "/memory-update", "POST", {"id": "42", "content": "api" + "_key=" + "abcdefghijk123456", "kind": "learning"}
+            )
         self.assertEqual(status, 400)
         self.assertIn("credenciais", payload["error"])
 
     def test_local_task_queue_ui_api_is_append_only(self):
-        with TemporaryDirectory() as directory:
-            task_path = Path(directory) / "tasks.jsonl"
-            with patch.object(MODULE.task_queue_store, "TASKS_DIR", task_path.parent), patch.object(
-                MODULE.task_queue_store, "TASKS_FILE", task_path
-            ):
-                status, _, created = self.json_request(
-                    "/tasks/add", "POST", {"text": "validar fila visual", "project": "jarvis-core"}
-                )
-                self.assertEqual(status, 201)
-                task_id = created["task"]["id"]
-                status, _, blocked = self.json_request(
-                    f"/tasks/{task_id}/block", "POST", {"detail": "aguardando revisão"}
-                )
-                self.assertEqual(status, 200)
-                self.assertEqual(blocked["task"]["status"], "blocked")
-                status, _, reopened = self.json_request(f"/tasks/{task_id}/reopen", "POST", {})
-                self.assertEqual(status, 200)
-                self.assertEqual(reopened["task"]["status"], "pending")
-                status, _, listed = self.json_request("/tasks")
-                self.assertEqual(status, 200)
-                self.assertEqual(listed["counts"]["pending"], 1)
-                self.assertEqual(len(task_path.read_text(encoding="utf-8").splitlines()), 3)
+        with self.owner_session():
+            with TemporaryDirectory() as directory:
+                task_path = Path(directory) / "tasks.jsonl"
+                with patch.object(MODULE.task_queue_store, "TASKS_DIR", task_path.parent), patch.object(
+                    MODULE.task_queue_store, "TASKS_FILE", task_path
+                ):
+                    status, _, created = self.json_request(
+                        "/tasks/add", "POST", {"text": "validar fila visual", "project": "jarvis-core"}
+                    )
+                    self.assertEqual(status, 201)
+                    task_id = created["task"]["id"]
+                    status, _, blocked = self.json_request(
+                        f"/tasks/{task_id}/block", "POST", {"detail": "aguardando revisão"}
+                    )
+                    self.assertEqual(status, 200)
+                    self.assertEqual(blocked["task"]["status"], "blocked")
+                    status, _, reopened = self.json_request(f"/tasks/{task_id}/reopen", "POST", {})
+                    self.assertEqual(status, 200)
+                    self.assertEqual(reopened["task"]["status"], "pending")
+                    status, _, listed = self.json_request("/tasks")
+                    self.assertEqual(status, 200)
+                    self.assertEqual(listed["counts"]["pending"], 1)
+                    self.assertEqual(len(task_path.read_text(encoding="utf-8").splitlines()), 3)
 
-        status, _, direct = self.json_request("/memory-search?q=busto")
-        self.assertEqual(status, 200)
-        self.assertGreaterEqual(direct["count"], 1)
+            status, _, direct = self.json_request("/memory-search?q=busto")
+            self.assertEqual(status, 200)
+            self.assertGreaterEqual(direct["count"], 1)
 
     def test_memory_explorer_filters_subject_kind_and_inclusive_period(self):
         tree = {
@@ -1183,10 +1236,12 @@ class WebGatewayTest(unittest.TestCase):
         opened, open_status = MODULE.command_payload(
             {"command": "abre o Chrome pra mim"},
             local_execute=False,
+            owner_authenticated=True,
         )
         closed, close_status = MODULE.command_payload(
             {"command": "fecha o Spotify"},
             local_execute=False,
+            owner_authenticated=True,
         )
         self.assertEqual(open_status, 200)
         self.assertEqual(opened["intent"], "open_application")
@@ -1229,7 +1284,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(site["open_url"], "https://linear.app/team")
 
     def test_clipboard_copy_and_mac_execution_intents(self):
-        copied, copied_status = MODULE.command_payload({"command": "copia isso: próximo passo do JARVIS"})
+        copied, copied_status = MODULE.command_payload(
+            {"command": "copia isso: próximo passo do JARVIS"}, owner_authenticated=True
+        )
         self.assertEqual(copied_status, 200)
         self.assertEqual(copied["intent"], "clipboard_set")
         self.assertEqual(copied["client_action"], "copy_text")
@@ -1241,7 +1298,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(MODULE.command_intent("fale no mac: sistemas no ar"), "speak")
         self.assertEqual(MODULE.command_intent("avisa no mac: deploy ok"), "notify")
         self.assertEqual(MODULE.command_intent("abre o youtube no mac"), "open_url")
-        folder, folder_status = MODULE.command_payload({"command": "abre a pasta downloads"})
+        folder, folder_status = MODULE.command_payload(
+            {"command": "abre a pasta downloads"}, owner_authenticated=True
+        )
         self.assertEqual(folder_status, 200)
         self.assertEqual(folder["intent"], "open_folder")
         self.assertIn("Downloads", folder.get("local_command") or folder.get("message") or "")
@@ -2114,6 +2173,7 @@ class WebGatewayTest(unittest.TestCase):
             payload, status = MODULE.command_payload(
                 {"command": "abre o Chrome"},
                 local_execute=True,
+                owner_authenticated=True,
             )
         self.assertEqual(status, 200)
         self.assertEqual(payload["status_real"], "local_action_executed")
@@ -2130,6 +2190,7 @@ class WebGatewayTest(unittest.TestCase):
             payload, status = MODULE.command_payload(
                 {"command": "tirar um print da tela"},
                 local_execute=True,
+                owner_authenticated=True,
             )
         self.assertEqual(status, 200)
         self.assertTrue(payload["executed_locally"])
@@ -2140,12 +2201,13 @@ class WebGatewayTest(unittest.TestCase):
         payload, status = MODULE.command_payload(
             {"command": "mandar mensagem para 5511999999999 dizendo teste local"},
             local_execute=False,
+            owner_authenticated=True,
         )
         self.assertEqual(status, 202)
         self.assertEqual(payload["intent"], "message_send")
         self.assertTrue(payload["needs_confirmation"])
         confirmed, confirmed_status = MODULE.execute_saved_run(
-            MODULE.AGENT_RUNS.get(payload["run_id"]), local_execute=False
+            MODULE.AGENT_RUNS.get(payload["run_id"]), local_execute=False, owner_authenticated=True
         )
         self.assertEqual(confirmed_status, 200)
         self.assertTrue(confirmed["requires_local_worker"])
@@ -2154,6 +2216,7 @@ class WebGatewayTest(unittest.TestCase):
         payload, status = MODULE.command_payload(
             {"command": "meu computador está travando, olha a memória"},
             local_execute=False,
+            owner_authenticated=True,
         )
         self.assertEqual(status, 200)
         self.assertEqual(payload["intent"], "system_memory")
@@ -2163,6 +2226,7 @@ class WebGatewayTest(unittest.TestCase):
         payload, status = MODULE.command_payload(
             {"command": "limpa os processos temporários do jarvis"},
             local_execute=False,
+            owner_authenticated=True,
         )
         self.assertEqual(status, 200)
         self.assertEqual(payload["intent"], "system_memory")
@@ -2195,6 +2259,7 @@ class WebGatewayTest(unittest.TestCase):
         payload, status = MODULE.command_payload(
             {"command": "limpa os processos do Mac"},
             local_execute=False,
+            owner_authenticated=True,
         )
         self.assertEqual(status, 200)
         self.assertEqual(payload["intent"], "system_memory")
@@ -2211,6 +2276,7 @@ class WebGatewayTest(unittest.TestCase):
             payload, status = MODULE.command_payload(
                 {"command": "guarde na mem\u00f3ria que o busto deve continuar na frente"},
                 local_execute=True,
+                owner_authenticated=True,
             )
         self.assertEqual(status, 200)
         self.assertEqual(payload["intent"], "memory_save")
@@ -2223,6 +2289,7 @@ class WebGatewayTest(unittest.TestCase):
         payload, status = MODULE.command_payload(
             {"command": "guarde na memória como preferência: respostas curtas"},
             local_execute=False,
+            owner_authenticated=True,
         )
         self.assertEqual(status, 200)
         self.assertEqual(payload["intent"], "memory_save")
@@ -2257,7 +2324,7 @@ class WebGatewayTest(unittest.TestCase):
             with patch.object(MODULE, "urlopen", return_value=FakeSupabaseResponse()) as request:
                 payload, status = MODULE.command_payload({
                     "command": "guarde na memória como preferência: respostas curtas"
-                })
+                }, owner_authenticated=True)
         self.assertEqual(status, 201)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["status_real"], "supabase_memory_persisted")
@@ -2465,6 +2532,7 @@ class WebGatewayTest(unittest.TestCase):
             payload, status = MODULE.command_payload(
                 {"command": "guarde na memória que respostas devem ser curtas"},
                 local_execute=True,
+                owner_authenticated=True,
             )
         self.assertEqual(status, 200)
         self.assertFalse(payload["ok"])
@@ -3712,7 +3780,7 @@ São Paulo - SP
                     {"role": "assistant", "content": "Entendi."},
                     {"role": "user", "content": "faz isso"},
                 ],
-            })
+            }, owner_authenticated=True)
         self.assertEqual(status, 200)
         self.assertTrue(payload["tool_calling_fallback"])
         self.assertIn("tools", requests[0])
@@ -4062,7 +4130,8 @@ São Paulo - SP
         with patch.dict(os.environ, env, clear=False):
             with patch.object(MODULE, "urlopen", return_value=FakeN8nResponse()):
                 payload, status = MODULE.command_payload(
-                    {"command": "adiciona reunião amanhã na agenda"}
+                    {"command": "adiciona reunião amanhã na agenda"},
+                    owner_authenticated=True,
                 )
         self.assertEqual(status, 200)
         self.assertEqual(payload["provider"], "n8n")
@@ -4079,7 +4148,8 @@ São Paulo - SP
             MODULE, "supabase_request", return_value=saved
         ) as request:
             payload, status = MODULE.command_payload(
-                {"command": "coloca na agenda comprar ração amanhã"}
+                {"command": "coloca na agenda comprar ração amanhã"},
+                owner_authenticated=True,
             )
         self.assertEqual(status, 201)
         self.assertEqual(payload["provider"], "supabase_agenda")
@@ -4250,21 +4320,22 @@ São Paulo - SP
         self.assertNotIn("5511999999999", json.dumps(payload))
 
     def test_memory_tree_is_read_only_and_structured(self):
-        status, _, payload = self.json_request("/memory-tree")
-        self.assertEqual(status, 200)
-        self.assertEqual(payload["visual_state"], "memory")
-        self.assertFalse(payload["persistent_write"])
-        self.assertIsInstance(payload["nodes"], list)
-        self.assertIsInstance(payload["edges"], list)
+        with self.owner_session():
+            status, _, payload = self.json_request("/memory-tree")
+            self.assertEqual(status, 200)
+            self.assertEqual(payload["visual_state"], "memory")
+            self.assertFalse(payload["persistent_write"])
+            self.assertIsInstance(payload["nodes"], list)
+            self.assertIsInstance(payload["edges"], list)
 
-        status, _, payload = self.json_request(
-            "/command", "POST", {"command": "mostra minhas mem\u00f3rias"}
-        )
-        self.assertEqual(status, 200)
-        self.assertEqual(payload["mode"], "memory")
-        self.assertEqual(payload["intent"], "memory_view")
-        self.assertFalse(payload["persistent_write"])
-        self.assertEqual(payload["visual_state"], "memory")
+            status, _, payload = self.json_request(
+                "/command", "POST", {"command": "mostra minhas mem\u00f3rias"}
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(payload["mode"], "memory")
+            self.assertEqual(payload["intent"], "memory_view")
+            self.assertFalse(payload["persistent_write"])
+            self.assertEqual(payload["visual_state"], "memory")
 
     def test_contextual_close_exits_memory_view_without_model_or_write(self):
         status, _, payload = self.json_request(
@@ -5111,7 +5182,7 @@ São Paulo - SP
         )
         # Memória continua abrindo a constelação real, não só a cena.
         self.assertEqual(
-            MODULE.dispatch_intent("mostra o núcleo de memória", "memory_view")[0]["visual_state"],
+            MODULE.dispatch_intent("mostra o núcleo de memória", "memory_view", owner_authenticated=True)[0]["visual_state"],
             "memory",
         )
         guest = MODULE.capability_briefing(False)
