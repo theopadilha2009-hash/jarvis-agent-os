@@ -1204,5 +1204,7 @@ start().catch((error) => {
   stage.dataset.modelErrorReason = reason;
   stage.classList.toggle("gpu-error", gpuFailure);
   presenceValue.textContent = gpuFailure ? "GPU 3D desativada · reinicie o Chrome" : "modelo 3D indisponível";
+  // Nunca deixar bolinhas mortas: presença SVG animada + guia de recuperação.
+  window.JarvisNucleiFallback?.mount(gpuFailure ? "WebGL/GPU desativada neste navegador." : "Modelo 3D não carregou.");
   console.warn("JARVIS 3D model unavailable", error);
 });
