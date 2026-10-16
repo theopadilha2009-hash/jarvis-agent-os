@@ -2699,9 +2699,21 @@ def read_session_identity(value):
         if not hmac.compare_digest(expected, parts[5]):
             return None
         role = parts[2] if parts[2] in {"owner", "member"} else "member"
+        username = parts[3]
+        # Sessão é stateless, mas o estado da conta não: revoke/disable/demote
+        # no painel precisam derrubar o token já emitido (P1 da revisão).
+        try:
+            book_row = accounts_store.find_user(load_account_book(), username)
+        except (OSError, ValueError):
+            book_row = None
+        if book_row:
+            if book_row.get("disabled") or book_row.get("role") == "pending":
+                return None
+            if book_row.get("role") in {"owner", "member"}:
+                role = book_row["role"]
         return {
             "role": role,
-            "username": parts[3],
+            "username": username,
             "owner": role == "owner",
             "code": True,
         }
@@ -3028,7 +3040,7 @@ def accounts_manage_payload(body, identity):
         return pairing_required_payload()
     action = clean_text(body.get("action"), 20)
     username = clean_text(body.get("username"), 80)
-    new_password = str(body.get("password") or "")[:128] if action == "set_password" else None
+    new_password = str(body.get("password") or "") if action == "set_password" else None
     try:
         book = load_account_book()
         result = accounts_store.manage(book, action, username, password=new_password)

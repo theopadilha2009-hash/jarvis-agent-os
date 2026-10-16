@@ -42,6 +42,7 @@
   let lastOpenAt = 0;
   let stayQuiet = false;
   let askQueue = [];
+  let speakRunId = 0;
   let meeting = false;
   let clickWait = 0;
   let parkTimer = 0;
@@ -240,6 +241,7 @@
   }
 
   function stopSpeak() {
+    speakRunId += 1;
     try { nativeHandlers()?.jarvisSpeak.postMessage("stop"); } catch { /* web */ }
     speaking = false;
   }
@@ -300,8 +302,24 @@
     let fetching = false;
     let waiting = false;
     let finish = null;
+    // Cancelamento: enterQuiet/stopSpeak incrementam o run global e a fila
+    // inteira abandona o resto (antes "fica quieto" continuava falando).
+    const myRun = speakRunId;
+
+    const aborted = () => myRun !== speakRunId || stayQuiet;
+    const stopIfAborted = () => {
+      if (aborted()) {
+        ready.length = 0;
+        return true;
+      }
+      return false;
+    };
 
     const fetchNext = () => {
+      if (stopIfAborted()) {
+        if (!fetching && !ready.length) finish();
+        return;
+      }
       if (fetching || next >= chunks.length) return;
       const chunk = chunks[next];
       next += 1;
@@ -313,7 +331,7 @@
         pending = Promise.reject(new Error("speakBlob"));
       }
       pending.then(
-        (blob) => { if (blob) ready.push(blob); },
+        (blob) => { if (blob && !aborted()) ready.push(blob); },
         () => { /* frase falha: pula */ }
       ).then(() => {
         fetching = false;
@@ -326,6 +344,10 @@
     };
 
     const playNext = () => {
+      if (stopIfAborted()) {
+        if (!fetching) finish();
+        return;
+      }
       if (!ready.length) {
         if (fetching || next < chunks.length) {
           fetchNext();
@@ -340,7 +362,7 @@
       Promise.resolve()
         .then(() => playBlob(blob))
         .catch(() => {})
-        .then(playNext);
+        .then(() => { if (!aborted()) playNext(); else finish(); });
     };
 
     return new Promise((resolveQueue) => {
@@ -628,6 +650,7 @@
 
   function enterQuiet() {
     stayQuiet = true;
+    speakRunId += 1;
     armed = false;
     askQueue = [];
     try { nativeHandlers()?.jarvisSpeak.postMessage("stop"); } catch { /* web */ }

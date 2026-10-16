@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20260821-edit1";
+const CACHE_VERSION = "jarvis-mobile-shell-20261016-voice6";
 const SHELL = [
   "/",
   "/cockpit",
@@ -35,7 +35,6 @@ const SHELL = [
   "/ui/jarvis-3d.js?v=20261016-draco1",
   "/ui/nuclei-fallback.js?v=20261016-svgfb",
   "/ui/presence-loader.js?v=20261016-svgfb",
-  "/ui/nuclei-fallback.js?v=20261016-svgfb",
   "/ui/api-panel.js?v=20261016-contas1",
   "/ui/vault-panel.js?v=20261016-contas1",
   "/ui/api-vault.css?v=20261016-contas1",
