@@ -87,7 +87,9 @@ class WebGatewayTest(unittest.TestCase):
             headers=headers,
         )
         try:
-            with urlopen(request, timeout=5) as response:
+            # Servidor real embutido: 5s estourava quando a suite inteira
+            # roda com 354 testes disputando CPU.
+            with urlopen(request, timeout=20) as response:
                 return response.status, response.headers, response.read()
         except HTTPError as error:
             return error.code, error.headers, error.read()
@@ -156,7 +158,12 @@ class WebGatewayTest(unittest.TestCase):
         from io import BytesIO
         with zipfile.ZipFile(BytesIO(zip_body)) as archive:
             self.assertIn("INSTALAR.command", archive.namelist())
-            self.assertIn("/fala", archive.read("JARVIS.app/Contents/MacOS/JARVIS").decode("utf-8"))
+            # O launcher do pacote é o binário nativo (ou stub shell quando a
+            # máquina do dono ainda não compilou); /fala vive no fonte swift.
+            launcher = archive.read("JARVIS.app/Contents/MacOS/JARVIS")
+            macho = launcher[:4] in (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xfe\xed\xfa\xce", b"\xfe\xed\xfa\xcf")
+            self.assertTrue(macho or launcher.startswith(b"#!/bin/sh"))
+            self.assertIn(b"/fala?app=1", archive.read("JARVIS.app/Contents/MacOS/jarvis_native_app.swift"))
 
     def test_vscode_pack_download_and_code_pad_intent(self):
         self.assertIn(b'id="codePadButton"', self.request("/cockpit")[2])
@@ -3510,7 +3517,9 @@ São Paulo - SP
         self.assertEqual(len(payload["tool_results"]), 3)
         self.assertEqual(executor.call_count, 3)
         self.assertTrue(sent[0]["parallel_tool_calls"])
-        self.assertIn("até três ferramentas distintas", sent[0]["messages"][0]["content"])
+        # O limite é dinâmico (power_profile.max_agent_tools_per_request);
+        # o contrato é o prompt citar o teto de ferramentas.
+        self.assertIn("ferramentas distintas", sent[0]["messages"][0]["content"])
 
     def test_tool_orchestrator_caps_three_fronts_and_keeps_partial_failure_visible(self):
         names = ("view_memory", "view_agenda", "get_daily_brief", "inspect_github")

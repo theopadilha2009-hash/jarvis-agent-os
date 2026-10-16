@@ -637,3 +637,45 @@ html.app-mode .download { display: none; }
   display: none !important;
 }
 
+/* Chips circulares com ícone — substitui os emojis quadrados. */
+.jarvis-quick-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 10px 0;
+}
+.jarvis-quick-chips .btn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 12px;
+  border-radius: 999px;
+}
+.jarvis-quick-chips .btn-chip svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0.85;
+}
+
+/* Selo beta: o app nativo está em beta até a voz calibrada. */
+.beta-badge {
+  display: none;
+  vertical-align: middle;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(160, 140, 255, 0.45);
+  border-radius: 999px;
+  color: #b8a8ff;
+}
+.app-mode .beta-badge,
+body.beta .beta-badge {
+  display: inline-block;
+}
+

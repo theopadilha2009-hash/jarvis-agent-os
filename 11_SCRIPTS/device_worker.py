@@ -16,6 +16,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
 import sys
 import time
 from urllib.error import HTTPError, URLError
@@ -348,7 +349,9 @@ def sync_busy_from_job(job: dict) -> None:
 
 
 def arrival_allowed(now: float, reason: str = "worker") -> bool:
-    if os.environ.get("JARVIS_ARRIVAL") == "0":
+    # Opt-in: saudações faladas sem ninguém pedir eram a queixa nº 1 do dono
+    # ("liga sozinho e manda um oi"). Só fala com JARVIS_ARRIVAL=1.
+    if os.environ.get("JARVIS_ARRIVAL") != "1":
         return False
     if busy_mode_active(now):
         return False
@@ -381,18 +384,26 @@ def speak_on_mac(text: str) -> str:
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urlopen(request, timeout=20) as response:
+            with urlopen(request, timeout=10) as response:
                 audio = response.read()
             if audio:
                 suffix = ".wav" if audio[:4] == b"RIFF" else ".mp3"
                 with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
                     handle.write(audio)
                     path = handle.name
-                try:
-                    subprocess.run(["/usr/bin/afplay", path], capture_output=True, timeout=90, check=False)
-                    return "local_tts"
-                finally:
-                    Path(path).unlink(missing_ok=True)
+
+                # O --watch é single-thread: afplay aqui travaria heartbeat e
+                # fila por até um minuto e meio. Toca em thread daemon.
+                def _play() -> None:
+                    try:
+                        subprocess.run(["/usr/bin/afplay", path], capture_output=True, timeout=60, check=False)
+                    except (OSError, subprocess.TimeoutExpired):
+                        pass
+                    finally:
+                        Path(path).unlink(missing_ok=True)
+
+                threading.Thread(target=_play, name="jarvis-speak", daemon=True).start()
+                return "local_tts"
         except (URLError, OSError, subprocess.TimeoutExpired, ValueError):
             pass
     try:
@@ -455,7 +466,9 @@ def announce_arrival(now: float, reason: str = "worker") -> bool:
         return False
     try:
         ARRIVAL_STATE.parent.mkdir(parents=True, exist_ok=True)
-        ARRIVAL_STATE.write_text(str(now))
+        tmp = ARRIVAL_STATE.with_suffix(".tmp")
+        tmp.write_text(str(now))
+        tmp.replace(ARRIVAL_STATE)
     except OSError:
         pass
     return True
@@ -630,6 +643,19 @@ def redact_secrets(value: str) -> str:
 
 def contains_secret(value: str) -> bool:
     return any(pattern.search(str(value or "")) for _name, pattern in SECRET_PATTERNS)
+
+
+# "token=abc123" / "senha: valor" — atribuição explícita de credencial num
+# pedido. Os padrões do secret_scan são por formato de provedor; este é o
+# genérico que impede credencial colada no texto de uma ação do dispositivo.
+CREDENTIAL_ASSIGNMENT_PATTERN = re.compile(
+    r"\b(?:token|senha|password|passwd|api[_-]?key|apikey|secret|bearer)\s*[=:]\s*\S+",
+    re.I,
+)
+
+
+def mentions_credential(value: str) -> bool:
+    return CREDENTIAL_ASSIGNMENT_PATTERN.search(str(value or "")) is not None
 
 
 def request_envelope(job: dict) -> dict:
@@ -1104,7 +1130,7 @@ def command_argv(job: dict) -> list[str]:
         raise WorkerError("Aplicativo recebido com nome inválido.")
     if action == "self_edit":
         request_text = job_request_text(job)[:2_000]
-        if len(request_text) < 12 or contains_secret(request_text):
+        if len(request_text) < 12 or contains_secret(request_text) or mentions_credential(request_text):
             raise WorkerError("Autoedição recebida sem objetivo seguro e explícito.")
         argv = [str(ROOT / "jarvis"), "self-edit", request_text]
         if self_publish_requested(request_text):
@@ -1140,7 +1166,10 @@ def command_argv(job: dict) -> list[str]:
             "50",
         ]
     if action == "message_send":
-        details = message_details(job_request_text(job), target)
+        request_text = job_request_text(job)
+        if contains_secret(request_text) or mentions_credential(request_text):
+            raise WorkerError("Mensagem com credencial não pode ser enviada.")
+        details = message_details(request_text, target)
         if not details:
             raise WorkerError("Mensagem recebida sem telefone e texto válidos.")
         return [

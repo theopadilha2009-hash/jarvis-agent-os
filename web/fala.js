@@ -18,8 +18,10 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-park2";
-  const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|jarves|gervis|gerivis|charvis|yarvis|ultron|ja vis|ja viu)\b/;
+  const SHELL_VERSION = "20261016-voice3";
+  // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
+  // homófono de frase comum — as duas fontes de disparo falso relatadas.
+  const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis)\b/;
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
@@ -186,6 +188,7 @@
     return new Promise((resolve) => {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      audio.volume = 1;
       const finish = () => {
         orb.classList.remove("speaking");
         URL.revokeObjectURL(url);
@@ -386,11 +389,13 @@
     return /\b(?:fica\s+quieto|fica\s+calado|cala\s+a\s+boca|para\s+de\s+falar|modo\s+foco|nao\s+me\s+perturba|estou\s+ocupado)\b/.test(folded);
   }
 
+  // Sem wake armado, só um comando que COMEÇA com verbo de ação passa —
+  // "contém youtube" fazia conversa casual virar comando.
   function looksLikeCommand(text) {
     const folded = foldSpeech(text);
     if (!folded || folded.length < 3) return false;
     if (WAKE_NAME.test(folded)) return true;
-    return /\b(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|spotify|whatsapp|youtube|google|hora|horas|data|pesquisa|busca|procura|volume|proximo|proxima|calendario|agenda|gmail|maps|mapa|silencio|quieto|cala|foco|ocupado|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|tela|vendo|bateria|clima|tempo|previsao|rede|wifi|velocidade|cotacao|dolar|euro|bitcoin|specs|hardware|noticias|tech|wiki|qr)\b/.test(folded);
+    return /^(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|pesquisa|busca|procura|volume|proximo|proxima|silencio|quieto|cala|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|que horas|horas|que dia|data|bateria|clima|tempo|previsao|cotacao|dolar|euro|bitcoin|specs|hardware|noticias|analisa isso)\b/.test(folded);
   }
 
   function expandCommands(text) {
@@ -540,9 +545,6 @@
         return;
       }
       say("…", command);
-      if (!stayQuiet && hasNativeSpeak() && !attachment) {
-        try { nativeHandlers().jarvisSpeak.postMessage("Sim, senhor."); } catch { /* web */ }
-      }
       const payload = {
         command: attachment
           ? `${command}. Isto é um print da tela do Mac onde o JARVIS está; diga o que aparece e o que eu devo fazer agora.`
@@ -606,7 +608,7 @@
   function compactReply() {
     const text = String(lastAnswer.textContent || "").replace(/\s+/g, " ").trim();
     if (!text) return "";
-    return text.length > 42 ? `${text.slice(0, 39)}…` : text;
+    return text.length > 80 ? `${text.slice(0, 77)}…` : text;
   }
 
   function holdReply() {
@@ -630,7 +632,7 @@
       if (document.activeElement === input) return;
       if (extras && !extras.hidden) return;
       parkNow();
-    }, 2000);
+    }, 8000);
   }
 
   function nativeListen(action) {
@@ -832,7 +834,9 @@
         window.webkit.messageHandlers.jarvisAction.postMessage(clip);
       }
     } catch(e){}
-    if (/(?:vai|va)\s+dormir|desliga(?:r)?(?:\s+o)?\s*(?:jarvis)?|fechar?\s*(?:o)?\s*jarvis|encerrar?\s*(?:o)?\s*jarvis/i.test(folded)) {
+    // "dorme"/"durma" sozinhos também desligam: o dono tentou "Jarvis, dorme"
+    // e o pedido ia pro LLM em vez de desligar.
+    if (/(?:vai|va)\s+dormir|^(?:dorme|durma|dormir|desliga|desligar)$|desliga(?:r)?(?:\s+o)?\s*(?:jarvis)?|fechar?\s*(?:o)?\s*jarvis|encerrar?\s*(?:o)?\s*jarvis/i.test(folded)) {
       say("Desligando.", "Até logo, senhor.");
       speak("Até logo, senhor. Desligando.");
       window.setTimeout(() => nativeWindow("shutdown"), 1800);
@@ -860,8 +864,10 @@
   function spokenReply(text) {
     const clip = String(text || "").replace(/\s+/g, " ").trim();
     if (!clip) return "";
-    const first = clip.match(/^.+?[.!?…](?=\s|$)/);
-    return (first ? first[0] : clip).trim().slice(0, 220);
+    // Até 2 frases: falar só a primeira dava a impressão de cortar no meio.
+    const parts = clip.match(/[^.!?…]+[.!?…]*\s*/g) || [clip];
+    const spoken = parts.slice(0, 2).join("").trim();
+    return spoken.slice(0, 300).trim();
   }
 
   function hearSpoken(spoken, isFinal = true) {

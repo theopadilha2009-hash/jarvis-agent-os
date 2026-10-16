@@ -486,6 +486,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
     }
     private func maybeMorningHello() {
+        // Opt-in: o dono reclamou de o JARVIS falar sozinho ao abrir. Fala só
+        // se `defaults write` habilitar, e sempre espelha o texto na UI.
+        guard UserDefaults.standard.bool(forKey: "JarvisMorningHelloEnabled") else { return }
         let now = Date()
         let hour = Calendar.current.component(.hour, from: now)
         guard (5..<12).contains(hour) else { return }
@@ -493,12 +496,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         let key = "JarvisLastMorning"
         if UserDefaults.standard.string(forKey: key) == stamp { return }
         UserDefaults.standard.set(stamp, forKey: key)
+        webView?.evaluateJavaScript(
+            "window.__jarvisOnActionResult && window.__jarvisOnActionResult('Bom dia, senhor.')",
+            completionHandler: nil
+        )
         speakNative("Bom dia, senhor.")
     }
 
     private func containsWake(_ text: String) -> Bool {
+        // "jarbas" é nome de pessoa; "ultron" aparece em conversa tech.
+        // As duas causavam disparo falso da escuta contínua.
         text.range(
-            of: #"\b(?:jarvis|jarvius|jarbis|javis|jarbas|jarvas|ultron|gerivis|charvis)\b"#,
+            of: #"\b(?:jarvis|jarvius|jarbis|javis)\b"#,
             options: [.regularExpression, .caseInsensitive]
         ) != nil
     }
@@ -553,7 +562,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.timeoutInterval = 15.0
+        req.timeoutInterval = 8.0
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "persona": "jarvis"])
         URLSession.shared.dataTask(with: req) { data, response, _ in
@@ -674,7 +683,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         let context = AnalysisContext()
-        context.contextualStrings = [.general: ["Jarvis", "oi Jarvis", "Olá Jarvis", "fala Jarvis", "Ultron"]]
+        // Bias mínimo: frases como "oi Jarvis" ensinavam o reconhecedor a
+        // alucinar o wake em ruído, disparando fala sozinha.
+        context.contextualStrings = [.general: ["Jarvis"]]
         try? await analyzer.setContext(context)
         let (stream, continuation) = AsyncStream.makeStream(of: AnalyzerInput.self)
         analyzerFinish = { continuation.finish() }
@@ -821,7 +832,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         request.taskHint = .dictation
         if #available(macOS 13.0, *) {
             request.requiresOnDeviceRecognition = false
-            request.contextualStrings = ["Jarvis", "oi Jarvis", "Olá Jarvis", "fala Jarvis", "Ultron", "JARVIS"]
+            request.contextualStrings = ["Jarvis", "JARVIS"]
         }
         self.request = request
         let input = engine.inputNode

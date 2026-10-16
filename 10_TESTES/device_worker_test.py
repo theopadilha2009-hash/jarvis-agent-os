@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import importlib.util
 import json
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -49,6 +50,7 @@ class DeviceWorkerTest(unittest.TestCase):
                     return Result(0)
 
                 with patch.object(MODULE, "speak_on_mac", lambda text: spoken.append(text) or "say"), \
+                        patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "1"}), \
                         patch.object(MODULE.subprocess, "run", record_run):
                     self.assertTrue(MODULE.announce_arrival(10_000.0))
                     # Ele fala pelo alto-falante antes de abrir a aba: o
@@ -71,6 +73,7 @@ class DeviceWorkerTest(unittest.TestCase):
                     return Result(0)
 
                 with patch.object(MODULE, "speak_on_mac", lambda text: "say"), \
+                        patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "1"}), \
                         patch.object(MODULE.subprocess, "run", fallback_open), \
                         patch.object(MODULE, "arrival_allowed", return_value=True):
                     self.assertTrue(MODULE.announce_arrival(20_000.0))
@@ -78,6 +81,7 @@ class DeviceWorkerTest(unittest.TestCase):
                     self.assertTrue(opened[2][1].endswith("/fala?app=1&arrival=worker&spoken=1"), opened[2][1])
                 opened.clear()
                 with patch.object(MODULE, "speak_on_mac", lambda text: "say"), \
+                        patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "1"}), \
                         patch.object(MODULE, "widget_already_running", return_value=True), \
                         patch.object(MODULE.subprocess, "run", record_run), \
                         patch.object(MODULE, "arrival_allowed", return_value=True):
@@ -181,6 +185,7 @@ class DeviceWorkerTest(unittest.TestCase):
             spoken = []
             with patch.object(MODULE, "ARRIVAL_STATE", arrival), \
                     patch.object(MODULE, "BOOT_STATE", boot), \
+                    patch.dict(MODULE.os.environ, {"JARVIS_ARRIVAL": "1"}), \
                     patch.object(MODULE, "speak_on_mac", lambda text: spoken.append(text) or "say"), \
                     patch.object(MODULE.subprocess, "run", lambda *a, **k: None):
                 # Chegada comum continua respeitando o cooldown de uma hora.
@@ -218,6 +223,10 @@ class DeviceWorkerTest(unittest.TestCase):
                 patch.object(MODULE, "urlopen", lambda *a, **k: FakeResponse()), \
                 patch.object(MODULE.subprocess, "run", lambda *a, **k: calls.append(a[0]) or None):
             self.assertEqual(MODULE.speak_on_mac("Bem-vindo, Theo."), "local_tts")
+            # O afplay agora roda em thread daemon; esperar ele aparecer.
+            deadline = time.monotonic() + 2.0
+            while not calls and time.monotonic() < deadline:
+                time.sleep(0.01)
             self.assertEqual(calls[0][0], "/usr/bin/afplay")
 
         # Servidor local fora do ar: o macOS assume com voz masculina.
