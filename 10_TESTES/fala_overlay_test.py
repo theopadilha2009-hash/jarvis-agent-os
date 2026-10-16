@@ -76,7 +76,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("function foldSpeech", FALA_JS)
         self.assertIn("function splitWake", FALA_JS)
         self.assertIn("jarvius", FALA_JS)
-        self.assertIn("ja vis", FALA_JS)
+        # "ja vis" e "ultron" saíram do wake: homófono e palavra comum eram
+        # as fontes de disparo falso (o JARVIS falava sozinho).
+        self.assertNotIn("ja vis", FALA_JS)
         self.assertIn("heardLine", FALA_HTML)
         self.assertIn("reloadButton", FALA_HTML)
         self.assertIn("forceListen", FALA_JS)
@@ -94,7 +96,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("parkNow", FALA_JS)
         self.assertIn("holdReply", FALA_JS)
         self.assertIn("compactReply", FALA_JS)
-        self.assertIn(", 2000)", FALA_JS)
+        self.assertIn(", 8000)", FALA_JS)
         self.assertIn("reply:", FALA_JS)
         self.assertIn("has-reply", FALA_JS)
         self.assertIn("idle-orb", FALA_JS)
@@ -129,7 +131,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("idle-orb", FALA_HTML)
         self.assertIn('class="booting"', FALA_HTML)
         self.assertIn('class="viz"', FALA_HTML)
-        self.assertIn("Sim, senhor.", FALA_JS)
+        # O ack falado antes da resposta foi removido: cortava no meio e
+        # sobreponha com a resposta (o som "travado/bugado" que o dono ouvia).
+        self.assertNotIn("Sim, senhor.", FALA_JS)
         self.assertIn("voice:down", FALA_JS)
         self.assertIn("function isRepeatAsk", FALA_JS)
         self.assertIn("toggleMeeting", FALA_JS)
@@ -198,7 +202,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("como chegar", FALA_JS)
         self.assertIn("clearStaleSession", FALA_JS)
         self.assertIn("mountDebug", FALA_JS)
-        self.assertIn("ultron", FALA_JS)
+        self.assertNotIn("ultron", FALA_JS)
 
     def test_named_spotify_is_not_a_web_shortcut(self):
         self.assertIn("function isMacSpotifyCommand", FALA_JS)

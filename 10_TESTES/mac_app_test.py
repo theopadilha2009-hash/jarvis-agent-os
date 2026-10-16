@@ -105,7 +105,7 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("speakingNow", source)
                 self.assertIn("voiceMisses", source)
                 self.assertIn("cannotConnectToHost", source)
-                self.assertIn("timeoutInterval = 15.0", source)
+                self.assertIn("timeoutInterval = 8.0", source)
                 self.assertNotIn("timeoutInterval = 4.0", source)
                 self.assertIn("paintChrome", source)
                 self.assertIn("underPageBackgroundColor", source)
