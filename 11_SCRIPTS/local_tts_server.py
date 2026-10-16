@@ -286,13 +286,19 @@ class PocketRuntime:
     def generate(self, text: str, voice: str | None = None) -> bytes:
         self.load()
         chosen = catalog_voice(voice or "", self.voice) if voice else self.voice
-        with self._lock:
+        # Lock com teto: um generate pendurado antes segurava TODAS as falas
+        # (worker, app e navegador) para sempre — o "todo travado".
+        if not self._lock.acquire(timeout=15.0):
+            raise TimeoutError("motor de voz ocupado: outra síntese não devolveu")
+        try:
             if chosen not in self.voice_states:
                 self.voice_states[chosen] = self._state_loader(self.model, chosen)
                 self.state_load_calls += 1
             state = self.voice_states[chosen]
             self.voice_state = state
             audio = self.model.generate_audio(state, text, copy_state=True)
+        finally:
+            self._lock.release()
         return tensor_to_wav(audio, self.sample_rate)
 
 
