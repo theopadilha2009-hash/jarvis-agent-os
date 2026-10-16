@@ -78,7 +78,9 @@ button {
 }
 
 .app {
-  height: var(--jarvis-viewport-height, 100dvh);
+  /* 32px = altura da barra de rodapé fixa (.legal-strip) com o seletor de
+     gráficos; o cockpit continua em tela cheia com o rodapé visível. */
+  height: calc(var(--jarvis-viewport-height, 100dvh) - 32px);
   display: grid;
   grid-template-rows: 54px minmax(0, 1fr);
 }
@@ -2174,15 +2176,102 @@ dialog::backdrop {
 }
 .signup-terms a { color: inherit; }
 .legal-strip {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
-  padding: 8px 12px 14px;
+  height: 32px;
+  padding: 0 12px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid rgba(168, 85, 247, 0.12);
+  background: rgba(10, 4, 20, 0.92);
   font-size: 11px;
   color: var(--faint);
 }
 .legal-strip a { color: inherit; }
+
+.quality-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quality-label {
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.quality-chip {
+  padding: 3px 9px;
+  border: 1px solid rgba(168, 85, 247, 0.18);
+  border-radius: 999px;
+  background: rgba(13, 6, 24, 0.4);
+  color: #c4b5fd;
+  cursor: pointer;
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.06em;
+  transition: border-color 240ms ease, background 240ms ease, color 240ms ease;
+}
+
+.quality-chip:hover,
+.quality-chip:focus-visible {
+  outline: none;
+  border-color: rgba(168, 85, 247, 0.4);
+  background: rgba(192, 132, 252, 0.08);
+  color: #f3e8ff;
+}
+
+.quality-chip[data-current="true"] {
+  border-color: rgba(192, 132, 252, 0.5);
+  background: rgba(139, 92, 246, 0.22);
+  color: #ede9fe;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.25);
+}
+
+/* Override do toast de atualização do shell.css (que carrega depois): some do
+   topo e vira um aviso discreto violeta/ice no rodapé, na linguagem dos chips. */
+#updateToast.update-toast {
+  top: auto;
+  right: auto;
+  left: 12px;
+  bottom: calc(46px + env(safe-area-inset-bottom, 0px));
+  gap: 8px;
+  padding: 8px 10px;
+  max-width: min(320px, calc(100vw - 24px));
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(19, 8, 36, 0.92);
+  color: #c4b5fd;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+#updateToast.update-toast small { font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.12em; color: #a78bfa; }
+#updateToast.update-toast strong { font-size: 12px; color: #ede9fe; }
+#updateToast.update-toast em { font-style: normal; font-size: 10px; color: #c4b5fd; }
+#updateToast.update-toast button {
+  min-height: 28px;
+  padding: 0 14px;
+  border: 1px solid rgba(192, 132, 252, 0.4);
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.18);
+  color: #ede9fe;
+  font: 700 10px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 240ms ease, border-color 240ms ease;
+}
+#updateToast.update-toast button:hover,
+#updateToast.update-toast button:focus-visible {
+  outline: none;
+  border-color: rgba(216, 180, 254, 0.7);
+  background: rgba(139, 92, 246, 0.3);
+}
 
 .accounts-dialog { width: min(520px, calc(100vw - 24px)); }
 .accounts-hint { margin: 0 16px 10px; color: var(--faint); font-size: 11px; }
@@ -2393,7 +2482,7 @@ dialog::backdrop {
   z-index: 42;
   top: 66px;
   right: 14px;
-  bottom: 14px;
+  bottom: 48px;
   width: min(372px, calc(100vw - 28px));
   padding: 20px;
   overflow: auto;

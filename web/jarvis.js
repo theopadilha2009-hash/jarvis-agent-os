@@ -38,7 +38,7 @@
   const LAST_LOGIN_KEY = "jarvis-last-login";
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
-  const SHELL_VERSION = "20260821-edit1";
+  const SHELL_VERSION = "20261016-restart1";
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   // v3: a janela nasce como painel à direita. Trocar a chave descarta as
@@ -1240,14 +1240,43 @@
     installDialog?.showModal();
   }
 
+  function reloadForUpdate() {
+    const url = new URL(location.href);
+    url.searchParams.set("r", Date.now().toString(36));
+    location.replace(url.href);
+  }
+
+  let awaitingSwRestart = false;
+  let swRestartFallback = 0;
+
+  function finishSwRestart() {
+    window.clearTimeout(swRestartFallback);
+    awaitingSwRestart = false;
+  }
+
   function restartForUpdate() {
     try {
       const native = window.webkit?.messageHandlers?.jarvisRestart;
       if (native) { native.postMessage("now"); return; }
     } catch { /* web */ }
-    const url = new URL(location.href);
-    url.searchParams.set("r", Date.now().toString(36));
-    location.replace(url.href);
+    if (!("serviceWorker" in navigator)) { reloadForUpdate(); return; }
+    // Aguarda o novo service worker assumir (skipWaiting + claim no jarvis-sw.js)
+    // antes de recarregar: sem isso o reload sai no cache antigo e a versão não troca.
+    awaitingSwRestart = true;
+    window.clearTimeout(swRestartFallback);
+    swRestartFallback = window.setTimeout(() => { finishSwRestart(); reloadForUpdate(); }, 5000);
+    navigator.serviceWorker.ready
+      .then(async (registration) => {
+        window.__jarvisSw = registration;
+        try { await registration.update(); } catch { /* sem rede: fallback recarrega */ }
+        if (!awaitingSwRestart) return;
+        if (!registration.waiting && !registration.installing) {
+          // Nada instalando: o controller já é a versão mais recente.
+          finishSwRestart();
+          reloadForUpdate();
+        }
+      })
+      .catch(() => { if (awaitingSwRestart) { finishSwRestart(); reloadForUpdate(); } });
   }
 
   function paintShellVersion(live) {
@@ -1281,6 +1310,44 @@
     byId("updateReloadButton")?.addEventListener("click", restartForUpdate);
   }
 
+  const GRAPHICS_QUALITY_KEY = "jarvis-graphics-quality";
+  const GRAPHICS_QUALITIES = ["excellent", "medium", "low"];
+
+  function currentGraphicsQuality() {
+    try {
+      const saved = localStorage.getItem(GRAPHICS_QUALITY_KEY);
+      return GRAPHICS_QUALITIES.includes(saved) ? saved : "excellent";
+    } catch {
+      return "excellent";
+    }
+  }
+
+  function paintGraphicsQuality() {
+    const current = currentGraphicsQuality();
+    document.querySelectorAll("#qualityPicker .quality-chip").forEach((chip) => {
+      const isCurrent = chip.dataset.quality === current;
+      chip.dataset.current = isCurrent ? "true" : "false";
+      chip.setAttribute("aria-pressed", isCurrent ? "true" : "false");
+    });
+  }
+
+  function watchGraphicsQuality() {
+    const picker = byId("qualityPicker");
+    if (!picker) return;
+    paintGraphicsQuality();
+    picker.addEventListener("click", (event) => {
+      const chip = event.target?.closest?.(".quality-chip");
+      if (!chip || chip.dataset.current === "true") return;
+      const quality = chip.dataset.quality;
+      if (!GRAPHICS_QUALITIES.includes(quality)) return;
+      try { localStorage.setItem(GRAPHICS_QUALITY_KEY, quality); } catch { /* storage cheio */ }
+      paintGraphicsQuality();
+      // jarvis-3d.js troca o perfil da cena na hora; se o módulo 3D não subiu
+      // (fallback SVG), a escolha vale no próximo carregamento.
+      window.dispatchEvent(new CustomEvent("jarvis-graphics-quality", { detail: { quality } }));
+    });
+  }
+
   function registerMobileShell() {
     const localSecure = ["localhost", "127.0.0.1"].includes(window.location.hostname);
     if (!("serviceWorker" in navigator) || (window.location.protocol !== "https:" && !localSecure)) return;
@@ -1288,6 +1355,11 @@
       navigator.serviceWorker.register("/jarvis-sw.js", { scope: "/", updateViaCache: "none" })
         .then((reg) => { window.__jarvisSw = reg; reg.update().catch(() => null); })
         .catch(() => null);
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!awaitingSwRestart) return;
+        finishSwRestart();
+        reloadForUpdate();
+      });
     }, { once: true });
   }
 
@@ -4081,6 +4153,7 @@
   syncMobileViewport();
   registerMobileShell();
   watchShellVersion();
+  watchGraphicsQuality();
   installVoiceInput();
   boot();
   window.setInterval(refreshPulse, 10 * 60 * 1000);
