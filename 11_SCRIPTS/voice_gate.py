@@ -47,7 +47,7 @@ VAD_PROB_THRESHOLD = 0.5  # probabilidade de fala que conta como "vad: true"
 WAKE_LABEL = "hey_jarvis_v0.1"
 DEFAULT_MODELS_DIR = os.environ.get(
     "VOICE_GATE_MODELS_DIR",
-    str(Path.home() / "Library" / "Application Support" / "JARVIS" / "models"),
+    str(pathlib.Path.home() / "Library" / "Application Support" / "JARVIS" / "models"),
 )
 
 
