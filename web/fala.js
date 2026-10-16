@@ -18,7 +18,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20260821-park2";
+  const SHELL_VERSION = "20261016-voice3";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis)\b/;
@@ -188,6 +188,7 @@
     return new Promise((resolve) => {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      audio.volume = 1;
       const finish = () => {
         orb.classList.remove("speaking");
         URL.revokeObjectURL(url);
@@ -833,7 +834,9 @@
         window.webkit.messageHandlers.jarvisAction.postMessage(clip);
       }
     } catch(e){}
-    if (/(?:vai|va)\s+dormir|desliga(?:r)?(?:\s+o)?\s*(?:jarvis)?|fechar?\s*(?:o)?\s*jarvis|encerrar?\s*(?:o)?\s*jarvis/i.test(folded)) {
+    // "dorme"/"durma" sozinhos também desligam: o dono tentou "Jarvis, dorme"
+    // e o pedido ia pro LLM em vez de desligar.
+    if (/(?:vai|va)\s+dormir|^(?:dorme|durma|dormir|desliga|desligar)$|desliga(?:r)?(?:\s+o)?\s*(?:jarvis)?|fechar?\s*(?:o)?\s*jarvis|encerrar?\s*(?:o)?\s*jarvis/i.test(folded)) {
       say("Desligando.", "Até logo, senhor.");
       speak("Até logo, senhor. Desligando.");
       window.setTimeout(() => nativeWindow("shutdown"), 1800);
@@ -861,8 +864,10 @@
   function spokenReply(text) {
     const clip = String(text || "").replace(/\s+/g, " ").trim();
     if (!clip) return "";
-    const first = clip.match(/^.+?[.!?…](?=\s|$)/);
-    return (first ? first[0] : clip).trim().slice(0, 220);
+    // Até 2 frases: falar só a primeira dava a impressão de cortar no meio.
+    const parts = clip.match(/[^.!?…]+[.!?…]*\s*/g) || [clip];
+    const spoken = parts.slice(0, 2).join("").trim();
+    return spoken.slice(0, 300).trim();
   }
 
   function hearSpoken(spoken, isFinal = true) {
