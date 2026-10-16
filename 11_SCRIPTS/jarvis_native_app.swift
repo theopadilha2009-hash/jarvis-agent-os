@@ -95,6 +95,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var lastKickAt: TimeInterval = 0
     private var voiceMisses = 0
     private var speakingNow = false
+    private var speechChunks: [String] = []
+    private var speechAudio: [Data] = []
+    private var speechFetchInFlight = false
+    private var speechWaiting = false
+    private var speechVoiceOKSent = false
+    private var speechHeadRetried = false
+    private var speechGeneration = 0
     private var webViewReady = false
     private var voiceReady = false
     private var greeted = false
@@ -522,7 +529,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        finishSpeak()
+        guard player === self.player else { return }
+        playNextSpeechChunk()
     }
 
     private func speakNative(_ raw: String) {
@@ -531,27 +539,102 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             finishSpeak()
             return
         }
+        speechGeneration += 1
         speakingNow = true
         player?.stop()
-        fetchPocketTTS(text) { [weak self] data in
+        speechChunks = speechSentences(text)
+        speechAudio = []
+        speechFetchInFlight = false
+        speechWaiting = true
+        speechVoiceOKSent = false
+        speechHeadRetried = false
+        pumpSpeech()
+    }
+
+    // Frases por . ! ? … e quebra de linha; frase <8 chars gruda na seguinte.
+    // Texto sem separador vira frase única — caminho comum, igual ao comportamento antigo.
+    private func speechSentences(_ text: String) -> [String] {
+        var parts: [String] = []
+        var current = ""
+        for ch in text {
+            if ch == "." || ch == "!" || ch == "?" || ch == "…" {
+                current.append(ch)
+                pushSentence(&parts, &current)
+            } else if ch == "\n" || ch == "\r" {
+                pushSentence(&parts, &current)
+            } else {
+                current.append(ch)
+            }
+        }
+        pushSentence(&parts, &current)
+        guard parts.count > 1 else { return parts }
+        var merged: [String] = []
+        var index = 0
+        while index < parts.count {
+            var piece = parts[index]
+            while piece.count < 8, index + 1 < parts.count {
+                index += 1
+                piece += " " + parts[index]
+            }
+            merged.append(piece)
+            index += 1
+        }
+        return merged
+    }
+
+    private func pushSentence(_ parts: inout [String], _ current: inout String) {
+        let piece = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !piece.isEmpty { parts.append(piece) }
+        current = ""
+    }
+
+    // Um fetch por vez: o próximo sai quando o anterior termina ou quando o
+    // chunk atual começa a tocar. Fila toda abortada pelo finishSpeak.
+    private func pumpSpeech() {
+        guard !speechFetchInFlight, let chunk = speechChunks.first else { return }
+        speechChunks.removeFirst()
+        speechFetchInFlight = true
+        let generation = speechGeneration
+        let isHead = !speechVoiceOKSent && speechAudio.isEmpty && !speechHeadRetried
+        fetchPocketTTS(chunk) { [weak self] data in
             DispatchQueue.main.async {
-                guard let self else { return }
-                if let data, self.playAudio(data) {
-                    self.voiceMisses = 0
-                    self.tellJS("voice:ok")
-                    return
+                guard let self, self.speechGeneration == generation else { return }
+                self.speechFetchInFlight = false
+                if let data {
+                    self.speechAudio.append(data)
+                } else if isHead {
+                    // Frase 1: um retry, como no caminho antigo; resto da fila pula a frase.
+                    self.speechHeadRetried = true
+                    self.speechChunks.insert(chunk, at: 0)
                 }
-                self.fetchPocketTTS(text) { retry in
-                    DispatchQueue.main.async {
-                        if let retry, self.playAudio(retry) {
-                            self.voiceMisses = 0
-                            self.tellJS("voice:ok")
-                            return
-                        }
-                        self.finishSpeak()
-                    }
+                self.pumpSpeech()
+                if self.speechWaiting {
+                    self.playNextSpeechChunk()
                 }
             }
+        }
+    }
+
+    private func playNextSpeechChunk() {
+        if let data = speechAudio.first {
+            speechAudio.removeFirst()
+            speechWaiting = false
+            if playAudio(data) {
+                if !speechVoiceOKSent {
+                    speechVoiceOKSent = true
+                    voiceMisses = 0
+                    tellJS("voice:ok")
+                }
+                pumpSpeech()
+            } else {
+                playNextSpeechChunk()
+            }
+            return
+        }
+        if speechFetchInFlight || !speechChunks.isEmpty {
+            speechWaiting = true
+        } else {
+            finishSpeak()
         }
     }
 
@@ -607,6 +690,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private func finishSpeak() {
+        speechGeneration += 1
+        speechChunks = []
+        speechAudio = []
+        speechFetchInFlight = false
+        speechWaiting = false
         speakingNow = false
         paused = false
         webView?.evaluateJavaScript("window.__jarvisOnSpeakDone && window.__jarvisOnSpeakDone()", completionHandler: nil)
