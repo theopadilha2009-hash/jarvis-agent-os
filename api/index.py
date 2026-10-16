@@ -11907,6 +11907,22 @@ class handler(BaseHTTPRequestHandler):
             content_type = ASSET_TYPES.get(target.suffix.lower())
             if not content_type:
                 content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+            # OBJ é texto gigante e a CDN não comprime a extensão: o irmão .gz
+            # pré-comprimido no repo corta o boot do cockpit pela metade.
+            accepts_gzip = "gzip" in (self.headers.get("Accept-Encoding") or "").lower()
+            gz_sibling = target.with_name(target.name + ".gz")
+            if accepts_gzip and gz_sibling.is_file() and gz_sibling.stat().st_size < target.stat().st_size:
+                body = gz_sibling.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Encoding", "gzip")
+                self.send_header("Vary", "Accept-Encoding")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+                self._security_headers()
+                self.end_headers()
+                self._write_body(body)
+                return
             return self.send_bytes(200, target.read_bytes(), content_type)
         except OSError:
             return self.send_json(404, {"ok": False, "error": "asset not found"})
