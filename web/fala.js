@@ -18,7 +18,8 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261016-voice3";
+  const SHELL_VERSION = "20261016-voice4";
+  const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
   const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis)\b/;
@@ -44,6 +45,10 @@
   let meeting = false;
   let clickWait = 0;
   let parkTimer = 0;
+  let lastStatus = null;
+  let voiceLocalOk = null;
+  let micPermission = "";
+  let debugTimer = 0;
 
   if (appMode) document.documentElement.classList.add("app-mode");
   document.documentElement.classList.toggle("needs-login", !ownerToken());
@@ -164,6 +169,11 @@
     paintHome();
   }
 
+  function noteStatus(data) {
+    if (!data || typeof data !== "object") return;
+    lastStatus = data;
+  }
+
   async function refreshAccess() {
     if (!ownerToken()) {
       renderAccess("Visitante", false);
@@ -171,6 +181,7 @@
     }
     try {
       const data = await fetch("/status", { headers: apiHeaders() }).then((row) => row.json());
+      noteStatus(data);
       const mode = data.access?.mode;
       if (mode !== "owner" && mode !== "member") {
         clearStaleSession();
@@ -184,11 +195,19 @@
     }
   }
 
+  function webVolume() {
+    try {
+      const raw = Number(window.localStorage.getItem(WEB_VOLUME_KEY));
+      if (Number.isFinite(raw) && raw >= 0 && raw <= 1) return raw;
+    } catch { /* private mode */ }
+    return 1;
+  }
+
   function playBlob(blob) {
     return new Promise((resolve) => {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
-      audio.volume = 1;
+      audio.volume = webVolume();
       const finish = () => {
         orb.classList.remove("speaking");
         URL.revokeObjectURL(url);
@@ -1191,6 +1210,7 @@
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      closeDebug();
       extras.hidden = true;
       moreButton.textContent = "mais";
     }
@@ -1251,6 +1271,7 @@
     try {
       const response = await fetch("/status", { headers: apiHeaders() });
       const data = await response.json().catch(() => ({}));
+      noteStatus(data);
       paintShellVersion(data?.shell?.overlay || data?.shell?.version || "");
     } catch {
       paintShellVersion("");
@@ -1269,42 +1290,232 @@
 
   function refreshVoiceChip() {
     const chip = document.getElementById("voiceChip");
-    if (!chip || !window.JarvisLocalVoice?.probe) return;
+    if (!chip || !window.JarvisLocalVoice?.probe) {
+      voiceLocalOk = false;
+      return;
+    }
     Promise.resolve(window.JarvisLocalVoice.probe()).then(() => {
+      voiceLocalOk = true;
       chip.hidden = false;
       chip.textContent = hasNativeSpeak() ? "voz JARVIS" : "voz local";
       chip.dataset.state = "local";
     }).catch(() => {
+      voiceLocalOk = false;
       chip.hidden = false;
       chip.textContent = hasNativeSpeak() ? "voz JARVIS" : "voz local";
       chip.dataset.state = "local";
     });
   }
 
+  function closeDebug() {
+    const panel = document.getElementById("jarvisDebug");
+    if (panel) panel.remove();
+    window.clearInterval(debugTimer);
+    debugTimer = 0;
+  }
+
+  function debugSet(id, text, state) {
+    const node = document.getElementById(id);
+    if (!node) return;
+    node.textContent = text;
+    if (state) node.dataset.state = state;
+    else delete node.dataset.state;
+  }
+
+  function debugGatewayText() {
+    if (!lastStatus) return "sem resposta";
+    const mode = lastStatus.access?.mode;
+    if (mode === "owner" || mode === "member") {
+      return lastStatus.power_profile?.mode === "jarvis_3x" ? "conectado · 3×" : `conectado · ${mode}`;
+    }
+    return "respondeu, sem acesso";
+  }
+
+  function debugGatewayState() {
+    return lastStatus && (lastStatus.access?.mode === "owner" || lastStatus.access?.mode === "member") ? "ok" : "bad";
+  }
+
+  function debugVoiceText() {
+    if (hasNativeSpeak()) return "voz JARVIS do app";
+    if (voiceLocalOk) {
+      const info = window.JarvisLocalVoice?.info?.() || {};
+      return info.engine ? `Pocket · ${info.engine}` : "Pocket ativa";
+    }
+    return "indisponível — fala cai pro navegador";
+  }
+
+  function debugVoiceState() {
+    return hasNativeSpeak() || voiceLocalOk ? "ok" : "bad";
+  }
+
+  function micPermissionText() {
+    if (micPermission === "granted") return "permitido";
+    if (micPermission === "denied") return "bloqueado";
+    if (micPermission === "prompt") return "pedir ao usar";
+    if (micPermission) return micPermission;
+    return hasNativeListen() ? "pelo app" : "desconhecido";
+  }
+
+  function probeMicPermission() {
+    const permissions = navigator.permissions;
+    if (!permissions?.query) {
+      micPermission = "";
+      return;
+    }
+    Promise.resolve(permissions.query({ name: "microphone" })).then((status) => {
+      const update = () => { micPermission = status.state; };
+      update();
+      status.onchange = update;
+    }).catch(() => {
+      micPermission = "";
+    });
+  }
+
+  function buildDebugText() {
+    const tts = window.JarvisLocalVoice?.info?.() || {};
+    return [
+      `JARVIS diagnóstico · shell ${SHELL_VERSION}`,
+      `quando ${new Date().toLocaleString("pt-BR")}`,
+      `modo ${appMode ? "app (Mac)" : "web"}`,
+      `gateway ${debugGatewayText()}`,
+      `voz ${debugVoiceText()}`,
+      `microfone ${micPermissionText()}`,
+      `escuta automática ${keepListening ? "ligada" : "desligada"}`,
+      `modo quieto ${stayQuiet ? "ligado" : "desligado"}`,
+      `volume web ${Math.round(webVolume() * 100)}%`,
+      `último comando ${lastCommand || "—"}`,
+      `último erro ${lastError || "—"}`,
+      `token ${ownerToken() ? "sim" : "não"}`,
+      `login lembrado ${rememberLoginEnabled() ? "sim" : "não"}`,
+      `persona ${document.documentElement.dataset.persona || "—"}`,
+      `tts ${tts.ok ? `${tts.engine || "ok"} ${tts.voice || ""}`.trim() : "offline"}`,
+      `último ouvido ${document.getElementById("heardLine")?.textContent || "—"}`,
+    ].join("\n");
+  }
+
+  function copyDebug() {
+    const text = buildDebugText();
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => say("Copiado.", "Diagnóstico na área de transferência."),
+        () => say("Copiar.", "Não consegui copiar."),
+      );
+      return;
+    }
+    say("Copiar.", "Sem área de transferência aqui.");
+  }
+
   function mountDebug(fromButton) {
-    if (document.getElementById("jarvisDebug")) return;
-    const box = document.createElement("pre");
-    box.id = "jarvisDebug";
-    box.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:99;max-width:92vw;margin:0;font:11px/1.35 ui-monospace,monospace;background:#000c;color:#c4b5fd;padding:8px;border-radius:8px;white-space:pre-wrap";
+    if (document.getElementById("jarvisDebug")) {
+      closeDebug();
+      return;
+    }
+    const panel = document.createElement("div");
+    panel.id = "jarvisDebug";
+    panel.className = "debug-panel";
+    panel.setAttribute("role", "region");
+    panel.setAttribute("aria-label", "Diagnóstico do JARVIS");
+    panel.innerHTML = [
+      '<header class="debug-head">',
+      '<strong>diagnóstico</strong>',
+      '<button id="debugClose" class="btn debug-close" type="button" aria-label="Fechar diagnóstico">',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+      "</button>",
+      "</header>",
+      '<p class="debug-note" id="debugVoiceDown" hidden>voz local indisponível — fala cai pro navegador</p>',
+      '<div class="debug-block" aria-label="Estado">',
+      '<p class="debug-title">estado</p>',
+      '<div class="debug-row"><span class="debug-label">gateway</span><span class="debug-value" id="debugGateway">consultando…</span></div>',
+      '<div class="debug-row"><span class="debug-label">voz</span><span class="debug-value" id="debugVoice">verificando…</span></div>',
+      '<div class="debug-row"><span class="debug-label">microfone</span><span class="debug-value" id="debugMic">—</span></div>',
+      '<div class="debug-row"><span class="debug-label">modo</span><span class="debug-value" id="debugMode">—</span></div>',
+      '<div class="debug-row"><span class="debug-label">shell</span><span class="debug-value" id="debugShell">—</span></div>',
+      '<div class="debug-row"><span class="debug-label">último comando</span><span class="debug-value" id="debugCommand">—</span></div>',
+      '<div class="debug-row"><span class="debug-label">último erro</span><span class="debug-value" id="debugError">—</span></div>',
+      "</div>",
+      '<div class="debug-block" aria-label="Ações">',
+      '<p class="debug-title">ações</p>',
+      '<div class="debug-actions">',
+      '<button id="debugTestVoice" class="btn" type="button" aria-label="Testar a voz do JARVIS">',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>',
+      "testar voz",
+      "</button>",
+      '<button id="debugCopy" class="btn" type="button" aria-label="Copiar o diagnóstico para a área de transferência">',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>',
+      "copiar diagnóstico",
+      "</button>",
+      '<button id="debugReload" class="btn" type="button" aria-label="Recarregar o aplicativo">',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
+      "recarregar app",
+      "</button>",
+      "</div>",
+      "</div>",
+      '<div class="debug-block" aria-label="Ajustes">',
+      '<p class="debug-title">ajustes</p>',
+      '<label class="debug-row debug-toggle"><span>escuta automática</span>',
+      '<input id="debugListen" class="debug-switch" type="checkbox" role="switch" aria-label="Escuta automática ligada ou desligada"></label>',
+      '<label class="debug-row debug-toggle"><span>modo quieto</span>',
+      '<input id="debugQuiet" class="debug-switch" type="checkbox" role="switch" aria-label="Modo quieto ligado ou desligado"></label>',
+      appMode ? '<p class="debug-hint">no app do Mac a escuta é gerenciada pelo JARVIS.</p>' : "",
+      '<div class="debug-row debug-volume-row"><span class="debug-label" id="debugVolumeLabel">volume da fala</span>',
+      '<input id="debugVolume" class="debug-volume" type="range" min="0" max="100" step="5" value="100" aria-labelledby="debugVolumeLabel"></div>',
+      "</div>",
+    ].join("");
+    document.body.appendChild(panel);
+
+    panel.querySelector("#debugClose")?.addEventListener("click", closeDebug);
+    panel.querySelector("#debugTestVoice")?.addEventListener("click", () => {
+      cancelPark();
+      speak("Teste de voz do Jarvis.");
+    });
+    panel.querySelector("#debugCopy")?.addEventListener("click", copyDebug);
+    panel.querySelector("#debugReload")?.addEventListener("click", restartForUpdate);
+
+    const listenToggle = panel.querySelector("#debugListen");
+    listenToggle?.addEventListener("change", () => {
+      if (listenToggle.checked) startWakeLoop();
+      else stopWakeLoop();
+    });
+    const quietToggle = panel.querySelector("#debugQuiet");
+    quietToggle?.addEventListener("change", () => {
+      if (quietToggle.checked) {
+        enterQuiet();
+        return;
+      }
+      stayQuiet = false;
+      say("De volta.", "Pode pedir, senhor.");
+    });
+    const volume = panel.querySelector("#debugVolume");
+    if (volume) {
+      volume.value = String(Math.round(webVolume() * 100));
+      volume.addEventListener("input", () => {
+        try {
+          window.localStorage.setItem(WEB_VOLUME_KEY, String(Number(volume.value) / 100));
+        } catch { /* private mode */ }
+      });
+    }
+
+    probeMicPermission();
     const paint = () => {
-      const tts = window.JarvisLocalVoice?.info?.() || {};
-      box.textContent = [
-        "debug fala",
-        `shell ${SHELL_VERSION}`,
-        `token ${ownerToken() ? "sim" : "não"}`,
-        `remember ${rememberLoginEnabled() ? "sim" : "não"}`,
-        `persona ${document.documentElement.dataset.persona || "—"}`,
-        `tts ${tts.ok ? `${tts.engine || "ok"} ${tts.voice || ""}`.trim() : "offline"}`,
-        `lastOpen ${lastOpenUrl || "—"}`,
-        `lastHeard ${document.getElementById("heardLine")?.textContent || "—"}`,
-        `lastCommand ${lastCommand || "—"}`,
-        `lastError ${lastError || "—"}`,
-        fromButton ? "via diagnóstico" : "via ?debug=1",
-      ].join("\n");
+      const voiceDown = document.documentElement.classList.contains("voice-down");
+      const note = document.getElementById("debugVoiceDown");
+      if (note) note.hidden = !voiceDown;
+      debugSet("debugGateway", debugGatewayText(), debugGatewayState());
+      debugSet("debugVoice", debugVoiceText(), debugVoiceState());
+      debugSet("debugMic", micPermissionText(), micPermission === "denied" ? "bad" : "");
+      debugSet("debugMode", appMode ? "app (Mac)" : "web", "");
+      const stale = document.getElementById("buildLine")?.dataset.state === "stale";
+      debugSet("debugShell", stale ? `v${SHELL_VERSION} · desatualizada` : `v${SHELL_VERSION}`, stale ? "warn" : "ok");
+      debugSet("debugCommand", lastCommand || "—", "");
+      debugSet("debugError", lastError || (lastCommand && !lastError ? "nenhum" : "—"), lastError ? "bad" : "");
+      if (listenToggle) {
+        listenToggle.checked = keepListening;
+        listenToggle.disabled = appMode;
+      }
+      if (quietToggle) quietToggle.checked = stayQuiet;
     };
-    document.body.appendChild(box);
     paint();
-    window.setInterval(paint, 2000);
+    debugTimer = window.setInterval(paint, 2000);
   }
 })();
 
