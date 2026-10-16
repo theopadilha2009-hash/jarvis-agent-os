@@ -39,7 +39,7 @@
       role: "VOZ RESERVA",
       status: "pending",
       placeholder: "sk-…",
-      hint: "Guardada no seu navegador, mas o gateway ainda não aceita chave do navegador para OpenAI — reportado ao Theo.",
+      hint: "Guardada no seu navegador. Já vale para a voz reserva (OpenAI speech); para o chat, o gateway ainda usa OpenRouter.",
     },
   ];
 
