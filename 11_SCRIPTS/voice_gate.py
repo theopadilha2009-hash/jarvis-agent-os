@@ -44,7 +44,9 @@ VAD_WINDOW = 512          # janela do Silero VAD em 16 kHz
 WAKE_CHUNK = 1280         # janela do openWakeWord (80 ms em 16 kHz)
 PAD_SAMPLES = 8000        # 0.5 s de silencio antes/depois ao pontuar
 VAD_PROB_THRESHOLD = 0.5  # probabilidade de fala que conta como "vad: true"
-WAKE_LABEL = "hey_jarvis_v0.1"
+# Modelo treinado para "Jarvis" solto em pt-BR (train_wake_jarvis.py):
+# 27/30 positivos ≥0.55 vs 0/30 do hey_jarvis_v0.1 oficial.
+WAKE_LABEL = "jarvis_free"
 DEFAULT_MODELS_DIR = os.environ.get(
     "VOICE_GATE_MODELS_DIR",
     str(pathlib.Path.home() / "Library" / "Application Support" / "JARVIS" / "models"),
