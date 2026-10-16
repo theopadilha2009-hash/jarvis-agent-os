@@ -10457,7 +10457,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                     req = Request(OPENROUTER_URL, data=request_body, headers=request_headers, method="POST")
                     try:
                         with urlopen(req, timeout=timeout) as response:
-                            parsed = json.loads(response.read().decode("utf-8"))
+                            try:
+                                parsed = json.loads(response.read().decode("utf-8"))
+                            except json.JSONDecodeError as parse_error:
+                                raise InvalidModelBody("openrouter_unparseable_body") from parse_error
                             if not isinstance(parsed, dict) or not isinstance(parsed.get("choices"), list) or not parsed["choices"]:
                                 raise InvalidModelBody("openrouter_invalid_body")
                             return parsed

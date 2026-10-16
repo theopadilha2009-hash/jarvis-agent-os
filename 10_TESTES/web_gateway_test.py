@@ -3205,6 +3205,53 @@ São Paulo - SP
             "outcome": "success",
         }])
 
+    def test_malformed_200_body_falls_back_to_next_model(self):
+        """200 sem choices válidas tenta o próximo modelo em vez de erro 502."""
+
+        class FakeBody:
+            def __init__(self, body):
+                self.body = body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return self.body
+
+        requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            sent = json.loads(request.data.decode("utf-8"))
+            requests.append(sent)
+            if "models" in sent:
+                return FakeBody(json.dumps({"choices": []}).encode("utf-8"))
+            if sent.get("model") == "nvidia/nemotron-3-nano-30b-a3b:free":
+                return FakeBody(b"nao-e-json")
+            return FakeBody(json.dumps({
+                "model": "openai/gpt-oss-20b:free",
+                "choices": [{"message": {"content": "Resposta válida após fallback."}}],
+            }).encode("utf-8"))
+
+        with patch.dict(os.environ, {
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_MODEL_POOL": (
+                "nvidia/nemotron-3-nano-30b-a3b:free,"
+                "openai/gpt-oss-20b:free"
+            ),
+        }, clear=False), patch.object(MODULE, "urlopen", side_effect=fake_urlopen):
+            payload, status = MODULE.assistant_response({"command": "responda uma frase"})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["model_routing"]["selected"], "openai/gpt-oss-20b:free")
+        self.assertEqual(payload["model_routing"]["compatibility_attempts"], [
+            {"model": "nvidia/nemotron-3-nano-30b-a3b:free", "outcome": "invalid_body"},
+            {"model": "openai/gpt-oss-20b:free", "outcome": "success"},
+        ])
+        self.assertIn("Resposta válida", payload["message"])
+
     def test_github_repository_search_returns_ranked_license_evidence(self):
         response = json.dumps({
             "items": [{
