@@ -3390,6 +3390,27 @@ São Paulo - SP
             "outcome": "success",
         }])
 
+    def test_dispatch_preserves_ai_provider_for_direct_route(self):
+        """O /command propaga ai_provider e client_integrations ao assistant —
+        sem isso a troca de IA por comando cai no OpenRouter silenciosamente."""
+
+        captured = {}
+
+        def fake_assistant(body, origin="", local_execute=False, owner_authenticated=False):
+            captured["ai_provider"] = body.get("ai_provider")
+            captured["client_integrations"] = body.get("client_integrations")
+            return {"ok": True, "message": "teste"}, 200
+
+        with patch.object(MODULE, "assistant_response", side_effect=fake_assistant):
+            MODULE.dispatch_command_payload({
+                "command": "diga oi",
+                "ai_provider": "anthropic",
+                "client_integrations": {"anthropic": {"api_key": "cofre-key"}},
+            })
+
+        self.assertEqual(captured["ai_provider"], "anthropic")
+        self.assertEqual(captured["client_integrations"], {"anthropic": {"api_key": "cofre-key"}})
+
     def test_malformed_200_body_falls_back_to_next_model(self):
         """200 sem choices válidas tenta o próximo modelo em vez de erro 502."""
 
