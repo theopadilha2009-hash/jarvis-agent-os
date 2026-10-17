@@ -10973,6 +10973,25 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 content = meta_leak_recovery(messages)
                 meta_leak_recovered = retry_reason == "internal_reasoning"
                 language_recovered = retry_reason == "english"
+        if not content and openrouter_payload.get("models") and not tool_calling_fallback:
+            # Roteamento por latência às vezes devolve 200 com corpo vazio de
+            # um provedor ruim. Trate como corpo inválido: percorra o resto do
+            # pool antes de falhar (a falha aqui era ~35% dos requests).
+            result, model_routing_compatibility_attempts = send_compatible_model_fallbacks()
+            model_routing_compatibility_fallback = True
+            choice = (result.get("choices") or [{}])[0]
+            response_message = choice.get("message") if isinstance(choice, dict) else None
+            response_message = response_message if isinstance(response_message, dict) else {}
+            tool_calls = response_message.get("tool_calls") if isinstance(response_message.get("tool_calls"), list) else []
+            content = response_message.get("content", "")
+            if isinstance(content, list):
+                content = "\n".join(
+                    str(item.get("text") or "") for item in content if isinstance(item, dict)
+                ).strip()
+            content, response_trimmed = concise_assistant_content(
+                content,
+                detailed=response_profile["name"] != "concise",
+            )
         if not content:
             raise ValueError("empty model response")
         if web_search_requested and not sources:

@@ -3413,6 +3413,51 @@ São Paulo - SP
         ])
         self.assertIn("Resposta válida", payload["message"])
 
+    def test_empty_200_content_falls_back_to_next_model(self):
+        """200 válido com content vazio (provedor ruim no roteamento por latência)
+        percorre o resto do pool em vez de subir 502 genérico."""
+
+        class FakeBody:
+            def __init__(self, body):
+                self.body = body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return self.body
+
+        requests = []
+
+        def fake_urlopen(request, **_kwargs):
+            sent = json.loads(request.data.decode("utf-8"))
+            requests.append(sent)
+            if "models" in sent:
+                return FakeBody(json.dumps({
+                    "model": "nvidia/nemotron-3-super-120b-a12b:free",
+                    "choices": [{"message": {"content": ""}}],
+                }).encode("utf-8"))
+            return FakeBody(json.dumps({
+                "model": "openai/gpt-oss-20b:free",
+                "choices": [{"message": {"content": "Resposta após content vazio."}}],
+            }).encode("utf-8"))
+
+        with patch.dict(os.environ, {
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_MODEL_POOL": (
+                "nvidia/nemotron-3-super-120b-a12b:free,"
+                "openai/gpt-oss-20b:free"
+            ),
+        }, clear=False), patch.object(MODULE, "urlopen", side_effect=fake_urlopen):
+            payload, status = MODULE.assistant_response({"command": "oi"})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["model_routing"]["selected"], "openai/gpt-oss-20b:free")
+        self.assertIn("Resposta após content vazio", payload["message"])
+
     def test_github_repository_search_returns_ranked_license_evidence(self):
         response = json.dumps({
             "items": [{
