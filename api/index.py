@@ -10986,6 +10986,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             # Roteamento por latência às vezes devolve 200 com corpo vazio de
             # um provedor ruim. Trate como corpo inválido: percorra o resto do
             # pool antes de falhar (a falha aqui era ~35% dos requests).
+            # Modelos free também costumam responder vazio COM tools (pedidos
+            # acionáveis do dono), então o fallback repete sem tools.
+            for field in ("tools", "tool_choice", "parallel_tool_calls"):
+                openrouter_payload.pop(field, None)
+            tool_calling_fallback = True
             result, model_routing_compatibility_attempts = send_compatible_model_fallbacks()
             model_routing_compatibility_fallback = True
             choice = (result.get("choices") or [{}])[0]
