@@ -2971,6 +2971,30 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["sources"][0]["url"], "https://example.com/projeto")
         self.assertIn("Projeto real", payload["message"])
 
+    def test_daily_free_quota_exhausted_reports_honest_message(self):
+        """429 free-models-per-day explica a cota e o reset em vez de 'IA ocupada'."""
+
+        class FakeErrorBody:
+            def read(self):
+                return json.dumps({
+                    "error": {"message": "Rate limit exceeded: free-models-per-day", "code": 429},
+                    "metadata": {"headers": {"X-RateLimit-Reset": str(int(time.time()) + 7200)}},
+                }).encode("utf-8")
+
+            def close(self):
+                return None
+
+        error = HTTPError(MODULE.OPENROUTER_URL, 429, "rate limited", {}, FakeErrorBody())
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=False), patch.object(
+            MODULE, "urlopen", side_effect=error
+        ):
+            payload, status = MODULE.assistant_response({"command": "oi"})
+
+        self.assertEqual(status, 502)
+        self.assertEqual(payload["status_real"], "openrouter_daily_free_quota_exhausted")
+        self.assertIn("cota gratuita diária", payload["error"])
+        self.assertIn("~2h", payload["error"])
+
     def test_free_search_replaces_model_meta_leak_with_real_results(self):
         free_search = {
             "query": "assistentes locais",

@@ -11106,6 +11106,14 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     except HTTPError as error:
         if free_search_sources:
             return search_results_without_synthesis(free_search_bundle, f"openrouter_http_{error.code}"), 200
+        # Observabilidade: o corpo do HTTPError diz a razão real (limite do
+        # free tier, provedor indisponível, modelo sem rota) — sem ele cada
+        # 404/429 é adivinhação.
+        http_detail = ""
+        try:
+            http_detail = clean_text(error.read().decode("utf-8", "replace"), 240)
+        except Exception:
+            pass
         search_error = (
             "A busca ao vivo do OpenRouter precisa de saldo para o mecanismo de pesquisa (HTTP 402)."
             if web_search_requested and error.code == 402
@@ -11132,11 +11140,6 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         # Observabilidade: o corpo do HTTPError diz a razão real (limite do
         # free tier, provedor indisponível, modelo sem rota) — sem ele cada
         # 404/429 é adivinhação.
-        http_detail = ""
-        try:
-            http_detail = clean_text(error.read().decode("utf-8", "replace"), 240)
-        except Exception:
-            pass
         return {
             "ok": False,
             "endpoint": "POST /assistant",
