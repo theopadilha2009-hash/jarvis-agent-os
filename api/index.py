@@ -10582,6 +10582,13 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         direct_model = (
             ANTHROPIC_DEFAULT_MODEL if direct_provider == "anthropic" else OPENAI_DEFAULT_MODEL
         )
+        # "Usa esse modelo aqui": o dono escolhe o slug no cofre (comando no
+        # cockpit grava config.model). Slug validado — nunca interpreta input.
+        direct_model_requested = clean_text(
+            client_integration(body, direct_provider).get("model", ""), 120
+        )
+        if re.fullmatch(r"[A-Za-z0-9._~:-]{2,120}", direct_model_requested):
+            direct_model = direct_model_requested
         direct_temperature = response_profile["temperature"]
         direct_max_tokens = min(
             response_profile["max_tokens"] * power_profile["multiplier"],
