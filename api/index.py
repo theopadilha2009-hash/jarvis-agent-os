@@ -11111,10 +11111,19 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             if error.code == 429
             else f"OpenRouter recusou a requisição (HTTP {error.code})."
         )
+        # Observabilidade: o corpo do HTTPError diz a razão real (limite do
+        # free tier, provedor indisponível, modelo sem rota) — sem ele cada
+        # 404/429 é adivinhação.
+        http_detail = ""
+        try:
+            http_detail = clean_text(error.read().decode("utf-8", "replace"), 240)
+        except Exception:
+            pass
         return {
             "ok": False,
             "endpoint": "POST /assistant",
             "status_real": "live_web_search_billing_required" if web_search_requested and error.code == 402 else "openrouter_request_failed",
+            "openrouter_detail": http_detail,
             "error": search_error,
             "retryable": error.code in {408, 409, 429, 500, 502, 503, 504},
         }, 502
