@@ -418,7 +418,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("voiceFirstAudioMs", self.app_js)
         self.assertIn('`Pocket TTS · voz em ${session.voiceFirstAudioMs} ms`', self.app_js)
         self.assertNotIn('ElevenLabs · voz em', self.app_js)
-        self.assertIn('const SHELL_VERSION = "20261016-restart1"', self.app_js)
+        self.assertIn('const SHELL_VERSION = "20261017-modes1"', self.app_js)
         self.assertIn("restartForUpdate", self.app_js)
         self.assertIn('id="updateToast"', self.html)
         self.assertIn('id="updateReloadButton"', self.html)

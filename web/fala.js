@@ -534,6 +534,50 @@
     say("Login.", "Mesma conta do cockpit.");
   }
 
+  // Mesmo contrato dos modos do cockpit (jarvis.js): verde = plano,
+  // vermelho = bypass/sempre-aceitar, modo normal apaga tudo.
+  function voiceModeFor(value) {
+    const clean = String(value || "").trim().replace(/^jarvis[,\s]+/i, "");
+    if (/^(?:vai|vá|va)\s+dormir\.?$|^(?:entrar?\s+no\s+)?modo\s+plano\.?$|^plano\.?$/i.test(clean)) {
+      return {
+        mode: "plan",
+        title: "Modo plano.",
+        detail: "Borda verde: só planejo, nada executo sem aprovação.",
+        speak: "Modo plano ativado. Borda verde: só planejo, nada executo sem a sua aprovação.",
+      };
+    }
+    if (/^bypass(?:\s+permissions?)?\.?$|^pular\s+permiss(?:ões|oes|ão|ao)\.?$/i.test(clean)) {
+      return {
+        mode: "bypass",
+        title: "Bypass de permissões.",
+        detail: "Borda vermelha: executo sem confirmar cada passo.",
+        speak: "Bypass de permissões ativado. Borda vermelha: executo sem confirmar cada passo.",
+      };
+    }
+    if (/^always\s+accept(?:ed)?\.?$|^(?:aceite|aceitar)\s+tudo\.?$|^sempre\s+aceite\.?$/i.test(clean)) {
+      return {
+        mode: "bypass",
+        title: "Sempre aceitar.",
+        detail: "Borda vermelha: aprovo tudo automaticamente.",
+        speak: "Sempre aceitar ativado. Borda vermelha: aprovo tudo automaticamente.",
+      };
+    }
+    if (/^modo\s+normal\.?$|^acordar?\.?$|^sai(?:r)?\s+do\s+modo\.?$|^despertar\.?$/i.test(clean)) {
+      return { mode: "normal", title: "Modo normal.", detail: "Borda apagada.", speak: "De volta ao modo normal." };
+    }
+    return null;
+  }
+
+  function applyVoiceMode(mode) {
+    document.body.classList.remove("jarvis-mode-plan", "jarvis-mode-bypass");
+    if (mode === "plan") document.body.classList.add("jarvis-mode-plan");
+    else if (mode === "bypass") document.body.classList.add("jarvis-mode-bypass");
+    try {
+      if (mode && mode !== "normal") window.localStorage.setItem("jarvis-assistant-mode", mode);
+      else window.localStorage.removeItem("jarvis-assistant-mode");
+    } catch { /* private */ }
+  }
+
   function localAction(text) {
     const value = String(text || "").toLocaleLowerCase("pt-BR");
     if (/^(?:entrar|login|fazer login|conectar)$/.test(value.trim())) {
@@ -541,6 +585,17 @@
     }
     if (/\btela\s+(?:cheia|inteira)\b/.test(value)) {
       return { run: () => toggleFullscreen(), speak: "" };
+    }
+    // Modos explícitos do dono: borda verde (plano) / vermelha (bypass,
+    // sempre-aceitar) na tela inteira, com confirmação falada — sem IA.
+    const voiceMode = voiceModeFor(value.trim());
+    if (voiceMode) {
+      return {
+        run: () => applyVoiceMode(voiceMode.mode),
+        title: voiceMode.title,
+        detail: voiceMode.detail,
+        speak: voiceMode.speak,
+      };
     }
     const opened = resolveOpen(value);
     if (opened) {

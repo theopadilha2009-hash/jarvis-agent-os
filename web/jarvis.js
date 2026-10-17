@@ -38,7 +38,7 @@
   const LAST_LOGIN_KEY = "jarvis-last-login";
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
-  const SHELL_VERSION = "20261016-restart1";
+  const SHELL_VERSION = "20261017-modes1";
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   // v3: a janela nasce como painel à direita. Trocar a chave descarta as
@@ -520,9 +520,25 @@
     }
   }
 
+  async function activeAiProvider() {
+    if (session.activeAiProvider) return session.activeAiProvider;
+    let stored = "";
+    try {
+      stored = window.localStorage.getItem("jarvis-active-ai") || "";
+    } catch {}
+    if (stored && stored !== "openrouter") return stored;
+    try {
+      const hasDirectKey = await apiVault().get("anthropic") || await apiVault().get("openai");
+      if (hasDirectKey?.api_key) return stored || "";
+    } catch {}
+    return "";
+  }
+
   async function runtimeClientIntegrations(command = "") {
     const providers = ["openrouter", "elevenlabs"];
     if (/\b(?:n8n|workflow|fluxo|automa[cç][aã]o)\b/i.test(command)) providers.push("n8n");
+    const direct = await activeAiProvider();
+    if (direct && !providers.includes(direct)) providers.push(direct);
     const integrations = {};
     await Promise.all(providers.map(async (provider) => {
       try {
@@ -2990,6 +3006,83 @@
     return rest;
   }
 
+  // Modos explícitos do dono: resposta e borda imediatas, sem depender de IA
+  // nem de cota do modelo. Plano acende borda verde; bypass e sempre-aceitar,
+  // vermelha; modo normal apaga tudo.
+  const ASSISTANT_MODES = {
+    plan: {
+      border: "jarvis-mode-plan",
+      message: "Modo plano ativado, senhor. Borda verde: só planejo e listo passos; nada é executado sem sua aprovação.",
+    },
+    bypass: {
+      border: "jarvis-mode-bypass",
+      message: "Bypass de permissões ativado. Borda vermelha: executo sem confirmar cada passo. Diga \"modo normal\" para voltar.",
+    },
+    accept: {
+      border: "jarvis-mode-bypass",
+      message: "Sempre aceitar ativado. Borda vermelha: aprovo tudo automaticamente. Diga \"modo normal\" para voltar.",
+    },
+    normal: {
+      border: "",
+      message: "De volta ao modo normal, senhor.",
+    },
+  };
+
+  const ASSISTANT_MODE_PATTERNS = [
+    { mode: "plan", re: /^(?:vai|vá|va)\s+dormir\.?$|^(?:entrar?\s+no\s+)?modo\s+plano\.?$|^plano\.?$/i },
+    { mode: "bypass", re: /^bypass(?:\s+permissions?)?\.?$|^pular\s+permiss(?:ões|oes|ão|ao)\.?$/i },
+    { mode: "accept", re: /^always\s+accept(?:ed)?\.?$|^(?:aceite|aceitar)\s+tudo\.?$|^sempre\s+aceite\.?$/i },
+    { mode: "normal", re: /^modo\s+normal\.?$|^acordar?\.?$|^sai(?:r)?\s+do\s+modo\.?$|^despertar\.?$/i },
+  ];
+
+  function assistantModeFor(command) {
+    const value = String(command || "").toLocaleLowerCase("pt-BR").trim().replace(/^jarvis[,\s]+/i, "");
+    for (const entry of ASSISTANT_MODE_PATTERNS) {
+      if (entry.re.test(value)) return entry.mode;
+    }
+    return "";
+  }
+
+  function applyAssistantModeClass(mode) {
+    document.body.classList.remove("jarvis-mode-plan", "jarvis-mode-bypass");
+    if (mode === "plan") document.body.classList.add("jarvis-mode-plan");
+    else if (mode === "bypass" || mode === "accept") document.body.classList.add("jarvis-mode-bypass");
+    try {
+      if (mode && mode !== "normal") window.localStorage.setItem("jarvis-assistant-mode", mode);
+      else window.localStorage.removeItem("jarvis-assistant-mode");
+    } catch {}
+  }
+
+  function restoreAssistantMode() {
+    let mode = "";
+    try {
+      mode = window.localStorage.getItem("jarvis-assistant-mode") || "";
+    } catch {}
+    if (mode && ASSISTANT_MODES[mode]) applyAssistantModeClass(mode);
+  }
+
+  // Trocar a própria IA por comando: "usa esse modelo claude-sonnet-4-5 com a
+  // chave sk-ant-..." — a chave fica no cofre local e nunca vai em texto no
+  // histórico nem para o gateway. O provedor é deduzido do prefixo da chave.
+  function modelSwapPlanFor(command) {
+    const value = String(command || "").trim().replace(/^jarvis[,\s]+/i, "");
+    if (!/\b(?:modelo|ia|intelig[eê]ncia)\b/i.test(value)) return null;
+    if (!/\b(?:usa|use|muda|mudar|troca|trocar|altera|alterar|configur(?:a|e)|conectar|conecta)\b/i.test(value)) return null;
+    const tokenMatch = value.match(/\b(sk-ant-[A-Za-z0-9_\-]{20,}|sk-or-[A-Za-z0-9_\-]{20,}|sk-proj-[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9_\-]{40,})\b/);
+    let provider = "";
+    let token = "";
+    if (tokenMatch) {
+      token = tokenMatch[1];
+      provider = token.startsWith("sk-ant-") ? "anthropic" : token.startsWith("sk-or-") ? "openrouter" : "openai";
+    }
+    const modelMatch = value.match(/\b((?:claude|gpt|o[134](?:-|\b)|gemini|deepseek|qwen|mistral|grok|glm|kimi|nova|meta-llama|anthropic\/|openai\/|google\/|nvidia\/|x-ai\/)[A-Za-z0-9._:\/-]*)\b/i);
+    const model = modelMatch ? modelMatch[1].replace(/[.,;]+$/, "") : "";
+    if (!token && !model) return null;
+    if (!provider && !model.startsWith("claude") && !/^(?:gpt|o[134]-|gemini|deepseek|qwen|mistral|grok|glm|kimi|nova)/i.test(model) && !/\//.test(model)) return null;
+    if (!provider) provider = model.startsWith("claude") ? "anthropic" : /\//.test(model) ? "openrouter" : "openai";
+    return { provider, model, token };
+  }
+
   function browserOpenFor(command) {
     const value = String(command || "").toLocaleLowerCase("pt-BR").trim();
     if (session.paired && /\bspotify\b/.test(value)) return null;
@@ -3079,6 +3172,46 @@
       });
       return;
     }
+    const modeName = !attachments.length ? assistantModeFor(command) : "";
+    if (modeName) {
+      const mode = ASSISTANT_MODES[modeName];
+      applyAssistantModeClass(modeName);
+      addMessage(command, options.source === "voice" ? "user voice" : "user");
+      input.value = "";
+      syncComposerAction();
+      syncComposerHeight();
+      showResponse({ ok: true, message: mode.message, assistant_mode: modeName });
+      speak(mode.message);
+      return;
+    }
+    const modelSwap = !attachments.length ? modelSwapPlanFor(command) : null;
+    if (modelSwap) {
+      addMessage(command.replace(/[A-Za-z0-9_\-]{30,}/g, "<chave preservada>"), options.source === "voice" ? "user voice" : "user");
+      input.value = "";
+      syncComposerAction();
+      syncComposerHeight();
+      setWorking(true, "config");
+      try {
+        const previous = await apiVault().get(modelSwap.provider) || {};
+        const config = { ...previous };
+        if (modelSwap.token) config.api_key = modelSwap.token;
+        if (modelSwap.model) config.model = modelSwap.model;
+        await apiVault().save(modelSwap.provider, config);
+        try { window.localStorage.setItem("jarvis-active-ai", modelSwap.provider); } catch {}
+        const providerLabel = { anthropic: "Claude (Anthropic)", openai: "OpenAI", openrouter: "OpenRouter" }[modelSwap.provider] || modelSwap.provider;
+        const message = modelSwap.token
+          ? `${providerLabel} ativado${modelSwap.model ? ` com o modelo ${modelSwap.model}` : ""}. Guardei sua chave só neste dispositivo, sem passar pelo servidor em texto.`
+          : `Modelo ${modelSwap.model} ativado no ${providerLabel}.`;
+        session.activeAiProvider = modelSwap.provider;
+        showResponse({ ok: true, message, ai_provider: modelSwap.provider, model: modelSwap.model });
+        speak(message);
+      } catch (error) {
+        showResponse({ ok: false, error: error?.message || "Não consegui gravar a nova IA no cofre." });
+      } finally {
+        setWorking(false, "");
+      }
+      return;
+    }
     if (session.paired && window.JarvisFeatureLoader?.screenUnavailable(command, session.deviceOnline)) {
       addMessage(command, options.source === "voice" ? "user voice" : "user");
       input.value = "";
@@ -3113,6 +3246,7 @@
     setWorking(true, workingState);
     try {
       const clientIntegrations = await runtimeClientIntegrations(command);
+      const directProvider = await activeAiProvider();
       const commandBody = {
         command,
         messages: session.history,
@@ -3122,6 +3256,9 @@
         persona_style: window.JarvisPersonaPanel?.current() || personaStyleFallback(),
         client_integrations: clientIntegrations,
       };
+      if (directProvider && clientIntegrations[directProvider]?.api_key) {
+        commandBody.ai_provider = directProvider;
+      }
       let data = await request("/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3447,6 +3584,7 @@
 
   async function boot() {
     try {
+      restoreAssistantMode();
       expireIdleOwnerSession();
       const status = await request("/status");
       renderOccupancy(status.occupancy);
