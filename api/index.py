@@ -11110,9 +11110,25 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "A busca ao vivo do OpenRouter precisa de saldo para o mecanismo de pesquisa (HTTP 402)."
             if web_search_requested and error.code == 402
             else "A IA está ocupada com outro pedido agora. Tente de novo em alguns segundos."
+            if error.code == 429 and "free-models-per-day" not in http_detail
+            else ""
             if error.code == 429
             else f"OpenRouter recusou a requisição (HTTP {error.code})."
         )
+        daily_quota_hint = ""
+        if error.code == 429 and "free-models-per-day" in http_detail:
+            reset_match = re.search(r"X-RateLimit-Reset\W+(\d+)", http_detail)
+            reset_hours = ""
+            if reset_match:
+                try:
+                    seconds = max(0, int(reset_match.group(1)) - int(time.time()))
+                    reset_hours = f" em ~{max(1, seconds // 3600)}h"
+                except (ValueError, OSError):
+                    pass
+            daily_quota_hint = (
+                f"A cota gratuita diária da IA acabou (50 pedidos/dia). Reseta{reset_hours}. "
+                "Para 1000/dia, adicione $10 de créditos no OpenRouter ou conecte outra conta sua no cofre (Conectar minha IA → OpenRouter)."
+            )
         # Observabilidade: o corpo do HTTPError diz a razão real (limite do
         # free tier, provedor indisponível, modelo sem rota) — sem ele cada
         # 404/429 é adivinhação.
@@ -11124,9 +11140,13 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         return {
             "ok": False,
             "endpoint": "POST /assistant",
-            "status_real": "live_web_search_billing_required" if web_search_requested and error.code == 402 else "openrouter_request_failed",
+            "status_real": (
+                "openrouter_daily_free_quota_exhausted"
+                if daily_quota_hint
+                else "live_web_search_billing_required" if web_search_requested and error.code == 402 else "openrouter_request_failed"
+            ),
             "openrouter_detail": http_detail,
-            "error": search_error,
+            "error": daily_quota_hint or search_error,
             "retryable": error.code in {408, 409, 429, 500, 502, 503, 504},
         }, 502
     except (URLError, TimeoutError) as error:
