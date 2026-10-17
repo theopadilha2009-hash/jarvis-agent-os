@@ -425,7 +425,8 @@ BUSY_MODE_PATTERN = re.compile(
 )
 
 SELF_EDIT_PATTERN = re.compile(
-    r"(?:\b(?:auto[-\s]?(?:edit(?:e|ar)|melhor(?:e|ar))|"
+    r"(?:\bjarvis\s+code\b.{0,600}|"
+    r"\b(?:auto[-\s]?(?:edit(?:e|ar)|melhor(?:e|ar))|"
     r"(?:edit(?:e|ar)|mex(?:a|er)|alter(?:e|ar)|modifiqu(?:e|ar)|melhor(?:e|ar)|"
     r"arrum(?:e|ar)|corrig(?:e|ir|a))\b.{0,100}\b(?:seus|nos\s+seus|pr[oó]prios?)\b"
     r".{0,50}\b(?:scripts?|c[oó]digo|arquivos?)\b)|"
@@ -11282,6 +11283,7 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
                 "attachments": body.get("attachments"),
                 "strength": resolved_response_strength(command, body, owner_authenticated=owner_authenticated),
                 "client_integrations": body.get("client_integrations"),
+                "ai_provider": body.get("ai_provider"),
             },
             origin=origin,
             local_execute=local_execute,
@@ -11344,6 +11346,7 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
             "attachments": body.get("attachments"),
             "strength": resolved_response_strength(command, body, owner_authenticated=owner_authenticated),
             "client_integrations": body.get("client_integrations"),
+            "ai_provider": body.get("ai_provider"),
         },
         origin=origin,
         local_execute=local_execute,
