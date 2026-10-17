@@ -7664,6 +7664,15 @@ def openrouter_model_candidates(attachments=False, profile="concise"):
             candidates.append(model)
         if len(candidates) >= 6:
             break
+    if len(candidates) < 2:
+        # Pool configurado com modelo único mata o fallback de compatibilidade
+        # (payload vai sem "models" e um provedor ruim devolve corpo vazio sem
+        # plano B). O default gratuito garante ao menos duas rotas.
+        for model in DEFAULT_FREE_MODEL_POOL:
+            if model not in candidates:
+                candidates.append(model)
+            if len(candidates) >= 6:
+                break
     return candidates or [DEFAULT_MODEL]
 
 
@@ -10993,7 +11002,11 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 detailed=response_profile["name"] != "concise",
             )
         if not content:
-            raise ValueError("empty model response")
+            # Última linha de defesa: todo o pool devolveu corpo vazio. Uma
+            # resposta de recuperação honesta erra melhor que 502 na cara do
+            # dono ("modelo externo retornou uma resposta inválida").
+            content = meta_leak_recovery(messages)
+            meta_leak_recovered = True
         if web_search_requested and not sources:
             return {
                 "ok": False,
