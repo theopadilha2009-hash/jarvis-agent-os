@@ -213,9 +213,10 @@ FREE_SEARCH_USER_AGENT = "Mozilla/5.0 (compatible; TheoJarvisResearch/1.0; +http
 PUBLIC_READER_URL = "https://r.jina.ai/"
 PUBLIC_SEARCH_CACHE_SECONDS = 300.0
 DEFAULT_FREE_MODEL_POOL = (
-    "nvidia/nemotron-3-super-120b-a12b:free",
-    "google/gemma-4-26b-a4b-it:free",
     "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "nvidia/nemotron-3.5-lightning:free",
+    "thinkingmachines/inkling:free",
     "openrouter/free",
 )
 DEFAULT_DEEP_MODEL_POOL = (
