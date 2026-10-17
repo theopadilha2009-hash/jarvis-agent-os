@@ -214,9 +214,10 @@ PUBLIC_READER_URL = "https://r.jina.ai/"
 PUBLIC_SEARCH_CACHE_SECONDS = 300.0
 DEFAULT_FREE_MODEL_POOL = (
     "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free",
     "nvidia/nemotron-3.5-lightning:free",
-    "thinkingmachines/inkling:free",
+    "xingchen-agi/xing4.0-29b-a4b:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "dots-studio/dots-3-note-preview:free",
     "openrouter/free",
 )
 DEFAULT_DEEP_MODEL_POOL = (
