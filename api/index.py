@@ -10954,7 +10954,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             recovery_result = send_openrouter(recovery_payload, timeout=12)
             recovery_choice = (recovery_result.get("choices") or [{}])[0]
             recovery_message = recovery_choice.get("message") if isinstance(recovery_choice, dict) else {}
-            recovery_raw = recovery_message.get("content", "") if isinstance(recovery_message, dict) else ""
+            recovery_raw = (recovery_message.get("content") or "") if isinstance(recovery_message, dict) else ""
             if isinstance(recovery_raw, list):
                 recovery_raw = "\n".join(
                     str(item.get("text") or "") for item in recovery_raw if isinstance(item, dict)
@@ -10983,7 +10983,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             response_message = choice.get("message") if isinstance(choice, dict) else None
             response_message = response_message if isinstance(response_message, dict) else {}
             tool_calls = response_message.get("tool_calls") if isinstance(response_message.get("tool_calls"), list) else []
-            content = response_message.get("content", "")
+            content = response_message.get("content") or ""
             if isinstance(content, list):
                 content = "\n".join(
                     str(item.get("text") or "") for item in content if isinstance(item, dict)
@@ -11120,12 +11120,15 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "occupancy": occupancy_payload(),
             "queue": {"waiting": waiting, "retry_after": 3} if busy else {},
         }, 504
-    except (ValueError, KeyError, json.JSONDecodeError, AttributeError):
+    except (ValueError, KeyError, json.JSONDecodeError, AttributeError) as error:
         if free_search_sources:
             return search_results_without_synthesis(free_search_bundle, "openrouter_invalid_response"), 200
+        # Observabilidade: sem a classe/mensagem da exceção, cada 502 genérico
+        # vira caça às cegas. A mensagem da exceção é nossa (sem segredos).
         return {
             "ok": False,
             "endpoint": "POST /assistant",
+            "status_real": f"openrouter_invalid_response:{type(error).__name__}:{str(error)[:120]}",
             "error": "O modelo externo retornou uma resposta inválida.",
             "retryable": True,
         }, 502
