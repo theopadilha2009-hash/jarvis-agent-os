@@ -2273,7 +2273,7 @@ CODE_SESSION_PATTERN = re.compile(
 CODE_PAD_PATTERN = re.compile(
     r"\b(?:col(?:a|e|ar)|copi(?:a|e|ar))\b.{0,48}?\b(?:vs\s*code|vscode|visual\s+studio(?:\s+code)?)\b"
     r"|\b(?:abr(?:a|e|ir)|mostr(?:a|e|ar))\b.{0,28}?\b(?:jarvis\s+code|painel\s+(?:de\s+)?c[oó]digo|code\s+pad)\b"
-    r"|\bjarvis\s+code\b",
+    r"|\bjarvis\s+code\b\s*[.!]?\s*$",
     re.I,
 )
 
