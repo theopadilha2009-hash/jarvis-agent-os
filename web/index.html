@@ -617,6 +617,18 @@ window.addEventListener("error", (event) => {
   if (hint) hint.textContent = "O cockpit não carregou. Recarregue com Cmd+Shift+R.";
   if (state) state.textContent = "script interrompido";
 }, true);
+// Service Worker novo assumiu nesta aba: uma única recarga automática traz
+// os assets da versão nova sem o dono precisar recarregar duas vezes.
+// sessionStorage por aba evita loop; guard vira "2" antes do reload.
+if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    try {
+      if (sessionStorage.getItem("jarvis-sw-reloaded") === "2") return;
+      sessionStorage.setItem("jarvis-sw-reloaded", "2");
+    } catch {}
+    window.location.reload();
+  });
+}
 </script>
 <script src="/ui/jarvis.js?v=20261017-modes1" defer></script>
 <script src="/ui/nuclei-fallback.js?v=20261016-svgfb" defer></script>
