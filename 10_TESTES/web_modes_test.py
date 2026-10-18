@@ -65,6 +65,35 @@ class AssistantModeTest(unittest.TestCase):
         self.assertIn("sk-ant-", self.jarvis_js)
         self.assertIn("jarvis-active-ai", self.jarvis_js)
 
+    def test_jarvis_code_prefix_routes_to_self_edit_not_code_pad(self):
+        """\"Jarvis code: <pedido>\" é autoedição (Claude Code no Mac); o pad
+        só abre com \"jarvis code\" nu ou pedido explícito de abrir."""
+
+        import importlib.util
+
+        gateway = (Path(__file__).resolve().parent.parent / "api" / "index.py").read_text(encoding="utf-8")
+        self.assertIn(r"\bjarvis\s+code\b\s*[.!]?\s*$", gateway)
+        self.assertIn("jarvis\\s+code\\b.{0,600}", gateway)
+
+        spec = importlib.util.spec_from_file_location(
+            "jarvis_gateway_modes", str(Path(__file__).resolve().parent.parent / "api" / "index.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        sys_modules = __import__("sys").modules
+        sys_modules["jarvis_gateway_modes"] = mod
+        spec.loader.exec_module(mod)
+
+        def intent_of(text):
+            for pattern, intent in mod.LOCAL_INTENTS:
+                if pattern.search(text):
+                    return intent
+            return ""
+
+        self.assertEqual(intent_of("jarvis code: adiciona um comando de status"), "self_edit")
+        self.assertEqual(intent_of("Jarvis Code: arrume a tela do cockpit"), "self_edit")
+        self.assertEqual(intent_of("jarvis code"), "code_pad")
+        self.assertEqual(intent_of("abre o jarvis code"), "code_pad")
+
     def test_direct_model_override_in_gateway(self):
         gateway = (Path(__file__).resolve().parent.parent / "api" / "index.py").read_text(encoding="utf-8")
         self.assertIn("direct_model_requested", gateway)
