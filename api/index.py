@@ -10764,15 +10764,24 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
 
     try:
         openrouter_key_failover = False
+        # Teto da plataforma (60s no plano atual): o chat inteiro com modelo —
+        # failover de keys, fallbacks de compatibilidade e recovery — precisa
+        # de um orçamento único, senão cada camada tem 10-18s próprios e a
+        # soma estoura o runtime antes de devolver qualquer resposta.
+        route_deadline = time.monotonic() + 40
 
         def send_openrouter(payload, timeout=None):
             nonlocal openrouter_key_failover
+            remaining_route = route_deadline - time.monotonic()
+            if remaining_route < 2:
+                raise TimeoutError("openrouter_route_deadline")
             if timeout is None:
                 timeout = 24 if response_strength == "maximum" else 16 if response_strength == "strong" else 10
+            timeout = min(timeout, remaining_route)
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             last_error = None
             key_retryable_codes = {401, 402, 403, 408, 409, 429, 500, 502, 503, 504}
-            acquired, waiting = acquire_openrouter_slot(18)
+            acquired, waiting = acquire_openrouter_slot(min(18, max(2, int(remaining_route))))
             if not acquired:
                 raise TimeoutError(f"openrouter_busy:{waiting}")
             try:
