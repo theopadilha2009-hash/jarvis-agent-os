@@ -213,8 +213,8 @@ FREE_SEARCH_USER_AGENT = "Mozilla/5.0 (compatible; TheoJarvisResearch/1.0; +http
 PUBLIC_READER_URL = "https://r.jina.ai/"
 PUBLIC_SEARCH_CACHE_SECONDS = 300.0
 DEFAULT_FREE_MODEL_POOL = (
-    "google/gemma-4-31b-it:free",
     "nvidia/nemotron-3.5-lightning:free",
+    "google/gemma-4-31b-it:free",
     "xingchen-agi/xing4.0-29b-a4b:free",
     "google/gemma-4-26b-a4b-it:free",
     "dots-studio/dots-3-note-preview:free",
@@ -10768,7 +10768,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         def send_openrouter(payload, timeout=None):
             nonlocal openrouter_key_failover
             if timeout is None:
-                timeout = 32 if response_strength == "maximum" else 20 if response_strength == "strong" else 14
+                timeout = 24 if response_strength == "maximum" else 16 if response_strength == "strong" else 10
             request_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             last_error = None
             key_retryable_codes = {401, 402, 403, 408, 409, 429, 500, 502, 503, 504}
@@ -10810,7 +10810,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         def send_compatible_model_fallbacks():
             attempts = []
             last_error = None
-            deadline = time.monotonic() + 30
+            deadline = time.monotonic() + 16
             retryable_codes = {400, 404, 408, 409, 422, 429, 500, 502, 503, 504}
             for candidate in model_candidates:
                 remaining = deadline - time.monotonic()
@@ -10823,7 +10823,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 # Retry the official minimal chat contract for each fallback.
                 single_model_payload.pop("provider", None)
                 try:
-                    response = send_openrouter(single_model_payload, timeout=min(8, remaining))
+                    response = send_openrouter(single_model_payload, timeout=min(5, remaining))
                     attempts.append({"model": candidate, "outcome": "success"})
                     return response, attempts
                 except HTTPError as candidate_error:
@@ -10970,7 +10970,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 recovery_payload.pop(field, None)
             recovery_payload["messages"] = [recovery_system, *provider_messages]
             recovery_payload["temperature"] = min(response_profile["temperature"], 0.3)
-            recovery_result = send_openrouter(recovery_payload, timeout=12)
+            recovery_result = send_openrouter(recovery_payload, timeout=8)
             recovery_choice = (recovery_result.get("choices") or [{}])[0]
             recovery_message = recovery_choice.get("message") if isinstance(recovery_choice, dict) else {}
             recovery_raw = (recovery_message.get("content") or "") if isinstance(recovery_message, dict) else ""
