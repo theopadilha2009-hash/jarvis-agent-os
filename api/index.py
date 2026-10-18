@@ -215,9 +215,9 @@ PUBLIC_SEARCH_CACHE_SECONDS = 300.0
 DEFAULT_FREE_MODEL_POOL = (
     "nvidia/nemotron-3.5-lightning:free",
     "google/gemma-4-31b-it:free",
+    "cohere/north-mini-code:free",
+    "poolside/laguna-s-2.1:free",
     "xingchen-agi/xing4.0-29b-a4b:free",
-    "google/gemma-4-26b-a4b-it:free",
-    "dots-studio/dots-3-note-preview:free",
     "openrouter/free",
 )
 DEFAULT_DEEP_MODEL_POOL = (
@@ -10896,6 +10896,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 raise last_error
             raise TimeoutError("OpenRouter compatibility fallback deadline exceeded")
 
+
         def search_plugin_payload():
             fallback = dict(openrouter_payload)
             for field in ("tools", "tool_choice", "parallel_tool_calls"):
@@ -10913,9 +10914,8 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         else:
             web_search_mode = "not_requested"
         try:
-            # Primeira tentativa: roteamento por latência do OpenRouter escolhe
-            # entre os modelos do pool — dá o maior orçamento aqui; fallbacks
-            # depois são curtos (descartam modelos mortos rápido).
+            # Primeira tentativa: roteamento oficial "models" do OpenRouter
+            # (failover interno entre provedores). Fallbacks depois são curtos.
             result = send_openrouter(openrouter_payload, timeout=30)
         except InvalidModelBody:
             # Corpo 200 inválido tem o mesmo tratamento dos códigos de
