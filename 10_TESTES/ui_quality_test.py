@@ -789,6 +789,27 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn(".integration-provider-list,\n  .integration-editor", self.ui_repair_css)
         self.assertIn("overscroll-behavior: contain", self.ui_repair_css)
 
+    def test_gzip_siblings_are_fresh_and_three_is_minified(self):
+        """O gateway serve o .gz irmão quando existe; .gz velho serviria versão
+        antiga comprimida. Cada .gz tem que decomprimir para o fonte atual —
+        stale aqui quebra o teste e manda regenerar (gzip -9 -c fonte > fonte.gz).
+        E o three vendor tem que seguir minificado (~670KB, não ~1,27MB)."""
+        import gzip as gzip_module
+
+        gz_files = sorted(WEB.rglob("*.gz"))
+        self.assertGreaterEqual(len(gz_files), 10, "gzip irmãos sumiram do web/")
+        for gz in gz_files:
+            source = gz.with_suffix("")
+            self.assertTrue(source.exists(), f".gz órfão (sem fonte): {gz}")
+            decompressed = gzip_module.decompress(gz.read_bytes())
+            self.assertEqual(
+                decompressed,
+                source.read_bytes(),
+                f"STALE: {gz} não corresponde a {source}. Regenere: gzip -9 -c {source.name} > {gz.name}",
+            )
+        three = (WEB / "vendor" / "three.module.js").read_text(encoding="utf-8")
+        self.assertLess(len(three), 800_000, "three.module.js voltou ao build não-minificado")
+
 
 if __name__ == "__main__":
     unittest.main()

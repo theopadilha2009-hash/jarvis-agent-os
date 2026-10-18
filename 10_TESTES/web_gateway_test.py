@@ -762,7 +762,9 @@ class WebGatewayTest(unittest.TestCase):
         status, headers, three_js = self.request("/ui/vendor/three.module.js")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
-        self.assertGreater(len(three_js), 1_000_000)
+        # Minificado (esbuild): ~670KB — o build cru era ~1,27MB no boot.
+        self.assertGreater(len(three_js), 300_000)
+        self.assertLess(len(three_js), 800_000)
 
         for module_path in ("/ui/aurora.js", "/ui/strands.js", "/ui/vendor/ogl/jarvis.js"):
             status, headers, module_source = self.request(module_path)
