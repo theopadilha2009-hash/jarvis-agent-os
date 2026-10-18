@@ -205,8 +205,10 @@ def self_publish_requested(request_text: str) -> bool:
 try:
     sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
     from secret_scan import SECRET_PATTERNS  # type: ignore
-except ImportError:
-    SECRET_PATTERNS = []
+except ImportError as import_error:
+    # Fail-open aqui desligaria todo o contains_secret silenciosamente — o
+    # worker não pode rodar sem os padrões de segredo.
+    raise SystemExit(f"device_worker: secret_scan é obrigatório ({import_error})")
 
 
 class WorkerError(RuntimeError):
@@ -579,7 +581,8 @@ def upload_private_artifact(path: Path, command_id: int) -> tuple[str, str]:
 
 def download_private_artifact(object_path: str, destination: Path) -> Path:
     safe_path = str(object_path or "").strip("/")
-    if not re.fullmatch(r"theo/[A-Za-z0-9._/-]{1,480}", safe_path):
+    if not re.fullmatch(r"theo/[A-Za-z0-9_-]+(?:/[A-Za-z0-9._-]+)*/?", safe_path):
+        # Segmentos "." e ".." não passam: theo/../../alvo tem que morrer aqui.
         raise WorkerError("Artefato fora do prefixo privado permitido.")
     destination.parent.mkdir(parents=True, exist_ok=True)
     base_url, api_key = configuration()
@@ -606,7 +609,7 @@ def download_private_artifact(object_path: str, destination: Path) -> Path:
 
 def delete_private_artifact(object_path: str) -> None:
     safe_path = str(object_path or "").strip("/")
-    if not re.fullmatch(r"theo/[A-Za-z0-9._/-]{1,480}", safe_path):
+    if not re.fullmatch(r"theo/[A-Za-z0-9_-]+(?:/[A-Za-z0-9._-]+)*/?", safe_path):
         raise WorkerError("Artefato fora do prefixo privado permitido.")
     base_url, api_key = configuration()
     request = Request(
@@ -837,7 +840,7 @@ def mac_note_from_job(job: dict) -> dict:
         if isinstance(value, dict) and value.get("schema") == "jarvis-note/1":
             title = str(value.get("title") or title).strip()[:120] or "Nota"
             body = str(value.get("body") or "").strip()[:8_000]
-    if not body or contains_secret(body) or contains_secret(title):
+    if not body or contains_secret(body) or contains_secret(title) or mentions_credential(body) or mentions_credential(title):
         raise WorkerError("Nota recebida sem texto seguro.")
     return {"title": title, "body": body}
 
@@ -910,7 +913,7 @@ def execute_open_url_job(job: dict) -> tuple[bool, str]:
 
 def execute_clipboard_job(job: dict) -> tuple[bool, str]:
     text = clipboard_text(job_text_source(job), job_text_source(job))
-    if not text or contains_secret(text):
+    if not text or contains_secret(text) or mentions_credential(text):
         raise WorkerError("Texto para copiar ausente ou inseguro.")
     if platform.system() != "Darwin":
         return False, "Área de transferência do Mac indisponível neste sistema."
@@ -929,7 +932,7 @@ def execute_clipboard_job(job: dict) -> tuple[bool, str]:
 
 def execute_speak_job(job: dict) -> tuple[bool, str]:
     text = speak_text(job_text_source(job), job_text_source(job))
-    if not text or contains_secret(text):
+    if not text or contains_secret(text) or mentions_credential(text):
         raise WorkerError("Fala recebida sem texto seguro.")
     spoken = speak_on_mac(text)
     if spoken == "skipped":
@@ -957,7 +960,7 @@ def execute_open_folder_job(job: dict) -> tuple[bool, str]:
 
 def execute_notify_job(job: dict) -> tuple[bool, str]:
     text = notify_text(job_text_source(job), job_text_source(job))
-    if not text or contains_secret(text):
+    if not text or contains_secret(text) or mentions_credential(text):
         raise WorkerError("Notificação recebida sem texto seguro.")
     if platform.system() != "Darwin":
         return False, "Notificações do macOS indisponíveis neste sistema."
@@ -1132,7 +1135,12 @@ def command_argv(job: dict) -> list[str]:
         request_text = job_request_text(job)[:2_000]
         if len(request_text) < 12 or contains_secret(request_text) or mentions_credential(request_text):
             raise WorkerError("Autoedição recebida sem objetivo seguro e explícito.")
-        argv = [str(ROOT / "jarvis"), "self-edit", request_text]
+        if request_text.startswith("-"):
+            # Flag injection: texto da fila começando com "--publish" (ou
+            # qualquer flag) viraria opção real do argparse, contornando o
+            # self_publish_requested. O objetivo do pedido nunca começa com "-".
+            raise WorkerError("Autoedição recebida com argumento inválido.")
+        argv = [str(ROOT / "jarvis"), "self-edit", "--", request_text]
         if self_publish_requested(request_text):
             argv.append("--publish")
         return argv
@@ -1172,17 +1180,22 @@ def command_argv(job: dict) -> list[str]:
         details = message_details(request_text, target)
         if not details:
             raise WorkerError("Mensagem recebida sem telefone e texto válidos.")
+        if details["text"].startswith("-"):
+            raise WorkerError("Mensagem recebida com argumento inválido.")
         return [
             str(ROOT / "jarvis"),
             "message-send",
             "--phone",
             details["phone"],
+            "--",
             details["text"],
         ]
     if not target:
         raise WorkerError("A ação de aplicativo chegou sem alvo.")
+    if target.startswith("-"):
+        raise WorkerError("Aplicativo recebido com argumento inválido.")
     verb = "open" if action == "open_application" else "close"
-    return [str(ROOT / "jarvis"), "computer", verb, target]
+    return [str(ROOT / "jarvis"), "computer", verb, "--", target]
 
 
 def message_details(request_text: str, expected_phone: str) -> dict | None:

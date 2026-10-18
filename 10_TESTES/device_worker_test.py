@@ -259,8 +259,8 @@ class DeviceWorkerTest(unittest.TestCase):
             "target": "",
             "request_text": "limpa os processos do Mac",
         })
-        self.assertEqual(opened, [str(ROOT / "jarvis"), "computer", "open", "Calculator"])
-        self.assertEqual(closed, [str(ROOT / "jarvis"), "computer", "close", "Spotify"])
+        self.assertEqual(opened, [str(ROOT / "jarvis"), "computer", "open", "--", "Calculator"])
+        self.assertEqual(closed, [str(ROOT / "jarvis"), "computer", "close", "--", "Spotify"])
         self.assertEqual(memory, [str(ROOT / "jarvis"), "system-memory"])
         self.assertEqual(cleanup, [str(ROOT / "jarvis"), "system-memory", "--cleanup-jarvis"])
         self.assertEqual(broad_cleanup, [str(ROOT / "jarvis"), "system-memory"])
@@ -271,7 +271,7 @@ class DeviceWorkerTest(unittest.TestCase):
         })
         self.assertEqual(
             self_edit,
-            [str(ROOT / "jarvis"), "self-edit", "melhore seus próprios scripts de diagnóstico"],
+            [str(ROOT / "jarvis"), "self-edit", "--", "melhore seus próprios scripts de diagnóstico"],
         )
         self_publish = MODULE.command_argv({
             "action": "self_edit",
@@ -283,10 +283,17 @@ class DeviceWorkerTest(unittest.TestCase):
             [
                 str(ROOT / "jarvis"),
                 "self-edit",
+                "--",
                 "melhore seus próprios scripts, publique e faça deploy",
                 "--publish",
             ],
         )
+        with self.assertRaises(MODULE.WorkerError):
+            MODULE.command_argv({
+                "action": "self_edit",
+                "target": "",
+                "request_text": "--publish forçado pelo texto da fila",
+            })
         self.assertFalse(MODULE.self_publish_requested("melhore seus próprios scripts"))
         self.assertFalse(MODULE.self_publish_requested("melhore seus scripts sem fazer deploy"))
         self.assertFalse(MODULE.self_publish_requested("edite seus arquivos, somente local"))
@@ -324,7 +331,7 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertEqual(storage[:3], [str(ROOT / "jarvis"), "storage-scan", str(Path.home() / "Downloads")])
         self.assertEqual(
             message,
-            [str(ROOT / "jarvis"), "message-send", "--phone", "5511999999999", "teste real"],
+            [str(ROOT / "jarvis"), "message-send", "--phone", "5511999999999", "--", "teste real"],
         )
         alias_message = MODULE.command_argv({
             "action": "message_send",
@@ -333,7 +340,7 @@ class DeviceWorkerTest(unittest.TestCase):
         })
         self.assertEqual(
             alias_message,
-            [str(ROOT / "jarvis"), "message-send", "--phone", "5511999999999", "estou chegando"],
+            [str(ROOT / "jarvis"), "message-send", "--phone", "5511999999999", "--", "estou chegando"],
         )
         folder = MODULE.command_argv({"action": "open_folder", "target": "downloads", "request_text": "abre a pasta downloads"})
         self.assertEqual(folder[0], "/usr/bin/open")
