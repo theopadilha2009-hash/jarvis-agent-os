@@ -10887,7 +10887,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         else:
             web_search_mode = "not_requested"
         try:
-            result = send_openrouter(openrouter_payload)
+            # Primeira tentativa: roteamento por latência do OpenRouter escolhe
+            # entre os modelos do pool — dá o maior orçamento aqui; fallbacks
+            # depois são curtos (descartam modelos mortos rápido).
+            result = send_openrouter(openrouter_payload, timeout=30)
         except InvalidModelBody:
             # Corpo 200 inválido tem o mesmo tratamento dos códigos de
             # compatibilidade: tentar o próximo modelo do pool. Com tools na
