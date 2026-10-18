@@ -10841,31 +10841,57 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             last_error = None
             deadline = time.monotonic() + 16
             retryable_codes = {400, 404, 408, 409, 422, 429, 500, 502, 503, 504}
-            for candidate in model_candidates:
+            # Corrida em pares: com o free saturado às vezes um único provedor
+            # está vivo — em série cada tentativa de 5s empilha 30s+. Dois
+            # candidatos simultâneos dobram a chance dentro do orçamento.
+            for pair_start in range(0, len(model_candidates), 2):
                 remaining = deadline - time.monotonic()
                 if remaining < 2:
                     break
-                single_model_payload = dict(openrouter_payload)
-                single_model_payload.pop("models", None)
-                single_model_payload["model"] = candidate
-                # A provider preference can make a compatible model route fail.
-                # Retry the official minimal chat contract for each fallback.
-                single_model_payload.pop("provider", None)
-                try:
-                    response = send_openrouter(single_model_payload, timeout=min(5, remaining))
-                    attempts.append({"model": candidate, "outcome": "success"})
-                    return response, attempts
-                except HTTPError as candidate_error:
-                    last_error = candidate_error
-                    attempts.append({"model": candidate, "outcome": f"http_{candidate_error.code}"})
-                    if candidate_error.code not in retryable_codes:
-                        raise
-                except InvalidModelBody as candidate_error:
-                    attempts.append({"model": candidate, "outcome": "invalid_body"})
-                    last_error = candidate_error
-                except (URLError, TimeoutError) as candidate_error:
-                    last_error = candidate_error
-                    attempts.append({"model": candidate, "outcome": "timeout_or_network"})
+                pair = model_candidates[pair_start:pair_start + 2]
+                pair_results = {}
+                pair_threads = []
+                for candidate in pair:
+                    single_model_payload = dict(openrouter_payload)
+                    single_model_payload.pop("models", None)
+                    single_model_payload["model"] = candidate
+                    # A provider preference can make a compatible model route fail.
+                    # Retry the official minimal chat contract for each fallback.
+                    single_model_payload.pop("provider", None)
+                    attempt_timeout = min(6, max(2.0, deadline - time.monotonic()))
+
+                    def _race(race_candidate=candidate, race_payload=single_model_payload, race_timeout=attempt_timeout):
+                        try:
+                            pair_results[race_candidate] = ("ok", send_openrouter(race_payload, timeout=race_timeout))
+                        except Exception as race_error:
+                            pair_results[race_candidate] = ("error", race_error)
+
+                    race_thread = threading.Thread(target=_race, daemon=True)
+                    race_thread.start()
+                    pair_threads.append(race_thread)
+                for race_thread in pair_threads:
+                    race_thread.join(timeout=max(2.0, deadline - time.monotonic()))
+                for candidate in pair:
+                    outcome = pair_results.get(candidate)
+                    if outcome is None:
+                        attempts.append({"model": candidate, "outcome": "timeout_or_network"})
+                        last_error = last_error or TimeoutError("OpenRouter compatibility race timeout")
+                        continue
+                    if outcome[0] == "ok":
+                        attempts.append({"model": candidate, "outcome": "success"})
+                        return outcome[1], attempts
+                    candidate_error = outcome[1]
+                    if isinstance(candidate_error, HTTPError):
+                        last_error = candidate_error
+                        attempts.append({"model": candidate, "outcome": f"http_{candidate_error.code}"})
+                        if candidate_error.code not in retryable_codes:
+                            raise candidate_error
+                    elif isinstance(candidate_error, InvalidModelBody):
+                        attempts.append({"model": candidate, "outcome": "invalid_body"})
+                        last_error = candidate_error
+                    else:
+                        last_error = candidate_error
+                        attempts.append({"model": candidate, "outcome": "timeout_or_network"})
             if last_error is not None:
                 raise last_error
             raise TimeoutError("OpenRouter compatibility fallback deadline exceeded")
