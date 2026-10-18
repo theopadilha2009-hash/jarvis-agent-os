@@ -10896,52 +10896,6 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 raise last_error
             raise TimeoutError("OpenRouter compatibility fallback deadline exceeded")
 
-        def race_openrouter_models(payload, candidates, timeout):
-            """Corrida entre os dois primeiros modelos do pool.
-
-            No pico do free tier, esperar 30s por um modelo saturado quando
-            outro responderia em 8s é o gargalo principal de latência: dois
-            pedidos simultâneos, vence quem devolver primeiro. Sem vencedor,
-            levanta o erro mais informativo para o fluxo de fallback seguir.
-            """
-            if not candidates:
-                return send_openrouter(payload, timeout=timeout)
-            if len(candidates) < 2:
-                single = dict(payload)
-                single.pop("models", None)
-                single["model"] = candidates[0]
-                single.pop("provider", None)
-                return send_openrouter(single, timeout=timeout)
-            race_results = {}
-            race_threads = []
-            for candidate in candidates[:2]:
-                single = dict(payload)
-                single.pop("models", None)
-                single["model"] = candidate
-                single.pop("provider", None)
-
-                def _go(race_candidate=candidate, race_payload=single):
-                    try:
-                        race_results[race_candidate] = ("ok", send_openrouter(race_payload, timeout=timeout))
-                    except Exception as race_error:
-                        race_results[race_candidate] = ("error", race_error)
-
-                race_thread = threading.Thread(target=_go, daemon=True)
-                race_thread.start()
-                race_threads.append(race_thread)
-            for race_thread in race_threads:
-                race_thread.join(timeout=timeout + 2)
-            for candidate in candidates[:2]:
-                outcome = race_results.get(candidate)
-                if outcome and outcome[0] == "ok":
-                    return outcome[1]
-            errors = [outcome[1] for outcome in race_results.values() if outcome[0] == "error"]
-            for error in errors:
-                if isinstance(error, HTTPError):
-                    raise error
-            if errors:
-                raise errors[0]
-            raise TimeoutError("OpenRouter race: nenhum modelo respondeu a tempo")
 
         def search_plugin_payload():
             fallback = dict(openrouter_payload)
@@ -10960,10 +10914,9 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         else:
             web_search_mode = "not_requested"
         try:
-            # Primeira tentativa: corrida entre os dois primeiros modelos do
-            # pool — no pico do free, quem responder primeiro ganha. Fallbacks
-            # depois são curtos (descartam modelos mortos rápido).
-            result = race_openrouter_models(openrouter_payload, model_candidates, timeout=30)
+            # Primeira tentativa: roteamento oficial "models" do OpenRouter
+            # (failover interno entre provedores). Fallbacks depois são curtos.
+            result = send_openrouter(openrouter_payload, timeout=30)
         except InvalidModelBody:
             # Corpo 200 inválido tem o mesmo tratamento dos códigos de
             # compatibilidade: tentar o próximo modelo do pool. Com tools na
