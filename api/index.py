@@ -10791,10 +10791,30 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                     req = Request(OPENROUTER_URL, data=request_body, headers=request_headers, method="POST")
                     try:
                         with urlopen(req, timeout=timeout) as response:
-                            try:
-                                parsed = json.loads(response.read().decode("utf-8"))
-                            except json.JSONDecodeError as parse_error:
-                                raise InvalidModelBody("openrouter_unparseable_body") from parse_error
+                            # O timeout do urlopen é por operação de leitura,
+                            # não total: modelos reasoning pingam bytes e o
+                            # read() bloqueia até o teto de 60s da plataforma.
+                            # A leitura roda em thread daemon com deadline
+                            # duro — estourou, a resposta sai honesta e a
+                            # thread órfã morre com a instância.
+                            read_holder = {}
+
+                            def _read_response():
+                                try:
+                                    read_holder["parsed"] = json.loads(response.read().decode("utf-8"))
+                                except json.JSONDecodeError as parse_error:
+                                    read_holder["error"] = InvalidModelBody("openrouter_unparseable_body")
+                                except Exception as read_error:
+                                    read_holder["error"] = read_error
+
+                            reader = threading.Thread(target=_read_response, daemon=True)
+                            reader.start()
+                            reader.join(timeout=max(2.0, route_deadline - time.monotonic()))
+                            if "parsed" not in read_holder:
+                                if "error" in read_holder:
+                                    raise read_holder["error"]
+                                raise TimeoutError("openrouter_read_deadline")
+                            parsed = read_holder["parsed"]
                             if not isinstance(parsed, dict) or not isinstance(parsed.get("choices"), list) or not parsed["choices"]:
                                 raise InvalidModelBody("openrouter_invalid_body")
                             return parsed
