@@ -2530,7 +2530,12 @@ MEMORY_KIND_PATTERNS = (
 )
 
 SECRET_PATTERNS = (
+    re.compile(r"\bsk-ant-[A-Za-z0-9_-]{12,}\b", re.I),
     re.compile(r"\bsk-or-v1-[A-Za-z0-9_-]{12,}\b", re.I),
+    re.compile(r"\bsk-or-[A-Za-z0-9_-]{12,}\b", re.I),
+    re.compile(r"\bsk-proj-[A-Za-z0-9_-]{12,}\b", re.I),
+    re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b", re.I),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{20,}\b"),
     re.compile(r"\bsbp_[A-Za-z0-9_-]{12,}\b", re.I),
     re.compile(r"\bvcp_[A-Za-z0-9_-]{12,}\b", re.I),
     re.compile(
@@ -11180,6 +11185,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             http_detail = clean_text(error.read().decode("utf-8", "replace"), 240)
         except Exception:
             pass
+        if has_secret_like_text(http_detail):
+            # O corpo vem de terceiros: se um dia ecoar credencial, ele não
+            # atravessa para a resposta.
+            http_detail = ""
         search_error = (
             "A busca ao vivo do OpenRouter precisa de saldo para o mecanismo de pesquisa (HTTP 402)."
             if web_search_requested and error.code == 402

@@ -1,7 +1,19 @@
 (() => {
   "use strict";
 
-  const ENDPOINTS = ["http://127.0.0.1:8123", "http://localhost:8123"];
+  // 127.0.0.1 cobre o Mac com o TTS local; o hostname da página cobre quando
+  // o cockpit roda em outro dispositivo da mesma rede que o Mac (celular /
+  // outro PC), onde 127.0.0.1 apontaria para o dispositivo e falharia.
+  const localHost = (() => {
+    try {
+      return window.location.protocol === "http:" && window.location.hostname
+        ? `http://${window.location.hostname}:8123`
+        : "";
+    } catch {
+      return "";
+    }
+  })();
+  const ENDPOINTS = [...new Set([localHost, "http://127.0.0.1:8123", "http://localhost:8123"].filter(Boolean))];
   const TTL_OK = 30_000;
   const TTL_MISS = 4_000;
   let cache = { base: "", at: 0, engine: "", voice: "", ok: false };

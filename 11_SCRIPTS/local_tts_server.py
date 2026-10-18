@@ -71,8 +71,10 @@ CATALOG_VOICES = {
 LAUNCH_LABEL = "ai.theopadilha.jarvis-voice"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_LABEL}.plist"
 LOG_DIR = Path(__file__).resolve().parents[1] / "09_LOGS"
-SPEECH_CACHE_MAX = 24
-SPEECH_CACHE_CHARS = 72
+SPEECH_CACHE_MAX = 64
+# Frases de resposta reais passam de 72 chars — o limite antigo deixava quase
+# tudo fora do cache (síntese nova ~2,1s a cada vez).
+SPEECH_CACHE_CHARS = 600
 _SPEECH_CACHE = {}
 _SPEECH_CACHE_LOCK = threading.Lock()
 _SPEECH_LOCK = threading.Lock()
