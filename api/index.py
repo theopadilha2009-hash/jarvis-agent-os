@@ -393,6 +393,7 @@ PRIVATE_INTENTS = {
     "contact_view",
     "agenda_note",
     "agenda_complete",
+    "reminder_set",
     "agenda_view",
     "task_add",
     *(REMOTE_DEVICE_INTENTS - {"clipboard_set"}),
@@ -2443,6 +2444,7 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,60}\bcontatos?\b", re.I), "contact_view"),
     (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
+    (re.compile(r"\b(?:me\s+)?lembr(?:a|e)\b.{0,30}\b(?:em|daqui\s+a)\b.{1,60}|(?:me\s+)?lembr(?:a|e)\b.{0,20}\b(?:[àa]s)\s+\d{1,2}[h:]\d{0,2}\b.{1,60}", re.I), "reminder_set"),
     (re.compile(r"\b(coloc(?:a|e|ar)|adicion(?:a|e|ar)|marc(?:a|e|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
     (re.compile(r"\b(conclu(?:a|i|ir)|finaliz(?:a|e|ar)|marc(?:a|e|ar))\b.{0,60}\b(?:item|tarefa|lembrete|agenda)\s*#?\s*\d+\b", re.I), "agenda_complete"),
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
@@ -4742,6 +4744,19 @@ def supabase_device_enqueue(command, intent, attachments=None):
         target = details["phone"]
     elif intent == "storage_scan":
         target = "downloads"
+    elif intent == "reminder_set":
+        reminder = parse_reminder_request(command)
+        if not reminder:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "reminder_details_missing",
+                "visual_state": "error",
+                "error": "Diga o prazo e o texto: \"me lembra em 20 minutos de ligar pro Ruan\".",
+                "intent": intent,
+            }, 400
+        target = "mac"
+        command = json.dumps(reminder, ensure_ascii=False)
     elif intent == "save_note":
         details = note_details(command)
         if not details:
@@ -4912,7 +4927,14 @@ def supabase_device_enqueue(command, intent, attachments=None):
             "status_real": "device_command_queued",
             "visual_state": "local",
             "message": (
-                "Autoedição enviada ao Mac. Vou editar e testar; se o pedido disser para publicar ou fazer deploy, também vou subir, mesclar e verificar a produção."
+                (
+                    lambda reminder: (
+                        f"Lembrete marcado: {reminder['text']} às {reminder['due'][11:16]}. "
+                        "No horário eu aviso aqui no Mac com notificação e voz."
+                    )
+                )(json.loads(command))
+                if intent == "reminder_set"
+                else "Autoedição enviada ao Mac. Vou editar e testar; se o pedido disser para publicar ou fazer deploy, também vou subir, mesclar e verificar a produção."
                 if intent == "self_edit"
                 else "Controle enviado ao Spotify do Mac. Estou acompanhando até o app devolver o estado real."
                 if intent == "spotify_control"
@@ -6419,6 +6441,57 @@ def supabase_memory_archive(body):
         return {"ok": False, "error": f"O Supabase recusou o arquivamento (HTTP {error.code})."}, 502
     except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
         return {"ok": False, "error": "O arquivamento não foi confirmado no Supabase."}, 504
+
+
+REMINDER_DURATION_PATTERN = re.compile(
+    r"\b(?:em|daqui\s+a|daqui)\s+"
+    r"(?:(\d{1,3})\s*(?:horas?|hora|h)\b\s*(?:e\s*)?)?"
+    r"(?:(\d{1,3})\s*(?:minutos?|mins?|min)\b\s*(?:e\s*)?)?"
+    r"(?:(\d{1,3})\s*(?:segundos?|segs?|seg|s)\b)?",
+    re.I,
+)
+REMINDER_CLOCK_PATTERN = re.compile(r"\b(?:às|as)\s+(\d{1,2})[h:](\d{2})\b", re.I)
+
+
+def parse_reminder_request(command):
+    """\"me lembra em 20 minutos de ligar pro Ruan\" → lembrete agendado.
+
+    Devolve o payload jarvis-reminder/1 (due local ISO sem fuso, texto) ou
+    None quando o comando não tem prazo nem texto suficientes.
+    """
+    text = clean_text(command, 400)
+    if not re.search(r"\b(?:me\s+)?lembr(?:a|e)\b", text, re.I):
+        return None
+    due_epoch = 0.0
+    clock = REMINDER_CLOCK_PATTERN.search(text)
+    if clock:
+        hour, minute = int(clock.group(1)), int(clock.group(2))
+        if hour > 23 or minute > 59:
+            return None
+        local_now = time.localtime()
+        due_epoch = time.mktime((
+            local_now.tm_year, local_now.tm_mon, local_now.tm_mday, hour, minute, 0, 0, 0, -1,
+        ))
+        if due_epoch <= time.time():
+            due_epoch += 86_400
+    else:
+        duration = REMINDER_DURATION_PATTERN.search(text)
+        if not duration:
+            return None
+        hours, minutes, seconds = (int(group or 0) for group in duration.groups())
+        if hours + minutes + seconds <= 0:
+            return None
+        due_epoch = time.time() + hours * 3_600 + minutes * 60 + seconds
+    # Label = o que vier depois do prazo. O fim do prazo é a posição do
+    # match de duração/hora; antes disso é verbo e período, depois é o pedido.
+    span_end = (clock or duration).end() if (clock or duration) else 0
+    label = clean_text(text[span_end:].strip(" ,.:;-"), 300)
+    label = re.sub(r"^(?:de|que|para|sobre)\s+", "", label, flags=re.I)
+    return {
+        "schema": "jarvis-reminder/1",
+        "due": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(due_epoch)),
+        "text": label,
+    }
 
 
 def note_details(command):
@@ -9726,6 +9799,17 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
     """Run one known intent without giving the model access to arbitrary code."""
     if intent == "clipboard_set":
         return clipboard_payload(command, local_execute=local_execute, owner_authenticated=owner_authenticated)
+    if intent == "reminder_set" and local_execute:
+        reminder = parse_reminder_request(command)
+        if not reminder:
+            return {"ok": False, "endpoint": "POST /command", "error": "Diga o prazo e o texto: \"me lembra em 20 minutos de ...\"."}, 400
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "reminder_local_preview",
+            "message": f"Lembrete local (preview): {reminder['text']} às {reminder['due'][11:16]}.",
+            "intent": intent,
+        }, 200
     if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
         return pairing_required_payload()
     if owner_pairing_required() and not (owner_authenticated or code_authenticated) and intent in CODE_INTENTS:

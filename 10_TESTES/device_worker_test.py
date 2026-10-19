@@ -697,5 +697,40 @@ class DeviceWorkerTest(unittest.TestCase):
         self.assertIn("Confirmação independente: Spotify está aberto", output)
 
 
+    def test_reminder_schedules_files_and_fires(self):
+        """Lembrete: grava em arquivo local, sobrevive ao worker, dispara no prazo."""
+        import tempfile
+        import time as time_module
+
+        with tempfile.TemporaryDirectory() as folder:
+            MODULE.REMINDERS_FILE = Path(folder) / "reminders.json"
+            due_epoch = time_module.time() + 1_800
+            due = time_module.strftime("%Y-%m-%dT%H:%M:%S", time_module.localtime(due_epoch))
+            job = {
+                "action": "reminder",
+                "target": "mac",
+                "request_text": json.dumps({"schema": "jarvis-reminder/1", "due": due, "text": "ligar pro Ruan"}),
+            }
+            succeeded, output = MODULE.execute_reminder_job(job)
+            self.assertTrue(succeeded)
+            self.assertIn("Lembrete marcado", output)
+            saved = json.loads(MODULE.REMINDERS_FILE.read_text(encoding="utf-8"))
+            self.assertEqual(saved[0]["text"], "ligar pro Ruan")
+
+            with patch.object(MODULE.subprocess, "run", lambda *a, **k: None), patch.object(
+                MODULE, "speak_on_mac", lambda text: "spoken"
+            ):
+                fired = MODULE.check_due_reminders(time_module.time() + 3_600)
+            self.assertIn("Lembretes disparados: 1", fired)
+            self.assertEqual(MODULE.load_reminders(), [])
+
+            with self.assertRaises(MODULE.WorkerError):
+                MODULE.execute_reminder_job({
+                    "action": "reminder",
+                    "target": "mac",
+                    "request_text": "--publish não é lembrete",
+                })
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

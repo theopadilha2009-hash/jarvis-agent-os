@@ -62,6 +62,9 @@ BOOT_STATE = (
 BUSY_STATE = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "busy-mode"
 )
+REMINDERS_FILE = (
+    Path.home() / "Library" / "Application Support" / "JARVIS" / "reminders.json"
+)
 BUSY_TTL_SECONDS = 4 * 3600.0
 WORKER_ENV = (
     Path.home() / "Library" / "Application Support" / "JARVIS" / "worker.env"
@@ -118,6 +121,7 @@ ALLOWED_ACTIONS = {
     "system_memory",
     "self_edit",
     "save_note",
+    "reminder",
     "open_url",
     "clipboard_set",
     "speak",
@@ -1237,12 +1241,78 @@ def message_details(request_text: str, expected_phone: str) -> dict | None:
     return {"phone": phone, "text": body}
 
 
+def load_reminders() -> list:
+    try:
+        items = json.loads(REMINDERS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return items if isinstance(items, list) else []
+
+
+def save_reminders(items: list) -> None:
+    REMINDERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = REMINDERS_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(REMINDERS_FILE)
+
+
+def execute_reminder_job(job: dict) -> tuple[bool, str]:
+    """Grava o lembrete em arquivo local (sobrevive a restart do worker); o
+    loop de ticks dispara a notificação e a fala no prazo."""
+    request_text = job_request_text(job)[:2_000]
+    try:
+        payload = json.loads(request_text)
+    except ValueError:
+        payload = None
+    if not isinstance(payload, dict) or payload.get("schema") != "jarvis-reminder/1":
+        raise WorkerError("Lembrete recebido em formato desconhecido.")
+    due_raw = str(payload.get("due") or "").strip()[:40]
+    text = " ".join(str(payload.get("text") or "").split())[:300]
+    if not text or contains_secret(text) or mentions_credential(text):
+        raise WorkerError("Lembrete recebido sem texto seguro.")
+    try:
+        due_epoch = time.mktime(time.strptime(due_raw, "%Y-%m-%dT%H:%M:%S"))
+    except (ValueError, OverflowError):
+        raise WorkerError("Lembrete recebido com horário inválido.")
+    if due_epoch < time.time() - 60:
+        raise WorkerError("Lembrete recebido com horário no passado.")
+    items = load_reminders()
+    items.append({"due_epoch": round(due_epoch, 3), "due": due_raw, "text": text})
+    save_reminders(items)
+    local_time = time.strftime("%H:%M", time.localtime(due_epoch))
+    return True, f"Lembrete marcado para {local_time}: {text}"
+
+
+def check_due_reminders(wall_now: float) -> str:
+    """Dispara os lembretes vencidos (notificação + fala no Mac) e os remove."""
+    if not REMINDERS_FILE.exists():
+        return ""
+    items = load_reminders()
+    if not items:
+        return ""
+    due_now = [item for item in items if isinstance(item.get("due_epoch"), (int, float)) and item["due_epoch"] <= wall_now]
+    if not due_now:
+        return ""
+    save_reminders([item for item in items if item not in due_now])
+    for item in due_now:
+        text = " ".join(str(item.get("text") or "").split())[:300] or "Lembrete"
+        try:
+            script = f'display notification {applescript_string(text)} with title "JARVIS · Lembrete" sound name "Glass"'
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        speak_on_mac(f"Lembrete: {text}")
+    return f"Lembretes disparados: {len(due_now)}"
+
+
 def execute_job(job: dict) -> tuple[bool, str]:
     action = str(job.get("action") or "")
     sync_busy_from_job(job)
     effective_job = dict(job)
     if action == "save_note":
         return persist_mac_note(effective_job)
+    if action == "reminder":
+        return schedule_reminder_job(effective_job)
     native = {
         "open_url": execute_open_url_job,
         "clipboard_set": execute_clipboard_job,
@@ -1594,6 +1664,9 @@ def main() -> int:
                 signal.signal(signal.SIGINT, stop)
                 while running:
                     wall_now = time.time()
+                    reminders_fired = check_due_reminders(wall_now)
+                    if reminders_fired:
+                        print(reminders_fired, flush=True)
                     if boot_greeting_due(wall_now):
                         # Só marca depois de falar: marcar antes perde a
                         # saudação inteira se o anúncio não acontecer.
