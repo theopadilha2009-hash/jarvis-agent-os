@@ -10717,6 +10717,13 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         attachments=bool(attachments),
         profile=response_profile["name"],
     )
+    # "Usa esse modelo" / modelo preferido do cofre do visitante: sobe para o
+    # topo do pool antes do roteamento oficial (slug validado, nunca input cru).
+    preferred_model = clean_text(
+        client_integration(body, "openrouter").get("model", ""), 120
+    )
+    if re.fullmatch(r"[A-Za-z0-9._~:-]{2,120}", preferred_model):
+        model_candidates = [preferred_model] + [m for m in model_candidates if m != preferred_model]
     quality_first = response_profile["routing"] == "quality_first"
     provider_routing = {
         "sort": {
@@ -11238,6 +11245,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         return {
             "ok": False,
             "endpoint": "POST /assistant",
+            "status_real": "openrouter_timeout",
             "error": (
                 f"A IA está atendendo outras {max(waiting, 1)} pessoa(s). Tente de novo em alguns segundos."
                 if busy
@@ -12420,7 +12428,10 @@ class handler(BaseHTTPRequestHandler):
         identity = request_identity(self.headers.get("X-Jarvis-Owner-Token"))
         owner_authenticated = bool(identity.get("owner"))
         if path in {"/", "/entrar"}:
-            return self.serve_landing()
+            # "/" abre o cockpit direto em modo visitante: o chat guest já
+            # funciona com a IA do servidor e com a chave própria do cofre —
+            # a tela de login não pode ser a porta de entrada.
+            return self.serve_ui() if path == "/" else self.serve_landing()
         if path == "/cockpit":
             return self.serve_ui()
         if path in {"/curriculo", "/currículo"}:
