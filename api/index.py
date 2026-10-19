@@ -2419,6 +2419,14 @@ OPEN_URL_MAC_PATTERN = re.compile(
     re.I,
 )
 
+AGENDA_NOTE_PATTERN = re.compile(
+    r"\b(coloc(?:a|e|ar)|adicion(?:a|e|ar)|marc(?:a|e|ar)|anot(?:a|e|ar)|registr(?:a|e|ar))\b.{0,100}\b(agenda|lembrete|na\s+minha\s+agenda)\b"
+    r"|^\s*(?:jarvis[,\s]+)?(?:agenda|lembrete)\s*:\s*\S.{1,200}"
+    r"|^\s*(?:jarvis[,\s]+)?(?:marc(?:a|e|ar)|anot(?:a|e|ar)|adicion(?:a|e|ar))\b.{2,140}"
+    r"\b(?:amanh[aã]|hoje|depois|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo|\d{1,2}[h:]\d{0,2}|\d{1,2}/\d{1,2})\b",
+    re.I,
+)
+
 LOCAL_INTENTS = (
     (CODE_PAD_PATTERN, "code_pad"),
     (CODE_SESSION_PATTERN, "code_session"),
@@ -2445,7 +2453,7 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
     (re.compile(r"\b(?:me\s+)?lembr(?:a|e)\b.{0,30}\b(?:em|daqui\s+a)\b.{1,60}|(?:me\s+)?lembr(?:a|e)\b.{0,20}\b(?:[àa]s)\s+\d{1,2}[h:]\d{0,2}\b.{1,60}", re.I), "reminder_set"),
-    (re.compile(r"\b(coloc(?:a|e|ar)|adicion(?:a|e|ar)|marc(?:a|e|ar))\b.{0,100}\b(agenda|lembrete)\b", re.I), "agenda_note"),
+    (AGENDA_NOTE_PATTERN, "agenda_note"),
     (re.compile(r"\b(conclu(?:a|i|ir)|finaliz(?:a|e|ar)|marc(?:a|e|ar))\b.{0,60}\b(?:item|tarefa|lembrete|agenda)\s*#?\s*\d+\b", re.I), "agenda_complete"),
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
     (NOTE_VIEW_PATTERN, "note_view"),
