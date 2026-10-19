@@ -3392,6 +3392,26 @@ São Paulo - SP
             "outcome": "success",
         }])
 
+    def test_parse_reminder_request_supports_duration_and_clock(self):
+        """\"me lembra em 20 minutos de X\" / \"às 20:45\" → payload do lembrete;
+        sem prazo ou sem texto, None (cai no fallback normal do chat)."""
+        payload = MODULE.parse_reminder_request("me lembra em 20 minutos de ligar pro Ruan")
+        self.assertEqual(payload["schema"], "jarvis-reminder/1")
+        self.assertEqual(payload["text"], "ligar pro Ruan")
+        self.assertRegex(payload["due"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
+
+        clock_payload = MODULE.parse_reminder_request("me lembre às 20:45 de tomar o remédio")
+        self.assertEqual(clock_payload["text"], "tomar o remédio")
+        self.assertIn("T20:45:00", clock_payload["due"])
+
+        self.assertIsNone(MODULE.parse_reminder_request("me lembra de ligar pro Ruan"))
+        self.assertIsNone(MODULE.parse_reminder_request("oi"))
+
+    def test_reminder_intent_is_private_and_routed(self):
+        self.assertIn("reminder_set", MODULE.PRIVATE_INTENTS)
+        intents = [intent for pattern, intent in MODULE.LOCAL_INTENTS if pattern.search("me lembra em 20 minutos de ligar pro Ruan")]
+        self.assertEqual(intents[0], "reminder_set")
+
     def test_dispatch_preserves_ai_provider_for_direct_route(self):
         """O /command propaga ai_provider e client_integrations ao assistant —
         sem isso a troca de IA por comando cai no OpenRouter silenciosamente."""
