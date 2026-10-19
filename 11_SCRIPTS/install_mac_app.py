@@ -156,10 +156,44 @@ _NATIVE_BYTES: bytes | None = None
 _NATIVE_STAMP = 0.0
 
 
+PREBUILT_NATIVE = ROOT / "07_BUILDS" / "jarvis-native-macos"
+PREBUILT_NATIVE_STAMP = ROOT / "07_BUILDS" / "jarvis-native-macos.sha256"
+
+
+def swift_source_digest() -> str:
+    import hashlib
+
+    return hashlib.sha256(SWIFT_SOURCE.read_bytes()).hexdigest()
+
+
+def prebuilt_native_bytes() -> bytes | None:
+    """Binário compilado no build time (07_BUILDS, commitado).
+
+    O swiftc leva ~2 min; num serverless efêmero isso estoura o teto de 60s
+    da plataforma em todo cold start. Se o digest do Swift bate com o
+    pré-compilado, o binário sai do repositório em milissegundos."""
+    try:
+        if not (PREBUILT_NATIVE.is_file() and PREBUILT_NATIVE_STAMP.is_file()):
+            return None
+        if PREBUILT_NATIVE_STAMP.read_text(encoding="ascii").strip() != swift_source_digest():
+            return None
+        data = PREBUILT_NATIVE.read_bytes()
+        if data[:4] not in MACHO_MAGICS:
+            return None
+        return data
+    except OSError:
+        return None
+
+
 def native_binary_bytes() -> bytes:
     global _NATIVE_BYTES, _NATIVE_STAMP
     stamp = SWIFT_SOURCE.stat().st_mtime if SWIFT_SOURCE.is_file() else 0.0
     if _NATIVE_BYTES is not None and _NATIVE_STAMP == stamp:
+        return _NATIVE_BYTES
+    prebuilt = prebuilt_native_bytes()
+    if prebuilt is not None:
+        _NATIVE_BYTES = prebuilt
+        _NATIVE_STAMP = stamp
         return _NATIVE_BYTES
     handle = tempfile.NamedTemporaryFile(delete=False, prefix="jarvis-native-")
     handle.close()
@@ -168,6 +202,12 @@ def native_binary_bytes() -> bytes:
         compile_native_binary(path)
         _NATIVE_BYTES = path.read_bytes()
         _NATIVE_STAMP = stamp
+        try:
+            PREBUILT_NATIVE.parent.mkdir(parents=True, exist_ok=True)
+            PREBUILT_NATIVE.write_bytes(_NATIVE_BYTES)
+            PREBUILT_NATIVE_STAMP.write_text(swift_source_digest(), encoding="ascii")
+        except OSError:
+            pass
         return _NATIVE_BYTES
     finally:
         path.unlink(missing_ok=True)

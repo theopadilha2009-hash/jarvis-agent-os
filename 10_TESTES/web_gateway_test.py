@@ -3392,6 +3392,22 @@ São Paulo - SP
             "outcome": "success",
         }])
 
+    def test_parse_focus_request_builds_reminder_session(self):
+        """\"modo foco 25 minutos\" agenda o aviso de fim; pomodoro agenda
+        também o fim da pausa de 5 minutos. Comando comum não é foco."""
+        focus = MODULE.parse_focus_request("modo foco 25 minutos")
+        self.assertEqual(focus["minutes"], 25)
+        self.assertFalse(focus["pomodoro"])
+        self.assertEqual(focus["focus"]["schema"], "jarvis-reminder/1")
+        self.assertIn("modo foco", focus["focus"]["text"])
+
+        pomodoro = MODULE.parse_focus_request("pomodoro")
+        self.assertTrue(pomodoro["pomodoro"])
+        self.assertIn("pausa de 5 minutos", pomodoro["break"]["text"])
+
+        self.assertIsNone(MODULE.parse_focus_request("oi"))
+        self.assertIsNone(MODULE.parse_focus_request("abre o spotify"))
+
     def test_parse_reminder_request_supports_duration_and_clock(self):
         """\"me lembra em 20 minutos de X\" / \"às 20:45\" → payload do lembrete;
         sem prazo ou sem texto, None (cai no fallback normal do chat)."""

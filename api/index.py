@@ -325,6 +325,8 @@ REMOTE_DEVICE_INTENTS = {
     "system_memory",
     "self_edit",
     "save_note",
+    "reminder_set",
+    "focus_set",
     "open_url",
     "speak",
     "open_folder",
@@ -394,6 +396,7 @@ PRIVATE_INTENTS = {
     "agenda_note",
     "agenda_complete",
     "reminder_set",
+    "focus_set",
     "agenda_view",
     "task_add",
     *(REMOTE_DEVICE_INTENTS - {"clipboard_set"}),
@@ -2427,6 +2430,46 @@ AGENDA_NOTE_PATTERN = re.compile(
     re.I,
 )
 
+FOCUS_TRIGGER_PATTERN = re.compile(
+    r"\b(?:modo\s+foco\b|pomodoro\b|foco\s+(?:de\s+)?\d{1,3}\b(?:\s*(?:min|minutos?))?)",
+    re.I,
+)
+FOCUS_MINUTES_PATTERN = re.compile(r"(\d{1,3})\s*(?:min\b|minutos?)?", re.I)
+
+
+def parse_focus_request(command):
+    """\"modo foco 25\" / \"pomodoro\" → sessão de foco com aviso no prazo.
+
+    Devolve {"minutes", "focus": lembrete, "break": lembrete|None} ou None
+    quando o comando não pede modo foco. Pomodoro agenda também o fim da
+    pausa de 5 minutos.
+    """
+    text = clean_text(command, 200)
+    if not text or not FOCUS_TRIGGER_PATTERN.search(text):
+        return None
+    minutes_match = FOCUS_MINUTES_PATTERN.search(text)
+    minutes = int(minutes_match.group(1)) if minutes_match else 25
+    if not 1 <= minutes <= 240:
+        minutes = 25
+    is_pomodoro = bool(re.search(r"\bpomodoro\b", text, re.I))
+    now = time.time()
+    focus_end = now + minutes * 60
+    focus_reminder = {
+        "schema": "jarvis-reminder/1",
+        "due": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(focus_end)),
+        "text": f"Fim do modo foco ({minutes} min). Hora da pausa." if is_pomodoro else f"Fim do modo foco ({minutes} min).",
+    }
+    result = {"minutes": minutes, "pomodoro": is_pomodoro, "focus": focus_reminder, "break": None}
+    if is_pomodoro:
+        break_end = focus_end + 5 * 60
+        result["break"] = {
+            "schema": "jarvis-reminder/1",
+            "due": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(break_end)),
+            "text": "Fim da pausa de 5 minutos. De volta ao foco.",
+        }
+    return result
+
+
 LOCAL_INTENTS = (
     (CODE_PAD_PATTERN, "code_pad"),
     (CODE_SESSION_PATTERN, "code_session"),
@@ -2453,6 +2496,7 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
     (re.compile(r"\b(?:me\s+)?lembr(?:a|e)\b.{0,30}\b(?:em|daqui\s+a)\b.{1,60}|(?:me\s+)?lembr(?:a|e)\b.{0,20}\b(?:[àa]s)\s+\d{1,2}[h:]\d{0,2}\b.{1,60}", re.I), "reminder_set"),
+    (FOCUS_TRIGGER_PATTERN, "focus_set"),
     (AGENDA_NOTE_PATTERN, "agenda_note"),
     (re.compile(r"\b(conclu(?:a|i|ir)|finaliz(?:a|e|ar)|marc(?:a|e|ar))\b.{0,60}\b(?:item|tarefa|lembrete|agenda)\s*#?\s*\d+\b", re.I), "agenda_complete"),
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
@@ -4753,7 +4797,14 @@ def supabase_device_enqueue(command, intent, attachments=None):
     elif intent == "storage_scan":
         target = "downloads"
     elif intent == "reminder_set":
-        reminder = parse_reminder_request(command)
+        reminder = None
+        try:
+            candidate = json.loads(command)
+            reminder = candidate if isinstance(candidate, dict) and candidate.get("schema") == "jarvis-reminder/1" else None
+        except ValueError:
+            reminder = None
+        if reminder is None:
+            reminder = parse_reminder_request(command)
         if not reminder:
             return {
                 "ok": False,
@@ -6500,6 +6551,7 @@ def parse_reminder_request(command):
         "due": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(due_epoch)),
         "text": label,
     }
+
 
 
 def note_details(command):
@@ -9818,6 +9870,17 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
             "message": f"Lembrete local (preview): {reminder['text']} às {reminder['due'][11:16]}.",
             "intent": intent,
         }, 200
+    if intent == "focus_set" and local_execute:
+        focus = parse_focus_request(command)
+        if not focus:
+            return {"ok": False, "endpoint": "POST /command", "error": "Diga a duração: \"modo foco 25 minutos\" ou \"pomodoro\"."}, 400
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "focus_local_preview",
+            "message": f"Modo foco de {focus['minutes']} minutos (preview).",
+            "intent": intent,
+        }, 200
     if owner_pairing_required() and not owner_authenticated and intent in PRIVATE_INTENTS:
         return pairing_required_payload()
     if owner_pairing_required() and not (owner_authenticated or code_authenticated) and intent in CODE_INTENTS:
@@ -9952,6 +10015,33 @@ def dispatch_intent(command, intent, local_execute=False, owner_authenticated=Fa
         return supabase_contact_archive(command)
     if intent == "contact_view" and supabase_configured():
         return contacts_payload(50)
+    if intent == "focus_set" and supabase_configured() and not local_execute:
+        focus = parse_focus_request(command)
+        if not focus:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "focus_duration_missing",
+                "visual_state": "error",
+                "error": "Diga a duração: \"modo foco 25 minutos\" ou \"pomodoro\".",
+                "intent": intent,
+            }, 400
+        queued, status = supabase_device_enqueue(json.dumps(focus["focus"], ensure_ascii=False), "reminder_set")
+        if not queued.get("ok"):
+            return queued, status
+        if focus.get("break"):
+            supabase_device_enqueue(json.dumps(focus["break"], ensure_ascii=False), "reminder_set")
+        end_time = focus["focus"]["due"][11:16]
+        break_note = " Quando acabar, te aviso da pausa de 5 minutos." if focus.get("pomodoro") else ""
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "focus_mode_started",
+            "visual_state": "local",
+            "message": f"Modo foco de {focus['minutes']} minutos iniciado — aviso às {end_time}.{break_note}",
+            "intent": intent,
+            "provider": "supabase_device_bridge",
+        }, 200
     if intent in REMOTE_DEVICE_INTENTS and supabase_configured() and not local_execute:
         return supabase_device_enqueue(command, intent, attachments=attachments)
     if intent == "agenda_complete" and supabase_configured():
