@@ -75,7 +75,10 @@
         { name: "inspect_account", label: "Ver uso da chave", description: "Consulta saldo e uso atual.", effect: "read", fields: [] },
         { name: "list_models", label: "Listar modelos", description: "Mostra modelos e janelas de contexto disponíveis.", effect: "read", fields: [] },
       ],
-      fields: [{ name: "api_key", label: "API key", placeholder: "sk-or-v1-…", secret: true }],
+      fields: [
+        { name: "api_key", label: "API key", placeholder: "sk-or-v1-…", secret: true },
+        { name: "model", label: "Modelo preferido (opcional)", placeholder: "nousresearch/hermes-4-405b · google/gemma-4-31b-it:free · vazio = automático", secret: false },
+      ],
     },
     elevenlabs: {
       label: "ElevenLabs",
@@ -90,7 +93,19 @@
       label: "OpenAI",
       eyebrow: "VOZ RESERVA",
       tools: [],
-      fields: [{ name: "api_key", label: "API key", placeholder: "sk-…  (voz neural quando a ElevenLabs cair)", secret: true }],
+      fields: [
+        { name: "api_key", label: "API key", placeholder: "sk-…  (voz neural quando a ElevenLabs cair)", secret: true },
+        { name: "model", label: "Modelo preferido (opcional)", placeholder: "gpt-4o-mini · gpt-5.2 · vazio = automático", secret: false },
+      ],
+    },
+    anthropic: {
+      label: "Claude (Anthropic)",
+      eyebrow: "INTELIGÊNCIA",
+      tools: [],
+      fields: [
+        { name: "api_key", label: "API key", placeholder: "sk-ant-…", secret: true },
+        { name: "model", label: "Modelo preferido (opcional)", placeholder: "claude-sonnet-4-5 · claude-3-5-haiku-latest · vazio = automático", secret: false },
+      ],
     },
     github: {
       label: "GitHub",
@@ -2761,6 +2776,11 @@
     if (data.status_real === "free_web_search_unavailable" && session.currentCommand) {
       messageActions += `<a class="open-link" href="https://www.google.com/search?q=${encodeURIComponent(session.currentCommand)}" target="_blank" rel="noopener noreferrer">Buscar no Google</a>`;
     }
+    if (data.ok === false && (data.ai_configured === false || /^(openrouter_|anthropic_|openai_|ai_not_configured)/.test(String(data.status_real || "")))) {
+      // IA falhou (cota, saturação, sem chave): o próximo passo do dono é
+      // conectar a própria IA — o botão abre o cofre na hora.
+      messageActions += `<button class="copy-response open-connect-ai" type="button">Conectar minha IA</button>`;
+    }
     extra += renderMessageContext(data);
     if (data.memory_suggestion) {
       messageActions += `<button class="memory-command" type="button">${session.paired ? "Guardar na memória" : "Memória privada"}</button>`;
@@ -2784,7 +2804,7 @@
     }
     extra += `<div class="message-actions">${messageActions}</div>`;
     const message = addMessage(answer, "jarvis", authorHtml + extra);
-    const copyResponse = message.querySelector(".copy-response:not(.open-code-pad)");
+    const copyResponse = message.querySelector(".copy-response:not(.open-code-pad):not(.open-connect-ai)");
     if (copyResponse) copyResponse.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(answer);
@@ -2796,6 +2816,9 @@
     });
     message.querySelector(".open-code-pad")?.addEventListener("click", () => {
       window.dispatchEvent(new CustomEvent("jarvis-open-code", { detail: { text: answer } }));
+    });
+    message.querySelector(".open-connect-ai")?.addEventListener("click", () => {
+      integrationsButton?.click();
     });
     const copy = message.querySelector(".copy-command");
     if (copy) copy.addEventListener("click", async () => {
