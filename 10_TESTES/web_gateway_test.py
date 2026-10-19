@@ -4338,11 +4338,23 @@ São Paulo - SP
                     {"command": "adiciona reunião amanhã na agenda"},
                     owner_authenticated=True,
                 )
-        self.assertEqual(status, 200)
-        self.assertEqual(payload["provider"], "n8n")
-        self.assertEqual(payload["message"], "Evento criado na agenda.")
+        # Agenda pede confirmação interativa; o webhook configurado roda no confirm.
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["status_real"], "waiting_confirmation")
+        run_id = payload["run_id"]
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(MODULE, "urlopen", return_value=FakeN8nResponse()):
+                confirmed_payload, confirmed_status = MODULE.execute_saved_run(
+                    MODULE.AGENT_RUNS.get(run_id),
+                    owner_authenticated=True,
+                )
+        self.assertEqual(confirmed_status, 200)
+        self.assertEqual(confirmed_payload["provider"], "n8n")
+        self.assertEqual(confirmed_payload["message"], "Evento criado na agenda.")
 
     def test_agenda_uses_private_supabase_fallback_without_n8n(self):
+        """Agenda pede permissão (run em waiting_confirmation); o dono confirma
+        e o comando salvo roda de verdade."""
         env = {
             "SUPABASE_URL": "https://jarvis.example.supabase.co",
             "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
@@ -4356,9 +4368,21 @@ São Paulo - SP
                 {"command": "coloca na agenda comprar ração amanhã"},
                 owner_authenticated=True,
             )
-        self.assertEqual(status, 201)
-        self.assertEqual(payload["provider"], "supabase_agenda")
-        self.assertEqual(payload["agenda"][0]["title"], "comprar ração amanhã")
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["status_real"], "waiting_confirmation")
+        run_id = payload["run_id"]
+        self.assertTrue(run_id)
+
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "supabase_request", return_value=saved
+        ) as request:
+            confirmed_payload, confirmed_status = MODULE.execute_saved_run(
+                MODULE.AGENT_RUNS.get(run_id),
+                owner_authenticated=True,
+            )
+        self.assertEqual(confirmed_status, 201)
+        self.assertEqual(confirmed_payload["provider"], "supabase_agenda")
+        self.assertEqual(confirmed_payload["agenda"][0]["title"], "comprar ração amanhã")
         self.assertEqual(request.call_args.kwargs["table"], MODULE.SUPABASE_AGENDA_TABLE)
 
     def test_agenda_schedule_uses_sao_paulo_dates_and_times(self):

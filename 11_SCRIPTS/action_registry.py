@@ -76,7 +76,7 @@ ACTION_SPECS = (
     ActionSpec("contact_save", "Guardar contato", "Persistir um contato fornecido explicitamente.", "contacts", "local_write", "explicit_request", True, intents=("contact_save",)),
     ActionSpec("contact_archive", "Arquivar contato", "Arquivar um contato privado sem apagar histórico.", "contacts", "local_write", "interactive", True, intents=("contact_archive",)),
     ActionSpec("agenda_view", "Ver agenda", "Consultar itens privados pendentes.", "agenda", private=True, intents=("agenda_view",)),
-    ActionSpec("agenda_note", "Adicionar à agenda", "Criar tarefa ou lembrete privado.", "agenda", "local_write", "explicit_request", True, intents=("agenda_note", "task_add")),
+    ActionSpec("agenda_note", "Adicionar à agenda", "Criar tarefa ou lembrete privado.", "agenda", "local_write", "interactive", True, intents=("agenda_note", "task_add")),
     ActionSpec("agenda_complete", "Concluir agenda", "Marcar um item privado como concluído.", "agenda", "local_write", "explicit_request", True, intents=("agenda_complete",)),
     ActionSpec("open_application", "Abrir aplicativo", "Abrir um aplicativo allowlisted no Mac pareado.", "mac", "runtime_write", "explicit_request", True, intents=("open_application",)),
     ActionSpec("close_application", "Fechar aplicativo", "Fechar um aplicativo allowlisted no Mac pareado.", "mac", "runtime_write", "explicit_request", True, intents=("close_application",)),
