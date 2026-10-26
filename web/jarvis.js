@@ -4023,13 +4023,35 @@
       });
     });
   });
+  // Sair é um clique acidental fácil: o primeiro clique arma, o segundo sai.
+  let leaveArmedUntil = 0;
+  function armLeave(control, run) {
+    const now = Date.now();
+    if (now < leaveArmedUntil) {
+      leaveArmedUntil = 0;
+      run();
+      return;
+    }
+    leaveArmedUntil = now + 4000;
+    const original = control.textContent;
+    control.dataset.armed = "1";
+    control.textContent = "Tem certeza?";
+    window.setTimeout(() => {
+      if (control.dataset.armed !== "1") return;
+      delete control.dataset.armed;
+      control.textContent = original;
+      leaveArmedUntil = 0;
+    }, 4000);
+  }
   byId("accessMode").addEventListener("click", () => {
     if (byId("accessMode").dataset.action === "logout") {
-      exitOwnerMode(byId("accessMode"));
+      armLeave(byId("accessMode"), () => exitOwnerMode(byId("accessMode")));
       return;
     }
     if (!session.paired && !session.codeMode) {
-      window.location.href = "/";
+      // O login mora em /entrar; apontar para "/" recarregava o próprio cockpit
+      // e o botão "Entrar" não fazia nada.
+      window.location.href = "/entrar";
       return;
     }
     dialog.showModal();
@@ -4037,7 +4059,7 @@
     refreshActionHistory();
   });
   byId("welcomeLogin")?.addEventListener("click", () => {
-    window.location.href = "/";
+    window.location.href = "/entrar";
   });
   integrationsButton?.addEventListener("click", async () => {
     renderIntegrationRegistry();
@@ -4237,7 +4259,7 @@
     if (session.paired) dialog.close();
   });
   byId("clearOwnerToken").addEventListener("click", () => exitOwnerMode(byId("clearOwnerToken")));
-  byId("leaveOwnerMode").addEventListener("click", () => exitOwnerMode(byId("leaveOwnerMode")));
+  byId("leaveOwnerMode").addEventListener("click", () => armLeave(byId("leaveOwnerMode"), () => exitOwnerMode(byId("leaveOwnerMode"))));
   actionHubButton.addEventListener("click", () => setActionHub(actionHub.hidden));
   newConversationButton?.addEventListener("click", startNewConversation);
   document.querySelectorAll("[data-scene-mode]").forEach((item) => {

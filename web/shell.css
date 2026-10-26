@@ -432,9 +432,17 @@
   min-height: 32px;
   padding: 0 11px;
   border-radius: 999px;
-  border: 1px solid rgba(192, 132, 252, 0.42);
-  background: rgba(124, 58, 237, 0.28);
-  font-weight: 600;
+  border: 1px solid var(--cyan);
+  background: var(--cyan);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.stage[data-access="guest"] .access-mode:hover,
+.stage[data-access="guest"] .access-mode:focus-visible {
+  background: var(--cyan-hot);
+  border-color: var(--cyan-hot);
+  color: var(--ink);
 }
 .remember-login {
   display: flex;
