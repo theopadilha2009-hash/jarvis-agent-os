@@ -222,7 +222,7 @@
   // Cofre BYOK: botão do header abre /ui/vault-panel.js (lazy); segredo segue no AES-GCM acima.
   let vaultPanelPromise = null;
   const loadVaultPanel = () => (vaultPanelPromise
-    || (vaultPanelPromise = import("/ui/vault-panel.js?v=20261016-byok1").catch(() => null)));
+    || (vaultPanelPromise = import("/ui/vault-panel.js?v=20261026-deploy1").catch(() => null)));
   if ("requestIdleCallback" in window) window.requestIdleCallback(loadVaultPanel, { timeout: 2000 });
   else window.setTimeout(loadVaultPanel, 300);
 
