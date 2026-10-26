@@ -618,3 +618,47 @@
 .composer .palette-button b {
   display: none;
 }
+
+/* A barra do topo quebrava em 3 linhas (4 a 1440px) e vazava dos 58px
+   do header: "Conectar minha IA" saía pela borda e o resto caía por cima
+   da dica. Uma linha só, e o cluster encosta na direita. */
+.topbar .connection {
+  flex-wrap: nowrap;
+  min-width: 0;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.topbar .quiet-button,
+.topbar .github-star-button,
+.topbar .access-mode {
+  padding: 0 10px;
+  font-size: 10.5px;
+  flex: 0 0 auto;
+}
+
+/* A identidade ocupava 384px com três linhas de versão. Uma linha só. */
+.identity-name small {
+  display: block;
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.identity {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 1680px) {
+  .topbar .github-star-button { display: none; }
+}
+
+@media (max-width: 1460px) {
+  .topbar .app-download-button { display: none; }
+}
+
+@media (max-width: 1240px) {
+  .topbar #notesPadButton { display: none; }
+}
