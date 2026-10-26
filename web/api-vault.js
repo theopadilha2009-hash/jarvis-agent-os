@@ -230,7 +230,13 @@
     const target = event.target instanceof Element ? event.target.closest("#integrationsButton") : null;
     if (!target) return;
     event.stopImmediatePropagation();
-    loadVaultPanel().then((module) => module?.open());
+    // vault-panel.js é um script clássico: ele publica window.JarvisVaultPanel,
+    // não exports. Ler `module.open` aqui deixava o clique sem nenhum efeito.
+    loadVaultPanel().then(() => {
+      const panel = window.JarvisVaultPanel;
+      if (panel?.open) panel.open();
+      else document.getElementById("integrationsDialog")?.showModal();
+    });
   }, true);
 
   try {

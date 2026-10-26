@@ -11,8 +11,8 @@
   --text: #f7f1ff;
   --muted: #d9c7eb;
   --faint: #aa91c2;
-  --line: rgba(168, 85, 247, 0.32);
-  --line-hot: rgba(192, 132, 252, 0.6);
+  --line: color-mix(in srgb, var(--cyan) 32%, transparent);
+  --line-hot: color-mix(in srgb, var(--cyan) 60%, transparent);
   --state: var(--cyan);
   --accent: #7c3aed;
   --on-accent: #fbf7ff;
@@ -261,17 +261,64 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
   border-radius: 50%;
 }
 
-.system-button i {
-  width: 3px;
-  height: 3px;
-  flex: 0 0 3px;
+.system-button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+/* CTA do cofre: não encolhe nem corta o rótulo quando o topo aperta. */
+.integrations-button.vault-hero-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding-inline: 13px;
+  border-color: var(--line-hot);
+  color: var(--cyan-hot);
+  background: rgba(124, 58, 237, 0.2);
+}
+
+.accent-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.accent-picker button {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
   border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 5px currentColor;
+  background: var(--sw, transparent);
+  cursor: pointer;
+}
+
+.accent-picker button[data-accent=""] {
+  width: auto;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.accent-picker button[aria-pressed="true"] {
+  outline: 2px solid var(--cyan-hot);
+  outline-offset: 2px;
+}
+
+/* Sem aceleração de hardware o vidro é rasterizado na CPU a cada frame.
+   Medido no modo seguro: 29,2% → 22,5% de CPU do Chrome sem o blur. */
+html[data-gpu="off"] *,
+html[data-gpu="off"] *::before,
+html[data-gpu="off"] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .quality-button { min-width: 78px; color: #f3e8ff; }

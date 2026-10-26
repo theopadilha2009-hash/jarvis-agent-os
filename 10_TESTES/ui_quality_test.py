@@ -726,6 +726,9 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("premium|enhanced|siri|neural", self.app_js)
         self.assertNotIn("ElevenLabs sem créditos", self.app_js)
         self.assertIn("markElevenlabsExhausted", self.app_js)
+        # Servidor de voz fora do ar não pode virar recusa na conversa: o
+        # cockpit cai calado para a voz do navegador e continua falando.
+        self.assertIn('"self_hosted_unreachable"', self.app_js)
         self.assertIn("__use_terminal__", self.app_js)
         self.assertIn("detail.auto", (WEB / "code-pad.js").read_text(encoding="utf-8"))
         self.assertIn('data.client_action === "clear_chat"', self.app_js)
