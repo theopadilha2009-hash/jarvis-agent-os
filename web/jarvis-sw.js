@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20261026-deploy3";
+const CACHE_VERSION = "jarvis-mobile-shell-20261026-deploy4";
 const SHELL = [
   "/",
   "/cockpit",
@@ -15,7 +15,7 @@ const SHELL = [
   "/ui/action-permissions.css?v=20260813-ultronfix1",
   "/ui/ultron-completion.css?v=20260819-notas1",
   "/ui/responsive-polish.css?v=20260819-notas1",
-  "/ui/shell.css?v=20261026-deploy3",
+  "/ui/shell.css?v=20261026-deploy4",
   "/ui/entrar.css?v=20261026-ceu1",
   "/ui/api-vault.js?v=20261026-deploy1",
   "/ui/integration-history.js?v=20261026-deploy1",
