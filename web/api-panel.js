@@ -14,9 +14,10 @@ window.JarvisAccountsPanel = (() => {
     enable: (name) => `Reativar "${name}"?`,
     promote: (name) => `Tornar "${name}" dono? O gateway não tem como rebaixar depois.`,
     delete: (name) => `Apagar "${name}"? Não tem volta.`,
+    password: (name) => `Nova senha de "${name}" (mínimo 8 caracteres):`,
+    revoke: (name) => `Revogar o modo code de "${name}"? Volta a pendente.`,
   };
-  const CONFIRMED = new Set(["approve", "disable", "enable", "promote", "delete"]);
-  const PASSWORD_TOOLTIP = "endpoint ausente — pediu para criar";
+  const CONFIRMED = new Set(["approve", "disable", "enable", "promote", "delete", "password", "revoke"]);
 
   let dialog = null;
   let list = null;
@@ -111,10 +112,11 @@ window.JarvisAccountsPanel = (() => {
       if (user.role === "pending") menu.push(actionButton("approve", "Aprovar code", user));
       menu.push(actionButton(user.disabled ? "enable" : "disable", user.disabled ? "Reativar" : "Pausar", user));
       if (!user.disabled && user.role !== "pending") menu.push(actionButton("promote", "Tornar dono", user));
+      if (user.role === "member") menu.push(actionButton("revoke", "Revogar", user));
       menu.push(actionButton("delete", "Apagar", user, ' class="integration-danger"'));
     }
-    // Reset de senha: o gateway não tem endpoint. Botão morto de propósito, com o motivo.
-    menu.push(`<button type="button" disabled aria-disabled="true" title="${PASSWORD_TOOLTIP}" aria-label="Definir nova senha de ${escapeHtml(user.username)} — ${PASSWORD_TOOLTIP}">Nova senha</button>`);
+    // O gateway tem POST /accounts {action:"set_password"}: o botão é real.
+    menu.push(actionButton("password", "Nova senha", user));
     return `<menu aria-label="Ações da conta ${escapeHtml(user.username)}">${menu.join("")}</menu>`;
   }
 
@@ -126,6 +128,7 @@ window.JarvisAccountsPanel = (() => {
     <p class="integration-feedback" data-ap-note hidden role="status" aria-live="polite"></p>
     <div class="ap-confirm" data-ap-confirm hidden role="alert">
       <span data-ap-text></span>
+      <input type="password" data-ap-pass hidden autocomplete="new-password" placeholder="Nova senha (8+)" aria-label="Nova senha de ${escapeHtml(user.username)}" style="flex:1 1 150px;min-height:34px;padding:6px 10px;border:0;border-radius:8px;background:#14222b;color:#eaf4f8;font:inherit">
       <button type="button" data-ap-act="go" aria-label="Confirmar ação em ${escapeHtml(user.username)}">Confirmar</button>
       <button type="button" data-ap-act="cancel" aria-label="Cancelar ação em ${escapeHtml(user.username)}">Cancelar</button>
     </div>
@@ -171,6 +174,12 @@ window.JarvisAccountsPanel = (() => {
     strip.dataset.apPending = act;
     strip.dataset.apUser = user;
     row.querySelector("[data-ap-text]").textContent = (CONFIRM_TEXT[act] || ((name) => `Executar em "${name}"?`))(user);
+    const field = row.querySelector("[data-ap-pass]");
+    if (field) {
+      field.hidden = act !== "password";
+      field.value = "";
+      if (act === "password") window.setTimeout(() => field.focus(), 20);
+    }
     strip.hidden = false;
   }
 
@@ -179,12 +188,18 @@ window.JarvisAccountsPanel = (() => {
     if (strip) strip.hidden = true;
   }
 
-  async function run(row, act, user) {
+  async function run(row, act, user, password = "") {
     if (loading || !act || !user) return;
+    if (act === "password" && String(password || "").length < 8) {
+      setNote(user, "error", "A senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
     loading = true;
     const wasEnabled = [...row.querySelectorAll("button:not(:disabled)")];
     wasEnabled.forEach((button) => { button.disabled = true; });
-    const data = await call("/accounts", { action: act, username: user });
+    const payload = { action: act, username: user };
+    if (act === "password") payload.password = password;
+    const data = await call("/accounts", payload);
     loading = false;
     if (data.ok) {
       setNote(user, "success", "Feito. " + String(data.status_real || "conta atualizada"), true);
@@ -205,7 +220,9 @@ window.JarvisAccountsPanel = (() => {
     if (act === "cancel") { closeConfirm(row); return; }
     if (act === "go") {
       const strip = row?.querySelector("[data-ap-confirm]");
-      run(row, strip?.dataset.apPending || "", strip?.dataset.apUser || "");
+      const pending = strip?.dataset.apPending || "";
+      const pass = pending === "password" ? (row?.querySelector("[data-ap-pass]")?.value || "") : "";
+      run(row, pending, strip?.dataset.apUser || "", pass);
       return;
     }
     if (!CONFIRMED.has(act)) return;
@@ -229,7 +246,7 @@ window.JarvisAccountsPanel = (() => {
     }
     const users = Array.isArray(data.users) ? data.users : [];
     list.innerHTML = headHtml(users) + users.map(rowHtml).join("");
-    if (hint) hint.textContent = "Senha nunca aparece aqui: só definir nova senha, e o endpoint ainda não existe.";
+    if (hint) hint.textContent = "Senha nunca aparece aqui. Definir nova senha, aprovar, pausar e apagar são reais.";
     if (pendingNote) paintNote(pendingNote.user, pendingNote.state, pendingNote.text);
   }
 

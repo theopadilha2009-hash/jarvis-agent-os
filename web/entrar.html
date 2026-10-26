@@ -3,24 +3,27 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#130824">
+  <meta name="theme-color" content="#06141c">
   <meta name="description" content="JARVIS — entre com login e senha. Assistente pessoal de Theo Padilha.">
   <title>JARVIS · entrar</title>
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
   <link rel="apple-touch-icon" href="/ui/jarvis-logo.png?v=20260813-logonative1">
-  <link rel="stylesheet" href="/ui/entrar.css?v=20261016-signup1">
+  <link rel="stylesheet" href="/ui/entrar.css?v=20261026-ceu1">
 </head>
 <body>
   <main class="gate">
-    <img class="mark" src="/ui/jarvis-logo.png?v=20260813-logonative1" width="72" height="58" alt="">
-    <p class="kicker">Assistente pessoal</p>
-    <h1>JARVIS</h1>
-    <p class="lead">Login e senha para entrar. Não basta tocar em continuar neste aparelho.</p>
+    <header class="head">
+      <img class="mark" src="/ui/jarvis-logo.png?v=20260813-logonative1" width="64" height="52" alt="">
+      <h1>JARVIS</h1>
+      <p class="lead">Entre com seu login e senha.</p>
+    </header>
 
     <p id="sessionHint" class="session-hint" hidden>
       Há uma sessão neste navegador.
       <a href="/cockpit">Abrir o JARVIS</a>
     </p>
+
+    <p id="signupDone" class="seal" role="status" hidden></p>
 
     <form id="loginForm" autocomplete="on">
       <label>
@@ -31,14 +34,16 @@
         <span>Senha</span>
         <input id="loginPass" name="password" type="password" autocomplete="current-password" required maxlength="200" placeholder="sua senha">
       </label>
-      <p id="loginError" role="alert" hidden></p>
-      <button id="loginSubmit" type="submit">Entrar</button>
+      <label class="remember-row">
+        <input id="rememberMe" name="remember" type="checkbox" checked>
+        <span>Lembrar de mim neste aparelho</span>
+      </label>
+      <p id="loginError" class="form-error" role="alert" hidden></p>
+      <button id="loginSubmit" type="submit" class="btn-primary">Entrar</button>
     </form>
 
-    <p id="signupDone" role="status" hidden></p>
-
     <p class="toggle-account">
-      <button id="signupToggle" type="button" class="link-button">criar conta</button>
+      <button id="signupToggle" type="button" class="btn-secondary">Criar uma conta</button>
     </p>
 
     <form id="signupForm" hidden autocomplete="on">
@@ -58,8 +63,8 @@
         <input id="signupTerms" name="accepted_terms" type="checkbox">
         <span>aceito os <a href="/termos" target="_blank" rel="noopener">termos de uso</a></span>
       </label>
-      <p id="signupError" role="alert" hidden></p>
-      <button id="signupSubmit" type="submit">Criar conta</button>
+      <p id="signupError" class="form-error" role="alert" hidden></p>
+      <button id="signupSubmit" type="submit" class="btn-primary">Criar conta</button>
     </form>
 
     <p class="guest">
@@ -76,6 +81,6 @@
     <p class="by">por <span data-creator-lock>Theo Lorentz Padilha</span></p>
   </main>
   <script src="/ui/creator-seal.js?v=20260817-app1"></script>
-  <script src="/ui/entrar.js?v=20261016-signup1"></script>
+  <script src="/ui/entrar.js?v=20261026-ceu1"></script>
 </body>
 </html>

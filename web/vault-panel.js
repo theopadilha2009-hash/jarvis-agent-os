@@ -390,11 +390,24 @@
         return;
       }
       tip.hidden = false;
-      tip.style.left = `${Math.round(rect.left + rect.width / 2)}px`;
+      // Centraliza no botão, mas nunca deixa a caixa sair da tela.
+      const half = tip.offsetWidth / 2;
+      const center = rect.left + rect.width / 2;
+      const left = Math.min(window.innerWidth - half - 10, Math.max(half + 10, center));
+      tip.style.left = `${Math.round(left)}px`;
       tip.style.top = `${Math.round(rect.bottom + 13)}px`;
+      const arrow = tip.querySelector(".vault-tip-arrow");
+      if (arrow) arrow.style.left = `${Math.round(center - (left - half))}px`;
     };
     place();
     window.addEventListener("resize", place, { passive: true });
+    window.addEventListener("scroll", place, { passive: true });
+    // O topo muda de largura (login, chip de IA, zoom): acompanha em vez de
+    // congelar na posição do primeiro paint.
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(place).observe(button.closest(".topbar") || button);
+    }
+    window.requestAnimationFrame(() => window.requestAnimationFrame(place));
     tip.querySelector(".vault-tip-close")?.addEventListener("click", () => {
       try { localStorage.setItem(TIP_KEY, "off"); } catch { /* privado */ }
       window.removeEventListener("resize", place);
