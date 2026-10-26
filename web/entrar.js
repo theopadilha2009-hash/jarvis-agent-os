@@ -3,11 +3,13 @@
 
   const TOKEN_KEY = "jarvis-owner-token-v1";
   const LAST_LOGIN_KEY = "jarvis-last-login";
+  const REMEMBER_KEY = "jarvis-remember-login";
   const form = document.getElementById("loginForm");
   const errorBox = document.getElementById("loginError");
   const submit = document.getElementById("loginSubmit");
   const user = document.getElementById("loginUser");
   const pass = document.getElementById("loginPass");
+  const rememberMe = document.getElementById("rememberMe");
   const sessionHint = document.getElementById("sessionHint");
   const signupForm = document.getElementById("signupForm");
   const signupToggle = document.getElementById("signupToggle");
@@ -92,7 +94,10 @@
 
   const persist = (sessionToken, username) => {
     localStorage.setItem(TOKEN_KEY, sessionToken);
-    if (username) localStorage.setItem(LAST_LOGIN_KEY, username);
+    const remember = !rememberMe || rememberMe.checked;
+    localStorage.setItem(REMEMBER_KEY, remember ? "1" : "0");
+    if (remember && username) localStorage.setItem(LAST_LOGIN_KEY, username);
+    else localStorage.removeItem(LAST_LOGIN_KEY);
   };
 
   const goCockpit = () => {
@@ -121,8 +126,11 @@
   }
 
   try {
+    if (localStorage.getItem(REMEMBER_KEY) === "0" && rememberMe) {
+      rememberMe.checked = false;
+    }
     const remembered = localStorage.getItem(LAST_LOGIN_KEY);
-    if (remembered) user.value = remembered;
+    if (remembered && (!rememberMe || rememberMe.checked)) user.value = remembered;
   } catch { /* primeira visita */ }
 
   form.addEventListener("submit", async (event) => {
