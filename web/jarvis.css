@@ -270,6 +270,23 @@ button {
   flex: 0 0 16px;
 }
 
+/* Topo: uma ação sólida, o resto fantasma. Nove caixinhas com contorno do
+   mesmo peso viram ruído — o olho não sabe onde clicar primeiro. */
+.topbar .quiet-button:not(.vault-hero-button),
+.topbar .github-star-button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.topbar .quiet-button:not(.vault-hero-button):hover,
+.topbar .quiet-button:not(.vault-hero-button):focus-visible,
+.topbar .github-star-button:hover,
+.topbar .github-star-button:focus-visible {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--cyan) 12%, transparent);
+  color: var(--cyan-hot);
+}
+
 /* CTA do cofre: não encolhe nem corta o rótulo quando o topo aperta. */
 .integrations-button.vault-hero-button {
   flex: 0 0 auto;
