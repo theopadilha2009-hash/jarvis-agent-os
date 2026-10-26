@@ -217,3 +217,54 @@
     align-items: stretch;
   }
 }
+
+/* Dica da primeira visita: flecha apontando para o botão do cofre. */
+.vault-tip {
+  position: fixed;
+  z-index: 60;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 280px;
+  padding: 9px 10px 9px 12px;
+  border: 1px solid var(--line-hot, rgba(192, 132, 252, 0.6));
+  border-radius: 12px;
+  background: rgba(18, 10, 32, 0.96);
+  color: var(--text, #f7f1ff);
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.vault-tip b { color: var(--cyan-hot, #eadcff); }
+
+.vault-tip-arrow {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  transform: rotate(45deg);
+  border-left: 1px solid var(--line-hot, rgba(192, 132, 252, 0.6));
+  border-top: 1px solid var(--line-hot, rgba(192, 132, 252, 0.6));
+  background: rgba(18, 10, 32, 0.96);
+}
+
+.vault-tip-close {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line, rgba(168, 85, 247, 0.32));
+  border-radius: 50%;
+  background: none;
+  color: var(--muted, #d9c7eb);
+  font: 14px/1 ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+
+.vault-tip-close:hover {
+  color: var(--cyan-hot, #eadcff);
+  border-color: var(--line-hot, rgba(192, 132, 252, 0.6));
+}

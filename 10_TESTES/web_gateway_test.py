@@ -4211,7 +4211,16 @@ São Paulo - SP
         paid.assert_not_called()
 
     def test_paid_elevenlabs_stays_off_without_explicit_flag(self):
-        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key", "JARVIS_ALLOW_ELEVENLABS": ""}, clear=False), patch.object(
+        # Sem motor nenhum configurado: nem voz própria nem chave do navegador.
+        # (URL de voz configurada e fora do ar tem status próprio —
+        # self_hosted_unreachable — para não culpar a ElevenLabs.)
+        with patch.dict(os.environ, {
+            "ELEVENLABS_API_KEY": "private-test-key",
+            "JARVIS_ALLOW_ELEVENLABS": "",
+            "SELF_HOSTED_TTS_URL": "",
+            "OPENAI_API_KEY": "",
+            "VERCEL": "1",
+        }, clear=False), patch.object(
             MODULE, "self_hosted_speech", return_value=None
         ), patch.object(MODULE, "urlopen") as paid:
             payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
@@ -4220,6 +4229,22 @@ São Paulo - SP
         self.assertEqual(payload["error_code"], "paid_voice_disabled")
         self.assertEqual(payload["fallback"], "browser_voice")
         paid.assert_not_called()
+
+    def test_voice_url_down_says_unreachable_not_paid_disabled(self):
+        """Túnel do Mac fora do ar não vira "ElevenLabs desligada": o dono
+        precisa saber que o servidor de voz é que não respondeu."""
+        with patch.dict(os.environ, {
+            "ELEVENLABS_API_KEY": "",
+            "JARVIS_ALLOW_ELEVENLABS": "",
+            "OPENAI_API_KEY": "",
+            "SELF_HOSTED_TTS_URL": "http://127.0.0.1:9/speech",
+            "VERCEL": "1",
+        }, clear=False), patch.object(MODULE, "self_hosted_speech", return_value=None):
+            payload, status = MODULE.elevenlabs_speech({"text": "Olá, Theo."})
+        self.assertEqual(status, 503)
+        self.assertEqual(payload["status_real"], "self_hosted_unreachable")
+        self.assertEqual(payload["error_code"], "self_hosted_unreachable")
+        self.assertEqual(payload["fallback"], "browser_voice")
 
     def test_voice_status_does_not_promote_paid_voice_without_flag(self):
         with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "private-test-key", "JARVIS_ALLOW_ELEVENLABS": ""}, clear=False):

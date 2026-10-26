@@ -2992,7 +2992,9 @@ _AUTH_HITS = {}
 _PUBLIC_ROUTE_LIMITS = {
     "/command": (24, 300),
     "/command-stream": (24, 300),
-    "/speech": (16, 180),
+    # Voz viaja em blocos (até 4 por resposta, com prefetch): 16/3min recusava
+    # a própria fala no meio da conversa.
+    "/speech": (60, 180),
     "/signup": (6, 600),
     "/login": (16, 180),
     "/admin-login": (8, 180),
@@ -3002,7 +3004,7 @@ _PUBLIC_ROUTE_LIMITS = {
     "/github-star": (40, 120),
 }
 GUEST_DAILY_COMMAND = 36
-GUEST_DAILY_SPEECH = 18
+GUEST_DAILY_SPEECH = 60
 GUEST_SPEECH_MAX_CHARS = 240
 _ALLOWED_PUBLIC_HOSTS = {
     "localhost",
@@ -7622,12 +7624,22 @@ def self_hosted_speech(text, body=None):
         headers=headers,
         method="POST",
     )
-    try:
-        with urlopen(request, timeout=SELF_HOSTED_TTS_TIMEOUT) as response:
-            audio = response.read(8_000_000)
-        return audio or None
-    except (HTTPError, URLError, TimeoutError, ValueError):
-        return None
+    # Túnel do Mac cai e volta (cold start, Wi-Fi, launchd reiniciando). Uma
+    # segunda tentativa evita transformar um tropeço de rede em "sem voz".
+    for attempt in range(2):
+        try:
+            with urlopen(request, timeout=SELF_HOSTED_TTS_TIMEOUT) as response:
+                audio = response.read(8_000_000)
+            if audio:
+                return audio
+        except HTTPError as error:
+            if error.code in {400, 401, 403, 422}:
+                return None
+        except (URLError, TimeoutError, ValueError):
+            pass
+        if attempt == 0:
+            time.sleep(0.2)
+    return None
 
 
 def openai_speech(body, text):
@@ -7668,6 +7680,19 @@ def elevenlabs_speech(body):
     if local:
         return local, 200
     if not paid_elevenlabs_allowed():
+        rescue = openai_speech(body, text)
+        if rescue:
+            return rescue, 200
+        if self_hosted_tts_url().startswith(("http://", "https://")):
+            # URL configurada mas o servidor de voz não respondeu: dizer
+            # "ElevenLabs desligada" aqui esconde a causa real do dono.
+            return {
+                "ok": False,
+                "status_real": "self_hosted_unreachable",
+                "error_code": "self_hosted_unreachable",
+                "error": "O servidor de voz do Mac não respondeu de fora. Esta página fala pela voz do navegador.",
+                "fallback": "browser_voice",
+            }, 503
         return {
             "ok": False,
             "status_real": "paid_voice_disabled",

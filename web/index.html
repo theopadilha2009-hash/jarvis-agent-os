@@ -30,6 +30,8 @@
     localStorage.removeItem("jarvis-chat-rect-v2");
     localStorage.removeItem("jarvis-chat-rect-v3");
     const root = document.documentElement.style;
+    const accent = localStorage.getItem("jarvis-accent-v1");
+    if (accent) root.setProperty("--cyan", accent);
     const clamp = (value, min, max) => Math.round(Math.min(max, Math.max(min, value)));
     const rect = JSON.parse(localStorage.getItem("jarvis-chat-rect-v4") || "null");
     // Primeiro acesso sem rect salvo: pinta já na doca padrão (mesma matemática
@@ -126,7 +128,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 20c1.2-2.6 1.1-5.2 0-8 1.8 1.1 3.2 3.4 3.6 6.4M12 4.8c-.9 2.1-1.2 4.6-1.1 7.2h2.2c.1-2.6-.2-5.1-1.1-7.2zM17 20c-1.2-2.6-1.1-5.2 0-8-1.8 1.1-3.2 3.4-3.6 6.4M6.8 20.4c1.9-.9 3.7-1.3 5.2-1.3s3.3.4 5.2 1.3"></path></svg>
           <span>App</span>
         </button>
-        <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema"><i></i><i></i><i></i></button>
+        <button class="quiet-button system-button" id="detailsButton" type="button" aria-label="Abrir sistema" title="Sistema"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.4 5.4l1.8 1.8M16.8 16.8l1.8 1.8M18.6 5.4l-1.8 1.8M7.2 16.8l-1.8 1.8"/></svg></button>
       </div>
     </header>
 
@@ -158,9 +160,6 @@
         </section>
 
         <nav class="scene-modes" aria-label="Modos do JARVIS">
-          <span data-scene-mode="core"><i>01</i><b>NÚCLEO</b><small>pensar</small></span>
-          <span data-scene-mode="forge"><i>02</i><b>FORJA</b><small>construir</small></span>
-          <span data-scene-mode="memory"><i>03</i><b>MEMÓRIA</b><small>guardar</small></span>
           <button id="sceneCommandButton" type="button"><i>⌘</i><span><b>ARSENAL</b><small>ações reais</small></span></button>
         </nav>
 
@@ -386,6 +385,18 @@
       </section>
     </div>
     <div class="dialog-grid" data-system-panel="mais" hidden>
+      <section class="dialog-wide">
+        <span>Cor do sistema</span>
+        <div class="accent-picker" id="accentPicker" role="group" aria-label="Cor de destaque do sistema">
+          <button type="button" data-accent="#a855f7" style="--sw:#a855f7" aria-label="Roxo"></button>
+          <button type="button" data-accent="#3b82f6" style="--sw:#3b82f6" aria-label="Azul"></button>
+          <button type="button" data-accent="#22c55e" style="--sw:#22c55e" aria-label="Verde"></button>
+          <button type="button" data-accent="#f59e0b" style="--sw:#f59e0b" aria-label="Âmbar"></button>
+          <button type="button" data-accent="#ec4899" style="--sw:#ec4899" aria-label="Rosa"></button>
+          <button type="button" data-accent="#22d3ee" style="--sw:#22d3ee" aria-label="Ciano"></button>
+          <button type="button" data-accent="" aria-label="Cor padrão do JARVIS">padrão</button>
+        </div>
+      </section>
       <section class="dialog-wide">
         <span>Ajuda</span>
         <button class="quiet-button" id="tourButton" type="button">Guia rápido</button>

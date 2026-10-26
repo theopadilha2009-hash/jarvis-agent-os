@@ -2523,7 +2523,7 @@
       if (error?.name === "AbortError") return false;
       if (generation === speechGeneration) {
         const errorCode = error?.message;
-        const silent = ["elevenlabs_quota", "elevenlabs_authorization", "paid_voice_disabled"].includes(errorCode);
+        const silent = ["elevenlabs_quota", "elevenlabs_authorization", "paid_voice_disabled", "self_hosted_unreachable"].includes(errorCode);
         if (silent) {
           markElevenlabsExhausted();
           paintLocalVoiceLabel();
@@ -4081,6 +4081,27 @@
     applyGraphicsQuality();
   });
   applyGraphicsQuality();
+  // Cor de destaque do sistema: reescreve --cyan (e, por tabela, --line,
+  // --line-hot e o --state do palco). Fica no navegador, não na conta.
+  const ACCENT_KEY = "jarvis-accent-v1";
+  const accentPicker = byId("accentPicker");
+  const paintAccent = (hex) => {
+    const root = document.documentElement;
+    if (hex) root.style.setProperty("--cyan", hex);
+    else root.style.removeProperty("--cyan");
+    accentPicker?.querySelectorAll("[data-accent]").forEach((button) => {
+      button.setAttribute("aria-pressed", String((button.dataset.accent || "") === (hex || "")));
+    });
+    try {
+      if (hex) localStorage.setItem(ACCENT_KEY, hex);
+      else localStorage.removeItem(ACCENT_KEY);
+    } catch { /* sessão apenas */ }
+  };
+  accentPicker?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-accent]");
+    if (button) paintAccent(button.dataset.accent || "");
+  });
+  try { paintAccent(localStorage.getItem(ACCENT_KEY) || ""); } catch { /* privado */ }
   strengthButton?.addEventListener("click", () => {
     const current = RESPONSE_STRENGTH.indexOf(session.strength);
     session.strength = RESPONSE_STRENGTH[(current + 1) % RESPONSE_STRENGTH.length];

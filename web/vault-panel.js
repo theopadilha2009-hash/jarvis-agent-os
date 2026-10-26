@@ -360,8 +360,51 @@
     }).observe(feed, { childList: true });
   }
 
+  // Dica apontando para o botão do cofre: some para sempre no X ou quando já
+  // existe chave. Quem prefere seguir no OpenRouter sem chave só fecha.
+  const TIP_KEY = "jarvis-vault-tip-v1";
+  function mountVaultTip(tries = 0) {
+    const button = document.getElementById("integrationsButton");
+    if (!button || document.getElementById("vaultTip")) return;
+    try {
+      if (localStorage.getItem(TIP_KEY) === "off") return;
+    } catch { /* privado: mostra de novo */ }
+    if (vaultConfigured("openrouter") || window.innerWidth < 720) return;
+    if (!button.offsetWidth) {
+      // Visitante não vê o botão: tenta mais algumas vezes e desiste.
+      if (tries < 3) window.setTimeout(() => mountVaultTip(tries + 1), 1500);
+      return;
+    }
+    const tip = document.createElement("div");
+    tip.id = "vaultTip";
+    tip.className = "vault-tip";
+    tip.setAttribute("role", "note");
+    tip.innerHTML = `<span>Conecte <b>sua própria IA</b> aqui — ou siga no OpenRouter sem chave.</span>
+<button type="button" class="vault-tip-close" aria-label="Dispensar dica de conectar a IA">×</button>
+<span class="vault-tip-arrow" aria-hidden="true"></span>`;
+    document.body.appendChild(tip);
+    const place = () => {
+      const rect = button.getBoundingClientRect();
+      if (!rect.width) {
+        tip.hidden = true;
+        return;
+      }
+      tip.hidden = false;
+      tip.style.left = `${Math.round(rect.left + rect.width / 2)}px`;
+      tip.style.top = `${Math.round(rect.bottom + 13)}px`;
+    };
+    place();
+    window.addEventListener("resize", place, { passive: true });
+    tip.querySelector(".vault-tip-close")?.addEventListener("click", () => {
+      try { localStorage.setItem(TIP_KEY, "off"); } catch { /* privado */ }
+      window.removeEventListener("resize", place);
+      tip.remove();
+    });
+  }
+
   ensureVaultStylesheet();
   renderVaultHeaderButton();
+  mountVaultTip();
   watchVaultErrors();
   window.JarvisVaultPanel = Object.freeze({ open: openVaultPanel });
 })();
