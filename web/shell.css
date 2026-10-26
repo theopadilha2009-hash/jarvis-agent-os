@@ -528,3 +528,93 @@
 }
 #shellVersion[data-state="stale"],
 #shellVersionDetail[data-state="stale"] { color: #fbbf24; }
+
+/* ---------- Botões: um só formato ----------
+   Topo e composer tinham cada um o seu raio, altura, borda, peso e cor.
+   Nove tratamentos diferentes na mesma barra viram ruído. Aqui todos
+   obedecem ao mesmo desenho, e só a ação principal é cheia. */
+.topbar .quiet-button,
+.topbar .github-star-button,
+.topbar .access-mode,
+.topbar .crown-button,
+.topbar .system-button {
+  height: 32px;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid transparent !important;
+  border-radius: 999px;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.topbar .system-button,
+.topbar .crown-button {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+
+.topbar .crown-button { color: #f5b544; }
+
+.topbar .github-star-button b {
+  border-left: 0;
+  padding: 0 0 0 6px;
+  background: transparent !important;
+  color: var(--cyan-hot);
+}
+
+.topbar .integrations-button.vault-hero-button {
+  border-color: transparent !important;
+  background: var(--cyan) !important;
+  color: var(--on-accent) !important;
+  font-weight: 700;
+}
+
+.topbar .quiet-button:hover,
+.topbar .quiet-button:focus-visible,
+.topbar .access-mode:hover,
+.topbar .access-mode:focus-visible,
+.topbar .github-star-button:hover,
+.topbar .github-star-button:focus-visible,
+.topbar .system-button:hover,
+.topbar .system-button:focus-visible {
+  background: color-mix(in srgb, var(--cyan) 14%, transparent) !important;
+  color: var(--cyan-hot);
+}
+
+/* Composer: cinco controles, um formato; a força é o único cheio. */
+.composer .voice-button,
+.composer .wake-indicator,
+.composer .palette-button,
+.composer .attachment-button,
+.composer .strength-button {
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(8, 4, 16, 0.52);
+  color: var(--muted);
+}
+
+.composer .strength-button {
+  width: 56px;
+  min-width: 56px;
+  border-color: transparent;
+  background: var(--cyan);
+  color: var(--on-accent);
+}
+
+.composer .voice-button b,
+.composer .wake-indicator b,
+.composer .palette-button b {
+  display: none;
+}
