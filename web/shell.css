@@ -695,3 +695,26 @@
   justify-content: flex-start;
   gap: 8px;
 }
+
+/* O topo herdava monospace (o painel do chat, não): a mesma tela com duas
+   famílias em botões vizinhos. Controles falam a fonte da interface. */
+.topbar .quiet-button,
+.topbar .github-star-button,
+.topbar .access-mode,
+.topbar .system-button {
+  font-family: Inter, -apple-system, system-ui, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+}
+
+/* A ação principal das boas-vindas era 34px/15px contra 36px/12px das
+   vizinhas. Mesma altura, mesmo raio; ela continua sendo a única cheia. */
+.welcome-login {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: Inter, -apple-system, system-ui, "Segoe UI", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
