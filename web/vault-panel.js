@@ -5,7 +5,7 @@
   // O segredo é selado pelo JarvisApiVault (AES-GCM, chave no IndexedDB);
   // o índice "jarvis-vault-v1" guarda só estado (conectado, data, máscara).
   const VAULT_STATE_KEY = "jarvis-vault-v1";
-  const VAULT_PANEL_VERSION = "20261016-byok1";
+  const VAULT_PANEL_VERSION = "20261026-deploy2";
   const CHAT_PROVIDER_IDS = ["openrouter", "anthropic", "openai"];
   const CHAT_PROVIDER_NAMES = { openrouter: "OpenRouter", anthropic: "Claude", openai: "OpenAI" };
   const VAULT_PROVIDERS = [
@@ -305,6 +305,7 @@
   }
 
   function openVaultPanel() {
+    document.getElementById("vaultTip")?.remove();
     ensureVaultStylesheet();
     const panel = document.getElementById("jarvisVaultPanel") || buildVaultPanel();
     if (!panel.open) panel.showModal();
@@ -408,6 +409,8 @@
       new ResizeObserver(place).observe(button.closest(".topbar") || button);
     }
     window.requestAnimationFrame(() => window.requestAnimationFrame(place));
+    // Dica não é mobília: some sozinha, e some na hora se ele abrir o cofre.
+    window.setTimeout(() => tip.remove(), 15000);
     tip.querySelector(".vault-tip-close")?.addEventListener("click", () => {
       try { localStorage.setItem(TIP_KEY, "off"); } catch { /* privado */ }
       window.removeEventListener("resize", place);
