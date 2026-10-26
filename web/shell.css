@@ -662,3 +662,36 @@
 @media (max-width: 1240px) {
   .topbar #notesPadButton { display: none; }
 }
+
+/* Painel de boas-vindas: conviviam uma ação cheia, uma pílula com contorno
+   e caixas monoespaçadas de canto reto. Fica uma ação cheia (entrar) e o
+   resto como secundário preenchido, sem contorno. */
+.welcome-mac,
+.starter-actions button {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cyan) 16%, rgba(20, 12, 34, 0.92));
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.welcome-mac:hover,
+.welcome-mac:focus-visible,
+.starter-actions button:hover,
+.starter-actions button:focus-visible {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--cyan) 28%, rgba(20, 12, 34, 0.92));
+  color: var(--cyan-hot);
+  transform: none;
+  outline: none;
+}
+
+.starter-actions {
+  justify-content: flex-start;
+  gap: 8px;
+}
