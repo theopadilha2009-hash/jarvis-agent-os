@@ -14,11 +14,11 @@ import subprocess
 import sys
 
 from decision_log import read_decisions
+from task_queue import task_state
 
 ROOT = Path(__file__).resolve().parents[1]
 GATES_LATEST = ROOT / "05_EXECUCAO" / "37_GATES" / "latest.json"
 CURRENT_SESSION = ROOT / "05_EXECUCAO" / "36_WORK_SESSIONS" / "current.json"
-TASKS = ROOT / "05_EXECUCAO" / "34_TASKS" / "tasks.jsonl"
 RUNS_DIR = ROOT / "05_EXECUCAO" / "35_RUNS"
 
 
@@ -42,32 +42,13 @@ def _safe_load_json(path: Path):
 
 
 def _top_task():
-    if not TASKS.exists():
-        return None
     try:
-        seen = {}
-        with TASKS.open(encoding="utf-8") as f:
-            for raw in f:
-                raw = raw.strip()
-                if not raw:
-                    continue
-                try:
-                    ev = json.loads(raw)
-                except Exception:
-                    continue
-                tid = ev.get("task_id") or ev.get("id")
-                if not tid:
-                    continue
-                if tid not in seen:
-                    seen[tid] = ev
-                else:
-                    seen[tid].update(ev)
-        for tid, ev in seen.items():
-            if ev.get("status") in ("pending", None):
-                return ev
-        return None
+        pending = [t for t in task_state().values() if t.get("status") == "pending"]
     except Exception:
         return None
+    if not pending:
+        return None
+    return min(pending, key=lambda t: t.get("ts") or "")
 
 
 def _latest_run():

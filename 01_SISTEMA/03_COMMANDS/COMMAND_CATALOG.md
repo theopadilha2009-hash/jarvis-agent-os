@@ -534,6 +534,16 @@ salvar o relatório final em `/tmp/jarvis-claude-out.md` e rodar
 - `./jarvis inbox`
 - `./jarvis agenda-add "amanhã revisar LS"` → 05_EXECUCAO/31_AGENDA/AGENDA.md
 - `./jarvis agenda`
+- `./jarvis week [--days N]` → relatório da semana: agenda + anotações + tarefas + projetos
+- `./jarvis reminder "sexta às 14h" "texto"` → lembrete que o device worker dispara no Mac
+  (grava em `~/Library/Application Support/JARVIS/reminders.json`; não usa fila Supabase)
+
+`agenda-add` infere data **e hora** (`sexta às 14h` → `2026-10-30 14:00`) e grava
+`- [YYYY-MM-DD HH:MM] (criado <ts>) <texto>`. A linha continua legível pelo
+filtro antigo, que só compara os 10 primeiros caracteres.
+
+`./jarvis week` é read-only e cruza as quatro fontes numa janela (default 7 dias).
+Quando a agenda está vazia, ele promove as anotações do inbox e diz isso na tela.
 
 Refusam input com padrão secret-like. Sem Google Calendar, sem reminders, sem APIs externas.
 

@@ -50,6 +50,22 @@ def _looks_secret_like(text: str) -> bool:
             return True
     return False
 
+
+# Faixas do catálogo viram padrão de intent: "back in black" dispara mesmo
+# sem a palavra "spotify" na frase. Catálogo vazio não casa nada.
+try:
+    from spotify_control import NAMED_TRACKS as _NAMED_TRACKS  # type: ignore
+    from spotify_control import command_args as _spotify_args  # type: ignore
+except Exception:
+    _NAMED_TRACKS = {}
+
+    def _spotify_args(_text):
+        return None
+_NAMED_TRACK_RX = (
+    "|".join(re.escape(name) for name in sorted(_NAMED_TRACKS, key=len, reverse=True))
+    or r"(?!)"
+)
+
 INTENT_NEXT_ACTION = "next_action"
 INTENT_SELF_EVOLVE = "self_evolve"
 INTENT_PROJECT_FIX = "project_fix"
@@ -63,6 +79,9 @@ INTENT_RESEARCH_PLAN = "research_plan"
 INTENT_AGENDA_NOTE = "agenda_note"
 INTENT_CAPTURE_NOTE = "capture_note"
 INTENT_OPEN_PROJECT = "open_project"
+INTENT_SPOTIFY_CONTROL = "spotify_control"
+INTENT_AGENDA_VIEW = "agenda_view"
+INTENT_WEEKLY_REPORT = "weekly_report"
 INTENT_CAPABILITY_CHECK = "capability_check"
 INTENT_LIMITS = "limits"
 INTENT_TASK_ADD = "task_add"
@@ -225,6 +244,13 @@ def _show_unclear_log():
 # "agenda" inside "bug da agenda" does NOT trigger calendar intent), then
 # generic fallbacks (open_project, unclear).
 INTENT_PATTERNS = [
+    # Escrita de agenda com verbo explícito. Precisa vir antes de project_fix,
+    # que também casa "adiciona ..." e transformaria a nota em goal-sprint.
+    (INTENT_AGENDA_NOTE, re.compile(
+        r"(?i)\b(?:coloca(?:r)?|adiciona(?:r)?|marca(?:r)?|anota(?:r)?|anote|bota(?:r)?|"
+        r"joga(?:r)?|salva(?:r)?|registra(?:r)?|inclui(?:r)?|p[oõ]e)\b"
+        r".{0,80}\b(?:na|à|para a?)\s+agenda\b"
+    )),
     # Personal tools are deterministic and more specific than project work.
     (INTENT_IMAGE_TO_PDF, re.compile(
         r"(?i)\b(imagem|foto|png|jpe?g|heic|tiff?|webp|svg)\b.*\b(para|em|virar|converter|transformar)\b.*\bpdf\b|"
@@ -261,6 +287,21 @@ INTENT_PATTERNS = [
     )),
     (INTENT_BATTERY, re.compile(
         r"(?i)\b(bateria|carga da bateria|nível da bateria|nivel da bateria|battery|porcentagem da bateria)\b"
+    )),
+    # Spotify — precisa vir antes de system_volume ("volume do spotify") e de
+    # open_project ("abre o spotify" seria lido como alias de projeto).
+    (INTENT_SPOTIFY_CONTROL, re.compile(
+        r"(?i)(?:"
+        r"\b(?:abr(?:e|ir|a)|inici(?:a|e|ar))\w*\b.{0,24}\bspotify\b"
+        r"|\bvolum\w*\b.{0,30}\bspotify\b"
+        r"|\bspotify\b.{0,80}\b(?:play|to(?:c|q)\w*|reproduz\w*|paus\w*|pr[oó]xim\w*|"
+        r"anteri\w*|volum\w*|status|tocando|busc\w*|procur\w*|pesquis\w*|"
+        r"aleat[oó]ri\w*|shuffle|repet\w*)\b"
+        r"|\b(?:to(?:c|q)\w*|reproduz\w*|coloca|bota)\b.{0,60}\bspotify\b"
+        rf"|\b(?:{_NAMED_TRACK_RX})\b"
+        r"|^\s*(?:jarvis[,\s]+)?(?:to(?:c|q)\w*|reproduz\w*)\s+(?:a\s+|o\s+)?(?:m[uú]sica|faixa|track)\b"
+        r"|^\s*(?:jarvis[,\s]+)?(?:to(?:c|q)\w*|reproduz\w*)\s+[^.!?]{2,80}[.!?]*\s*$"
+        r")"
     )),
     (INTENT_SYSTEM_VOLUME, re.compile(
         r"(?i)\b(volume|aumenta(?:r)? o volume|abaixa(?:r)? o volume|diminui(?:r)? o volume|mutar?|desmutar?|som do sistema|mute|unmute)\b"
@@ -384,14 +425,34 @@ INTENT_PATTERNS = [
     (INTENT_APP_BLUEPRINT, re.compile(
         r"(?i)\b(novo (?:app|projeto)|criar (?:projeto|app)|scaffold|boilerplate|inicia(?:r)? projeto)\b"
     )),
-    # agenda — tight: requires "na/à/para agenda", or "agenda" as a verb at
-    # start, or "lembrete", or weekday/time word + scheduling verb. Bare word
-    # "agenda" (as in "bug da agenda") MUST NOT trigger.
+    # Relatório semanal — antes de agenda, porque "o que tenho pra fazer" e
+    # "relatório da semana" também citam agenda/tarefas.
+    (INTENT_WEEKLY_REPORT, re.compile(
+        r"(?i)(?:"
+        r"\b(?:relat[oó]rio|resumo|panorama|briefing|balan[çc]o)\b.{0,40}\b(?:semana|semanal|7\s+dias|sete\s+dias)\b"
+        r"|\b(?:relat[oó]rio|resumo|panorama|briefing|balan[çc]o)\s+(?:da|de|dessa|desta)\s+semana\b"
+        r"|\b(?:o\s+que|quais)\b.{0,40}\b(?:tenho|tem)\b.{0,30}\b(?:pra|para)\s+fazer\b"
+        r"|^\s*(?:minha|a)\s+semana\s*[?!.]*\s*$"
+        r")"
+    )),
+    # Leitura de agenda — perguntas. NUNCA grava.
+    (INTENT_AGENDA_VIEW, re.compile(
+        r"(?i)(?:"
+        r"\b(?:o\s+que|quais)\b.{0,60}\b(?:tenho|tem|h[aá]|est[aá]|est[aã]o)\b"
+        r".{0,40}\b(?:na|pra|para|nessa|nesta)?\s*(?:a\s+)?(?:agenda|compromissos|eventos)\b"
+        r"|\b(?:me\s+)?(?:mostra|mostre|mostrar|lista|liste|listar|exibe|exibir|ver|veja|"
+        r"consulta|consultar|ler|leia|resume|resumir)\b.{0,30}\b(?:agenda|compromissos|eventos)\b"
+        r"|^\s*(?:minha|a)\s+agenda\s*[?!.]*\s*$"
+        r")"
+    )),
+    # agenda — gravação. "na agenda" sozinho NÃO basta: precisa verbo de escrita.
+    # Bare word "agenda" (as in "bug da agenda") MUST NOT trigger.
     (INTENT_AGENDA_NOTE, re.compile(
         r"(?i)("
-        r"\bcoloca(?:r)?\s+.*\b(?:na|à)\s+agenda\b"
-        r"|\badiciona(?:r)?\s+(?:à|na)\s+agenda\b"
-        r"|\b(?:na|à|para a?)\s+agenda\b"
+        r"\b(?:coloca(?:r)?|adiciona(?:r)?|marca(?:r)?|anota(?:r)?|anote|bota(?:r)?|"
+        r"joga(?:r)?|salva(?:r)?|registra(?:r)?|inclui(?:r)?|p[oõ]e)\b.{0,80}\b(?:na|à|para a?)\s+agenda\b"
+        r"|\banota(?:r)?\s+(?:que\b|a[ií]\b|:)"
+        r"|\banota(?:r)?\b.{0,60}\b(?:hoje|amanh[ãa]|segunda|terça|terca|quarta|quinta|sexta|s[aá]bado|domingo|\d{1,2}\s*h|\d{1,2}:\d{2}|[àa]s\s+\d{1,2})\b"
         r"|^\s*agenda(?:r)?\s+(?:hoje|amanh(?:ã|a)|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|\d)"
         r"|\blembrete\b"
         r"|\blembrar?\s+(?:de\s+|que\s+)"
@@ -555,6 +616,14 @@ def _next_command_for(intent: str, project: str, text: str, copy_flag):
             ["./jarvis", "battery"],
             "./jarvis battery",
             SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_SPOTIFY_CONTROL:
+        args = _spotify_args(text) or ["status"]
+        return (
+            ["./jarvis", "spotify", *args],
+            "./jarvis spotify " + " ".join(args),
+            SAFETY_LOCAL_WRITE,
             True,
         )
     if intent == INTENT_SYSTEM_VOLUME:
@@ -766,6 +835,20 @@ def _next_command_for(intent: str, project: str, text: str, copy_flag):
             ["./jarvis", "blueprint", "--type", "research", "--goal", text],
             f'./jarvis blueprint --type research --goal "{text}"',
             SAFETY_LOCAL_WRITE,
+            True,
+        )
+    if intent == INTENT_AGENDA_VIEW:
+        return (
+            ["./jarvis", "agenda"],
+            "./jarvis agenda",
+            SAFETY_READONLY,
+            True,
+        )
+    if intent == INTENT_WEEKLY_REPORT:
+        return (
+            ["./jarvis", "week", "--days", "7"],
+            "./jarvis week --days 7",
+            SAFETY_READONLY,
             True,
         )
     if intent == INTENT_AGENDA_NOTE:

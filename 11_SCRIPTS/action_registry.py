@@ -66,7 +66,7 @@ ACTION_SPECS = (
     ActionSpec("file_send", "Enviar arquivo", "Entregar um arquivo real disponível no JARVIS.", "brain", intents=("file_send",)),
     ActionSpec("code_pad", "JARVIS Code", "Abrir o painel para copiar, alterar e colar código no VS Code.", "brain", intents=("code_pad",)),
     ActionSpec("web_research", "Pesquisar com fontes", "Pesquisar fontes públicas e devolver evidências verificáveis.", "web", intents=("research", "research_plan")),
-    ActionSpec("personal_overview", "Central pessoal", "Cruzar agenda, memória, worker e atividade recente.", "control_plane", private=True, intents=("personal_overview", "daily_brief")),
+    ActionSpec("personal_overview", "Central pessoal", "Cruzar agenda, memória, worker e atividade recente.", "control_plane", private=True, intents=("personal_overview", "daily_brief", "weekly_report")),
     ActionSpec("memory_view", "Ler memória", "Consultar memórias privadas confirmadas.", "memory", private=True, intents=("memory_view",)),
     ActionSpec("memory_search", "Buscar na memória", "Pesquisar memória confirmada por conteúdo, origem e projeto.", "memory", private=True, intents=("memory_search",)),
     ActionSpec("memory_save", "Guardar memória", "Persistir aprendizado, preferência ou decisão explícita.", "memory", "local_write", "explicit_request", True, intents=("memory_save",)),
