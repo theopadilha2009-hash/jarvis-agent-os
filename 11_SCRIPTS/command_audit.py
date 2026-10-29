@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CRITICAL_COMMANDS = [
     "week",
     "reminder",
+    "runtime-sync",
     "project-resolve",
     "project-menu",
     "next-step",

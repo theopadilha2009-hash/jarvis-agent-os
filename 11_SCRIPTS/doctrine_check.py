@@ -36,6 +36,7 @@ CATALOG_REQUIRED = [
 HELP_REQUIRED_COMMANDS = [
     "week",
     "reminder",
+    "runtime-sync",
     "self-status",
     "self-cockpit",
     "self-next",
