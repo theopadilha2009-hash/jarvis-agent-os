@@ -18,7 +18,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261016-voice6";
+  const SHELL_VERSION = "20261029-theme4";
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
@@ -1484,6 +1484,7 @@
       const data = await response.json();
       if (!response.ok || !data.session_token) {
         say("Não.", data.error || "Login inválido.");
+        flashLoginError();
         return;
       }
       const keep = document.getElementById("rememberLogin");
@@ -1501,8 +1502,20 @@
       say("JARVIS · 3×", "Diga Jarvis. Arraste e peça analisa isso.");
     } catch {
       say("Rede.", "Tente o login de novo.");
+      flashLoginError();
     }
   });
+
+  function flashLoginError() {
+    if (!loginForm) return;
+    loginForm.classList.remove("login-error");
+    // Reflow força a animação a reiniciar quando o erro repete.
+    void loginForm.offsetWidth;
+    loginForm.classList.add("login-error");
+    document.getElementById("loginPass").value = "";
+    document.getElementById("loginPass").focus();
+    window.setTimeout(() => loginForm.classList.remove("login-error"), 1000);
+  }
   logoutButton.addEventListener("click", () => {
     localStorage.removeItem(OWNER_TOKEN_KEY);
     refreshAccess();
