@@ -583,11 +583,22 @@ def upload_private_artifact(path: Path, command_id: int) -> tuple[str, str]:
     return object_path, mime
 
 
-def download_private_artifact(object_path: str, destination: Path) -> Path:
+def _safe_artifact_path(object_path: str) -> str:
+    """Valida o caminho do artefato privado.
+
+    O regex sozinho deixa `..` passar a partir do segundo segmento
+    (`theo/x/../../alvo` casa), então os segmentos são checados antes.
+    """
     safe_path = str(object_path or "").strip("/")
-    if not re.fullmatch(r"theo/[A-Za-z0-9_-]+(?:/[A-Za-z0-9._-]+)*/?", safe_path):
-        # Segmentos "." e ".." não passam: theo/../../alvo tem que morrer aqui.
+    if any(part in (".", "..") for part in safe_path.split("/")):
         raise WorkerError("Artefato fora do prefixo privado permitido.")
+    if not re.fullmatch(r"theo/[A-Za-z0-9_-]+(?:/[A-Za-z0-9._-]+)*/?", safe_path):
+        raise WorkerError("Artefato fora do prefixo privado permitido.")
+    return safe_path
+
+
+def download_private_artifact(object_path: str, destination: Path) -> Path:
+    safe_path = _safe_artifact_path(object_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     base_url, api_key = configuration()
     request = Request(
@@ -612,9 +623,7 @@ def download_private_artifact(object_path: str, destination: Path) -> Path:
 
 
 def delete_private_artifact(object_path: str) -> None:
-    safe_path = str(object_path or "").strip("/")
-    if not re.fullmatch(r"theo/[A-Za-z0-9_-]+(?:/[A-Za-z0-9._-]+)*/?", safe_path):
-        raise WorkerError("Artefato fora do prefixo privado permitido.")
+    safe_path = _safe_artifact_path(object_path)
     base_url, api_key = configuration()
     request = Request(
         f"{base_url}/storage/v1/object/{ARTIFACTS_BUCKET}/{quote(safe_path, safe='/')}",
@@ -1311,8 +1320,8 @@ def execute_job(job: dict) -> tuple[bool, str]:
     effective_job = dict(job)
     if action == "save_note":
         return persist_mac_note(effective_job)
-    if action == "reminder":
-        return schedule_reminder_job(effective_job)
+    if action in ("reminder", "reminder_set"):
+        return execute_reminder_job(effective_job)
     native = {
         "open_url": execute_open_url_job,
         "clipboard_set": execute_clipboard_job,

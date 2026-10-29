@@ -26,7 +26,7 @@ CHANGE_WORDS = [
 ]
 
 NEGATION_HINTS = [
-    "não", "nao", "sem", "nunca", "no ", "not ", "without",
+    "não", "nao", "sem", "nunca", "not ", "without",
     "não executar", "nao executar", "não fazer", "nao fazer",
     "não mexer", "nao mexer", "não expor", "nao expor",
     "não usar", "nao usar", "não commitar", "nao commitar",

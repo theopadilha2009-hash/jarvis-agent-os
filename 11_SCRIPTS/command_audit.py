@@ -185,7 +185,7 @@ def main():
 
     for cmd in CRITICAL_COMMANDS:
         in_core = f'"{cmd}"' in jarvis_core or f"'{cmd}'" in jarvis_core
-        in_help = f"./jarvis {cmd}" in help_out or cmd in help_out
+        in_help = f"./jarvis {cmd}" in help_out
         in_catalog = f"./jarvis {cmd}" in catalog or f"`./jarvis {cmd}" in catalog
         in_smoke = cmd in smoke
 

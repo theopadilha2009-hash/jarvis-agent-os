@@ -48,10 +48,9 @@ SAFE_PLACEHOLDERS = [
 ]
 
 def run(cmd):
-    try:
-        return subprocess.check_output(cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT).strip()
-    except subprocess.CalledProcessError as e:
-        return e.output.strip()
+    # Fail-closed: sem a lista de arquivos versionados o scan não tem o que
+    # varrer, e "zero hits" viraria "nenhum segredo" em vez de erro.
+    return subprocess.check_output(cmd, cwd=ROOT, text=True, stderr=subprocess.STDOUT).strip()
 
 def is_probably_binary(path):
     try:
@@ -101,7 +100,16 @@ def main():
     print("JARVIS — Theo Padilha AI Worker Secret Scan")
     print("")
 
-    tracked = run(["git", "ls-files"]).splitlines()
+    try:
+        tracked = run(["git", "ls-files"]).splitlines()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"FALHA  não foi possível listar os arquivos versionados: {exc}")
+        print("Resultado: SECRET SCAN FALHOU")
+        sys.exit(1)
+    if not tracked:
+        print("FALHA  git ls-files devolveu lista vazia — scan sem alvo")
+        print("Resultado: SECRET SCAN FALHOU")
+        sys.exit(1)
     all_hits = []
 
     forbidden_files = [
