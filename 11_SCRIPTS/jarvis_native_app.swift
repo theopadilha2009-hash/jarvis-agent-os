@@ -153,7 +153,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         setCompact(paired)
         installDrag()
         window.orderFrontRegardless()
-        webView.load(URLRequest(url: cockpitURL()))
+        // Revalida sempre: o HTML carrega o ?v= dos assets e, cacheado como
+        // immutable, prendia o app numa versão antiga para sempre.
+        webView.load(URLRequest(url: cockpitURL(), cachePolicy: .reloadRevalidatingCacheData, timeoutInterval: 20))
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
         DispatchQueue.main.async { [weak self] in
             self?.startListen()

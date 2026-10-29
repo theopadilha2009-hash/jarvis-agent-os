@@ -471,6 +471,18 @@ ASSET_TYPES = {
 }
 
 
+def ui_cache_policy(target):
+    """Cache longo só para asset com ?v= na URL.
+
+    O HTML carrega o ?v= dos outros arquivos. Servir o HTML como
+    immutable/max-age=1 ano prendia o app nativo numa versão antiga para
+    sempre: o navegador nunca revalidava, então nunca via o ?v= novo.
+    """
+    if target.suffix.lower() in {".html", ".json", ".webmanifest"}:
+        return "public, max-age=60"
+    return "public, max-age=31536000, immutable"
+
+
 def openrouter_api_keys():
     """Return configured OpenRouter keys in failover order without exposing them."""
     keys = []
@@ -12608,12 +12620,12 @@ class handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Encoding", "gzip")
                 self.send_header("Vary", "Accept-Encoding")
                 self.send_header("Content-Length", str(len(body)))
-                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+                self.send_header("Cache-Control", ui_cache_policy(target))
                 self._security_headers()
                 self.end_headers()
                 self._write_body(body)
                 return
-            return self.send_bytes(200, target.read_bytes(), content_type)
+            return self.send_bytes(200, target.read_bytes(), content_type, ui_cache_policy(target))
         except OSError:
             return self.send_json(404, {"ok": False, "error": "asset not found"})
 

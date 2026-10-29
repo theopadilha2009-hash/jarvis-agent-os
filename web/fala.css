@@ -400,10 +400,10 @@ html:not(.armed) #heardLine { display: none !important; }
   min-height: 2.9em;
   max-height: none;
   overflow: hidden;
-  padding: 8px 10px;
-  border-radius: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
   background: var(--surface-2);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-soft);
   -webkit-app-region: no-drag;
 }
 #loginForm { flex-wrap: wrap; }
