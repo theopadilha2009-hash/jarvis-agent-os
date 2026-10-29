@@ -90,7 +90,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20261029-theme5", FALA_HTML)
+        self.assertIn("20261029-theme6", FALA_HTML)
         self.assertIn('nativeWindow("hide")', FALA_JS)
         self.assertIn("parkSoon", FALA_JS)
         self.assertIn("parkNow", FALA_JS)
@@ -234,7 +234,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("A mesma conta do site.", FALA_HTML)
 
     def test_fullscreen_browser_open_and_web_screen_look(self):
-        self.assertIn("20261029-theme5", FALA_HTML)
+        self.assertIn("20261029-theme6", FALA_HTML)
         self.assertNotIn("20261016-voice5", FALA_HTML)
         self.assertNotIn("20261016-voice5", FALA_JS)
         # tela cheia: web via Fullscreen API, app via mensagem nativa

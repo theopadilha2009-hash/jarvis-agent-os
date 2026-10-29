@@ -263,8 +263,8 @@ html.idle-orb.has-reply #lastAnswer {
   font-size: 12px;
   line-height: 1.25;
   text-align: left;
-  color: #fbf7ff;
-  text-shadow: 0 0 12px rgba(var(--glow), .45);
+  color: var(--text);
+  text-shadow: none;
   -webkit-app-region: drag;
 }
 html.voice-down #orb {
@@ -393,7 +393,11 @@ html:not(.armed) #heardLine { display: none !important; }
   /* Cortar por linha inteira: max-height fixo fatiava a letra no meio. */
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
+  /* Sem flex-shrink o orbe e o dock comprimiam a caixa e a linha saía
+     cortada ao meio ("Abrindo o spotify no seu navegador" pela metade). */
+  flex: 0 0 auto;
+  min-height: 2.9em;
   max-height: none;
   overflow: hidden;
   padding: 8px 10px;

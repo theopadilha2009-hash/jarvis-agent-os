@@ -1431,7 +1431,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual([step["intent"] for step in steps], ["spotify_control", "screen_capture"])
         self.assertEqual(MODULE.chain_step_target(steps[0]), "pause")
         iron = MODULE.compound_device_plan("abre o Spotify e toca a música do homem de ferro")
-        self.assertEqual([step["intent"] for step in iron], ["open_application", "spotify_control"])
+        # play-uri já abre o app: o passo "abrir" é redundante e só custa latência.
+        self.assertEqual([step["intent"] for step in iron], ["spotify_control"])
+        self.assertEqual(MODULE.chain_step_target(iron[0]), "play-uri")
 
     def test_agent_tool_catalog_exposes_bounded_spotify_control(self):
         tool = next(row for row in MODULE.agent_tool_definitions() if row["function"]["name"] == "control_spotify")
@@ -1485,7 +1487,8 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 202)
         self.assertEqual(payload["status_real"], "device_command_queued")
         self.assertEqual(payload["job"]["id"], 91)
-        self.assertEqual(payload["job"]["target"], "Spotify")
+        # "abre o spotify" agora é spotify_control (abre o APP, não o web player).
+        self.assertEqual(payload["job"]["target"], "open")
         sent_request = request.call_args.args[0]
         self.assertEqual(sent_request.method, "POST")
         self.assertIn("/rest/v1/jarvis_device_commands", sent_request.full_url)
@@ -1495,7 +1498,7 @@ class WebGatewayTest(unittest.TestCase):
         steps = MODULE.compound_device_plan(command)
         self.assertEqual(
             [step["intent"] for step in steps],
-            ["open_application", "screen_capture", "open_application"],
+            ["spotify_control", "screen_capture", "open_application"],
         )
         saved = [
             [{"id": 101, "status": "pending"}],
