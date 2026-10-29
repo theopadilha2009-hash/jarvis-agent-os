@@ -1495,6 +1495,9 @@
       moreButton.textContent = "mais";
       await refreshAccess();
       startWakeLoop();
+      // Sem isso a janela pode estar em modo compacto e parecer vazia logo
+      // depois do login.
+      if (window.__jarvisSetIdle) window.__jarvisSetIdle(false);
       say("JARVIS · 3×", "Diga Jarvis. Arraste e peça analisa isso.");
     } catch {
       say("Rede.", "Tente o login de novo.");
