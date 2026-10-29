@@ -12640,7 +12640,7 @@ class handler(BaseHTTPRequestHandler):
             content_type = ASSET_TYPES.get(target.suffix.lower())
             if not content_type:
                 content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-            return self.send_bytes(200, target.read_bytes(), content_type)
+            return self.send_bytes(200, target.read_bytes(), content_type, ui_cache_policy(target))
         except OSError:
             return self.send_json(404, {"ok": False, "error": "web asset not found"})
 
