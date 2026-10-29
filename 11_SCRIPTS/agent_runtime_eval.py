@@ -46,7 +46,8 @@ SCENARIOS = [
     ("procure repos similares ao Open Interpreter no GitHub", "research", "detailed", True, False, 0),
     ("quanto custa um Honda Civic G8 usado na OLX e Webmotors?", "research", "detailed", True, False, 0),
     ("preço do Corolla usado hoje", "research", "detailed", True, False, 0),
-    ("abra o Spotify", "open_application", "concise", False, False, 0),
+    # "abre o spotify" abre o APP no Mac (spotify_control/open), não o web player.
+    ("abra o Spotify", "spotify_control", "concise", False, False, 0),
     ("abra a Steam", "open_application", "concise", False, False, 0),
     ("abra o calendário", "open_application", "concise", False, False, 0),
     ("feche o Spotify", "close_application", "concise", False, False, 0),
