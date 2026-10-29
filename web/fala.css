@@ -316,7 +316,8 @@ html.meeting #orb {
   margin: 0;
   max-width: 18rem;
   font-size: 13px;
-  color: #f3e8ff;
+  color: var(--text);
+  opacity: .85;
   -webkit-app-region: no-drag;
 }
 html:not(.armed) #heardLine { display: none !important; }
@@ -924,6 +925,29 @@ html[data-theme="light"] .download {
   color: var(--text);
 }
 html[data-theme="light"] .btn:not(.btn-accent):hover { background: #e6ddf9; }
+/* No claro o brilho roxo do halo pesa; fica só um respiro. */
+html[data-theme="light"] .halo { opacity: .18; }
+
+/* Revelar o novo tema num círculo que sai do botão e cobre a tela. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: theme-reveal 520ms var(--ease);
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0% at var(--theme-x, 92%) var(--theme-y, 6%));
+  }
+  to {
+    clip-path: circle(160% at var(--theme-x, 92%) var(--theme-y, 6%));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) { animation: none; }
+}
 
 /* ── Erro de login ────────────────────────────────────────────────────────── */
 @keyframes login-shake {

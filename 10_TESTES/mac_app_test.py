@@ -73,7 +73,7 @@ class MacAppTest(unittest.TestCase):
                 self.assertIn("openExternal", source)
                 self.assertIn('body == "stop"', source)
                 self.assertIn(".borderless", source)
-                self.assertIn("idleHideAfter: TimeInterval = 12", source)
+                self.assertIn("idleHideAfter: TimeInterval = 60", source)
                 self.assertIn("jarvisWindow", source)
                 self.assertIn("hideWindow", source)
                 self.assertIn("setCompact", source)
