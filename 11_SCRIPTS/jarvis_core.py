@@ -1673,7 +1673,7 @@ def quality_gate():
     check("Tasks abertas", len(new_tasks) == 0, f"{len(new_tasks)} aberta(s)")
 
     missions = list((ROOT / "05_EXECUCAO/01_MISSOES").glob("*.md")) if (ROOT / "05_EXECUCAO/01_MISSOES").exists() else []
-    check("Missões registradas", True, f"{len(missions)} brief(s)")
+    check("Missões registradas", len(missions) > 0, f"{len(missions)} brief(s)")
 
     logs = list((ROOT / "09_LOGS").glob("*.md"))
     check("Logs", len(logs) > 0, f"{len(logs)} log(s)")
@@ -3376,6 +3376,7 @@ def _help_full():
   ./jarvis snapshot-prep-core     cria snapshot limpo do preparation core
   ./jarvis pending-artifacts      lista artefatos gerados pendentes no Git
   ./jarvis safety-gate            roda secret-scan, storage-health e quality-gate
+  ./jarvis quality-gate           valida estrutura, tarefas, missões e logs do repo
   ./jarvis secret-scan            procura segredos em arquivos versionados
   ./jarvis storage-health         valida tracking/ignore de relatórios e segredos
   ./jarvis report-policy          mostra política de relatórios e snapshots
