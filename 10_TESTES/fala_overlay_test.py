@@ -102,7 +102,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("idle-orb", FALA_JS)
         self.assertIn('id="hint"', FALA_HTML)
         self.assertIn("A mesma conta do site.", FALA_JS)
-        self.assertIn("Neste Mac você entra só agora.", FALA_JS)
+        # A linha "Neste Mac você entra só agora." foi removida a pedido: não
+        # dizia nada útil. O elemento #hint continua no HTML, oculto.
+        self.assertNotIn("Neste Mac você entra só agora.", FALA_JS)
         self.assertIn("analisa isso", FALA_JS)
         self.assertIn("paintHome", FALA_JS)
         self.assertIn("app-mode.needs-login", (ROOT / "web" / "fala.css").read_text(encoding="utf-8"))

@@ -295,7 +295,7 @@ html.meeting #orb {
   font-weight: 700;
   letter-spacing: .14em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--text);
   text-shadow: 0 1px 2px rgba(0, 0, 0, .65);
 }
 #caption, #accessLine, #hint {
@@ -385,13 +385,18 @@ html:not(.armed) #heardLine { display: none !important; }
   margin: 0;
   color: var(--text);
   font-size: 13px;
+  line-height: 1.45;
   width: 100%;
   max-width: none;
-  max-height: 4.4em;
+  /* Cortar por linha inteira: max-height fixo fatiava a letra no meio. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  max-height: none;
   overflow: hidden;
   padding: 8px 10px;
   border-radius: 12px;
-  background: rgba(255,255,255,.04);
+  background: var(--surface-2);
   border: 1px solid var(--line);
   -webkit-app-region: no-drag;
 }
@@ -872,3 +877,82 @@ body.jarvis-mode-bypass::before {
 @media (prefers-reduced-motion: reduce) {
   body.jarvis-mode-bypass::before { animation: none; }
 }
+
+/* ── Tema claro (paleta Céu) ───────────────────────────────────────────────── */
+html[data-theme="light"] {
+  color-scheme: light;
+  --paper: #0a0712;
+  --ink: #f4eefe;
+  --accent: #6d28d9;
+  --on-accent: #ffffff;
+  --bg: #f7f4fd;
+  --surface: #ffffff;
+  --surface-2: #efe9fb;
+  --text: #17111f;
+  --dim: rgb(23 17 31 / 0.74);
+  --faint: rgb(23 17 31 / 0.54);
+  --line: rgb(76 29 149 / 0.18);
+  --line-soft: rgb(76 29 149 / 0.10);
+  --muted: var(--dim);
+  --core: #6d28d9;
+  --glow: 124, 58, 237;
+}
+html[data-theme="light"] body { background: var(--bg); }
+html.app-mode:not(.idle-orb)[data-theme="light"],
+html.app-mode:not(.idle-orb)[data-theme="light"] body {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px rgb(76 29 149 / 0.14);
+}
+html.idle-orb.has-reply[data-theme="light"],
+html.idle-orb.has-reply[data-theme="light"] body {
+  background: var(--bg) !important;
+}
+html[data-theme="light"] #caption,
+html[data-theme="light"] #accessLine,
+html[data-theme="light"] #hint,
+html[data-theme="light"] #heardLine,
+html[data-theme="light"] #statusLine {
+  text-shadow: none;
+}
+/* :not(.btn-accent) preserva a ação principal na cor cheia. */
+html[data-theme="light"] .btn:not(.btn-accent),
+html[data-theme="light"] .quick a,
+html[data-theme="light"] .download {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--text);
+}
+html[data-theme="light"] .btn:not(.btn-accent):hover { background: #e6ddf9; }
+
+/* ── Toggle de tema ───────────────────────────────────────────────────────── */
+.theme-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: background 160ms var(--ease), border-color 160ms var(--ease);
+}
+.theme-toggle:hover { background: var(--surface-2); }
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.theme-icon { width: 17px; height: 17px; }
+/* No escuro mostra sol (leva ao claro); no claro mostra lua. */
+.theme-icon-moon { display: none; }
+html[data-theme="light"] .theme-icon-sun { display: none; }
+html[data-theme="light"] .theme-icon-moon { display: block; }
+/* No modo bolinha a tela inteira é o orbe: nada de canto. */
+html.idle-orb .theme-toggle { display: none; }
