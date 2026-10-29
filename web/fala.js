@@ -18,7 +18,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261029-theme5";
+  const SHELL_VERSION = "20261029-theme6";
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
@@ -464,10 +464,14 @@
 
   function isMacSpotifyCommand(value) {
     const text = String(value || "").toLocaleLowerCase("pt-BR");
-    if (/\b(?:homem\s+de\s+ferro|iron\s+man|spotify:track:)\b/.test(text)) return true;
+    // Faixas do catálogo disparam sem a palavra "spotify".
+    if (/\b(?:homem\s+de\s+ferro|iron\s+man|back\s+in\s+black|spotify:track:)\b/.test(text)) return true;
     if (!/\bspotify\b/.test(text)) return false;
+    // No app nativo o Spotify é SEMPRE o app do Mac; abrir o web player no
+    // navegador não toca nada e ainda cobre a tela de abas.
+    if (hasNativeListen()) return true;
     if (/\b(?:com|paus|to(?:c|q)|play|pr[oó]xim|volum|status|aleat|shuffle|repet)\w*/.test(text)) return true;
-    return hasNativeListen() && /\b(?:abre|abrir|abra|inici(?:a|e|ar))\b/.test(text);
+    return false;
   }
 
   function resolveOpen(text) {
@@ -867,7 +871,7 @@
         if (spoken && !stayQuiet) await speak(spoken);
         return;
       }
-      say("…", command);
+      say("Pensando.", command);
       const payload = {
         command: attachment
           ? `${command}. Isto é um print da tela onde o JARVIS está; diga o que aparece e o que eu devo fazer agora.`

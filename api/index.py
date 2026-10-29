@@ -2253,12 +2253,13 @@ JARVIS_CLEANUP_PATTERN = re.compile(
 SPOTIFY_CONTROL_PATTERN = re.compile(
     r"(?:\bspotify\b.{0,100}\b(?:play|to(?:c|q)\w*|reproduz\w*|retom\w*|continu\w*|paus\w*|"
     r"pr[oó]xim\w*|anteri\w*|volt\w*|volum\w*|status|tocando|bus\w*|procur\w*|"
-    r"pesquis\w*|aleat[oó]ri\w*|shuffle|repet\w*|m[uú]sica|faixa|homem\s+de\s+ferro|iron\s+man)\b|"
+    r"pesquis\w*|aleat[oó]ri\w*|shuffle|repet\w*|m[uú]sica|faixa|homem\s+de\s+ferro|iron\s+man|"
+    r"back\s+in\s+black)\b|"
     r"\b(?:play|to(?:c|q)\w*|reproduz\w*|retom\w*|continu\w*|paus\w*|pr[oó]xim\w*|"
     r"anteri\w*|volt\w*|volum\w*|status|tocando|bus\w*|procur\w*|pesquis\w*|"
     r"aleat[oó]ri\w*|shuffle|repet\w*)\b.{0,100}\bspotify\b|"
-    r"\babr\w*\s+(?:o\s+)?spotify\s+com\b|"
-    r"\b(?:homem\s+de\s+ferro|iron\s+man)\b|"
+    r"\babr\w*\s+(?:o\s+)?spotify\b|"
+    r"\b(?:homem\s+de\s+ferro|iron\s+man|back\s+in\s+black)\b|"
     r"\b(?:o\s+que\s+(?:est[aá]|t[aá])\s+tocando|qual\s+(?:m[uú]sica|faixa)|"
     r"paus\w*|to(?:c|q)\w*|pr[oó]xim\w*|(?:m[uú]sica|faixa)\s+anterior|volume)\b"
     r".{0,35}\b(?:m[uú]sica|faixa)\b)",
@@ -2535,6 +2536,13 @@ def compound_device_plan(command):
         if not intent:
             return []
         steps.append({"index": index, "intent": intent, "command": clause})
+    # "abre o spotify e toca X": play-uri já abre o app. Manter o passo de
+    # abrir é uma rodada extra no device — e era o que abria uma aba por vez.
+    if len(steps) == 2 and all(step["intent"] == "spotify_control" for step in steps):
+        first = spotify_command_args(steps[0]["command"]) or []
+        second = spotify_command_args(steps[1]["command"]) or []
+        if first == ["open"] and second[:1] == ["play-uri"]:
+            return [{"index": 1, "intent": "spotify_control", "command": steps[1]["command"]}]
     return steps
 
 VOICE_DESIGN_PATTERN = re.compile(
