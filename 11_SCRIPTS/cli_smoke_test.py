@@ -1273,6 +1273,24 @@ CHECKS = [
         ],
     },
     {
+        "name": "week",
+        "cmd": ["./jarvis", "week", "--days", "7"],
+        "expect": [
+            "Weekly Report",
+            "Status real",
+            "Produção: nada alterado",
+        ],
+    },
+    {
+        "name": "reminder-dry-run",
+        "cmd": ["./jarvis", "reminder", "sexta 14h", "teste de smoke", "--dry-run"],
+        "expect": [
+            "Lembrete local",
+            "Status real",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "first-run-check",
         "cmd": ["./jarvis", "first-run-check"],
         "expect": [

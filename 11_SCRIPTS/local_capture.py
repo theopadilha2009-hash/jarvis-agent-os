@@ -136,7 +136,20 @@ _WEEKDAY_PT = {
 }
 
 
-def _infer_date(text: str, override: str):
+_TIME_PATTERNS = (
+    re.compile(r"(?i)\b(?:[àa]s)\s+([01]?\d|2[0-3])(?:(?::|h)([0-5]\d))?\b"),
+    re.compile(r"\b([01]?\d|2[0-3])h([0-5]\d)?\b"),
+    re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b"),
+)
+
+# Verbos de anotação que não fazem parte do conteúdo do item.
+_NOTE_VERB = re.compile(
+    r"(?i)^\s*(?:jarvis[,\s]+)?(?:anota(?:r)?|anote|lembra(?:r)?|lembre|"
+    r"me\s+lembra(?:r)?|me\s+lembre)\s+(?:que\s+|de\s+|a[ií]\s*[:,-]?\s*|:\s*)?"
+)
+
+
+def _infer_date(text: str, override: str, today=None):
     """Best-effort date parse without external libs.
 
     Priority: explicit override > YYYY-MM-DD in text > 'hoje'/'amanhã' >
@@ -147,7 +160,7 @@ def _infer_date(text: str, override: str):
             return override
         except Exception:
             return override  # let user be explicit even if odd format
-    today = date.today()
+    today = today or date.today()
     m = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", text)
     if m:
         return m.group(1)
@@ -155,7 +168,7 @@ def _infer_date(text: str, override: str):
     if re.search(r"\bhoje\b", lower):
         return today.isoformat()
     if re.search(r"\bamanh(?:ã|a)\b", lower):
-        return (today + (date.fromordinal(today.toordinal() + 1) - today)).isoformat()
+        return date.fromordinal(today.toordinal() + 1).isoformat()
     for word, target in _WEEKDAY_PT.items():
         if re.search(rf"\b{word}\b", lower):
             delta = (target - today.weekday()) % 7
@@ -163,6 +176,70 @@ def _infer_date(text: str, override: str):
                 delta = 7
             return date.fromordinal(today.toordinal() + delta).isoformat()
     return None
+
+
+def _infer_time(text: str):
+    """(hora, minuto) ou None. Exige 'às 14h', '14h30' ou '14:30'.
+
+    "a" solto não conta: "a 14 de novembro" viraria 14:00.
+    """
+    for pattern in _TIME_PATTERNS:
+        match = pattern.search(text)
+        if not match:
+            continue
+        hour = int(match.group(1))
+        minute = int(match.group(2) or 0)
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            return hour, minute
+    return None
+
+
+def _infer_when(text: str, override: str, today=None):
+    """Data + hora. 'YYYY-MM-DD HH:MM', 'YYYY-MM-DD' ou None."""
+    base = _infer_date(text, override, today=today)
+    if not base or len(base) > 10:
+        return base
+    clock = _infer_time(text)
+    if clock:
+        return f"{base} {clock[0]:02d}:{clock[1]:02d}"
+    return base
+
+
+def _strip_note_verb(text: str) -> str:
+    stripped = _NOTE_VERB.sub("", text or "").strip()
+    return stripped or text
+
+
+_AGENDA_LINE = re.compile(r"^- \[(?P<when>[^\]]+)\]\s+\(criado (?P<created>[^)]+)\)\s+(?P<text>.*)$")
+_INBOX_LINE = re.compile(r"^- \[(?P<ts>[^\]]+)\]\s+(?P<text>.*)$")
+
+
+def parse_agenda_line(line: str):
+    match = _AGENDA_LINE.match(line.strip())
+    return match.groupdict() if match else None
+
+
+def parse_inbox_line(line: str):
+    match = _INBOX_LINE.match(line.strip())
+    return match.groupdict() if match else None
+
+
+def read_agenda_items(path=None):
+    target = Path(path) if path else AGENDA_FILE
+    if not target.exists():
+        return []
+    body = target.read_text(encoding="utf-8", errors="ignore")
+    items = [parse_agenda_line(line) for line in body.splitlines() if line.startswith("- [")]
+    return [item for item in items if item]
+
+
+def read_inbox_items(path=None):
+    target = Path(path) if path else INBOX_FILE
+    if not target.exists():
+        return []
+    body = target.read_text(encoding="utf-8", errors="ignore")
+    items = [parse_inbox_line(line) for line in body.splitlines() if line.startswith("- [")]
+    return [item for item in items if item]
 
 
 def cmd_agenda_add(argv):
@@ -177,9 +254,9 @@ def cmd_agenda_add(argv):
         print("FALHA: o texto parece conter segredo (token/api_key/etc).")
         print("Ação segura: NÃO gravamos nada.")
         sys.exit(2)
-    when = _infer_date(text, date_override) or "sem-data"
+    when = _infer_when(text, date_override) or "sem-data"
     ts = datetime.now().isoformat(timespec="seconds")
-    line = f"- [{when}] (criado {ts}) {text}"
+    line = f"- [{when}] (criado {ts}) {_strip_note_verb(text)}"
     print(f"alvo: {AGENDA_FILE.relative_to(ROOT)}")
     print(f"data inferida: {when}")
     print(f"linha: {line}")
@@ -212,6 +289,7 @@ def cmd_agenda(argv):
     print("")
     today_iso = date.today().isoformat()
     upcoming = [l for l in items if "[sem-data]" not in l and "[" in l and l[3:13] >= today_iso]
+    upcoming.sort(key=lambda l: l[3:23])
     past = [l for l in items if l not in upcoming]
     print(f"futuras: {len(upcoming)}")
     for line in upcoming[:30]:

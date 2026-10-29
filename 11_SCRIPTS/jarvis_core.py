@@ -3067,6 +3067,14 @@ def daily_command(args=None):
     """./jarvis daily — dashboard de uma tela (health/work/gates/next)."""
     _run_py_propagate("11_SCRIPTS/daily_dashboard.py", args)
 
+def week_command(args=None):
+    """./jarvis week [--days N] — agenda, anotações, tarefas e projetos na janela."""
+    _run_py_propagate("11_SCRIPTS/week_report.py", args)
+
+def reminder_command(args=None):
+    """./jarvis reminder "sexta às 14h" "texto" — lembrete que o worker dispara no Mac."""
+    _run_py_propagate("11_SCRIPTS/local_reminder.py", args)
+
 def first_run_check_command(args=None):
     """./jarvis first-run-check [--full] — verifica ambiente local."""
     _run_py_propagate("11_SCRIPTS/first_run_check.py", args)
@@ -3266,6 +3274,7 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
 
 ## Diário / saúde
   ./jarvis daily                             dashboard de uma tela
+  ./jarvis week [--days N]                   agenda + anotações + tarefas da semana
   ./jarvis decision-list                     decisões operacionais recentes
   ./jarvis decision-add "escolha" --dry-run  preview append-only
   ./jarvis cheatsheet                        atalhos essenciais
@@ -3410,6 +3419,7 @@ def _help_full():
   ./jarvis capture "ideia"        anexa ideia ao inbox local (05_EXECUCAO/30_INBOX)
   ./jarvis inbox                  exibe inbox local
   ./jarvis agenda-add "tarefa"    anexa item à agenda local (05_EXECUCAO/31_AGENDA)
+  ./jarvis reminder "sexta 14h" "texto"  lembrete que o worker dispara no Mac
   ./jarvis agenda                 exibe agenda local
   ./jarvis assistant-doctor       verifica comandos nativos para utilidades pessoais
   ./jarvis agent-eval [--json]    avalia 50 pedidos contra o roteador de produção
@@ -3493,6 +3503,7 @@ def _help_full():
   ./jarvis cheatsheet             uma tela com atalhos essenciais
   ./jarvis handoff-self [--save]  snapshot textual do JARVIS (para ChatGPT/handoff)
   ./jarvis daily                  dashboard de uma tela (health/work/gates/next)
+  ./jarvis week [--days N]        relatório da semana (agenda/notas/tarefas/projetos)
   ./jarvis first-run-check [--full]  verifica ambiente local (python/git/claude/code/gitignore)
   ./jarvis recipe-list            lista golden paths (n8n-workflow/project-fix/self-evolve/...)
   ./jarvis recipe-show NAME       imprime passos da receita
@@ -3608,6 +3619,8 @@ def main():
         agenda_add_command(sys.argv[2:])
     elif cmd == "agenda":
         agenda_command(sys.argv[2:])
+    elif cmd == "reminder":
+        reminder_command(sys.argv[2:])
     elif cmd == "blueprint":
         blueprint_command(sys.argv[2:])
     elif cmd == "research-digest":
@@ -3766,6 +3779,8 @@ def main():
         handoff_self_command(sys.argv[2:])
     elif cmd == "daily":
         daily_command(sys.argv[2:])
+    elif cmd == "week":
+        week_command(sys.argv[2:])
     elif cmd == "first-run-check":
         first_run_check_command(sys.argv[2:])
     elif cmd == "recipe-list":

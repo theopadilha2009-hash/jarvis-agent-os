@@ -441,6 +441,23 @@ def cmd_spotify(args: argparse.Namespace) -> None:
         print("Produção: Spotify local alterado; nenhum deploy alterado.")
         return
 
+    if action == "open":
+        # Abre só o app. Não usa `computer open` de propósito: aquele caminho
+        # consulta o Orca e aborta quando ele não está instalado.
+        opened = subprocess.run(
+            [_require_binary("open"), "-b", "com.spotify.client"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=20,
+        )
+        if opened.returncode != 0:
+            _computer_fail("o Spotify não está instalado ou não pôde ser aberto.")
+        time.sleep(0.8)
+        _print_spotify_state(_spotify_state())
+        print("Produção: Spotify local alterado; nenhum deploy alterado.")
+        return
+
     if action in {"play", "play-uri"}:
         opened = subprocess.run(
             [_require_binary("open"), "-b", "com.spotify.client"],
@@ -1804,7 +1821,7 @@ def build_parser() -> argparse.ArgumentParser:
     spotify = sub.add_parser("spotify")
     spotify.add_argument(
         "action",
-        choices=("status", "play", "pause", "toggle", "next", "previous", "volume", "shuffle", "repeat", "search", "play-uri"),
+        choices=("status", "open", "play", "pause", "toggle", "next", "previous", "volume", "shuffle", "repeat", "search", "play-uri"),
     )
     spotify.add_argument("value", nargs="*")
     spotify.add_argument("--dry-run", action="store_true")

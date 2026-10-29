@@ -122,6 +122,20 @@ def _rebuild_state():
     return state
 
 
+def task_state():
+    """Estado canônico reconstruído (fonte única para daily/handoff/worker).
+
+    O evento `done` não carrega campo `status`, então quem faz update por
+    evento mantém o "pending" do created e mostra tarefa concluída como
+    pendente. Reconstruir pelo `type` é a única leitura correta.
+    """
+    return _rebuild_state()
+
+
+def task_events():
+    return _read_events()
+
+
 def task_list_payload(limit=100):
     """Return compact rebuilt state for local API/UI consumers."""
     safe_limit = max(1, min(int(limit or 100), 300))

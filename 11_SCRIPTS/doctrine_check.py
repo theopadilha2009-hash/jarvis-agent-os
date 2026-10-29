@@ -34,6 +34,8 @@ CATALOG_REQUIRED = [
     "Sem API Anthropic/OpenAI",
 ]
 HELP_REQUIRED_COMMANDS = [
+    "week",
+    "reminder",
     "self-status",
     "self-cockpit",
     "self-next",

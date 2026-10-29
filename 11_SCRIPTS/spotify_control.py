@@ -8,11 +8,16 @@ import unicodedata
 
 
 TRACK_URI_PATTERN = re.compile(r"^spotify:track:[A-Za-z0-9]{10,40}$")
-SAFE_QUERY_PATTERN = re.compile(r"^[\wÀ-ÿ '&.,()_-]{2,120}$", re.UNICODE)
+# "/" é necessário para "AC/DC"; ":" continua fora porque separa URI de faixa.
+SAFE_QUERY_PATTERN = re.compile(r"^[\wÀ-ÿ '&.,()_/-]{2,120}$", re.UNICODE)
 # Pedidos falados curtos → faixa allowlisted. Sem busca livre.
 NAMED_TRACKS = {
     "homem de ferro": "spotify:track:4svkPL62HbvyFgf0nHFXAF",
     "iron man": "spotify:track:4svkPL62HbvyFgf0nHFXAF",
+    # Verificado em open.spotify.com/track/08mG3Y1vljYA6bvDt4Wqkj (2026-10-29):
+    # "Back In Black" — AC/DC, do álbum Iron Man 2 (Compilation).
+    # NÃO reutilizar o ID do Iron Man acima: são faixas diferentes.
+    "back in black": "spotify:track:08mG3Y1vljYA6bvDt4Wqkj",
 }
 
 
@@ -21,12 +26,17 @@ def folded(value: str) -> str:
     return "".join(char for char in normalized if not unicodedata.combining(char)).casefold()
 
 
-def named_track_uri(value: str) -> str:
+def resolve_track(value: str) -> tuple[str, str]:
+    """Nome falado → (uri, nome canônico). ("", "") quando fora do catálogo."""
     text = folded(value)
     for name, uri in NAMED_TRACKS.items():
         if name in text:
-            return uri
-    return ""
+            return uri, name
+    return "", ""
+
+
+def named_track_uri(value: str) -> str:
+    return resolve_track(value)[0]
 
 
 def control_requested(value: str) -> bool:
@@ -71,6 +81,10 @@ def command_args(value: str) -> list[str] | None:
     named = named_track_uri(original)
     if named:
         return ["play-uri", named]
+
+    # "abre o spotify" sozinho: abrir o app, sem tocar nada.
+    if re.search(r"\b(?:abr(?:e|ir|a)|inici(?:a|e|ar))\w*\b.{0,24}\bspotify\b", text):
+        return ["open"]
 
     volume_match = re.search(r"\bvolume\b[^0-9]{0,30}(\d{1,3})\s*%?", text)
     if volume_match:

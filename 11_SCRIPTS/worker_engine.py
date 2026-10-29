@@ -45,7 +45,13 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKER_DIR = ROOT / "05_EXECUCAO" / "42_WORKER_RUNS"
 CURRENT_SESSION = ROOT / "05_EXECUCAO" / "36_WORK_SESSIONS" / "current.json"
 GATES_LATEST = ROOT / "05_EXECUCAO" / "37_GATES" / "latest.json"
-TASKS_JSONL = ROOT / "05_EXECUCAO" / "34_TASKS" / "tasks.jsonl"
+from task_queue import task_state
+
+try:
+    from spotify_control import command_args as _spotify_args  # type: ignore
+except Exception:
+    def _spotify_args(_text):
+        return None
 ASK_UNCLEAR = ROOT / "05_EXECUCAO" / "32_ASK_LEARNING" / "UNCLEAR_REQUESTS.md"
 MISSIONS_DIR = ROOT / "05_EXECUCAO" / "21_CLAUDE_MISSIONS"
 BLUEPRINTS_DIR = ROOT / "05_EXECUCAO" / "40_BLUEPRINTS"
@@ -72,6 +78,9 @@ try:
         INTENT_AGENDA_NOTE,
         INTENT_CAPTURE_NOTE,
         INTENT_OPEN_PROJECT,
+        INTENT_SPOTIFY_CONTROL,
+        INTENT_AGENDA_VIEW,
+        INTENT_WEEKLY_REPORT,
         INTENT_CAPABILITY_CHECK,
         INTENT_LIMITS,
         INTENT_TASK_ADD,
@@ -116,6 +125,9 @@ except Exception:
     INTENT_AGENDA_NOTE = "agenda_note"
     INTENT_CAPTURE_NOTE = "capture_note"
     INTENT_OPEN_PROJECT = "open_project"
+    INTENT_SPOTIFY_CONTROL = "spotify_control"
+    INTENT_AGENDA_VIEW = "agenda_view"
+    INTENT_WEEKLY_REPORT = "weekly_report"
     INTENT_CAPABILITY_CHECK = "capability_check"
     INTENT_LIMITS = "limits"
     INTENT_TASK_ADD = "task_add"
@@ -166,6 +178,13 @@ ALLOWED_PREFIXES = {
     ("./jarvis", "task-add"),
     ("./jarvis", "task-list"),
     ("./jarvis", "task-next"),
+    ("./jarvis", "agenda"),
+    ("./jarvis", "agenda-add"),
+    ("./jarvis", "reminder"),
+    ("./jarvis", "week"),
+    ("./jarvis", "spotify"),
+    ("./jarvis", "capture"),
+    ("./jarvis", "inbox"),
     ("./jarvis", "no-claude"),
     ("./jarvis", "blueprint"),
     ("./jarvis", "project-intel"),
@@ -358,32 +377,13 @@ def _read_text_capped(path: Path, max_chars: int = 4000) -> str:
 # ── State inspection (smart resume) ──────────────────────────────────────────
 
 def _top_pending_task():
-    if not TASKS_JSONL.exists():
-        return None
     try:
-        seen = {}
-        with TASKS_JSONL.open(encoding="utf-8") as f:
-            for raw in f:
-                raw = raw.strip()
-                if not raw:
-                    continue
-                try:
-                    ev = json.loads(raw)
-                except Exception:
-                    continue
-                tid = ev.get("task_id") or ev.get("id")
-                if not tid:
-                    continue
-                if tid not in seen:
-                    seen[tid] = ev
-                else:
-                    seen[tid].update(ev)
-        for _tid, ev in seen.items():
-            if ev.get("status") in ("pending", None):
-                return ev
-        return None
+        pending = [t for t in task_state().values() if t.get("status") == "pending"]
     except Exception:
         return None
+    if not pending:
+        return None
+    return min(pending, key=lambda t: t.get("ts") or "")
 
 
 def _git_dirty_files():
@@ -667,6 +667,13 @@ def choose_route(text, intent, project, capability_hint, mode, project_override=
         INTENT_WIKI,
         INTENT_WORKSPACE,
         INTENT_FILE_ORGANIZE,
+        INTENT_SPOTIFY_CONTROL,
+        INTENT_AGENDA_VIEW,
+        INTENT_AGENDA_NOTE,
+        INTENT_WEEKLY_REPORT,
+        INTENT_CAPTURE_NOTE,
+        INTENT_TASK_ADD,
+        INTENT_TASK_LIST,
     ):
         risk = (
             RISK_READ_ONLY
@@ -683,6 +690,9 @@ def choose_route(text, intent, project, capability_hint, mode, project_override=
                 INTENT_CRYPTO_STOCK,
                 INTENT_TECH_BRIEF,
                 INTENT_WIKI,
+                INTENT_AGENDA_VIEW,
+                INTENT_WEEKLY_REPORT,
+                INTENT_TASK_LIST,
             )
             else RISK_RUNTIME_WRITE
         )
@@ -1058,8 +1068,70 @@ def plan_personal(text, intent, dry_run):
         if dry_run or "--confirm" not in text:
             cmd.append("--dry-run")
         return [("Organização de arquivos por categoria", cmd, None)], f"./jarvis file-organize {target} --dry-run", None, {}
+    if intent == INTENT_SPOTIFY_CONTROL:
+        args = _spotify_args(text)
+        if not args:
+            return [], None, (
+                "Não reconheci a faixa ou o controle do Spotify. "
+                'Tente ./jarvis spotify search "ARTISTA - FAIXA".'
+            ), {}
+        actions = []
+        # "abre o spotify e toca X": o step de abertura dá evidência e falha
+        # cedo se o app não estiver instalado. play-uri também abre.
+        if args[0] == "play-uri" and re.search(
+            r"(?i)\b(?:abr(?:e|ir|a)|inici(?:a|e|ar))\w*\b.{0,24}\bspotify\b", text
+        ):
+            actions.append(("Abrir o app Spotify", ["./jarvis", "spotify", "open"], None))
+        cmd = ["./jarvis", "spotify", *args]
+        if dry_run:
+            cmd.append("--dry-run")
+        actions.append((f"Spotify: {' '.join(args)}", cmd, None))
+        return actions, "./jarvis spotify " + " ".join(args), None, {}
+
+    if intent == INTENT_AGENDA_VIEW:
+        return [("Ler agenda local (read-only)", ["./jarvis", "agenda"], None)], "./jarvis agenda", None, {}
+
+    if intent == INTENT_WEEKLY_REPORT:
+        return (
+            [("Relatório da semana (read-only)", ["./jarvis", "week", "--days", "7"], None)],
+            "./jarvis week --days 7",
+            None,
+            {},
+        )
+
+    if intent == INTENT_AGENDA_NOTE:
+        actions = []
+        cmd = ["./jarvis", "agenda-add", text]
+        if dry_run:
+            cmd.append("--dry-run")
+        actions.append(("Gravar na agenda local (append-only)", cmd, None))
+        # Com hora explícita, também agenda o lembrete que notifica no Mac.
+        if _HAS_CLOCK.search(text):
+            reminder_cmd = ["./jarvis", "reminder", text, text]
+            if dry_run:
+                reminder_cmd.append("--dry-run")
+            actions.append(("Agendar lembrete que notifica no Mac", reminder_cmd, None))
+        return actions, "./jarvis agenda", None, {}
+
+    if intent == INTENT_CAPTURE_NOTE:
+        cmd = ["./jarvis", "capture", text]
+        if dry_run:
+            cmd.append("--dry-run")
+        return [("Guardar na inbox local", cmd, None)], "./jarvis inbox", None, {}
+
+    if intent == INTENT_TASK_ADD:
+        cmd = ["./jarvis", "task-add", text]
+        if dry_run:
+            cmd.append("--dry-run")
+        return [("Adicionar task local", cmd, None)], "./jarvis task-list", None, {}
+
+    if intent == INTENT_TASK_LIST:
+        return [("Listar tasks locais", ["./jarvis", "task-list"], None)], "./jarvis task-list", None, {}
+
     return [], None, "Ferramenta pessoal não reconhecida.", {}
 
+
+_HAS_CLOCK = re.compile(r"(?i)\b\d{1,2}\s*h(?:\s*\d{2})?\b|\b\d{1,2}:\d{2}\b|\b[àa]s\s+\d{1,2}\b")
 
 _UNCLEAR_PATTERN_HINTS = [
     (re.compile(r"(?i)\b(deploy|push|merge|tag|prod(?:u(?:ção|cao))?)\b"),
