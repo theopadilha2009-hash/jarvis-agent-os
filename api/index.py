@@ -223,12 +223,10 @@ DEFAULT_FREE_MODEL_POOL = (
 DEFAULT_DEEP_MODEL_POOL = (
     "nvidia/nemotron-3-ultra-550b-a55b:free",
     "poolside/laguna-s-2.1:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
     "google/gemma-4-31b-it:free",
     "openrouter/free",
 )
 DEFAULT_VISION_MODEL_POOL = (
-    "nvidia/nemotron-nano-12b-v2-vl:free",
     "google/gemma-4-26b-a4b-it:free",
     "google/gemma-4-31b-it:free",
     "openrouter/free",
@@ -10958,7 +10956,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
     if len(model_candidates) > 1:
         # OpenRouter's official model-fallback route tries these in order on
         # rate limits, downtime or provider refusal while using the same key.
-        openrouter_payload["models"] = model_candidates
+        # A API rejeita com 400 acima de 3 itens ("'models' array must have 3
+        # items or fewer"), então a lista vai limitada — o resto do pool entra
+        # nas tentativas seguintes.
+        openrouter_payload["models"] = model_candidates[:3]
     else:
         openrouter_payload["model"] = model_candidates[0]
     if any(item["type"] == "application/pdf" for item in attachments):

@@ -108,7 +108,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var webViewReady = false
     private var voiceReady = false
     private var greeted = false
-    private let idleHideAfter: TimeInterval = 12
+    // 12s escondia a janela no meio do uso (logo depois do login, do login).
+    // 60s dá tempo de ler a resposta; falar com o JARVIS reseta o timer.
+    private let idleHideAfter: TimeInterval = 60
     private let kickCooldown: TimeInterval = 90
     private let fullSize = NSSize(width: 268, height: 380)
     private let zoomSize = NSSize(width: 320, height: 560)
