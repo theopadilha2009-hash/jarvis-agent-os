@@ -2510,7 +2510,13 @@ LOCAL_INTENTS = (
     (FOCUS_TRIGGER_PATTERN, "focus_set"),
     (AGENDA_NOTE_PATTERN, "agenda_note"),
     (re.compile(r"\b(conclu(?:a|i|ir)|finaliz(?:a|e|ar)|marc(?:a|e|ar))\b.{0,60}\b(?:item|tarefa|lembrete|agenda)\s*#?\s*\d+\b", re.I), "agenda_complete"),
-    (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b", re.I), "agenda_view"),
+    (re.compile(
+        r"\b(?:o\s+que|quais)\b.{0,60}\b(?:tenho|tem|h[aá]|est[aá]|est[aã]o)\b"
+        r".{0,40}\b(?:na|pra|para|nessa|nesta)?\s*(?:a\s+)?(?:agenda|compromissos|eventos)\b|"
+        r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b|"
+        r"^\s*(?:minha|a)\s+agenda\s*[?!.]*\s*$",
+        re.I,
+    ), "agenda_view"),
     (NOTE_VIEW_PATTERN, "note_view"),
     (NOTE_SAVE_PATTERN, "note_save"),
     (re.compile(r"\b(adicion(?:a|e|ar)|cri(?:a|e|ar))\b.{0,60}\b(tarefa|task)\b", re.I), "task_add"),
