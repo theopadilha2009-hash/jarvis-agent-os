@@ -3075,6 +3075,10 @@ def reminder_command(args=None):
     """./jarvis reminder "sexta às 14h" "texto" — lembrete que o worker dispara no Mac."""
     _run_py_propagate("11_SCRIPTS/local_reminder.py", args)
 
+def runtime_sync_command(args=None):
+    """./jarvis runtime-sync [--apply] — atualiza o checkout que o device worker executa."""
+    _run_py_propagate("11_SCRIPTS/sync_runtime.py", args)
+
 def first_run_check_command(args=None):
     """./jarvis first-run-check [--full] — verifica ambiente local."""
     _run_py_propagate("11_SCRIPTS/first_run_check.py", args)
@@ -3420,6 +3424,7 @@ def _help_full():
   ./jarvis inbox                  exibe inbox local
   ./jarvis agenda-add "tarefa"    anexa item à agenda local (05_EXECUCAO/31_AGENDA)
   ./jarvis reminder "sexta 14h" "texto"  lembrete que o worker dispara no Mac
+  ./jarvis runtime-sync --apply   atualiza o checkout usado pelo device worker
   ./jarvis agenda                 exibe agenda local
   ./jarvis assistant-doctor       verifica comandos nativos para utilidades pessoais
   ./jarvis agent-eval [--json]    avalia 50 pedidos contra o roteador de produção
@@ -3621,6 +3626,8 @@ def main():
         agenda_command(sys.argv[2:])
     elif cmd == "reminder":
         reminder_command(sys.argv[2:])
+    elif cmd == "runtime-sync":
+        runtime_sync_command(sys.argv[2:])
     elif cmd == "blueprint":
         blueprint_command(sys.argv[2:])
     elif cmd == "research-digest":

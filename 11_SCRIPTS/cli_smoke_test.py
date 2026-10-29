@@ -1291,6 +1291,15 @@ CHECKS = [
         ],
     },
     {
+        "name": "runtime-sync-preview",
+        "cmd": ["./jarvis", "runtime-sync"],
+        "expect": [
+            "Runtime Sync",
+            "Status real",
+            "Produção: nada alterado",
+        ],
+    },
+    {
         "name": "first-run-check",
         "cmd": ["./jarvis", "first-run-check"],
         "expect": [

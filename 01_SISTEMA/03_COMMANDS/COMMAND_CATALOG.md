@@ -537,6 +537,12 @@ salvar o relatório final em `/tmp/jarvis-claude-out.md` e rodar
 - `./jarvis week [--days N]` → relatório da semana: agenda + anotações + tarefas + projetos
 - `./jarvis reminder "sexta às 14h" "texto"` → lembrete que o device worker dispara no Mac
   (grava em `~/Library/Application Support/JARVIS/reminders.json`; não usa fila Supabase)
+- `./jarvis runtime-sync --apply` → atualiza o checkout que o device worker executa
+
+O device worker **não roda deste repositório**: ele executa
+`~/Library/Application Support/JARVIS/runtime/jarvis-agent-os`, um clone próprio.
+Deploy no Vercel não o atualiza. Se o app manda um comando e o Mac responde com
+comportamento antigo, rode `./jarvis runtime-sync --apply`.
 
 `agenda-add` infere data **e hora** (`sexta às 14h` → `2026-10-30 14:00`) e grava
 `- [YYYY-MM-DD HH:MM] (criado <ts>) <texto>`. A linha continua legível pelo
