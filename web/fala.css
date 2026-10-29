@@ -347,7 +347,8 @@ html:not(.armed) #heardLine { display: none !important; }
 #buildLine[data-state="stale"] { color: #fbbf24; }
 .update-toast {
   position: fixed;
-  top: 8px;
+  /* Abaixo dos botões da janela: em 8px o toast cobria os traffic lights. */
+  top: 44px;
   left: 8px;
   right: 8px;
   z-index: 50;
