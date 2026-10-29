@@ -143,16 +143,14 @@
   }
 
   function paintHome() {
-    const hint = document.getElementById("hint");
+    // O #hint ficou oculto de propósito: a linha "Neste Mac você entra só agora"
+    // não dizia nada útil. O elemento continua no HTML por causa do contrato
+    // verificado em 10_TESTES/fala_overlay_test.py.
     if (ownerToken()) {
       say("JARVIS", "Diga Jarvis.");
-      if (hint) hint.textContent = "Arraste pra tela e peça analisa isso.";
       return;
     }
     say("JARVIS", appMode ? "A mesma conta do site." : "Diga Jarvis.");
-    if (hint) hint.textContent = appMode
-      ? "Neste Mac você entra só agora."
-      : "Arraste. Diga Jarvis, analisa isso.";
   }
 
   function renderAccess(label, signedIn) {

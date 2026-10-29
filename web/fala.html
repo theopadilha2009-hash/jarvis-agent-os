@@ -6,14 +6,20 @@
     if (/(?:^|[?&])app=1(?:&|$)/.test(location.search)) {
       document.documentElement.classList.add("app-mode", "idle-orb");
     }
+    try {
+      var savedTheme = localStorage.getItem("jarvis-theme");
+      if (savedTheme === "light" || savedTheme === "dark") {
+        document.documentElement.dataset.theme = savedTheme;
+      }
+    } catch (e) {}
   </script>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#07060c">
   <meta name="creator-seal" content="ggCZbZFBcds2X3zL5N5jloFWuxA=">
   <title>JARVIS</title>
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
-  <meta name="jarvis-shell" content="20261016-voice6">
-  <link rel="stylesheet" href="/ui/fala.css?v=20261017-modes1">
+  <meta name="jarvis-shell" content="20261029-theme1">
+  <link rel="stylesheet" href="/ui/fala.css?v=20261029-theme2">
 </head>
 <body>
   <main class="orb-shell">
@@ -30,8 +36,12 @@
     </button>
     <strong id="statusLine">JARVIS<span class="beta-badge" aria-label="versão beta">beta</span></strong>
     <p id="caption">A mesma conta do site.</p>
-    <p id="hint">Neste Mac você entra só agora.</p>
+    <p id="hint" hidden></p>
     <p id="heardLine" hidden></p>
+    <button id="themeToggle" class="theme-toggle" type="button" aria-label="Mudar tema" title="Mudar tema">
+      <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    </button>
     <aside id="updateToast" class="update-toast" hidden>
       <span>
         <small>atualização disponível</small>
@@ -45,16 +55,6 @@
     <form id="askForm">
       <input id="askInput" type="text" autocomplete="off" placeholder="ou escreva…" aria-label="Pedido para o JARVIS">
     </form>
-        <div class="jarvis-quick-chips">
-      <button class="btn btn-chip" type="button" data-action="resumo do dia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>Resumo</button>
-      <button class="btn btn-chip" type="button" data-action="como ta a bateria"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect width="16" height="10" x="2" y="7" rx="2"/><line x1="22" x2="22" y1="11" y2="13"/><line x1="6" x2="6" y1="11" y2="13"/><line x1="10" x2="10" y1="11" y2="13"/></svg>Bateria</button>
-      <button class="btn btn-chip" type="button" data-action="previsao do tempo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>Clima</button>
-      <button class="btn btn-chip" type="button" data-action="cotacao do dolar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Cotações</button>
-      <button class="btn btn-chip" type="button" data-action="qualidade da rede"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>Rede</button>
-      <button class="btn btn-chip" type="button" data-action="ativar modo foco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Foco</button>
-      <button class="btn btn-chip" type="button" data-action="lista os meus projetos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Projetos</button>
-      <button class="btn btn-chip" type="button" data-action="noticias de tecnologia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8V6Z"/></svg>Tech</button>
-    </div>
     <nav class="launch" aria-label="Abrir agora">
       <button class="btn btn-accent" type="button" data-open="https://www.google.com">Google</button>
       <button class="btn btn-accent" type="button" data-open="https://web.whatsapp.com">WhatsApp</button>
@@ -96,8 +96,28 @@
     </div>
     </div>
   </main>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var button = document.getElementById("themeToggle");
+      if (!button) return;
+      function label() {
+        button.setAttribute(
+          "aria-label",
+          root.dataset.theme === "light" ? "Mudar para tema escuro" : "Mudar para tema claro"
+        );
+      }
+      label();
+      button.addEventListener("click", function () {
+        var next = root.dataset.theme === "light" ? "dark" : "light";
+        root.dataset.theme = next;
+        try { localStorage.setItem("jarvis-theme", next); } catch (e) {}
+        label();
+      });
+    })();
+  </script>
   <script src="/ui/creator-seal.js?v=20260817-app1"></script>
   <script src="/ui/local-voice.js?v=20260818-voice2"></script>
-  <script src="/ui/fala.js?v=20261017-modes1"></script>
+  <script src="/ui/fala.js?v=20261029-theme2"></script>
 </body>
 </html>
