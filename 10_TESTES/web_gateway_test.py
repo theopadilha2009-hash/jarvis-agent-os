@@ -3291,7 +3291,9 @@ São Paulo - SP
         self.assertNotIn("model", sent)
         self.assertEqual(sent["models"][0], "nvidia/nemotron-3-ultra-550b-a55b:free")
         self.assertEqual(sent["models"][1], "nvidia/nemotron-3-super-120b-a12b:free")
-        self.assertIn("openrouter/free", sent["models"])
+        # O OpenRouter recusa com 400 acima de 3 itens no array "models":
+        # o pool inteiro ia na primeira tentativa e derrubava todo chat.
+        self.assertLessEqual(len(sent["models"]), 3)
         self.assertFalse(sent["stream"])
         self.assertEqual(sent["provider"]["sort"], {"by": "latency", "partition": "model"})
         self.assertEqual(sent["provider"]["max_price"], {"prompt": 0, "completion": 0})
@@ -4168,7 +4170,9 @@ São Paulo - SP
         env = {"OPENROUTER_API_KEY": "test-key", "OPENROUTER_ATTACHMENT_MODEL": ""}
         with patch.dict(os.environ, env, clear=False):
             models = MODULE.openrouter_model_candidates(attachments=True)
-            self.assertIn("nvidia/nemotron-nano-12b-v2-vl:free", models)
+            # O nemotron-nano-vl saiu do OpenRouter ("no longer available");
+            # o pool de visão passou a começar pelo gemma-4-26b.
+            self.assertIn("google/gemma-4-26b-a4b-it:free", models)
             with patch.object(MODULE, "urlopen", return_value=FakeResponse()) as request:
                 payload, status = MODULE.command_payload({
                     "command": "analisa isso aqui",
@@ -4182,7 +4186,7 @@ São Paulo - SP
         self.assertNotEqual(payload.get("intent"), "screen_capture")
         self.assertEqual(payload["attachments_received"][0]["name"], "tela.jpg")
         sent = json.loads(request.call_args.args[0].data.decode("utf-8"))
-        self.assertEqual(sent["models"][0], "nvidia/nemotron-nano-12b-v2-vl:free")
+        self.assertEqual(sent["models"][0], "google/gemma-4-26b-a4b-it:free")
         self.assertEqual(sent["messages"][-1]["content"][1]["type"], "image_url")
         self.assertIn("print da tela do Mac", sent["messages"][0]["content"])
 
