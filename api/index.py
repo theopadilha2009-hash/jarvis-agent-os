@@ -3813,7 +3813,24 @@ def apply_learned_tracks(force=False):
 
 
 def save_preference(content, metadata):
-    """Grava uma preferência falada na memória do JARVIS e derruba o cache."""
+    """Grava uma preferência falada e arquiva a anterior do mesmo gatilho.
+
+    Ensinar de novo a mesma coisa substitui em vez de acumular: a memória fica
+    com uma regra viva por gatilho, e o histórico continua arquivado.
+    """
+    trigger = quote(str(metadata.get("trigger") or ""), safe="")
+    if trigger:
+        try:
+            supabase_request(
+                "PATCH",
+                query=(
+                    "kind=eq.preference&archived_at=is.null"
+                    f"&metadata->>trigger=eq.{trigger}"
+                ),
+                body={"archived_at": datetime.now(timezone.utc).isoformat()},
+            )
+        except (OSError, ValueError):
+            pass
     body = {
         "owner_id": "theo",
         "kind": "preference",
@@ -3836,15 +3853,25 @@ def save_learned_preference(rule):
 
 
 def save_learned_note(note):
-    """Ensino que não é faixa: vira contexto inicial do JARVIS, sem executar."""
+    """Ensino que não é faixa: executa se o roteador souber, senão vira contexto."""
+    instruction = note["instruction"]
+    runnable = command_intent(instruction) in REMOTE_DEVICE_INTENTS
+    metadata = {
+        "trigger": note["trigger"],
+        "action": "run" if runnable else "note",
+        "instruction": instruction,
+    }
+    if runnable:
+        metadata["command"] = instruction
     return save_preference(
-        f"Preferência falada: quando Theo pedir “{note['trigger']}”, {note['instruction']}.",
-        {
-            "trigger": note["trigger"],
-            "action": "note",
-            "instruction": note["instruction"],
-        },
+        f"Preferência falada: quando Theo pedir “{note['trigger']}”, {instruction}.",
+        metadata,
     )
+
+
+def learned_run_rules(force=False):
+    """Regras ensinadas que executam de verdade (ação do Mac)."""
+    return learned_preferences.run_rules_from_memories(learned_preference_rows(force=force))
 
 
 def assistant_memory_rows(force=False):
@@ -12079,6 +12106,17 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         apply_learned_tracks()
 
     intent = command_intent(command)
+    # Gatilho ensinado que executa: o pedido inteiro vira a instrução guardada
+    # e o roteador normal decide o resto (abrir app, mensagem, pasta, som...).
+    if intent in REMOTE_DEVICE_INTENTS:
+        taught_command, _taught_trigger = learned_preferences.learned_command(
+            command, learned_run_rules()
+        )
+        if taught_command:
+            command = taught_command
+            body = {**body, "command": command}
+            intent = command_intent(command)
+
     action_name = action_name_for_command(command, intent)
     action = ACTION_REGISTRY[action_name]
     plan = run_plan_for(command, action_name, intent)

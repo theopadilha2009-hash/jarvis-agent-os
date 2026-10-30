@@ -4478,8 +4478,16 @@ São Paulo - SP
             "version": "13",
             "last_seen_at": "2026-08-19T20:57:00+00:00",
         }]
+        responses = [worker_row, contact_row, queued_row]
+
+        def fake_supabase(method="GET", query="", body=None, prefer="", table=MODULE.SUPABASE_MEMORY_TABLE):
+            # Preferência ensinada tem leitura própria e não consome a fila do teste.
+            if "kind=eq.preference" in (query or ""):
+                return []
+            return responses.pop(0)
+
         with patch.dict(os.environ, env, clear=False), patch.object(
-            MODULE, "supabase_request", side_effect=[worker_row, contact_row, queued_row]
+            MODULE, "supabase_request", side_effect=fake_supabase
         ) as request:
             payload, status = MODULE.command_payload(
                 {"command": "manda mensagem para Arthur dizendo estou chegando"},
@@ -4491,7 +4499,11 @@ São Paulo - SP
         self.assertEqual(status, 202)
         self.assertEqual(confirmed_status, 202)
         self.assertEqual(confirmed["job"]["target"], "…9999")
-        queued = request.call_args_list[2].kwargs["body"]
+        queued = next(
+            call.kwargs["body"]
+            for call in request.call_args_list
+            if (call.kwargs.get("body") or {}).get("action") == "message_send"
+        )
         self.assertEqual(queued["target"], "5511999999999")
         self.assertNotIn("5511999999999", json.dumps(confirmed))
 

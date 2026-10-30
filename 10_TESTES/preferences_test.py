@@ -117,6 +117,41 @@ class RulesFromMemoriesTest(unittest.TestCase):
         self.assertEqual(preferences.rules_from_memories(rows), [{"trigger": "homem de ferro", "payload": {"uri": URI}}])
 
 
+class RunRulesTest(unittest.TestCase):
+    def test_so_regra_executavel_entra(self):
+        rows = [
+            {"kind": "preference", "metadata": {"trigger": "navegador do trabalho",
+                                                "action": "run", "command": "abre o Safari"}},
+            {"kind": "preference", "metadata": {"trigger": "resumo", "action": "note",
+                                                "instruction": "responde curto"}},
+        ]
+        self.assertEqual(
+            preferences.run_rules_from_memories(rows),
+            [{"trigger": "navegador do trabalho", "command": "abre o Safari"}],
+        )
+
+    def test_pedido_casa_com_o_gatilho_ensinado(self):
+        rules = [{"trigger": "navegador do trabalho", "command": "abre o Safari"}]
+        self.assertEqual(
+            preferences.learned_command("abre o navegador do trabalho", rules),
+            ("abre o Safari", "navegador do trabalho"),
+        )
+
+    def test_sem_gatilho_nao_reescreve(self):
+        rules = [{"trigger": "navegador do trabalho", "command": "abre o Safari"}]
+        self.assertEqual(preferences.learned_command("abre o Slack", rules), ("", ""))
+
+    def test_gatilho_mais_longo_vence_na_reescrita(self):
+        rules = [
+            {"trigger": "trabalho", "command": "abre o Slack"},
+            {"trigger": "navegador do trabalho", "command": "abre o Safari"},
+        ]
+        self.assertEqual(
+            preferences.learned_command("abre o navegador do trabalho", rules)[0],
+            "abre o Safari",
+        )
+
+
 class LearnedCatalogTest(unittest.TestCase):
     def tearDown(self):
         spotify_control.set_learned_tracks([])

@@ -161,10 +161,13 @@ def _computer_fail(message: str, code: int = 1) -> None:
     raise SystemExit(code)
 
 
-def _orca_apps() -> list[dict]:
+def _orca_apps(strict: bool = True) -> list[dict]:
+    """Lista do Orca. Em modo tolerante devolve [] — abrir app não depende dele."""
     binary = shutil.which("orca")
     if not binary:
-        _computer_fail("Orca CLI ausente; instale ou abra o Orca antes de controlar o Mac.")
+        if strict:
+            _computer_fail("Orca CLI ausente; instale ou abra o Orca antes de controlar o Mac.")
+        return []
     result = subprocess.run(
         [binary, "computer", "list-apps", "--json"],
         text=True,
@@ -173,13 +176,36 @@ def _orca_apps() -> list[dict]:
         timeout=20,
     )
     if result.returncode != 0:
-        _computer_fail("o runtime de Computer Use do Orca não respondeu.")
+        if strict:
+            _computer_fail("o runtime de Computer Use do Orca não respondeu.")
+        return []
     try:
         payload = json.loads(result.stdout)
         apps = payload.get("result", {}).get("apps", [])
     except (AttributeError, json.JSONDecodeError):
-        _computer_fail("o Orca respondeu em formato inválido.")
+        if strict:
+            _computer_fail("o Orca respondeu em formato inválido.")
+        return []
     return [row for row in apps if isinstance(row, dict)]
+
+
+def _app_running_native(raw: str) -> bool | None:
+    """Estado do app sem Orca. None quando o macOS não soube responder."""
+    target, bundle_id = _app_identity(raw)
+    binary = shutil.which("osascript")
+    if not binary:
+        return None
+    reference = f'id "{bundle_id}"' if bundle_id else f'"{target}"'
+    result = subprocess.run(
+        [binary, "-e", f"application {reference} is running"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip().lower() == "true"
 
 
 def _orca_window_capture(output: Path) -> bool:
@@ -225,7 +251,7 @@ def _app_identity(raw: str) -> tuple[str, str | None]:
 
 def _running_app(raw: str) -> dict | None:
     name, bundle_id = _app_identity(raw)
-    apps = _orca_apps()
+    apps = _orca_apps(strict=False)
     if bundle_id:
         for app in apps:
             if str(app.get("bundleId") or "").casefold() == bundle_id.casefold():
@@ -267,7 +293,12 @@ def cmd_computer(args: argparse.Namespace) -> None:
             _computer_fail("o macOS não encontrou ou não abriu esse aplicativo.")
         time.sleep(0.8)
         visible = _running_app(known_bundle or name)
-        evidence = "visível para o Computer Use" if visible else "abertura aceita pelo macOS"
+        if visible:
+            evidence = "visível para o Computer Use"
+        elif _app_running_native(known_bundle or name):
+            evidence = "rodando e confirmado pelo macOS"
+        else:
+            evidence = "abertura aceita pelo macOS"
         print(f"OK — {name} aberto ({evidence}).")
         print("Produção: aplicativo local aberto; nenhum deploy alterado.")
         return
@@ -275,9 +306,40 @@ def cmd_computer(args: argparse.Namespace) -> None:
     app = _running_app(known_bundle or name)
     if not app:
         if action == "close":
-            print(f"OK — {name} já não está aberto.")
-            print("Produção: nada alterado.")
-            return
+            if not _app_running_native(known_bundle or name):
+                print(f"OK — {name} já não está aberto.")
+                print("Produção: nada alterado.")
+                return
+            if (known_bundle or "").casefold() in PROTECTED_APP_BUNDLE_IDS:
+                _computer_fail(
+                    f"{name} mantém o desktop ou o próprio worker ativo e não será fechado por este comando.", 3
+                )
+            print(f"Aplicativo: {name} (sem Orca; fechando pelo macOS)")
+            if args.dry_run:
+                print("Modo: --dry-run (aplicativo não fechado).")
+                print("Produção: nada alterado.")
+                return
+            reference = f'id "{known_bundle}"' if known_bundle else f'"{name}"'
+            binary = _require_binary("osascript")
+            try:
+                result = subprocess.run(
+                    [binary, "-e", f"tell application {reference} to quit"],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                    timeout=20,
+                )
+            except subprocess.TimeoutExpired:
+                _computer_fail("o aplicativo não respondeu ao encerramento em 20 segundos; nada foi forçado.")
+            if result.returncode != 0:
+                _computer_fail("o aplicativo recusou o pedido de encerramento.")
+            for _ in range(10):
+                time.sleep(0.25)
+                if not _app_running_native(known_bundle or name):
+                    print(f"OK — {name} fechado (confirmado pelo macOS).")
+                    print("Produção: aplicativo local fechado; nenhum deploy alterado.")
+                    return
+            _computer_fail("o aplicativo não fechou; nada foi forçado.")
         _computer_fail("aplicativo não encontrado entre as janelas visíveis.")
     bundle_id = str(app.get("bundleId") or "")
 

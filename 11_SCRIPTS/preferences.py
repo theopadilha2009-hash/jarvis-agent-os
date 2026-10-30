@@ -106,6 +106,44 @@ def parse_general_teaching(value: str) -> dict | None:
     return {"trigger": key, "action": "note", "instruction": instruction}
 
 
+def learned_command(value: str, rules) -> tuple[str, str]:
+    """Pedido que casa com gatilho ensinado e executável → (instrução, gatilho).
+
+    Devolve ("", "") quando nenhum gatilho casa. A instrução substitui o pedido
+    inteiro, então quem chama precisa reclassificar o que sobrou.
+    """
+    text = folded(value)
+    best_trigger = ""
+    best_command = ""
+    for rule in rules or ():
+        if not isinstance(rule, dict):
+            continue
+        trigger = folded(rule.get("trigger") or "")
+        command = str(rule.get("command") or "").strip()
+        if not trigger or not command:
+            continue
+        if trigger in text and len(trigger) > len(best_trigger):
+            best_trigger = trigger
+            best_command = command
+    return best_command, best_trigger
+
+
+def run_rules_from_memories(rows) -> list[dict]:
+    """Linhas de jarvis_memories → regras executáveis (action=run)."""
+    rules = []
+    for row in rows or ():
+        if not isinstance(row, dict) or row.get("kind") != "preference":
+            continue
+        metadata = row.get("metadata")
+        if not isinstance(metadata, dict) or metadata.get("action") != "run":
+            continue
+        trigger = str(metadata.get("trigger") or "").strip()
+        command = str(metadata.get("command") or "").strip()
+        if trigger and command:
+            rules.append({"trigger": trigger, "command": command})
+    return rules
+
+
 def learned_uri(value: str, rules) -> str:
     """URI da preferência que casa com o pedido; o gatilho mais longo vence."""
     text = folded(value)
