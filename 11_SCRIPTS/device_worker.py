@@ -26,7 +26,9 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
+import preferences as learned_preferences  # noqa: E402
 from spotify_control import command_args as spotify_command_args  # noqa: E402
+from spotify_control import set_learned_tracks  # noqa: E402
 from device_actions import (  # noqa: E402
     IMAGE_NATIVE_FORMATS,
     clipboard_text,
@@ -42,6 +44,7 @@ from device_actions import (  # noqa: E402
 )
 COMMANDS_TABLE = "jarvis_device_commands"
 WORKERS_TABLE = "jarvis_device_workers"
+MEMORIES_TABLE = "jarvis_memories"
 WORKER_ID = "theo-mac"
 WORKER_VERSION = "13"
 HEARTBEAT_INTERVAL_SECONDS = 15.0
@@ -505,7 +508,7 @@ def rest_request(
     body: dict | None = None,
     prefer: str = "",
 ) -> list[dict]:
-    if table not in {COMMANDS_TABLE, WORKERS_TABLE}:
+    if table not in {COMMANDS_TABLE, WORKERS_TABLE, MEMORIES_TABLE}:
         raise WorkerError("Tabela fora do allowlist do worker.")
     base_url, api_key = configuration()
     url = f"{base_url}/rest/v1/{table}"
@@ -533,6 +536,38 @@ def rest_request(
     except json.JSONDecodeError as error:
         raise WorkerError("Supabase respondeu em formato inválido.") from error
     return parsed if isinstance(parsed, list) else []
+
+
+_LEARNED_TRACKS_CACHE = {"rules": [], "expires_at": 0.0}
+LEARNED_TRACKS_CACHE_SECONDS = 30.0
+
+
+def refresh_learned_tracks(force: bool = False) -> None:
+    """Aplica no worker as preferências que o Theo ensinou falando.
+
+    O gateway manda o pedido original na fila, então quem toca a faixa precisa
+    conhecer a mesma preferência. Sem memória acessível o catálogo fixo vale e
+    o job não morre por causa disso.
+    """
+    now = time.monotonic()
+    if not force and now < _LEARNED_TRACKS_CACHE["expires_at"]:
+        set_learned_tracks(_LEARNED_TRACKS_CACHE["rules"])
+        return
+    try:
+        rows = rest_request(
+            MEMORIES_TABLE,
+            query=(
+                "select=kind,metadata&owner_id=eq.theo&kind=eq.preference"
+                "&archived_at=is.null&order=created_at.desc&limit=80"
+            ),
+        )
+    except WorkerError:
+        rows = []
+    rules = learned_preferences.rules_from_memories(rows)
+    _LEARNED_TRACKS_CACHE.update(
+        {"rules": rules, "expires_at": time.monotonic() + LEARNED_TRACKS_CACHE_SECONDS}
+    )
+    set_learned_tracks(rules)
 
 
 ARTIFACT_MIME = {
@@ -1166,6 +1201,7 @@ def command_argv(job: dict) -> list[str]:
     if action == "screen_capture":
         return [str(ROOT / "jarvis"), "screen-capture"]
     if action == "spotify_control":
+        refresh_learned_tracks()
         spotify_args = spotify_command_args(job_request_text(job))
         if not spotify_args:
             raise WorkerError("Controle do Spotify não reconhecido ou fora do allowlist.")

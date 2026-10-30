@@ -11,13 +11,15 @@ TRACK_URI_PATTERN = re.compile(r"^spotify:track:[A-Za-z0-9]{10,40}$")
 # "/" é necessário para "AC/DC"; ":" continua fora porque separa URI de faixa.
 SAFE_QUERY_PATTERN = re.compile(r"^[\wÀ-ÿ '&.,()_/-]{2,120}$", re.UNICODE)
 # Pedidos falados curtos → faixa allowlisted. Sem busca livre.
+# "Back In Black" — AC/DC, do álbum Iron Man 2. ID conferido por Theo em
+# open.spotify.com/track/2iEGj7kAwH7HAa5epwYwLB (2026-10-30).
+BACK_IN_BLACK_URI = "spotify:track:2iEGj7kAwH7HAa5epwYwLB"
 NAMED_TRACKS = {
-    "homem de ferro": "spotify:track:4svkPL62HbvyFgf0nHFXAF",
-    "iron man": "spotify:track:4svkPL62HbvyFgf0nHFXAF",
-    # Verificado em open.spotify.com/track/08mG3Y1vljYA6bvDt4Wqkj (2026-10-29):
-    # "Back In Black" — AC/DC, do álbum Iron Man 2 (Compilation).
-    # NÃO reutilizar o ID do Iron Man acima: são faixas diferentes.
-    "back in black": "spotify:track:08mG3Y1vljYA6bvDt4Wqkj",
+    # Escolha do Theo (2026-10-30): "música do Homem de Ferro" é a do CD do
+    # Iron Man 2, não o Iron Man do Black Sabbath.
+    "homem de ferro": BACK_IN_BLACK_URI,
+    "iron man": BACK_IN_BLACK_URI,
+    "back in black": BACK_IN_BLACK_URI,
 }
 
 
@@ -26,9 +28,39 @@ def folded(value: str) -> str:
     return "".join(char for char in normalized if not unicodedata.combining(char)).casefold()
 
 
+# Preferências que o Theo ensinou falando (jarvis_memories, kind=preference).
+# Vencem o catálogo fixo: quem manda é o que ele pediu por último, não o código.
+_LEARNED_TRACKS: dict[str, str] = {}
+
+
+def set_learned_tracks(rules) -> None:
+    """Regras de preferences.rules_from_memories() → gatilho normalizado e URI."""
+    global _LEARNED_TRACKS
+    learned = {}
+    for rule in rules or ():
+        if not isinstance(rule, dict):
+            continue
+        payload = rule.get("payload")
+        uri = payload.get("uri") if isinstance(payload, dict) else ""
+        trigger = folded(rule.get("trigger") or "")
+        if trigger and isinstance(uri, str) and TRACK_URI_PATTERN.fullmatch(uri):
+            learned[trigger] = uri
+    _LEARNED_TRACKS = learned
+
+
+def learned_tracks() -> dict[str, str]:
+    return dict(_LEARNED_TRACKS)
+
+
 def resolve_track(value: str) -> tuple[str, str]:
     """Nome falado → (uri, nome canônico). ("", "") quando fora do catálogo."""
     text = folded(value)
+    best = ""
+    for name in _LEARNED_TRACKS:
+        if name in text and len(name) > len(best):
+            best = name
+    if best:
+        return _LEARNED_TRACKS[best], best
     for name, uri in NAMED_TRACKS.items():
         if name in text:
             return uri, name

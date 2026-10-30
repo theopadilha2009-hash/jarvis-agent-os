@@ -1384,8 +1384,8 @@ class WebGatewayTest(unittest.TestCase):
             "volume do Spotify para 35": "./jarvis spotify volume 35",
             "o que está tocando no Spotify": "./jarvis spotify status",
             "busque no Spotify Daft Punk": "./jarvis spotify search 'Daft Punk'",
-            "toca a música do homem de ferro": "./jarvis spotify play-uri spotify:track:4svkPL62HbvyFgf0nHFXAF",
-            "abre o Spotify com a música do Homem de Ferro": "./jarvis spotify play-uri spotify:track:4svkPL62HbvyFgf0nHFXAF",
+            "toca a música do homem de ferro": "./jarvis spotify play-uri spotify:track:2iEGj7kAwH7HAa5epwYwLB",
+            "abre o Spotify com a música do Homem de Ferro": "./jarvis spotify play-uri spotify:track:2iEGj7kAwH7HAa5epwYwLB",
         }
         with patch.object(MODULE, "supabase_configured", return_value=False):
             for command, expected in cases.items():
