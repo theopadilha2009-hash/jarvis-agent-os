@@ -4742,7 +4742,7 @@ def supabase_agenda_command(command, intent):
                 "endpoint": "POST /command",
                 "status_real": "supabase_agenda_persisted",
                 "visual_state": "planning",
-                "message": "Guardei na agenda privada do JARVIS com horário confirmado." if scheduled_for else "Guardei na agenda privada do JARVIS.",
+                "message": "Anotei na agenda, com horário." if scheduled_for else "Anotei na agenda.",
                 "intent": intent,
                 "provider": "supabase_agenda",
                 "agenda": [{
@@ -4801,7 +4801,11 @@ def supabase_agenda_command(command, intent):
             "endpoint": "POST /command",
             "status_real": "supabase_agenda_read",
             "visual_state": "planning",
-            "message": f"Você tem {len(rows)} item(ns) pendente(s) na agenda privada.",
+            "message": (
+                "Agenda limpa, nada pendente."
+                if not rows
+                else f"Você tem {spoken_count(len(rows))} na agenda: {spoken_list(agenda_spoken_summary(rows))}."
+            ),
             "intent": intent,
             "provider": "supabase_agenda",
             "agenda": rows,
@@ -12020,10 +12024,26 @@ IRON_STYLE_PATTERN = re.compile(
     r"\b(?:estilo|modo|vibe)\s+(?:homem\s+de\s+ferro|iron\s*man|stark)\b", re.I
 )
 WEEKDAYS_PT = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
+MONTHS_PT = (
+    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+)
+
+
+def spoken_date(value):
+    """Data que soa bem falada: "3 de novembro", nunca "03/11"."""
+    raw = clean_text(value, 40)
+    if not raw:
+        return ""
+    try:
+        due = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone()
+    except ValueError:
+        return ""
+    return f"{due.day} de {MONTHS_PT[due.month - 1]}"
 
 
 def agenda_spoken_summary(rows, limit=5):
-    """Agenda em fala curta: título e dia, sem jargão de banco."""
+    """Agenda em fala curta: título e dia em palavras, sem jargão de banco."""
     parts = []
     for row in rows or ():
         if not isinstance(row, dict):
@@ -12031,18 +12051,34 @@ def agenda_spoken_summary(rows, limit=5):
         title = clean_text(row.get("title"), 120)
         if not title:
             continue
-        when = ""
-        raw = clean_text(row.get("scheduled_for"), 40)
-        if raw:
-            try:
-                due = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone()
-                when = f" ({WEEKDAYS_PT[due.weekday()]}, {due.strftime('%d/%m')})"
-            except ValueError:
-                when = ""
-        parts.append(f"{title}{when}")
+        # Minúscula no começo: o item entra no meio da frase, não como bullet.
+        line = title[0].lower() + title[1:]
+        when = spoken_date(row.get("scheduled_for"))
+        if when:
+            line = f"{line}, dia {when}"
+        parts.append(line)
         if len(parts) >= limit:
             break
     return parts
+
+
+def spoken_count(value):
+    """Contagem falada: "uma coisa", "3 coisas". Nunca "item(ns)"."""
+    number = int(value or 0)
+    if number == 1:
+        return "uma coisa"
+    if number == 0:
+        return "nenhuma coisa"
+    return f"{number} coisas"
+
+
+def spoken_list(parts):
+    """Lista falada: vírgulas e um "e" antes do último item."""
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    return ", ".join(parts[:-1]) + " e " + parts[-1]
 
 
 def iron_style_payload():
@@ -12066,16 +12102,17 @@ def iron_style_payload():
     except (OSError, ValueError):
         items = []
 
-    agenda = "; ".join(items) if items else ""
-    if agenda:
+    # Duas frases no máximo: o app fala só as duas primeiras, então a agenda
+    # precisa caber na segunda.
+    if items:
         message = (
-            "Beleza. Back in Black no ar, modo Homem de Ferro ligado. "
-            f"Na agenda: {agenda}. É isso, sem drama."
+            "Beleza, modo Homem de Ferro ligado e Back in Black tocando. "
+            f"Sua agenda: {spoken_list(items)}."
         )
     else:
         message = (
-            "Beleza. Back in Black no ar, modo Homem de Ferro ligado. "
-            "Agenda limpa, nada pendente. É isso."
+            "Beleza, modo Homem de Ferro ligado e Back in Black tocando. "
+            "Agenda limpa, nada pendente."
         )
 
     queued = None
@@ -12251,7 +12288,7 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             "visual_state": "memory",
             "intent": intent,
             "provider": "sqlite_local_index",
-            "message": f"Encontrei {search['count']} memória(s) para “{query}”.",
+            "message": f"Achei {spoken_count(search['count'])} sobre “{query}”.",
             "memory_results": search["results"],
             "index": search["index"],
         }
