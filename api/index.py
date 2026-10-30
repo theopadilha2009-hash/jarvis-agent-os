@@ -6868,6 +6868,10 @@ def browser_open_payload(command, owner_authenticated=False):
         return None
     if device_actions.mac_open_requested(text):
         return None
+    # Spotify é app do Mac, nunca aba do navegador. Sem isto o
+    # browser_open_payload (chamado antes dos intents) abria uma aba por pedido.
+    if SPOTIFY_CONTROL_PATTERN.search(text):
+        return None
 
     def payload(url, label, message=None):
         return {
