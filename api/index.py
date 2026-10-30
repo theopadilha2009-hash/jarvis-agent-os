@@ -12416,26 +12416,32 @@ def set_draft_shortcut(command, owner_authenticated):
 
     stage = clean_text(draft.get("stage"), 20)
     if stage == "trigger":
-        name = personal_sets.parse_trigger(command) or re.sub(r"\s+", " ", command).strip(" .,!?")
-        if len(name) < 3:
+        name = personal_sets.parse_trigger(command)
+        if not name:
             return {
                 "ok": False,
                 "endpoint": "POST /command",
-                "status_real": "set_trigger_too_short",
+                "status_real": "set_trigger_unrecognized",
                 "visual_state": "error",
                 "intent": "set_create",
-                "error": "Escolhe uma frase maior pra ativar o set.",
+                "error": "Não peguei o nome do set. Fala assim: estilo foco. Pra sair, diz cancela.",
             }, 400
+        try:
+            moved = save_preference(
+                f"Set em construção: gatilho “{name}”, aguardando os passos.",
+                {
+                    "action": "set_draft",
+                    "stage": "steps",
+                    "trigger": name,
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        except (OSError, ValueError):
+            moved = None
+        if not moved:
+            # Sem a nova cópia, o rascunho antigo fica: nada se perde.
+            return preference_error("preference_not_saved", "O Supabase recusou o rascunho; nada mudou.")
         archive_preference(draft.get("id"))
-        save_preference(
-            f"Set em construção: gatilho “{name}”, aguardando os passos.",
-            {
-                "action": "set_draft",
-                "stage": "steps",
-                "trigger": name,
-                "started_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
         return {
             "ok": True,
             "endpoint": "POST /command",
@@ -12460,13 +12466,17 @@ def set_draft_shortcut(command, owner_authenticated):
             }, 400
         trigger = clean_text(draft.get("trigger"), 80)
         description = personal_sets.describe_steps(steps)
-        archive_preference(draft.get("id"))
-        saved = save_preference(
-            f"Set “{trigger}”: quando Theo pedir “{trigger}”, {description}.",
-            {"action": "set", "trigger": trigger, "steps": steps, "reply": ""},
-        )
+        try:
+            saved = save_preference(
+                f"Set “{trigger}”: quando Theo pedir “{trigger}”, {description}.",
+                {"action": "set", "trigger": trigger, "steps": steps, "reply": ""},
+            )
+        except (OSError, ValueError):
+            saved = None
         if not saved:
-            return preference_error("preference_not_saved", "O Supabase recusou o set.")
+            # Rascunho intacto: ele pode tentar de novo sem repetir tudo.
+            return preference_error("preference_not_saved", "O Supabase recusou o set; o rascunho continua aberto.")
+        archive_preference(draft.get("id"))
         return {
             "ok": True,
             "endpoint": "POST /command",
@@ -12614,7 +12624,7 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
 
     if intent == "message_send" and not message_send_details(command):
         alias_shape = re.search(
-            r"(?i)\b(?:mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,30}\bpara\s+"
+            r"(?i)\b(?:mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,30}\b(?:para|pra|pro|ao|a)\s+"
             r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ ._-]{1,80}\s+(?:dizendo|falando|com\s+(?:o\s+)?texto)\s+.+",
             command,
         )

@@ -27,7 +27,20 @@ CREATE_PATTERN = re.compile(
     re.I,
 )
 
-CANCEL_PATTERN = re.compile(r"^\s*(?:cancela(?:r)?|deixa|para|esquece|nada)\b", re.I)
+# Ancorado e estreito: "deixa" e "para" sozinhos engoliam comandos normais.
+CANCEL_PATTERN = re.compile(
+    r"^\s*(?:cancela(?:r)?(?:\s+(?:isso|tudo))?|esquece(?:\s+isso)?|"
+    r"deixa\s+(?:pra|para)\s+depois|nada\s+n[ãa]o)\s*[.!?]*\s*$",
+    re.I,
+)
+
+# Verbo de comando no começo = pedido, não nome de set.
+COMMAND_VERBS = re.compile(
+    r"^\s*(?:abr[ae]|fech[ae]|toc[ae]|paus[ae]|mand[ae]|envi[ae]|cri[ae]|anot[ae]|"
+    r"salv[ae]|lembr[ae]|p[oõ]e|coloc[ae]|deix[ae]|mud[ae]|troc[ae]|aument[ae]|"
+    r"diminu[ae]|mostr[ae]|ver|list[ae]|quant[oa]|que|qual|quais|o\s+que)\b",
+    re.I,
+)
 
 CONFIRM_PATTERN = re.compile(r"^\s*(?:sim|isso|pode|beleza|fechado|salva|confirma|ok)\b", re.I)
 
@@ -63,7 +76,11 @@ def parse_trigger(value: str) -> str:
     text = re.sub(r"\s+", " ", str(value or "")).strip(" .,!?")
     if not text or len(text) < 3 or len(text) > 60:
         return ""
-    if TRIGGER_PATTERN.match(text) or len(text.split()) <= 3:
+    if TRIGGER_PATTERN.match(text):
+        return text
+    # Nome curto vale ("foco"), mas comando não: com o rascunho aberto, um
+    # "abre o Slack" viraria gatilho e sequestraria o pedido para sempre.
+    if len(text.split()) <= 3 and not COMMAND_VERBS.match(text):
         return text
     return ""
 

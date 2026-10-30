@@ -21,6 +21,11 @@ class GatilhoTest(unittest.TestCase):
     def test_frase_curta_sem_prefixo_vale(self):
         self.assertEqual(sets.parse_trigger("foco"), "foco")
 
+    def test_comando_nao_vira_gatilho(self):
+        # Com o rascunho aberto, "abre o Slack" viraria gatilho permanente.
+        for frase in ("abre o Slack", "toca back in black", "cria uma nota", "manda pro Arthur"):
+            self.assertEqual(sets.parse_trigger(frase), "", frase)
+
     def test_frase_longa_nao_e_gatilho(self):
         self.assertEqual(sets.parse_trigger("toca back in black agora por favor"), "")
         self.assertEqual(sets.parse_trigger("quero criar um set novo"), "")
@@ -109,9 +114,12 @@ class PadroesDoFluxoTest(unittest.TestCase):
             self.assertIsNone(sets.CREATE_PATTERN.search(frase), frase)
 
     def test_cancelar(self):
-        self.assertIsNotNone(sets.CANCEL_PATTERN.match("cancela"))
-        self.assertIsNotNone(sets.CANCEL_PATTERN.match("deixa pra depois"))
-        self.assertIsNone(sets.CANCEL_PATTERN.match("estilo foco"))
+        for frase in ("cancela", "cancela isso", "deixa pra depois", "esquece isso"):
+            self.assertIsNotNone(sets.CANCEL_PATTERN.match(frase), frase)
+
+    def test_cancelar_nao_engole_comando_normal(self):
+        for frase in ("estilo foco", "deixa o volume em 30", "para o spotify", "toca back in black"):
+            self.assertIsNone(sets.CANCEL_PATTERN.match(frase), frase)
 
 
 if __name__ == "__main__":
