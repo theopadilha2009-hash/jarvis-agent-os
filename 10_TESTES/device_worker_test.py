@@ -283,11 +283,14 @@ class DeviceWorkerTest(unittest.TestCase):
             [
                 str(ROOT / "jarvis"),
                 "self-edit",
+                "--publish",
                 "--",
                 "melhore seus próprios scripts, publique e faça deploy",
-                "--publish",
             ],
         )
+        # Depois do "--" tudo é posicional: a flag tem que vir antes, senão o
+        # argparse guarda "--publish" como texto do objetivo e não publica.
+        self.assertLess(self_publish.index("--publish"), self_publish.index("--"))
         with self.assertRaises(MODULE.WorkerError):
             MODULE.command_argv({
                 "action": "self_edit",
@@ -608,6 +611,38 @@ class DeviceWorkerTest(unittest.TestCase):
     def test_artifact_delete_rejects_paths_outside_private_prefix(self):
         with self.assertRaises(MODULE.WorkerError):
             MODULE.delete_private_artifact("someone-else/file.png")
+
+    def test_artifact_path_accepts_what_the_upload_builds(self):
+        # upload_private_artifact monta "theo/<id>-<nome>.<ext>"; se o validador
+        # rejeitar isso, a retenção nunca roda e derruba o laço do worker.
+        self.assertEqual(
+            MODULE._safe_artifact_path("theo/23-screenshot-20261030-120000.png"),
+            "theo/23-screenshot-20261030-120000.png",
+        )
+        self.assertEqual(
+            MODULE._safe_artifact_path("theo/inbox/20261030120000-foto.png"),
+            "theo/inbox/20261030120000-foto.png",
+        )
+
+    def test_artifact_path_still_blocks_traversal(self):
+        for bad in ("theo/x/../../alvo.png", "outro/arquivo.png", "theo/../etc/passwd"):
+            with self.assertRaises(MODULE.WorkerError, msg=bad):
+                MODULE._safe_artifact_path(bad)
+
+    def test_artifact_retention_survives_one_bad_row(self):
+        rows = [
+            {"id": 30, "artifact_path": "theo/30-quebrado.png", "completed_at": "2026-06-01T00:00:00+00:00"},
+        ] + [
+            {"id": i, "artifact_path": f"theo/{i}-ok.png", "completed_at": "2026-08-07T12:00:00+00:00"}
+            for i in range(20)
+        ]
+        with patch.object(MODULE, "rest_request", return_value=rows), patch.object(
+            MODULE, "delete_private_artifact", side_effect=MODULE.WorkerError("fora do prefixo")
+        ):
+            # Não levanta: uma linha ruim não pode travar a retenção inteira.
+            self.assertEqual(MODULE.prune_private_artifacts(
+                now=datetime(2026, 8, 7, 18, 0, tzinfo=timezone.utc)
+            ), 0)
 
     def test_watch_defaults_keep_polling_lightweight(self):
         args = MODULE.build_parser().parse_args(["--watch"])

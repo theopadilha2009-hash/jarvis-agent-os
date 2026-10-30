@@ -6665,6 +6665,19 @@ REMINDER_DURATION_PATTERN = re.compile(
 REMINDER_CLOCK_PATTERN = re.compile(r"\b(?:às|as)\s+(\d{1,2})\s*(?:[h:]\s*(\d{1,2})?)?\b", re.I)
 
 
+REMINDER_TIMEZONE = os.environ.get("JARVIS_TIMEZONE", "America/Sao_Paulo")
+
+
+def owner_timezone():
+    """Fuso do relógio do dono — o gateway roda em UTC, o Mac dele não."""
+    try:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo(REMINDER_TIMEZONE)
+    except (ImportError, KeyError, ValueError):
+        return datetime.now().astimezone().tzinfo or timezone.utc
+
+
 def parse_reminder_request(command):
     """\"me lembra em 20 minutos de ligar pro Ruan\" → lembrete agendado.
 
@@ -6674,7 +6687,10 @@ def parse_reminder_request(command):
     text = clean_text(command, 400)
     if not re.search(r"\b(?:me\s+)?lembr(?:a|e)\b", text, re.I):
         return None
-    due_epoch = 0.0
+    # O gateway roda em UTC no Vercel e o Mac do Theo em America/Sao_Paulo.
+    # Contar no fuso do processo fazia "em 20 minutos" cair 3h no futuro quando
+    # o worker lia a hora como local — o prazo é sempre do relógio do dono.
+    reference = datetime.now(owner_timezone())
     # "amanhã às 9h" não pode virar hoje às 9h só porque 9h ainda não passou.
     day_offset = 0
     if re.search(r"\bdepois\s+de\s+amanh[ãa]\b", text, re.I):
@@ -6686,13 +6702,11 @@ def parse_reminder_request(command):
         hour, minute = int(clock.group(1)), int(clock.group(2) or 0)
         if hour > 23 or minute > 59:
             return None
-        local_now = time.localtime()
-        due_epoch = time.mktime((
-            local_now.tm_year, local_now.tm_mon, local_now.tm_mday + day_offset,
-            hour, minute, 0, 0, 0, -1,
-        ))
-        if day_offset == 0 and due_epoch <= time.time():
-            due_epoch += 86_400
+        due_at = (reference + timedelta(days=day_offset)).replace(
+            hour=hour, minute=minute, second=0, microsecond=0
+        )
+        if day_offset == 0 and due_at <= reference:
+            due_at += timedelta(days=1)
     else:
         duration = REMINDER_DURATION_PATTERN.search(text)
         if not duration:
@@ -6700,7 +6714,7 @@ def parse_reminder_request(command):
         hours, minutes, seconds = (int(group or 0) for group in duration.groups())
         if hours + minutes + seconds <= 0:
             return None
-        due_epoch = time.time() + hours * 3_600 + minutes * 60 + seconds
+        due_at = reference + timedelta(hours=hours, minutes=minutes, seconds=seconds)
     # Label = o que vier depois do prazo. O fim do prazo é a posição do
     # match de duração/hora; antes disso é verbo e período, depois é o pedido.
     span_end = (clock or duration).end() if (clock or duration) else 0
@@ -6719,7 +6733,7 @@ def parse_reminder_request(command):
         return None
     return {
         "schema": "jarvis-reminder/1",
-        "due": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(due_epoch)),
+        "due": due_at.strftime("%Y-%m-%dT%H:%M:%S"),
         "text": label,
     }
 
@@ -12384,6 +12398,9 @@ def set_draft_shortcut(command, owner_authenticated):
     draft = active_set_draft()
     if not draft:
         return None
+    # O rascunho é do dono: sem pairing, visitante não responde por ele.
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
     if personal_sets.CANCEL_PATTERN.match(command):
         archive_preference(draft.get("id"))
         return {

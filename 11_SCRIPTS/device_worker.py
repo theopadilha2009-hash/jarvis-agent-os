@@ -627,7 +627,9 @@ def _safe_artifact_path(object_path: str) -> str:
     safe_path = str(object_path or "").strip("/")
     if any(part in (".", "..") for part in safe_path.split("/")):
         raise WorkerError("Artefato fora do prefixo privado permitido.")
-    if not re.fullmatch(r"theo/[A-Za-z0-9_-]+(?:/[A-Za-z0-9._-]+)*/?", safe_path):
+    # O primeiro segmento precisa aceitar ponto: o upload monta
+    # "theo/<id>-<nome>.<ext>" e sem isso o worker rejeitava o próprio arquivo.
+    if not re.fullmatch(r"theo/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*/?", safe_path):
         raise WorkerError("Artefato fora do prefixo privado permitido.")
     return safe_path
 
@@ -1188,9 +1190,12 @@ def command_argv(job: dict) -> list[str]:
             # qualquer flag) viraria opção real do argparse, contornando o
             # self_publish_requested. O objetivo do pedido nunca começa com "-".
             raise WorkerError("Autoedição recebida com argumento inválido.")
-        argv = [str(ROOT / "jarvis"), "self-edit", "--", request_text]
+        argv = [str(ROOT / "jarvis"), "self-edit"]
+        # A flag tem que vir ANTES do "--": depois dele tudo é posicional e o
+        # "--publish" viraria texto do objetivo (publicação silenciosamente pulada).
         if self_publish_requested(request_text):
             argv.append("--publish")
+        argv.extend(["--", request_text])
         return argv
     if action == "system_memory":
         argv = [str(ROOT / "jarvis"), "system-memory"]
@@ -1488,7 +1493,13 @@ def prune_private_artifacts(now: datetime | None = None) -> int:
         artifact_path = str(row.get("artifact_path") or "")
         if not re.fullmatch(r"[0-9]{1,18}", str(command_id or "")):
             continue
-        delete_private_artifact(artifact_path)
+        try:
+            delete_private_artifact(artifact_path)
+        except WorkerError as error:
+            # Uma linha ruim não pode travar a retenção inteira (nem o worker):
+            # o caminho fica registrado e o laço segue.
+            print(f"Retenção: não removi o artefato {command_id} ({error}).", flush=True)
+            continue
         rest_request(
             COMMANDS_TABLE,
             "PATCH",
@@ -1529,8 +1540,10 @@ def run_once(preview: bool = False) -> str:
         return f"Ação {command_id} já foi assumida por outro worker."
     try:
         succeeded, output = execute_job(claimed)
-    except WorkerError as error:
-        succeeded, output = False, str(error)
+    except (WorkerError, OSError, subprocess.SubprocessError) as error:
+        # TimeoutExpired (subprocess) e OSError de disco não são WorkerError:
+        # sem esta captura o daemon morria e o job ficava preso em "running".
+        succeeded, output = False, f"{type(error).__name__}: {error}"
     artifact_path = ""
     artifact_mime = ""
     if succeeded and action in {"screen_capture", "image_convert"}:
@@ -1741,10 +1754,16 @@ def main() -> int:
                                 )
                             last_recovery = monotonic_now
                         if monotonic_now - last_retention >= RETENTION_INTERVAL_SECONDS:
-                            removed = prune_private_artifacts()
+                            # Avança o relógio antes de tentar: se a retenção falhar,
+                            # o laço não volta a tentar a cada 3s em cima da fila.
+                            last_retention = monotonic_now
+                            try:
+                                removed = prune_private_artifacts()
+                            except WorkerError as error:
+                                removed = 0
+                                print(f"Retenção pulada: {error}", flush=True)
                             if removed:
                                 print(f"Retenção: {removed} preview(s) remoto(s) antigo(s) removido(s).", flush=True)
-                            last_retention = monotonic_now
                         message = run_once()
                         if not message.startswith("Fila vazia"):
                             print(message, flush=True)
