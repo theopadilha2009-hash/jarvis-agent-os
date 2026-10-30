@@ -751,6 +751,10 @@ Sprint 5 fecha as lacunas confiabilidade do Sprint 4:
 - **report-apply** define `next_command = ./jarvis gate-run` após
   sucesso, fechando o loop.
 - **run-prune --keep N --dry-run/--apply** limpa run packages antigos.
+- **Sets pessoais (voz)**: "quero criar um set novo" abre um rascunho, o JARVIS
+  pergunta a frase de ativação e o que fazer, e guarda na memória do dono
+  (`jarvis_memories`, `metadata.action=set`). Depois, dizer o gatilho executa os
+  passos no Mac e/ou no app (tema). O modo Homem de Ferro é o set embutido.
 - **`./jarvis cleanup --days N --dry-run/--apply`** limpa e compacta tudo: fila do Mac, memória,
   runs, planos, blueprints, handoffs, logs e relatórios. Só apaga o que é gitignored.
   Agendado semanalmente (domingo 03:00) pelo LaunchAgent `ai.theopadilha.jarvis-cleanup`,

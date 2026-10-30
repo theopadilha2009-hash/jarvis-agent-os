@@ -18,7 +18,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261030-voz2";
+  const SHELL_VERSION = "20261030-set1";
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
@@ -891,6 +891,12 @@
         revealLogin();
         cancelPark();
         nativeWindow("focus");
+      }
+      // Set pessoal pode pedir tema ("muda pro claro"): é do app, não do Mac.
+      if (data.client_action === "theme" && data.theme) {
+        const value = data.theme === "light" ? "light" : "dark";
+        document.documentElement.dataset.theme = value;
+        try { localStorage.setItem("jarvis-theme", value); } catch (e) { /* web */ }
       }
       const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
       if (data.client_action === "quiet_mode" || isQuietAsk(command)) {
