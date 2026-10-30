@@ -149,6 +149,29 @@ def notify_text(command: str, raw: str = "") -> str:
     return _clean_body(match.group("body")) if match else ""
 
 
+SHORT_VOLUME_PATTERN = re.compile(
+    r"^\s*(?:jarvis[,\s]+)?(?:"
+    r"(?:p[oõ]e|coloca|deixa)\s+(?:no\s+)?mudo|mut[ae]|desmut[ae]|"
+    r"volume\s+(?:para|em|no)?\s*\d{1,3}|volume\s+(?:no\s+)?m[aá]xim[oa]"
+    r")\s*[.!?]*\s*$",
+    re.I,
+)
+
+
+def _volume_level_from_short_form(command: str) -> int | None:
+    """"põe no mudo", "volume 30", "volume no máximo" — frases curtas de casa."""
+    text = command.strip()
+    if not SHORT_VOLUME_PATTERN.fullmatch(text):
+        return None
+    if re.search(r"\bm[aá]xim[oa]\b", text, re.I):
+        return 100
+    number = re.search(r"\b(\d{1,3})\b", text)
+    if number:
+        level = int(number.group(1))
+        return level if 0 <= level <= 100 else None
+    return 0
+
+
 def volume_level(command: str, target: str = "", raw: str = "") -> int | None:
     if re.fullmatch(r"\d{1,3}", str(target or "").strip()):
         level = int(target)
@@ -162,7 +185,7 @@ def volume_level(command: str, target: str = "", raw: str = "") -> int | None:
         return level if 0 <= level <= 100 else None
     match = VOLUME_PATTERN.search(str(command or ""))
     if not match:
-        return None
+        return _volume_level_from_short_form(str(command or ""))
     if match.group("mute") or re.search(r"\b(?:silenci|mute)\b", match.group(0), re.I):
         return 0
     if match.group("max"):

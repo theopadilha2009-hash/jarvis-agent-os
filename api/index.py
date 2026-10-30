@@ -2495,7 +2495,12 @@ LOCAL_INTENTS = (
     (CLIPBOARD_SET_PATTERN, "clipboard_set"),
     (OPEN_FOLDER_PATTERN, "open_folder"),
     (NOTIFY_MAC_PATTERN, "notify"),
+    # Frases curtas de casa: "põe no mudo", "volume 30", "volume no máximo".
+    (device_actions.SHORT_VOLUME_PATTERN, "volume_set"),
     (VOLUME_MAC_PATTERN, "volume_set"),
+    (re.compile(r"\b(?:espa[çc]o\s+(?:livre|em\s+disco|no\s+disco)|disco\s+cheio|quanto\s+(?:de\s+)?espa[çc]o)\b", re.I), "storage_scan"),
+    (re.compile(r"\b(?:mem[oó]ria\s+(?:do|no|livre)\s+(?:mac|computador)|quanto\s+(?:de\s+)?mem[oó]ria|ram\s+(?:do|no)\s+mac)\b", re.I), "system_memory"),
+    (re.compile(r"\b(?:o\s+que|quais)\b.{0,40}\b(?:tenho|tem)\b.{0,25}\b(?:hoje|amanh[ãa]|essa\s+semana|esta\s+semana)\b", re.I), "agenda_view"),
     (OPEN_URL_MAC_PATTERN, "open_url"),
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
     (re.compile(r"\b(abr(?:a|e|ir)|inici(?:a|e|ar)|grav(?:a|e|ar))\b.{0,50}\b(gravador|grava[cç][aã]o|tela)\b", re.I), "screen_record"),
@@ -2508,7 +2513,11 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,60}\bcontatos?\b", re.I), "contact_view"),
     (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
-    (re.compile(r"\b(?:me\s+)?lembr(?:a|e)\b.{0,30}\b(?:em|daqui\s+a)\b.{1,60}|(?:me\s+)?lembr(?:a|e)\b.{0,20}\b(?:[àa]s)\s+\d{1,2}[h:]\d{0,2}\b.{1,60}", re.I), "reminder_set"),
+    (re.compile(
+        r"\b(?:me\s+)?lembr(?:a|e)\b.{0,40}\b(?:em|daqui\s+a)\b.{0,80}"
+        r"|(?:me\s+)?lembr(?:a|e)\b.{0,40}\b(?:[àa]s)\s+\d{1,2}(?:[h:]\d{0,2})?\b.{0,80}",
+        re.I,
+    ), "reminder_set"),
     (FOCUS_TRIGGER_PATTERN, "focus_set"),
     (AGENDA_NOTE_PATTERN, "agenda_note"),
     (re.compile(r"\b(conclu(?:a|i|ir)|finaliz(?:a|e|ar)|marc(?:a|e|ar))\b.{0,60}\b(?:item|tarefa|lembrete|agenda)\s*#?\s*\d+\b", re.I), "agenda_complete"),
@@ -6652,7 +6661,7 @@ REMINDER_DURATION_PATTERN = re.compile(
     r"(?:(\d{1,3})\s*(?:segundos?|segs?|seg|s)\b)?",
     re.I,
 )
-REMINDER_CLOCK_PATTERN = re.compile(r"\b(?:às|as)\s+(\d{1,2})[h:](\d{2})\b", re.I)
+REMINDER_CLOCK_PATTERN = re.compile(r"\b(?:às|as)\s+(\d{1,2})\s*(?:[h:]\s*(\d{1,2})?)?\b", re.I)
 
 
 def parse_reminder_request(command):
@@ -6665,16 +6674,23 @@ def parse_reminder_request(command):
     if not re.search(r"\b(?:me\s+)?lembr(?:a|e)\b", text, re.I):
         return None
     due_epoch = 0.0
+    # "amanhã às 9h" não pode virar hoje às 9h só porque 9h ainda não passou.
+    day_offset = 0
+    if re.search(r"\bdepois\s+de\s+amanh[ãa]\b", text, re.I):
+        day_offset = 2
+    elif re.search(r"\bamanh[ãa]\b", text, re.I):
+        day_offset = 1
     clock = REMINDER_CLOCK_PATTERN.search(text)
     if clock:
-        hour, minute = int(clock.group(1)), int(clock.group(2))
+        hour, minute = int(clock.group(1)), int(clock.group(2) or 0)
         if hour > 23 or minute > 59:
             return None
         local_now = time.localtime()
         due_epoch = time.mktime((
-            local_now.tm_year, local_now.tm_mon, local_now.tm_mday, hour, minute, 0, 0, 0, -1,
+            local_now.tm_year, local_now.tm_mon, local_now.tm_mday + day_offset,
+            hour, minute, 0, 0, 0, -1,
         ))
-        if due_epoch <= time.time():
+        if day_offset == 0 and due_epoch <= time.time():
             due_epoch += 86_400
     else:
         duration = REMINDER_DURATION_PATTERN.search(text)
@@ -6689,6 +6705,17 @@ def parse_reminder_request(command):
     span_end = (clock or duration).end() if (clock or duration) else 0
     label = clean_text(text[span_end:].strip(" ,.:;-"), 300)
     label = re.sub(r"^(?:de|que|para|sobre)\s+", "", label, flags=re.I)
+    if not label:
+        # "me lembra DE LIGAR PRO ARTHUR amanhã às 9h": o pedido vem antes do prazo.
+        label = clean_text(text[: (clock or duration).start()], 300)
+        label = re.sub(
+            r"^\s*(?:jarvis[,\s]+)?(?:me\s+)?lembr(?:a|e)(?:\s+de)?\s*", "", label, flags=re.I
+        )
+        label = re.sub(r"\b(?:depois\s+de\s+amanh[ãa]|amanh[ãa]|hoje)\b", "", label, flags=re.I)
+        label = clean_text(label.strip(" ,.:;-"), 300)
+    if not label:
+        # Prazo sem pedido não é lembrete: melhor recusar do que agendar vazio.
+        return None
     return {
         "schema": "jarvis-reminder/1",
         "due": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(due_epoch)),
