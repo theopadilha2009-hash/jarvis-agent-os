@@ -3783,23 +3783,39 @@ def apply_learned_tracks(force=False):
     return rules
 
 
-def save_learned_preference(rule):
-    """Grava a preferência na memória do JARVIS e derruba o cache do chat."""
-    uri = rule["payload"]["uri"]
+def save_preference(content, metadata):
+    """Grava uma preferência falada na memória do JARVIS e derruba o cache."""
     body = {
         "owner_id": "theo",
         "kind": "preference",
-        "content": f"Preferência falada: quando Theo pedir “{rule['trigger']}”, tocar {uri}.",
+        "content": content,
         "source": "jarvis-voz",
-        "metadata": {
-            "trigger": rule["trigger"],
-            "action": rule["action"],
-            "payload": {"uri": uri},
-        },
+        "metadata": metadata,
     }
     rows = supabase_request("POST", body=body, prefer="return=representation")
     invalidate_assistant_memory_cache()
     return rows[0] if isinstance(rows, list) and rows else None
+
+
+def save_learned_preference(rule):
+    """Preferência de faixa: gatilho + URI, executável pelo catálogo."""
+    uri = rule["payload"]["uri"]
+    return save_preference(
+        f"Preferência falada: quando Theo pedir “{rule['trigger']}”, tocar {uri}.",
+        {"trigger": rule["trigger"], "action": rule["action"], "payload": {"uri": uri}},
+    )
+
+
+def save_learned_note(note):
+    """Ensino que não é faixa: vira contexto inicial do JARVIS, sem executar."""
+    return save_preference(
+        f"Preferência falada: quando Theo pedir “{note['trigger']}”, {note['instruction']}.",
+        {
+            "trigger": note["trigger"],
+            "action": "note",
+            "instruction": note["instruction"],
+        },
+    )
 
 
 def assistant_memory_rows(force=False):
@@ -11989,6 +12005,43 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             "intent": "preference_learned",
             "action_executed": False,
             "message": f"Guardei: quando você pedir “{taught['trigger']}”, toco a faixa que você escolheu.",
+        }, 200
+
+    # Ensino que não é faixa (comando, jeito de falar): vira contexto, não execução.
+    note = learned_preferences.parse_general_teaching(command)
+    if note:
+        if owner_pairing_required() and not owner_authenticated:
+            return pairing_required_payload()
+        if not supabase_configured():
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "preference_storage_unavailable",
+                "visual_state": "error",
+                "intent": "preference_learned",
+                "error": "A memória do JARVIS não está configurada; não consegui guardar a preferência.",
+            }, 503
+        try:
+            saved = save_learned_note(note)
+        except (OSError, ValueError):
+            saved = None
+        if not saved:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "preference_not_saved",
+                "visual_state": "error",
+                "intent": "preference_learned",
+                "error": "O Supabase recusou a preferência; nada foi alterado.",
+            }, 502
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "preference_learned",
+            "visual_state": "success",
+            "intent": "preference_learned",
+            "action_executed": False,
+            "message": f"Guardei: quando você pedir “{note['trigger']}”, {note['instruction']}.",
         }, 200
 
     # Só pedido de música paga a leitura da memória: o resto do gateway não
