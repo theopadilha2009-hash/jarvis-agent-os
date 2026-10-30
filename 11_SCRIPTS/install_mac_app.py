@@ -65,17 +65,33 @@ def build_icon(destination: Path) -> bool:
             for name, pixels in ((f"icon_{size}x{size}.png", size), (f"icon_{size // 2}x{size // 2}@2x.png", size)):
                 if pixels // 2 < 8 and "@2x" in name:
                     continue
+                # Pad sozinho não amplia: com o logo em 148px o ícone saía
+                # com o desenho minúsculo no meio do quadrado. Redimensiona
+                # primeiro para o logo ocupar ~86% da largura.
+                scaled = iconset / f"scaled-{name}"
                 subprocess.run(
                     [
                         "sips", "-s", "format", "png",
-                        "--padToHeightWidth", str(pixels), str(pixels),
-                        "--padColor", ICON_BACKGROUND,
-                        str(LOGO), "--out", str(iconset / name),
+                        "--resampleWidth", str(max(16, int(pixels * 0.86))),
+                        str(LOGO), "--out", str(scaled),
                     ],
                     capture_output=True,
                     timeout=30,
                     check=False,
                 )
+                subprocess.run(
+                    [
+                        "sips", "-s", "format", "png",
+                        "--padToHeightWidth", str(pixels), str(pixels),
+                        "--padColor", ICON_BACKGROUND,
+                        str(scaled if scaled.is_file() else LOGO), "--out", str(iconset / name),
+                    ],
+                    capture_output=True,
+                    timeout=30,
+                    check=False,
+                )
+                if scaled.is_file():
+                    scaled.unlink()
         result = subprocess.run(
             ["iconutil", "-c", "icns", str(iconset), "-o", str(destination)],
             capture_output=True,
@@ -375,10 +391,17 @@ def install(url: str, system_wide: bool) -> Path:
     binary.chmod(0o755)
 
     info = bundle_info(url=url)
-    if ICON_ICNS.is_file():
-        shutil.copy2(ICON_ICNS, resources / "jarvis.icns")
+    # Sempre regenera a partir do LOGO. Antes só copiava o .icns versionado
+    # quando ele existia, e esse arquivo estava de setembro: o ícone do app
+    # nunca acompanhava o logo atual.
+    if build_icon(resources / "jarvis.icns"):
         info["CFBundleIconFile"] = "jarvis"
-    elif build_icon(resources / "jarvis.icns"):
+        try:
+            shutil.copy2(resources / "jarvis.icns", ICON_ICNS)
+        except OSError:
+            pass
+    elif ICON_ICNS.is_file():
+        shutil.copy2(ICON_ICNS, resources / "jarvis.icns")
         info["CFBundleIconFile"] = "jarvis"
     (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
     (resources / "NOTICE.txt").write_text(creator_seal.copyright_line() + "\n", encoding="utf-8")
