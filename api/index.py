@@ -4796,16 +4796,18 @@ def supabase_agenda_command(command, intent):
                 }],
             }, 200
         rows = supabase_agenda_rows(20)
+        agenda_read_message = (
+            "Agenda limpa, nada pendente."
+            if not rows
+            else f"Você tem {spoken_count(len(rows))} na agenda: {spoken_list(agenda_spoken_summary(rows))}."
+        )
         return {
             "ok": True,
             "endpoint": "POST /command",
             "status_real": "supabase_agenda_read",
             "visual_state": "planning",
-            "message": (
-                "Agenda limpa, nada pendente."
-                if not rows
-                else f"Você tem {spoken_count(len(rows))} na agenda: {spoken_list(agenda_spoken_summary(rows))}."
-            ),
+            "message": agenda_read_message,
+            "spoken": spoken_clip(agenda_read_message),
             "intent": intent,
             "provider": "supabase_agenda",
             "agenda": rows,
@@ -10296,6 +10298,24 @@ def dispatch_device_plan(command, steps, local_execute=False, owner_authenticate
     }, 200 if failures == 0 else 500
 
 
+def confirmed_track_uri(value, original_command):
+    """Faixa do Spotify só toca se veio do Theo: link dito ou nome do catálogo.
+
+    O modelo já inventou uma URI aqui — tocou o Iron Man do Black Sabbath
+    quando o pedido era Back In Black. URI que só existe na cabeça dele não
+    passa: ou está no texto do pedido, ou o pedido nomeia uma faixa do
+    catálogo (e aí quem manda é o catálogo).
+    """
+    uri = learned_preferences.track_uri(value)
+    if not uri:
+        return ""
+    spoken = original_command or ""
+    # O link colado no pedido carrega só o ID, não a URI canônica.
+    if uri in spoken or uri.rsplit(":", 1)[-1] in spoken:
+        return uri
+    return spotify_control.named_track_uri(spoken)
+
+
 def execute_agent_tool(tool_call, original_command, local_execute=False, owner_authenticated=False):
     """Translate one model-selected tool into an existing deterministic intent."""
     function = tool_call.get("function") if isinstance(tool_call, dict) else None
@@ -10341,6 +10361,15 @@ def execute_agent_tool(tool_call, original_command, local_execute=False, owner_a
             "search": f"busque no Spotify {value}",
             "play-uri": f"toque no Spotify {value}",
         }
+        if operation == "play-uri":
+            value = confirmed_track_uri(value, original_command)
+            if not value:
+                return {
+                    "ok": False,
+                    "status_real": "agent_tool_spotify_unconfirmed",
+                    "error": "Não vou tocar uma faixa que você não pediu. Diga o nome ou cole o link do Spotify.",
+                }, 400
+            commands = {**commands, "play-uri": f"toque no Spotify {value}"}
         command = commands.get(operation, "")
         if not command or not spotify_command_args(command):
             return {"ok": False, "status_real": "agent_tool_spotify_invalid", "error": "O controle do Spotify não é válido."}, 400
@@ -12062,6 +12091,16 @@ def agenda_spoken_summary(rows, limit=5):
     return parts
 
 
+def spoken_clip(text, limit=210):
+    """Corta no último separador antes do limite: voz nunca para no meio da palavra."""
+    clip = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(clip) <= limit:
+        return clip
+    window = clip[:limit]
+    cut = max(window.rfind(", "), window.rfind(". "), window.rfind(" e "))
+    return (window[:cut].rstrip(" ,.") + ".") if cut > 0 else window.rsplit(" ", 1)[0] + "…"
+
+
 def spoken_count(value):
     """Contagem falada: "uma coisa", "3 coisas". Nunca "item(ns)"."""
     number = int(value or 0)
@@ -12133,13 +12172,15 @@ def iron_style_payload():
     except (OSError, ValueError):
         queued = None
 
+    screen = message if queued else message.replace("Back in Black no ar, ", "")
     return {
         "ok": True,
         "endpoint": "POST /command",
         "status_real": "iron_style_started" if queued else "iron_style_agenda_only",
         "visual_state": "success" if queued else "warning",
         "intent": "iron_style",
-        "message": message if queued else message.replace("Back in Black no ar, ", ""),
+        "message": screen,
+        "spoken": spoken_clip(screen),
         "agenda": items,
         "job": (
             {"id": queued["id"], "status": "pending", "action": "spotify_control", "target": "Back In Black"}
@@ -12147,6 +12188,97 @@ def iron_style_payload():
             else None
         ),
     }, 202
+
+
+def preference_error(status_real, error):
+    """Erro de memória com o status HTTP certo para cada caso."""
+    return {
+        "ok": False,
+        "endpoint": "POST /command",
+        "status_real": status_real,
+        "visual_state": "error",
+        "intent": "preference_learned",
+        "error": error,
+    }, (503 if status_real == "preference_storage_unavailable" else 502)
+
+
+def learned_track_shortcut(command, owner_authenticated):
+    """"quando eu pedir X, bota essa <link>": guarda e passa a aplicar."""
+    taught = learned_preferences.parse_teaching(command)
+    if not taught:
+        return None
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    if not supabase_configured():
+        return preference_error(
+            "preference_storage_unavailable",
+            "A memória do JARVIS não está configurada; não consegui guardar a preferência.",
+        )
+    try:
+        saved = save_learned_preference(taught)
+    except (OSError, ValueError):
+        saved = None
+    if not saved:
+        return preference_error(
+            "preference_not_saved", "O Supabase recusou a preferência; nada foi alterado."
+        )
+    apply_learned_tracks(force=True)
+    return {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "preference_learned",
+        "visual_state": "success",
+        "intent": "preference_learned",
+        "action_executed": False,
+        "message": f"Anotado. Quando você pedir “{taught['trigger']}”, eu toco essa.",
+    }, 200
+
+
+def learned_note_shortcut(command, owner_authenticated):
+    """Ensino que não é faixa (comando, jeito de falar): vira contexto."""
+    note = learned_preferences.parse_general_teaching(command)
+    if not note:
+        return None
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    if not supabase_configured():
+        return preference_error(
+            "preference_storage_unavailable",
+            "A memória do JARVIS não está configurada; não consegui guardar a preferência.",
+        )
+    try:
+        saved = save_learned_note(note)
+    except (OSError, ValueError):
+        saved = None
+    if not saved:
+        return preference_error(
+            "preference_not_saved", "O Supabase recusou a preferência; nada foi alterado."
+        )
+    return {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "preference_learned",
+        "visual_state": "success",
+        "intent": "preference_learned",
+        "action_executed": False,
+        "message": f"Anotado: quando você pedir “{note['trigger']}”, eu {note['instruction']}.",
+    }, 200
+
+
+def iron_style_shortcut(command, owner_authenticated):
+    """"estilo homem de ferro": catálogo fixo + agenda real, sem modelo."""
+    if not IRON_STYLE_PATTERN.search(command):
+        return None
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    return iron_style_payload()
+
+
+DETERMINISTIC_SHORTCUTS = (
+    learned_track_shortcut,
+    learned_note_shortcut,
+    iron_style_shortcut,
+)
 
 
 def command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False):
@@ -12157,88 +12289,12 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             body, origin, local_execute, owner_authenticated, code_authenticated=code_authenticated
         )
 
-    # "quando eu te pedir X, bota essa <link>" — o Theo ensina, o JARVIS guarda
-    # na memória e passa a aplicar antes de qualquer catálogo fixo.
-    taught = learned_preferences.parse_teaching(command)
-    if taught:
-        if owner_pairing_required() and not owner_authenticated:
-            return pairing_required_payload()
-        if not supabase_configured():
-            return {
-                "ok": False,
-                "endpoint": "POST /command",
-                "status_real": "preference_storage_unavailable",
-                "visual_state": "error",
-                "intent": "preference_learned",
-                "error": "A memória do JARVIS não está configurada; não consegui guardar a preferência.",
-            }, 503
-        try:
-            saved = save_learned_preference(taught)
-        except (OSError, ValueError):
-            saved = None
-        if not saved:
-            return {
-                "ok": False,
-                "endpoint": "POST /command",
-                "status_real": "preference_not_saved",
-                "visual_state": "error",
-                "intent": "preference_learned",
-                "error": "O Supabase recusou a preferência; nada foi alterado.",
-            }, 502
-        apply_learned_tracks(force=True)
-        return {
-            "ok": True,
-            "endpoint": "POST /command",
-            "status_real": "preference_learned",
-            "visual_state": "success",
-            "intent": "preference_learned",
-            "action_executed": False,
-            "message": f"Anotado. Quando você pedir “{taught['trigger']}”, eu toco essa.",
-        }, 200
-
-    # Ensino que não é faixa (comando, jeito de falar): vira contexto, não execução.
-    note = learned_preferences.parse_general_teaching(command)
-    if note:
-        if owner_pairing_required() and not owner_authenticated:
-            return pairing_required_payload()
-        if not supabase_configured():
-            return {
-                "ok": False,
-                "endpoint": "POST /command",
-                "status_real": "preference_storage_unavailable",
-                "visual_state": "error",
-                "intent": "preference_learned",
-                "error": "A memória do JARVIS não está configurada; não consegui guardar a preferência.",
-            }, 503
-        try:
-            saved = save_learned_note(note)
-        except (OSError, ValueError):
-            saved = None
-        if not saved:
-            return {
-                "ok": False,
-                "endpoint": "POST /command",
-                "status_real": "preference_not_saved",
-                "visual_state": "error",
-                "intent": "preference_learned",
-                "error": "O Supabase recusou a preferência; nada foi alterado.",
-            }, 502
-        return {
-            "ok": True,
-            "endpoint": "POST /command",
-            "status_real": "preference_learned",
-            "visual_state": "success",
-            "intent": "preference_learned",
-            "action_executed": False,
-            "message": f"Anotado: quando você pedir “{note['trigger']}”, eu {note['instruction']}.",
-        }, 200
-
-    # "estilo homem de ferro" tem caminho próprio: catálogo fixo + agenda real,
-    # sem passar pelo modelo (que já inventou URI de faixa aqui).
-    if IRON_STYLE_PATTERN.search(command):
-        if owner_pairing_required() and not owner_authenticated:
-            return pairing_required_payload()
-        return iron_style_payload()
+    # Atalhos determinísticos: cada um devolve None quando o pedido não é com
+    # ele; o primeiro que responde encerra antes de o modelo ver a frase.
+    for shortcut in DETERMINISTIC_SHORTCUTS:
+        answer = shortcut(command, owner_authenticated)
+        if answer is not None:
+            return answer
 
     # Só pedido de música paga a leitura da memória: o resto do gateway não
     # depende de preferência de faixa.

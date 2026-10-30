@@ -26,6 +26,34 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
+class FakeSupabase:
+    """Responde por tabela e método, não por ordem de chamada.
+
+    O mock posicional (`side_effect=[...]`) quebrava sempre que o gateway
+    ganhava uma consulta nova: o teste explodia sem nada estar errado. Aqui a
+    resposta é escolhida pelo que foi pedido, e as chamadas ficam registradas
+    em `calls` para quem quiser conferir o que saiu.
+    """
+
+    def __init__(self, by_table=None):
+        self.by_table = dict(by_table or {})
+        self.calls = []
+
+    def __call__(self, method="GET", query="", body=None, prefer="", table=None):
+        table = table or MODULE.SUPABASE_MEMORY_TABLE
+        self.calls.append({"method": method, "query": query, "body": body, "table": table})
+        handler = self.by_table.get(table)
+        if handler is None:
+            return []
+        return handler(method, query, body) if callable(handler) else handler
+
+    def bodies(self, table=None):
+        return [
+            call["body"] for call in self.calls
+            if call["body"] is not None and (table is None or call["table"] == table)
+        ]
+
+
 class WebGatewayTest(unittest.TestCase):
     # Espelha LOCAL_SECRET_KEYS do gateway: outros testes da mesma suite
     # (ex.: jarvis_theo_chat_test -> load_secrets) hidratam chaves REAIS do
@@ -1500,18 +1528,18 @@ class WebGatewayTest(unittest.TestCase):
             [step["intent"] for step in steps],
             ["spotify_control", "screen_capture", "open_application"],
         )
-        saved = [
-            [{"id": 101, "status": "pending"}],
-            [{"id": 102, "status": "pending"}],
-            [{"id": 103, "status": "pending"}],
-        ]
-        with patch.object(MODULE, "supabase_request", side_effect=saved) as request:
+        ids = iter([101, 102, 103])
+        fake = FakeSupabase({
+            MODULE.SUPABASE_DEVICE_COMMANDS_TABLE:
+                lambda *_: [{"id": next(ids), "status": "pending"}],
+        })
+        with patch.object(MODULE, "supabase_request", side_effect=fake):
             payload, status = MODULE.supabase_device_enqueue_plan(command, steps)
         self.assertEqual(status, 202)
         self.assertEqual(payload["status_real"], "device_run_queued")
         self.assertEqual([job["id"] for job in payload["jobs"]], [101, 102, 103])
         self.assertFalse(payload["run"]["terminal"])
-        envelopes = [json.loads(call.kwargs["body"]["request_text"]) for call in request.call_args_list]
+        envelopes = [json.loads(body["request_text"]) for body in fake.bodies()]
         self.assertIsNone(envelopes[0]["depends_on"])
         self.assertEqual(envelopes[1]["depends_on"], 101)
         self.assertEqual(envelopes[2]["depends_on"], 102)
@@ -1520,11 +1548,19 @@ class WebGatewayTest(unittest.TestCase):
     def test_partial_run_queue_failure_reports_only_confirmed_compensation(self):
         command = "abra o Spotify e depois tire um print da tela"
         failure = HTTPError("https://jarvis.example", 503, "unavailable", {}, None)
-        with patch.object(MODULE, "supabase_request", side_effect=[
-            [{"id": 301, "status": "pending"}],
-            failure,
-            [{"id": 301, "status": "canceled"}],
-        ]) as request:
+        attempts = {"n": 0}
+
+        def commands(method, _query, _body):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                return [{"id": 301, "status": "pending"}]
+            if attempts["n"] == 2:
+                raise failure
+            return [{"id": 301, "status": "canceled"}]
+
+        with patch.object(MODULE, "supabase_request", side_effect=FakeSupabase({
+            MODULE.SUPABASE_DEVICE_COMMANDS_TABLE: commands,
+        })) as request:
             payload, status = MODULE.supabase_device_enqueue_plan(
                 command,
                 MODULE.compound_device_plan(command),
@@ -2017,7 +2053,9 @@ class WebGatewayTest(unittest.TestCase):
         with patch.dict(os.environ, {
             "SUPABASE_URL": "https://jarvis.example.supabase.co",
             "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
-        }, clear=False), patch.object(MODULE, "supabase_request", side_effect=[rows, []]) as request:
+        }, clear=False), patch.object(MODULE, "supabase_request", side_effect=FakeSupabase({
+            MODULE.SUPABASE_SETTINGS_TABLE: lambda method, *_: rows if method == "GET" else [],
+        })) as request:
             restored, restored_status = MODULE.conversation_history_payload("sess-abc12345")
             saved, saved_status = MODULE.persist_conversation_history({
                 "messages": [
@@ -4478,16 +4516,13 @@ São Paulo - SP
             "version": "13",
             "last_seen_at": "2026-08-19T20:57:00+00:00",
         }]
-        responses = [worker_row, contact_row, queued_row]
-
-        def fake_supabase(method="GET", query="", body=None, prefer="", table=MODULE.SUPABASE_MEMORY_TABLE):
-            # Preferência ensinada tem leitura própria e não consome a fila do teste.
-            if "kind=eq.preference" in (query or ""):
-                return []
-            return responses.pop(0)
-
+        fake = FakeSupabase({
+            MODULE.SUPABASE_DEVICE_WORKERS_TABLE: worker_row,
+            MODULE.SUPABASE_CONTACTS_TABLE: contact_row,
+            MODULE.SUPABASE_DEVICE_COMMANDS_TABLE: queued_row,
+        })
         with patch.dict(os.environ, env, clear=False), patch.object(
-            MODULE, "supabase_request", side_effect=fake_supabase
+            MODULE, "supabase_request", side_effect=fake
         ) as request:
             payload, status = MODULE.command_payload(
                 {"command": "manda mensagem para Arthur dizendo estou chegando"},
@@ -4500,9 +4535,8 @@ São Paulo - SP
         self.assertEqual(confirmed_status, 202)
         self.assertEqual(confirmed["job"]["target"], "…9999")
         queued = next(
-            call.kwargs["body"]
-            for call in request.call_args_list
-            if (call.kwargs.get("body") or {}).get("action") == "message_send"
+            body for body in fake.bodies(MODULE.SUPABASE_DEVICE_COMMANDS_TABLE)
+            if body.get("action") == "message_send"
         )
         self.assertEqual(queued["target"], "5511999999999")
         self.assertNotIn("5511999999999", json.dumps(confirmed))

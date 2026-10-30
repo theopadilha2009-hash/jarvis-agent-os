@@ -221,7 +221,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertRegex(FALA_JS, r"function startWebBackup\([\s\S]*hasNativeListen\(\)\) return")
         self.assertIn("askQueue.length >= 4", FALA_JS)
         self.assertNotRegex(FALA_JS, r"speak\(message\);\s*busy = false;\s*keepArmed")
-        self.assertIn("await speak(spokenReply(message))", FALA_JS)
+        # `spoken` do servidor vence o recorte de duas frases da mensagem de tela.
+        self.assertIn("const spokenText = data.spoken ? String(data.spoken) : spokenReply(message);", FALA_JS)
+        self.assertIn("await speak(spokenText)", FALA_JS)
 
     def test_orb_click_does_not_permanently_disable_listen(self):
         click = re.search(
