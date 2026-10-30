@@ -5,7 +5,7 @@ Sub-commands (selected via positional argv[0]):
   capture "text"            append to 05_EXECUCAO/30_INBOX/INBOX.md
   inbox                     read INBOX.md
   agenda-add "text"         append to 05_EXECUCAO/31_AGENDA/AGENDA.md
-  agenda                    read AGENDA.md
+  agenda                    lê a agenda do app (Supabase) ou AGENDA.md
 
 Flags (where applicable):
   --dry-run                 preview only, no file write
@@ -14,8 +14,9 @@ Flags (where applicable):
 Hard rules:
   - append-only, timestamped
   - refuses input that looks secret-like (reuses SECRET_PATTERNS)
-  - no external APIs, no Google Calendar, no reminders, no Slack
-  - never reads .env
+  - agenda lê/grava no Supabase do app quando o worker.env tem credencial;
+    sem credencial, cai no arquivo local (comportamento antigo)
+  - sem Google Calendar, sem reminders, sem Slack
   - never prints secrets
 """
 from pathlib import Path
@@ -35,6 +36,19 @@ try:
     from secret_scan import SECRET_PATTERNS  # type: ignore
 except Exception:
     SECRET_PATTERNS = []
+
+try:
+    sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
+    from jarvis_supabase import credentials as _supabase_credentials  # type: ignore
+    from jarvis_supabase import rest as _supabase_rest  # type: ignore
+except Exception:
+    def _supabase_credentials():
+        return "", ""
+
+    def _supabase_rest(*_args, **_kwargs):
+        raise OSError("Supabase indisponível")
+
+AGENDA_TABLE = "jarvis_agenda_items"
 
 
 def _looks_secret_like(text: str) -> bool:
@@ -244,8 +258,9 @@ def read_inbox_items(path=None):
 
 def cmd_agenda_add(argv):
     text, dry_run, date_override = _parse_common(argv)
-    print("JARVIS — Agenda Add (local)")
-    print("Status real: append-only local. Nada externo foi notificado.")
+    base, key = _supabase_credentials()
+    print("JARVIS — Agenda Add")
+    print("Status real: grava na agenda do app quando há credencial; senão, no arquivo local.")
     print("")
     if not text:
         print('FALHA: texto vazio. Uso: ./jarvis agenda-add "tarefa"')
@@ -257,7 +272,6 @@ def cmd_agenda_add(argv):
     when = _infer_when(text, date_override) or "sem-data"
     ts = datetime.now().isoformat(timespec="seconds")
     line = f"- [{when}] (criado {ts}) {_strip_note_verb(text)}"
-    print(f"alvo: {AGENDA_FILE.relative_to(ROOT)}")
     print(f"data inferida: {when}")
     print(f"linha: {line}")
     print("")
@@ -265,6 +279,32 @@ def cmd_agenda_add(argv):
         print("Modo: --dry-run (nada gravado).")
         print("Produção: nada alterado.")
         return
+    if base and key:
+        # _infer_when devolve "YYYY-MM-DD" ou "YYYY-MM-DD HH:MM".
+        if when == "sem-data":
+            scheduled = None
+        elif " " in when:
+            scheduled = when.replace(" ", "T") + ":00+00:00"
+        else:
+            scheduled = when + "T12:00:00+00:00"
+        try:
+            saved = _supabase_rest(
+                base, key, AGENDA_TABLE, "POST",
+                body={
+                    "owner_id": "theo",
+                    "title": _strip_note_verb(text),
+                    "scheduled_for": scheduled,
+                    "source": "jarvis-cli",
+                },
+            )
+            item = saved[0] if isinstance(saved, list) and saved else {}
+            print(f"OK — anotado na agenda do app (id {item.get('id', '?')}).")
+            print("Produção: nada alterado.")
+            return
+        except (OSError, ValueError):
+            print("AVISO: a agenda do app não respondeu; gravando no arquivo local.")
+            print("")
+    print(f"alvo: {AGENDA_FILE.relative_to(ROOT)}")
     _ensure_file(AGENDA_FILE, "# JARVIS local agenda (append-only)\n\n")
     with AGENDA_FILE.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
@@ -272,8 +312,43 @@ def cmd_agenda_add(argv):
     print("Produção: nada alterado.")
 
 
+def _print_supabase_agenda(base, key):
+    """Agenda do app, que é a mesma que a voz lê. True quando conseguiu."""
+    try:
+        rows = _supabase_rest(
+            base, key, AGENDA_TABLE,
+            query=(
+                "select=id,title,status,scheduled_for&owner_id=eq.theo&status=eq.pending"
+                "&order=scheduled_for.asc.nullslast,created_at.desc&limit=50"
+            ),
+        )
+    except (OSError, ValueError):
+        return False
+    print("JARVIS — Agenda")
+    print("Status real: leitura da agenda do app. Nada foi editado.")
+    print("fonte: Supabase (a mesma que o JARVIS fala)")
+    print(f"itens: {len(rows)}")
+    print("")
+    if not rows:
+        print("(vazia — anote com `./jarvis agenda-add \"...\"`)")
+        print("Produção: nada alterado.")
+        return True
+    for row in rows:
+        due = str(row.get("scheduled_for") or "")[:16].replace("T", " ") or "sem-data"
+        print(f"- [{due}] {row.get('title', '')}")
+    print("")
+    print("Produção: nada alterado.")
+    return True
+
+
 def cmd_agenda(argv):
     _text, _dry, _d = _parse_common(argv)
+    base, key = _supabase_credentials()
+    if base and key and _print_supabase_agenda(base, key):
+        return
+    if base and key:
+        print("AVISO: a agenda do app não respondeu; mostrando o arquivo local.")
+        print("")
     print("JARVIS — Agenda (local)")
     print("Status real: leitura local. Nada foi editado.")
     print("")

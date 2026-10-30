@@ -532,8 +532,10 @@ salvar o relatório final em `/tmp/jarvis-claude-out.md` e rodar
 ### Inbox / agenda locais (append-only)
 - `./jarvis capture "ideia"` → 05_EXECUCAO/30_INBOX/INBOX.md
 - `./jarvis inbox`
-- `./jarvis agenda-add "amanhã revisar LS"` → 05_EXECUCAO/31_AGENDA/AGENDA.md
-- `./jarvis agenda`
+- `./jarvis agenda-add "amanhã revisar LS"` → agenda do app (Supabase); sem credencial
+  do worker, cai em 05_EXECUCAO/31_AGENDA/AGENDA.md
+- `./jarvis agenda` → a **mesma** agenda que o JARVIS fala (Supabase); o arquivo local
+  vira fallback e arquivo histórico
 - `./jarvis week [--days N]` → relatório da semana: agenda + anotações + tarefas + projetos
 - `./jarvis reminder "sexta às 14h" "texto"` → lembrete que o device worker dispara no Mac
   (grava em `~/Library/Application Support/JARVIS/reminders.json`; não usa fila Supabase)

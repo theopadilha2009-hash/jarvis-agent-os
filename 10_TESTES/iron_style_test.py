@@ -103,6 +103,51 @@ class IronStyleMessageTest(unittest.TestCase):
             self.assertNotIn(ruido, falado.lower())
 
 
+class ConfirmedTrackTest(unittest.TestCase):
+    """O modelo já inventou URI de faixa; só toca o que veio do Theo."""
+
+    def test_uri_inventada_pelo_modelo_nao_passa(self):
+        self.assertEqual(
+            gateway.confirmed_track_uri("spotify:track:4svkPL62HbvyFgf0nHFXAF", "toca uma música aí"),
+            "",
+        )
+
+    def test_nome_do_catalogo_manda_na_uri(self):
+        # Pedido era Back In Black; o modelo mandou Black Sabbath. Vence o catálogo.
+        self.assertEqual(
+            gateway.confirmed_track_uri(
+                "spotify:track:4svkPL62HbvyFgf0nHFXAF", "toca a música do homem de ferro"
+            ),
+            spotify_control.BACK_IN_BLACK_URI,
+        )
+
+    def test_link_dito_pelo_usuario_passa(self):
+        link = "https://open.spotify.com/track/2iEGj7kAwH7HAa5epwYwLB"
+        self.assertEqual(
+            gateway.confirmed_track_uri(spotify_control.BACK_IN_BLACK_URI, f"toca {link}"),
+            spotify_control.BACK_IN_BLACK_URI,
+        )
+
+    def test_uri_que_nao_e_faixa_nao_passa(self):
+        self.assertEqual(gateway.confirmed_track_uri("javascript:alert(1)", "toca isso"), "")
+        self.assertEqual(gateway.confirmed_track_uri("spotify:album:abc", "toca isso"), "")
+
+
+class SpokenClipTest(unittest.TestCase):
+    def test_texto_curto_passa_intacto(self):
+        self.assertEqual(gateway.spoken_clip("Beleza, tá feito."), "Beleza, tá feito.")
+
+    def test_corta_no_separador_e_nao_no_meio_da_palavra(self):
+        texto = "Sua agenda: " + ", ".join(f"tarefa comprida numero {i}" for i in range(12))
+        cortado = gateway.spoken_clip(texto, limit=90)
+        self.assertLessEqual(len(cortado), 91)
+        self.assertTrue(cortado.endswith(".") or cortado.endswith("…"))
+        self.assertFalse(cortado.endswith(" "))
+
+    def test_nunca_passa_do_limite_sem_espaco(self):
+        self.assertLessEqual(len(gateway.spoken_clip("x" * 400, limit=100)), 101)
+
+
 class IronStylePayloadTest(unittest.TestCase):
     def test_sem_supabase_nao_promete_musica(self):
         original = gateway.supabase_configured

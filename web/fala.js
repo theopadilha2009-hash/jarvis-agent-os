@@ -915,7 +915,10 @@
       } else if (!opened) {
         showAnswer(message);
       }
-      if (!stayQuiet) await speak(spokenReply(message));
+      // `spoken` é o texto que o servidor preparou para a voz; sem ele, cai no
+      // recorte de duas frases da mensagem de tela.
+      const spokenText = data.spoken ? String(data.spoken) : spokenReply(message);
+      if (!stayQuiet) await speak(spokenText);
     } finally {
       busy = false;
       drainQueue();
