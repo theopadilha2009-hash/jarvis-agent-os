@@ -18,7 +18,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261029-theme7";
+  const SHELL_VERSION = "20261029-theme8";
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
@@ -1161,12 +1161,26 @@
         window.webkit.messageHandlers.jarvisAction.postMessage(clip);
       }
     } catch(e){}
-    // "dorme"/"durma" sozinhos também desligam: o dono tentou "Jarvis, dorme"
-    // e o pedido ia pro LLM em vez de desligar.
-    if (/(?:vai|va)\s+dormir|^(?:dorme|durma|dormir|desliga|desligar)$|desliga(?:r)?(?:\s+o)?\s*(?:jarvis)?|fechar?\s*(?:o)?\s*jarvis|encerrar?\s*(?:o)?\s*jarvis/i.test(folded)) {
+    // Acordar: volta a ouvir sem reabrir nada.
+    if (/^(?:acorda|acordar|acorde|volta|voltar)$/i.test(folded)) {
+      say("Acordado.", "Pode falar.");
+      keepArmed();
+      if (!stayQuiet) speak("Pode falar, senhor.");
+      return;
+    }
+    // Desligar de verdade: verbo explícito de fechar/encerrar.
+    if (/^(?:desliga|desligar)$|desliga(?:r)?(?:\s+o)?\s*jarvis\b|fechar?\s*(?:o)?\s*jarvis|encerrar?\s*(?:o)?\s*jarvis/i.test(folded)) {
       say("Desligando.", "Até logo, senhor.");
       speak("Até logo, senhor. Desligando.");
       window.setTimeout(() => nativeWindow("shutdown"), 1800);
+      return;
+    }
+    // Dormir: para de ouvir e fica quieto — NÃO fecha o app. Antes "dorme"
+    // caía no mesmo ramo do desligar e fechava o JARVIS.
+    if (/(?:vai|va)\s+dormir|^(?:dorme|durma|dormir)$/i.test(folded)) {
+      say("Dormindo.", 'Chame "Jarvis, acorda" quando precisar.');
+      if (!stayQuiet) speak("Dormindo, senhor.");
+      sleepUntilWake();
       return;
     }
 
@@ -1219,7 +1233,13 @@
       pendingHeard = text;
       window.clearTimeout(heardTimer);
       takeWake(text, false);
-      heardTimer = window.setTimeout(() => hearSpoken(pendingHeard, true), 550);
+      // 550ms cortava quem respira depois do nome. Pausa depois de "Jarvis,"
+      // é natural e ganha mais folga; frase em andamento ganha 1,4s.
+      const justWake = /^\s*(?:jarvis|jarvius|jarbis|javis)\s*[,.]?\s*$/i.test(text);
+      heardTimer = window.setTimeout(
+        () => hearSpoken(pendingHeard, true),
+        justWake ? 1800 : 1400,
+      );
       return;
     }
     window.clearTimeout(heardTimer);
