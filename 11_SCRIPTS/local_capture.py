@@ -238,7 +238,41 @@ def parse_inbox_line(line: str):
     return match.groupdict() if match else None
 
 
+def _supabase_agenda_items(base, key):
+    """Agenda do app no formato do arquivo local. None quando não respondeu."""
+    try:
+        rows = _supabase_rest(
+            base, key, AGENDA_TABLE,
+            query=(
+                "select=id,title,status,scheduled_for,created_at&owner_id=eq.theo"
+                "&status=eq.pending&order=scheduled_for.asc.nullslast&limit=200"
+            ),
+        )
+    except (OSError, ValueError):
+        return None
+    items = []
+    for row in rows if isinstance(rows, list) else []:
+        scheduled = str(row.get("scheduled_for") or "")
+        items.append({
+            "when": scheduled[:16].replace("T", " ") or "sem-data",
+            "text": str(row.get("title") or ""),
+            "created": str(row.get("created_at") or "")[:19],
+        })
+    return items
+
+
 def read_agenda_items(path=None):
+    """Itens da agenda: a do app quando há credencial, senão o arquivo local.
+
+    Quem lê (week, agenda) enxerga a mesma agenda que o JARVIS fala — antes o
+    relatório da semana contava uma agenda e a voz outra.
+    """
+    if path is None:
+        base, key = _supabase_credentials()
+        if base and key:
+            items = _supabase_agenda_items(base, key)
+            if items is not None:
+                return items
     target = Path(path) if path else AGENDA_FILE
     if not target.exists():
         return []
