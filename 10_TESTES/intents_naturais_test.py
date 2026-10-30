@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Frases do dia a dia: volume, agenda de hoje, disco, memória e lembretes."""
 
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 import sys
 import time
 import unittest
@@ -74,6 +76,17 @@ class LembreteTest(unittest.TestCase):
         lembrete = gateway.parse_reminder_request("me lembra amanhã às 20h de mandar o relatório")
         amanha = time.strftime("%Y-%m-%d", time.localtime(time.time() + 86_400))
         self.assertTrue(lembrete["due"].startswith(amanha), lembrete["due"])
+
+    def test_prazo_usa_o_fuso_do_dono_e_nao_o_do_servidor(self):
+        # O gateway roda em UTC no Vercel; o Mac do Theo, em America/Sao_Paulo.
+        # "em 20 minutos" tem que valer no relógio dele, não no do processo.
+        dono = ZoneInfo("America/Sao_Paulo")
+        antes = datetime.now(dono).replace(tzinfo=None, microsecond=0)
+        lembrete = gateway.parse_reminder_request("me lembra em 20 minutos de tomar água")
+        depois = datetime.now(dono).replace(tzinfo=None)
+        alvo = datetime.strptime(lembrete["due"], "%Y-%m-%dT%H:%M:%S")
+        self.assertGreaterEqual(alvo, antes + timedelta(minutes=19))
+        self.assertLessEqual(alvo, depois + timedelta(minutes=21))
 
     def test_prazo_sem_pedido_e_recusado(self):
         self.assertIsNone(gateway.parse_reminder_request("me lembra daqui a 2 horas"))
