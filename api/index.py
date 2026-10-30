@@ -5130,29 +5130,29 @@ def supabase_device_enqueue(command, intent, attachments=None):
                     )
                 )(json.loads(command))
                 if intent == "reminder_set"
-                else "Autoedição enviada ao Mac. Vou editar e testar; se o pedido disser para publicar ou fazer deploy, também vou subir, mesclar e verificar a produção."
+                else "Mandei pro Mac. Vou editar, testar e, se o pedido mandar publicar, subo também."
                 if intent == "self_edit"
-                else "Controle enviado ao Spotify do Mac. Estou acompanhando até o app devolver o estado real."
+                else "Mandando pro Spotify do Mac — já te digo o estado."
                 if intent == "spotify_control"
-                else "Nota enviada ao bloco de notas do Mac."
+                else "Anotei no bloco de notas do Mac."
                 if intent == "save_note"
-                else "Endereço enviado para abrir no Mac."
+                else "Abrindo no seu Mac."
                 if intent == "open_url"
-                else "Vou falar isso no alto-falante do Mac."
+                else "Vou falar isso no alto-falante."
                 if intent == "speak"
-                else "Pedido para abrir a pasta no Finder enviado ao Mac."
+                else "Abrindo a pasta no Finder."
                 if intent == "open_folder"
-                else "Notificação enviada ao Mac."
+                else "Aviso mandado pro Mac."
                 if intent == "notify"
-                else "Ajuste de volume enviado ao Mac."
+                else "Volume ajustado no Mac."
                 if intent == "volume_set"
-                else "Texto enviado para a área de transferência do Mac."
+                else "Copiado pra área de transferência."
                 if intent == "clipboard_set"
-                else "Pedido de conversão enviado ao Mac. Vou abrir o Downloads quando terminar."
+                else "Conversão a caminho — abro o Downloads quando terminar."
                 if intent == "image_convert"
-                else "Pedido de triagem da pasta Downloads enviado ao Mac. Nenhum arquivo será movido."
+                else "Triagem do Downloads a caminho — nada vai ser movido."
                 if intent == "files_triage"
-                else "Pedido enviado ao worker do Mac. Estou acompanhando a execução."
+                else "Mandei pro seu Mac — te aviso quando rolar."
             ),
             "intent": intent,
             "provider": "supabase_device_bridge",
@@ -12016,6 +12016,102 @@ def mission_control_payload(limit=12):
     }
 
 
+IRON_STYLE_PATTERN = re.compile(
+    r"\b(?:estilo|modo|vibe)\s+(?:homem\s+de\s+ferro|iron\s*man|stark)\b", re.I
+)
+WEEKDAYS_PT = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
+
+
+def agenda_spoken_summary(rows, limit=5):
+    """Agenda em fala curta: título e dia, sem jargão de banco."""
+    parts = []
+    for row in rows or ():
+        if not isinstance(row, dict):
+            continue
+        title = clean_text(row.get("title"), 120)
+        if not title:
+            continue
+        when = ""
+        raw = clean_text(row.get("scheduled_for"), 40)
+        if raw:
+            try:
+                due = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone()
+                when = f" ({WEEKDAYS_PT[due.weekday()]}, {due.strftime('%d/%m')})"
+            except ValueError:
+                when = ""
+        parts.append(f"{title}{when}")
+        if len(parts) >= limit:
+            break
+    return parts
+
+
+def iron_style_payload():
+    """Modo Homem de Ferro: Back In Black no ar e a agenda falada.
+
+    Determinístico de propósito: nada aqui passa pelo modelo, então a faixa é
+    sempre a do catálogo e a agenda é a real do Supabase.
+    """
+    if not supabase_configured():
+        return {
+            "ok": False,
+            "endpoint": "POST /command",
+            "status_real": "iron_style_unavailable",
+            "visual_state": "error",
+            "intent": "iron_style",
+            "error": "Preciso do Supabase configurado pra ler sua agenda.",
+        }, 503
+
+    try:
+        items = agenda_spoken_summary(supabase_agenda_rows(8))
+    except (OSError, ValueError):
+        items = []
+
+    agenda = "; ".join(items) if items else ""
+    if agenda:
+        message = (
+            "Beleza. Back in Black no ar, modo Homem de Ferro ligado. "
+            f"Na agenda: {agenda}. É isso, sem drama."
+        )
+    else:
+        message = (
+            "Beleza. Back in Black no ar, modo Homem de Ferro ligado. "
+            "Agenda limpa, nada pendente. É isso."
+        )
+
+    queued = None
+    try:
+        saved = supabase_request(
+            "POST",
+            body={
+                "owner_id": "theo",
+                "action": "spotify_control",
+                "target": "Back In Black",
+                "request_text": f"toque no Spotify {spotify_control.BACK_IN_BLACK_URI}",
+                "status": "pending",
+            },
+            prefer="return=representation",
+            table=SUPABASE_DEVICE_COMMANDS_TABLE,
+        )
+        queued = saved[0] if isinstance(saved, list) and saved else None
+    except (OSError, ValueError):
+        queued = None
+
+    return {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "iron_style_started" if queued else "iron_style_agenda_only",
+        "visual_state": "success" if queued else "warning",
+        "intent": "iron_style",
+        "message": message if queued else message.replace("Back in Black no ar, ", ""),
+        "agenda": items,
+        "job": (
+            {"id": queued["id"], "status": "pending", "action": "spotify_control", "target": "Back In Black"}
+            if isinstance(queued, dict) and queued.get("id")
+            else None
+        ),
+    }, 202
+
+
 def command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False):
     """Run the legacy dispatcher behind the durable JARVIS run contract."""
     command = clean_text(body.get("command") or body.get("prompt"))
@@ -12060,7 +12156,7 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             "visual_state": "success",
             "intent": "preference_learned",
             "action_executed": False,
-            "message": f"Guardei: quando você pedir “{taught['trigger']}”, toco a faixa que você escolheu.",
+            "message": f"Anotado. Quando você pedir “{taught['trigger']}”, eu toco essa.",
         }, 200
 
     # Ensino que não é faixa (comando, jeito de falar): vira contexto, não execução.
@@ -12097,8 +12193,15 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             "visual_state": "success",
             "intent": "preference_learned",
             "action_executed": False,
-            "message": f"Guardei: quando você pedir “{note['trigger']}”, {note['instruction']}.",
+            "message": f"Anotado: quando você pedir “{note['trigger']}”, eu {note['instruction']}.",
         }, 200
+
+    # "estilo homem de ferro" tem caminho próprio: catálogo fixo + agenda real,
+    # sem passar pelo modelo (que já inventou URI de faixa aqui).
+    if IRON_STYLE_PATTERN.search(command):
+        if owner_pairing_required() and not owner_authenticated:
+            return pairing_required_payload()
+        return iron_style_payload()
 
     # Só pedido de música paga a leitura da memória: o resto do gateway não
     # depende de preferência de faixa.
