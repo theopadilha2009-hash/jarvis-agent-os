@@ -2575,6 +2575,9 @@ _ACTIVE_VOICE_CACHE = {"voice_id": "", "name": "", "expires_at": 0.0}
 _ASSISTANT_MEMORY_CACHE = {"backend": "", "rows": [], "expires_at": 0.0}
 _ASSISTANT_MEMORY_CACHE_LOCK = threading.Lock()
 ASSISTANT_MEMORY_CACHE_SECONDS = 30.0
+_LEARNED_PREFERENCE_CACHE = {"rows": [], "expires_at": 0.0}
+_LEARNED_PREFERENCE_LOCK = threading.Lock()
+LEARNED_PREFERENCE_CACHE_SECONDS = 30.0
 _PUBLIC_SEARCH_CACHE = {}
 _PUBLIC_SEARCH_CACHE_LOCK = threading.Lock()
 _OPENROUTER_INFLIGHT = threading.BoundedSemaphore(3)
@@ -3763,17 +3766,43 @@ def invalidate_assistant_memory_cache():
     """Forget the short-lived chat cache after a confirmed memory write."""
     with _ASSISTANT_MEMORY_CACHE_LOCK:
         _ASSISTANT_MEMORY_CACHE.update({"backend": "", "rows": [], "expires_at": 0.0})
+    with _LEARNED_PREFERENCE_LOCK:
+        _LEARNED_PREFERENCE_CACHE.update({"rows": [], "expires_at": 0.0})
+
+
+def learned_preference_rows(force=False):
+    """Preferências faladas, com janela própria de cache.
+
+    Não reaproveita o cache do chat de propósito: aquela consulta traz as 80
+    memórias mais recentes de qualquer tipo, e conversa fiada acabaria
+    empurrando a preferência ensinada para fora da janela.
+    """
+    if not supabase_configured():
+        return []
+    now = time.monotonic()
+    with _LEARNED_PREFERENCE_LOCK:
+        if not force and now < _LEARNED_PREFERENCE_CACHE["expires_at"]:
+            return list(_LEARNED_PREFERENCE_CACHE["rows"])
+    try:
+        rows = supabase_request(
+            query=(
+                "select=id,kind,metadata&owner_id=eq.theo&kind=eq.preference"
+                "&archived_at=is.null&order=created_at.desc&limit=80"
+            )
+        )
+    except (OSError, ValueError):
+        return []
+    rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    with _LEARNED_PREFERENCE_LOCK:
+        _LEARNED_PREFERENCE_CACHE.update(
+            {"rows": rows, "expires_at": time.monotonic() + LEARNED_PREFERENCE_CACHE_SECONDS}
+        )
+    return list(rows)
 
 
 def learned_preference_rules(force=False):
     """Preferências que o Theo ensinou falando, já filtradas pelas executáveis."""
-    if not supabase_configured():
-        return []
-    try:
-        rows, _cached = assistant_memory_rows(force=force)
-    except (OSError, ValueError):
-        return []
-    return learned_preferences.rules_from_memories(rows)
+    return learned_preferences.rules_from_memories(learned_preference_rows(force=force))
 
 
 def apply_learned_tracks(force=False):
