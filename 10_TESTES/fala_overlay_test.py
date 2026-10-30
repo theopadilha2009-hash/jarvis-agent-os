@@ -11,6 +11,12 @@ FALA_JS = (ROOT / "web" / "fala.js").read_text(encoding="utf-8")
 FALA_HTML = (ROOT / "web" / "fala.html").read_text(encoding="utf-8")
 
 
+def shell_version(html):
+    """Versão do shell declarada no HTML — a mesma que cacheia o fala.js."""
+    match = re.search(r'<meta name="jarvis-shell" content="([^"]+)"', html)
+    return match.group(1) if match else ""
+
+
 class FalaOverlayTest(unittest.TestCase):
     def test_boot_does_not_auto_call_speech(self):
         self.assertNotRegex(FALA_JS, r"setTimeout\(\s*\(\)\s*=>\s*speak\(")
@@ -90,7 +96,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("localClock", FALA_JS)
         self.assertNotIn("sempre ouvindo", FALA_HTML)
         self.assertNotIn("sempre ouvindo", FALA_JS)
-        self.assertIn("20261029-theme8", FALA_HTML)
+        versao = shell_version(FALA_HTML)
+        self.assertTrue(versao, "shell sem versão: o app cacheia o fala.js antigo")
+        self.assertIn(f"/ui/fala.js?v={versao}", FALA_HTML)
         self.assertIn('nativeWindow("hide")', FALA_JS)
         self.assertIn("parkSoon", FALA_JS)
         self.assertIn("parkNow", FALA_JS)
@@ -236,7 +244,7 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("A mesma conta do site.", FALA_HTML)
 
     def test_fullscreen_browser_open_and_web_screen_look(self):
-        self.assertIn("20261029-theme8", FALA_HTML)
+        self.assertIn(f'content="{shell_version(FALA_HTML)}"', FALA_HTML)
         self.assertNotIn("20261016-voice5", FALA_HTML)
         self.assertNotIn("20261016-voice5", FALA_JS)
         # tela cheia: web via Fullscreen API, app via mensagem nativa
