@@ -50,6 +50,32 @@ class ParseTeachingTest(unittest.TestCase):
             self.assertIsNone(preferences.parse_teaching(text), text)
 
 
+class ParseGeneralTeachingTest(unittest.TestCase):
+    def test_ensino_que_nao_e_faixa(self):
+        note = preferences.parse_general_teaching(
+            "quando eu te pedir o relatório da semana, manda no whatsapp em texto"
+        )
+        self.assertEqual(note["trigger"], "relatorio da semana")
+        self.assertEqual(note["action"], "note")
+        self.assertEqual(note["instruction"], "manda no whatsapp em texto")
+
+    def test_jeito_de_falar_tambem_entra(self):
+        note = preferences.parse_general_teaching(
+            "quando eu pedir resumo do dia, responde curto e sem emoji"
+        )
+        self.assertEqual(note["trigger"], "resumo do dia")
+        self.assertEqual(note["instruction"], "responde curto e sem emoji")
+
+    def test_sem_virgula_nao_da_pra_separar(self):
+        self.assertIsNone(
+            preferences.parse_general_teaching("quando eu pedir o relatório da semana manda no zap")
+        )
+
+    def test_pedido_normal_nao_vira_preferencia(self):
+        for text in ("toca back in black", "abre o spotify", "anota que amanhã tenho reunião"):
+            self.assertIsNone(preferences.parse_general_teaching(text), text)
+
+
 class TriggerKeyTest(unittest.TestCase):
     def test_tira_o_enfite_da_frase(self):
         self.assertEqual(preferences.trigger_key("a música do Homem de Ferro"), "homem de ferro")

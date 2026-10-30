@@ -82,6 +82,30 @@ def parse_teaching(value: str) -> dict | None:
     return {"trigger": key, "action": "spotify_play", "payload": {"uri": uri}}
 
 
+# "quando eu te pedir <X>, <instrução>" — regra que não é faixa. Não executa
+# nada sozinha: entra no contexto inicial do JARVIS como preferência.
+# Exige a vírgula: sem ela não dá para separar gatilho de instrução.
+_WHEN_NOTE = re.compile(
+    r"\bquando\s+eu\s+(?:te\s+)?(?:pedir|pedi|falar|falo|mandar|mando|disser|digo|pe[cç]o)\s+"
+    r"(?P<trigger>.{2,80}?)\s*,\s*"
+    r"(?P<instruction>.{4,300})$",
+    re.I,
+)
+
+
+def parse_general_teaching(value: str) -> dict | None:
+    """Ensino que não é faixa → preferência de contexto. None quando não é."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    match = _WHEN_NOTE.search(text)
+    if not match:
+        return None
+    key = trigger_key(match.group("trigger"))
+    instruction = match.group("instruction").strip(" .,!?:;\"'")
+    if len(key) < 3 or len(instruction) < 4:
+        return None
+    return {"trigger": key, "action": "note", "instruction": instruction}
+
+
 def learned_uri(value: str, rules) -> str:
     """URI da preferência que casa com o pedido; o gatilho mais longo vence."""
     text = folded(value)
