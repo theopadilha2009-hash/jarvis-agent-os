@@ -53,6 +53,8 @@ from action_registry import (  # noqa: E402
     run_summary_payload,
 )
 from memory_index import MemoryIndex  # noqa: E402
+import preferences as learned_preferences  # noqa: E402
+import spotify_control  # noqa: E402
 from spotify_control import (  # noqa: E402
     command_args as spotify_command_args,
     public_target as spotify_public_target,
@@ -3761,6 +3763,43 @@ def invalidate_assistant_memory_cache():
     """Forget the short-lived chat cache after a confirmed memory write."""
     with _ASSISTANT_MEMORY_CACHE_LOCK:
         _ASSISTANT_MEMORY_CACHE.update({"backend": "", "rows": [], "expires_at": 0.0})
+
+
+def learned_preference_rules(force=False):
+    """Preferências que o Theo ensinou falando, já filtradas pelas executáveis."""
+    if not supabase_configured():
+        return []
+    try:
+        rows, _cached = assistant_memory_rows(force=force)
+    except (OSError, ValueError):
+        return []
+    return learned_preferences.rules_from_memories(rows)
+
+
+def apply_learned_tracks(force=False):
+    """O que Theo ensinou vence o catálogo fixo de faixas; falha calada."""
+    rules = learned_preference_rules(force=force)
+    spotify_control.set_learned_tracks(rules)
+    return rules
+
+
+def save_learned_preference(rule):
+    """Grava a preferência na memória do JARVIS e derruba o cache do chat."""
+    uri = rule["payload"]["uri"]
+    body = {
+        "owner_id": "theo",
+        "kind": "preference",
+        "content": f"Preferência falada: quando Theo pedir “{rule['trigger']}”, tocar {uri}.",
+        "source": "jarvis-voz",
+        "metadata": {
+            "trigger": rule["trigger"],
+            "action": rule["action"],
+            "payload": {"uri": uri},
+        },
+    }
+    rows = supabase_request("POST", body=body, prefer="return=representation")
+    invalidate_assistant_memory_cache()
+    return rows[0] if isinstance(rows, list) and rows else None
 
 
 def assistant_memory_rows(force=False):
@@ -11912,6 +11951,51 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         return dispatch_command_payload(
             body, origin, local_execute, owner_authenticated, code_authenticated=code_authenticated
         )
+
+    # "quando eu te pedir X, bota essa <link>" — o Theo ensina, o JARVIS guarda
+    # na memória e passa a aplicar antes de qualquer catálogo fixo.
+    taught = learned_preferences.parse_teaching(command)
+    if taught:
+        if owner_pairing_required() and not owner_authenticated:
+            return pairing_required_payload()
+        if not supabase_configured():
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "preference_storage_unavailable",
+                "visual_state": "error",
+                "intent": "preference_learned",
+                "error": "A memória do JARVIS não está configurada; não consegui guardar a preferência.",
+            }, 503
+        try:
+            saved = save_learned_preference(taught)
+        except (OSError, ValueError):
+            saved = None
+        if not saved:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "preference_not_saved",
+                "visual_state": "error",
+                "intent": "preference_learned",
+                "error": "O Supabase recusou a preferência; nada foi alterado.",
+            }, 502
+        apply_learned_tracks(force=True)
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "preference_learned",
+            "visual_state": "success",
+            "intent": "preference_learned",
+            "action_executed": False,
+            "message": f"Guardei: quando você pedir “{taught['trigger']}”, toco a faixa que você escolheu.",
+        }, 200
+
+    # Só pedido de música paga a leitura da memória: o resto do gateway não
+    # depende de preferência de faixa.
+    if spotify_control.control_requested(command):
+        apply_learned_tracks()
+
     intent = command_intent(command)
     action_name = action_name_for_command(command, intent)
     action = ACTION_REGISTRY[action_name]

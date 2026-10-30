@@ -9,7 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
 from ask_router import detect_intent, _next_command_for  # noqa: E402
-from spotify_control import command_args, resolve_track  # noqa: E402
+from spotify_control import BACK_IN_BLACK_URI, command_args, resolve_track  # noqa: E402
 
 
 class SpotifyIntentTest(unittest.TestCase):
@@ -21,7 +21,7 @@ class SpotifyIntentTest(unittest.TestCase):
         self.assertEqual(detect_intent(text), "spotify_control")
         self.assertEqual(
             command_args(text),
-            ["play-uri", "spotify:track:08mG3Y1vljYA6bvDt4Wqkj"],
+            ["play-uri", BACK_IN_BLACK_URI],
         )
 
     def test_toca_faixa_do_catalogo(self):
@@ -32,13 +32,16 @@ class SpotifyIntentTest(unittest.TestCase):
 
     def test_catalogo_resolve_back_in_black(self):
         uri, name = resolve_track("AC/DC - Back In Black")
-        self.assertEqual(uri, "spotify:track:08mG3Y1vljYA6bvDt4Wqkj")
+        self.assertEqual(uri, BACK_IN_BLACK_URI)
         self.assertEqual(name, "back in black")
 
-    def test_catalogo_nao_confunde_iron_man_com_back_in_black(self):
+    def test_homem_de_ferro_e_back_in_black(self):
+        # Preferência do Theo (2026-10-30): "música do Homem de Ferro" é a do
+        # Iron Man 2, não o Iron Man do Black Sabbath.
         iron, _ = resolve_track("homem de ferro")
         back, _ = resolve_track("back in black")
-        self.assertNotEqual(iron, back)
+        self.assertEqual(iron, BACK_IN_BLACK_URI)
+        self.assertEqual(iron, back)
 
 
 class AgendaIntentTest(unittest.TestCase):

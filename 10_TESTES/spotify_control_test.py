@@ -28,13 +28,13 @@ class SpotifyControlTest(unittest.TestCase):
                 "play-uri", "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
             ],
             "toca a música do homem de ferro": [
-                "play-uri", "spotify:track:4svkPL62HbvyFgf0nHFXAF",
+                "play-uri", "spotify:track:2iEGj7kAwH7HAa5epwYwLB",
             ],
             "abre o Spotify com a música do Homem de Ferro": [
-                "play-uri", "spotify:track:4svkPL62HbvyFgf0nHFXAF",
+                "play-uri", "spotify:track:2iEGj7kAwH7HAa5epwYwLB",
             ],
             "toque Iron Man no Spotify": [
-                "play-uri", "spotify:track:4svkPL62HbvyFgf0nHFXAF",
+                "play-uri", "spotify:track:2iEGj7kAwH7HAa5epwYwLB",
             ],
         }
         for request, expected in cases.items():
