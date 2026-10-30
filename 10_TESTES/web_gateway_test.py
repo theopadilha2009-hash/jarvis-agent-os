@@ -4541,6 +4541,22 @@ São Paulo - SP
         self.assertEqual(queued["target"], "5511999999999")
         self.assertNotIn("5511999999999", json.dumps(confirmed))
 
+    def test_message_alias_requires_confirmation_in_every_preposition(self):
+        """'pra'/'pro'/'ao' não podem pular a confirmação que 'para' exige."""
+        env = {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}
+        for frase in (
+            "manda mensagem para Ana dizendo oi",
+            "manda mensagem pra Ana dizendo oi",
+            "manda mensagem pro Arthur dizendo cheguei",
+            "envia mensagem ao Ruan dizendo pronto",
+        ):
+            with self.subTest(frase=frase), patch.dict(os.environ, env, clear=False):
+                payload, status = MODULE.command_payload(
+                    {"command": frase}, owner_authenticated=True
+                )
+                self.assertEqual(status, 202)
+                self.assertEqual(payload.get("status_real"), "waiting_confirmation")
+
     def test_contact_save_masks_phone_in_public_payload(self):
         saved = [{"id": 3, "alias": "arthur", "display_name": "Arthur", "phone": "5511999999999"}]
         with patch.object(MODULE, "supabase_request", return_value=saved):
