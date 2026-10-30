@@ -54,6 +54,7 @@ from action_registry import (  # noqa: E402
 )
 from memory_index import MemoryIndex  # noqa: E402
 import preferences as learned_preferences  # noqa: E402
+import sets as personal_sets  # noqa: E402
 import spotify_control  # noqa: E402
 from spotify_control import (  # noqa: E402
     command_args as spotify_command_args,
@@ -12301,7 +12302,251 @@ def iron_style_shortcut(command, owner_authenticated):
     return iron_style_payload()
 
 
+SET_DRAFT_TTL_MINUTES = 15
+
+
+def saved_sets():
+    """Sets que o Theo criou, lidos da memória dele."""
+    return personal_sets.sets_from_memories(learned_preference_rows())
+
+
+def active_set_draft():
+    """Rascunho de set em construção, se ainda estiver dentro da validade."""
+    draft = personal_sets.draft_from_memories(learned_preference_rows())
+    if not draft:
+        return None
+    started = clean_text(draft.get("started_at"), 40)
+    try:
+        when = datetime.fromisoformat(started)
+    except ValueError:
+        return draft
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    if (datetime.now(timezone.utc) - when).total_seconds() > SET_DRAFT_TTL_MINUTES * 60:
+        return None
+    return draft
+
+
+def archive_preference(memory_id):
+    """Tira da jogada um rascunho já usado (arquiva, não apaga)."""
+    if not memory_id:
+        return
+    try:
+        supabase_request(
+            "PATCH",
+            query=f"id=eq.{int(memory_id)}",
+            body={"archived_at": datetime.now(timezone.utc).isoformat()},
+        )
+        invalidate_assistant_memory_cache()
+    except (OSError, ValueError):
+        pass
+
+
+def set_creation_shortcut(command, owner_authenticated):
+    """"quero criar um set novo" abre o rascunho e faz a primeira pergunta."""
+    if not personal_sets.CREATE_PATTERN.search(command):
+        return None
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    if not supabase_configured():
+        return preference_error(
+            "preference_storage_unavailable",
+            "Preciso da memória configurada pra guardar o set.",
+        )
+    previous = personal_sets.draft_from_memories(learned_preference_rows())
+    if previous:
+        archive_preference(previous.get("id"))
+    try:
+        save_preference(
+            "Set em construção: aguardando a frase de ativação.",
+            {
+                "action": "set_draft",
+                "stage": "trigger",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+    except (OSError, ValueError):
+        return preference_error("preference_not_saved", "O Supabase recusou o rascunho do set.")
+    return {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "set_draft_started",
+        "visual_state": "planning",
+        "intent": "set_create",
+        "action_executed": False,
+        "message": "Bora. Qual frase ativa esse set? Fala assim: estilo foco. Se mudar de ideia, diz cancela.",
+        "spoken": "Bora. Qual frase ativa esse set? Fala assim: estilo foco.",
+    }, 200
+
+
+def set_draft_shortcut(command, owner_authenticated):
+    """Continua o rascunho: primeiro o gatilho, depois o que ele faz."""
+    draft = active_set_draft()
+    if not draft:
+        return None
+    if personal_sets.CANCEL_PATTERN.match(command):
+        archive_preference(draft.get("id"))
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "set_draft_canceled",
+            "visual_state": "idle",
+            "intent": "set_create",
+            "action_executed": False,
+            "message": "Beleza, cancelei. Nada foi salvo.",
+            "spoken": "Beleza, cancelei. Nada foi salvo.",
+        }, 200
+
+    stage = clean_text(draft.get("stage"), 20)
+    if stage == "trigger":
+        name = personal_sets.parse_trigger(command) or re.sub(r"\s+", " ", command).strip(" .,!?")
+        if len(name) < 3:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "set_trigger_too_short",
+                "visual_state": "error",
+                "intent": "set_create",
+                "error": "Escolhe uma frase maior pra ativar o set.",
+            }, 400
+        archive_preference(draft.get("id"))
+        save_preference(
+            f"Set em construção: gatilho “{name}”, aguardando os passos.",
+            {
+                "action": "set_draft",
+                "stage": "steps",
+                "trigger": name,
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "set_draft_steps",
+            "visual_state": "planning",
+            "intent": "set_create",
+            "action_executed": False,
+            "message": f"Anotado: “{name}”. Agora o que eu faço? Pode listar: toca Back in Black, abre o Slack, fala a agenda.",
+            "spoken": f"Anotado. Agora o que eu faço quando você disser {name}?",
+        }, 200
+
+    if stage == "steps":
+        steps = personal_sets.parse_steps(command)
+        if not steps:
+            return {
+                "ok": False,
+                "endpoint": "POST /command",
+                "status_real": "set_steps_unrecognized",
+                "visual_state": "error",
+                "intent": "set_create",
+                "error": "Não reconheci nenhum passo. Tenta: toca Back in Black, abre o Slack, fala a agenda.",
+            }, 400
+        trigger = clean_text(draft.get("trigger"), 80)
+        description = personal_sets.describe_steps(steps)
+        archive_preference(draft.get("id"))
+        saved = save_preference(
+            f"Set “{trigger}”: quando Theo pedir “{trigger}”, {description}.",
+            {"action": "set", "trigger": trigger, "steps": steps, "reply": ""},
+        )
+        if not saved:
+            return preference_error("preference_not_saved", "O Supabase recusou o set.")
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "set_saved",
+            "visual_state": "success",
+            "intent": "set_create",
+            "action_executed": False,
+            "message": f"Fechado. Quando você disser “{trigger}”, eu vou {description}. Testa aí.",
+            "spoken": f"Fechado. Quando você disser {trigger}, eu vou {description}.",
+        }, 200
+
+    archive_preference(draft.get("id"))
+    return None
+
+
+def set_trigger_shortcut(command, owner_authenticated):
+    """Gatilho de um set salvo → executa os passos no Mac."""
+    found = personal_sets.match(command, saved_sets())
+    if not found:
+        return None
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    if not supabase_configured():
+        return preference_error("preference_storage_unavailable", "Sem memória não consigo ler o set.")
+
+    wanted_agenda = False
+    theme = ""
+    queued = []
+    for step in found.get("steps") or ():
+        kind = step.get("kind")
+        if kind == "agenda":
+            wanted_agenda = True
+            continue
+        if kind == "theme":
+            theme = "light" if step.get("value") == "light" else "dark"
+            continue
+        row = None
+        if kind == "spotify" and learned_preferences.track_uri(step.get("uri") or ""):
+            uri = step["uri"]
+            row = {"action": "spotify_control", "target": step.get("label") or "faixa",
+                   "request_text": f"toque no Spotify {uri}"}
+        elif kind == "app":
+            app = clean_text(step.get("target"), 120)
+            row = {"action": "open_application", "target": app, "request_text": f"abra {app}"} if app else None
+        elif kind == "folder":
+            folder = clean_text(step.get("target"), 120)
+            row = {"action": "open_folder", "target": folder, "request_text": f"abra a pasta {folder}"} if folder else None
+        elif kind == "volume":
+            level = step.get("level")
+            if isinstance(level, int) and 0 <= level <= 100:
+                row = {"action": "volume_set", "target": str(level),
+                       "request_text": f"volume do mac para {level}"}
+        if not row:
+            continue
+        row.update({"owner_id": "theo", "status": "pending"})
+        try:
+            saved = supabase_request(
+                "POST", body=row, prefer="return=representation",
+                table=SUPABASE_DEVICE_COMMANDS_TABLE,
+            )
+            if isinstance(saved, list) and saved and saved[0].get("id"):
+                queued.append(saved[0]["id"])
+        except (OSError, ValueError):
+            continue
+
+    items = []
+    if wanted_agenda:
+        try:
+            items = agenda_spoken_summary(supabase_agenda_rows(8))
+        except (OSError, ValueError):
+            items = []
+    base = clean_text(found.get("reply"), 300) or f"Beleza, {found.get('trigger')} ligado."
+    message = f"{base} Sua agenda: {spoken_list(items)}." if items else base
+
+    payload = {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "set_started" if (queued or theme) else "set_empty",
+        "visual_state": "success" if (queued or theme) else "warning",
+        "intent": "set_run",
+        "message": message,
+        "spoken": spoken_clip(message),
+        "set": {"trigger": found.get("trigger"), "steps": found.get("steps")},
+        "jobs": queued,
+    }
+    if theme:
+        # Tema é do app, não do Mac: volta como ação de cliente.
+        payload["client_action"] = "theme"
+        payload["theme"] = theme
+    return payload, 202
+
+
 DETERMINISTIC_SHORTCUTS = (
+    # Rascunho aberto captura a resposta antes de qualquer outra coisa.
+    set_draft_shortcut,
+    set_creation_shortcut,
+    set_trigger_shortcut,
     learned_track_shortcut,
     learned_note_shortcut,
     iron_style_shortcut,
