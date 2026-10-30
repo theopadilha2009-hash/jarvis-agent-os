@@ -140,6 +140,7 @@ CRITICAL_COMMANDS = [
     "gate-run",
     "gate-status",
     "run-prune",
+    "cleanup",
     "doctor-agent",
     "state-status",
     "state-reset",

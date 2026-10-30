@@ -189,6 +189,19 @@ def _orca_apps(strict: bool = True) -> list[dict]:
     return [row for row in apps if isinstance(row, dict)]
 
 
+def _installed_apps() -> list[str]:
+    """Apps instalados, sem Orca: o que existe em /Applications e afins."""
+    names = set()
+    for root in (Path("/Applications"), Path("/System/Applications"), Path.home() / "Applications"):
+        if not root.is_dir():
+            continue
+        for path in list(root.glob("*.app")) + list(root.glob("*/*.app")):
+            name = path.stem.strip()
+            if name:
+                names.add(name)
+    return sorted(names, key=str.casefold)
+
+
 def _app_running_native(raw: str) -> bool | None:
     """Estado do app sem Orca. None quando o macOS não soube responder."""
     target, bundle_id = _app_identity(raw)
@@ -269,10 +282,16 @@ def cmd_computer(args: argparse.Namespace) -> None:
     print(f"Status real: controle local solicitado ({action}); nenhuma ação foi presumida.")
 
     if action == "list":
-        apps = _orca_apps()
-        print(f"Aplicativos visíveis: {len(apps)}")
-        for app in apps:
-            print(f"- {app.get('name', '?')} · {app.get('bundleId', '?')} · PID {app.get('pid', '?')}")
+        apps = _orca_apps(strict=False)
+        if apps:
+            print(f"Aplicativos visíveis: {len(apps)}")
+            for app in apps:
+                print(f"- {app.get('name', '?')} · {app.get('bundleId', '?')} · PID {app.get('pid', '?')}")
+        else:
+            installed = _installed_apps()
+            print(f"Orca indisponível; listando os instalados no Mac: {len(installed)}")
+            for name in installed:
+                print(f"- {name}")
         print("Produção: nada alterado.")
         return
 

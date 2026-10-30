@@ -3035,6 +3035,10 @@ def run_prune_command(args=None):
     """./jarvis run-prune --keep N [--dry-run|--apply]"""
     _run_py_propagate("11_SCRIPTS/run_log.py", ["prune", *(args or [])])
 
+def cleanup_command(args=None):
+    """./jarvis cleanup [--days N] [--dry-run|--apply] — limpeza e compactação de tudo."""
+    _run_py_propagate("11_SCRIPTS/jarvis_cleanup.py", args)
+
 def doctor_agent_command(args=None):
     """./jarvis doctor-agent [--full] — diagnóstico do próprio JARVIS."""
     _run_py_propagate("11_SCRIPTS/agent_doctor.py", args)
@@ -3494,6 +3498,7 @@ def _help_full():
   ./jarvis gate-run               roda safety+smoke+doctrine; atualiza work session
   ./jarvis gate-status            último gate-run registrado
   ./jarvis run-prune --keep N [--apply]  remove run packages antigos (default --dry-run)
+  ./jarvis cleanup [--days N] [--apply]  limpeza e compactação de tudo (default --dry-run)
   ./jarvis now                    alias de resume (primeiro comando do dia)
   ./jarvis start "pedido"         alias de work-start (inicia lifecycle)
   ./jarvis next                   alias de work-next (próximo passo seguro)
@@ -3770,6 +3775,8 @@ def main():
         gate_status_command(sys.argv[2:])
     elif cmd == "run-prune":
         run_prune_command(sys.argv[2:])
+    elif cmd == "cleanup":
+        cleanup_command(sys.argv[2:])
     elif cmd == "doctor-agent":
         doctor_agent_command(sys.argv[2:])
     elif cmd == "state-status":

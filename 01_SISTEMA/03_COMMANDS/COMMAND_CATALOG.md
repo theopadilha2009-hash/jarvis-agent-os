@@ -749,6 +749,10 @@ Sprint 5 fecha as lacunas confiabilidade do Sprint 4:
 - **report-apply** define `next_command = ./jarvis gate-run` após
   sucesso, fechando o loop.
 - **run-prune --keep N --dry-run/--apply** limpa run packages antigos.
+- **`./jarvis cleanup --days N --dry-run/--apply`** limpa e compacta tudo: fila do Mac, memória,
+  runs, planos, blueprints, handoffs, logs e relatórios. Só apaga o que é gitignored.
+  Agendado semanalmente (domingo 03:00) pelo LaunchAgent `ai.theopadilha.jarvis-cleanup`,
+  que roda no repo e no checkout do worker; log em `~/Library/Application Support/JARVIS/cleanup.log`.
   Default dry-run. Safety check: nunca toca nada fora de `35_RUNS`.
   Nunca remove `.gitkeep`.
 - **resume** mais conciso: 5 seções (Active Work / Latest Run / Top
