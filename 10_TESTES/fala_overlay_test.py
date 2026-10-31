@@ -235,6 +235,16 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertIn("const spokenText = data.spoken ? String(data.spoken) : spokenReply(message);", FALA_JS)
         self.assertIn("await speak(spokenText)", FALA_JS)
 
+    def test_second_speech_waits_for_the_music(self):
+        """O modo fala a abertura, espera, e só então lê o quadro."""
+        self.assertIn("data.spoken_later", FALA_JS)
+        self.assertIn("data.spoken_delay_ms", FALA_JS)
+        primeira = FALA_JS.index("await speak(spokenText)")
+        atraso = FALA_JS.index("data.spoken_delay_ms")
+        segunda = FALA_JS.index("await speak(String(data.spoken_later))")
+        self.assertLess(primeira, atraso, "a pausa tem que vir depois da 1ª fala")
+        self.assertLess(atraso, segunda, "a 2ª fala tem que vir depois da pausa")
+
     def test_orb_click_does_not_permanently_disable_listen(self):
         click = re.search(
             r'orb\.addEventListener\("click", \(\) => \{([\s\S]*?)\n  \}\);',

@@ -12299,6 +12299,7 @@ def iron_style_payload():
     )
     if notes:
         quadro.append(f"Suas anotações: {spoken_list(notes)}.")
+    quadro.append("Mais alguma coisa?")
     quadro.append("Quer que eu abra o Google?")
     message = f"{abertura} {' '.join(quadro)}"
 

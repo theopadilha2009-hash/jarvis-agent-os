@@ -145,7 +145,7 @@ class IronStylePayloadTest(unittest.TestCase):
 
     def test_faixa_do_modo_e_back_in_black(self):
         # O modo não passa pelo modelo: a URI é sempre a do catálogo.
-        self.assertEqual(spotify_control.BACK_IN_BLACK_URI, "spotify:track:2iEGj7kAwH7HAa5epwYwLB")
+        self.assertEqual(spotify_control.BACK_IN_BLACK_URI, "spotify:track:08mG3Y1vljYA6bvDt4Wqkj")
 
 
 if __name__ == "__main__":
