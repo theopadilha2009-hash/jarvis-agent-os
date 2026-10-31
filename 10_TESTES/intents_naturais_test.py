@@ -53,6 +53,32 @@ class IntentsDoDiaTest(unittest.TestCase):
         self.assertEqual(gateway.command_intent("toca back in black"), "spotify_control")
 
 
+class MensagemTest(unittest.TestCase):
+    def test_whatsapp_vira_envio_e_nao_rascunho(self):
+        self.assertEqual(
+            gateway.command_intent("envia um whatsapp para 5511999999999 dizendo cheguei"),
+            "message_send",
+        )
+        # rascunho continua sendo rascunho
+        self.assertEqual(
+            gateway.command_intent("faz um rascunho de mensagem pro chefe"), "message_draft"
+        )
+
+    def test_corpo_sai_limpo_em_todas_as_formas(self):
+        casos = {
+            "envia um whatsapp para 5511999999999 dizendo cheguei": "cheguei",
+            "manda uma mensagem para 5511999999999 dizendo oi": "oi",
+            "manda mensagem pra 5511999999999 falando pronto": "pronto",
+            "manda mensagem para 5511999999999 dizendo estou chegando": "estou chegando",
+        }
+        for frase, esperado in casos.items():
+            with self.subTest(frase=frase):
+                detalhes = gateway.message_send_details(frase)
+                self.assertIsNotNone(detalhes)
+                self.assertEqual(detalhes["phone"], "5511999999999")
+                self.assertEqual(detalhes["text"], esperado)
+
+
 class LembreteTest(unittest.TestCase):
     def test_texto_antes_do_prazo(self):
         # A ordem natural em português: o pedido primeiro, o prazo depois.

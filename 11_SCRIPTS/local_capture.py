@@ -20,7 +20,8 @@ Hard rules:
   - never prints secrets
 """
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timezone
+import os
 import re
 import sys
 
@@ -49,6 +50,40 @@ except Exception:
         raise OSError("Supabase indisponível")
 
 AGENDA_TABLE = "jarvis_agenda_items"
+
+try:
+    from zoneinfo import ZoneInfo
+
+    LOCAL_TZ = ZoneInfo(os.environ.get("JARVIS_TIMEZONE", "America/Sao_Paulo"))
+except Exception:  # sem tzdata: cai no fuso do processo
+    LOCAL_TZ = None
+
+
+def _local_iso(value: str) -> str:
+    """Relógio de parede local → ISO em UTC. "" quando a data é inválida."""
+    try:
+        naive = datetime.strptime(value, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return ""
+    if LOCAL_TZ is None:
+        return naive.astimezone().astimezone(timezone.utc).isoformat()
+    return naive.replace(tzinfo=LOCAL_TZ).astimezone(timezone.utc).isoformat()
+
+
+def _utc_to_local(value: str) -> str:
+    """ISO em UTC do banco → "YYYY-MM-DD HH:MM" no relógio do dono."""
+    raw = str(value or "")
+    if not raw:
+        return ""
+    try:
+        when = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return raw[:16].replace("T", " ")
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    if LOCAL_TZ is not None:
+        when = when.astimezone(LOCAL_TZ)
+    return when.strftime("%Y-%m-%d %H:%M")
 
 
 def _looks_secret_like(text: str) -> bool:
@@ -254,7 +289,7 @@ def _supabase_agenda_items(base, key):
     for row in rows if isinstance(rows, list) else []:
         scheduled = str(row.get("scheduled_for") or "")
         items.append({
-            "when": scheduled[:16].replace("T", " ") or "sem-data",
+            "when": _utc_to_local(scheduled) or "sem-data",
             "text": str(row.get("title") or ""),
             "created": str(row.get("created_at") or "")[:19],
         })
@@ -317,10 +352,10 @@ def cmd_agenda_add(argv):
         # _infer_when devolve "YYYY-MM-DD" ou "YYYY-MM-DD HH:MM".
         if when == "sem-data":
             scheduled = None
-        elif " " in when:
-            scheduled = when.replace(" ", "T") + ":00+00:00"
         else:
-            scheduled = when + "T12:00:00+00:00"
+            # `when` é relógio local; gravar como UTC fazia o item aparecer
+            # 3h diferente no app. Converte de verdade.
+            scheduled = _local_iso(when if " " in when else when + " 12:00") or None
         try:
             saved = _supabase_rest(
                 base, key, AGENDA_TABLE, "POST",

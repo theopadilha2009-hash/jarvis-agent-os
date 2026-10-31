@@ -192,7 +192,9 @@ class FalaOverlayTest(unittest.TestCase):
         self.assertNotIn("greetOnce", FALA_JS)
         self.assertNotIn("speakLocal", FALA_JS)
         self.assertNotIn("speechSynthesis", FALA_JS)
-        self.assertIn("slice(0, 220)", FALA_JS)
+        # A voz tem teto próprio: o servidor manda `spoken` (agenda + anotações
+        # + pergunta final cabem até 400).
+        self.assertRegex(FALA_JS, r"function speak\([\s\S]*?\.slice\(0, (\d{3})\)")
 
     def test_prefers_localhost_pocket_tts_before_browser_voice(self):
         self.assertIn("JarvisLocalVoice", FALA_JS)

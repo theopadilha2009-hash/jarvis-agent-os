@@ -2508,11 +2508,16 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar)|analis(?:a|e|ar))\b.{0,70}\b(github|reposit[oó]rios?|pull requests?|prs?)\b", re.I), "github_overview"),
     (SPEAK_MAC_PATTERN, "speak"),
     (device_actions.IMAGE_CONVERT_PATTERN, "image_convert"),
-    (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|whatsapp\s+para|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
+    # "manda no whatsapp para <número> dizendo X" é envio, não rascunho: por
+    # isso vem antes do message_draft (que não tem executor).
+    (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg|whatsapp)\b", re.I), "message_send"),
+    (re.compile(r"\b(mensagem\s+(?:no|pelo)\s+whatsapp|rascunho\s+de\s+mensagem)\b", re.I), "message_draft"),
     (re.compile(r"\b(salv(?:a|e|ar)|adicion(?:a|e|ar)|cri(?:a|e|ar)|cadastr(?:a|e|ar))\b.{0,40}\bcontato\b", re.I), "contact_save"),
     (re.compile(r"\b(remov(?:a|e|er)|apag(?:a|e|ar)|arquiv(?:a|e|ar)|esquec(?:a|e|er))\b.{0,40}\bcontato\b", re.I), "contact_archive"),
     (re.compile(r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,60}\bcontatos?\b", re.I), "contact_view"),
-    (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg)\b", re.I), "message_send"),
+    # "manda no whatsapp para <número> dizendo X" é envio, não rascunho: por
+    # isso vem antes do message_draft (que não tem executor).
+    (re.compile(r"\b(mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,40}\b(mensagem|msg|whatsapp)\b", re.I), "message_send"),
     (re.compile(r"\b(guard(?:a|e|ar)|salv(?:a|e|ar)|registr(?:a|e|ar)|grav(?:a|e|ar)|lembr(?:a|e|ar))\b.{0,100}\b(mem[oó]ria|prefer[eê]ncia|aprendizado|decis[aã]o)\b", re.I), "memory_save"),
     (re.compile(
         r"\b(?:me\s+)?lembr(?:a|e)\b.{0,40}\b(?:em|daqui\s+a)\b.{0,80}"
@@ -7128,7 +7133,7 @@ def message_send_details(command):
     if not quoted:
         body = re.sub(
             r"^\s*(?:jarvis[,\s]+)?(?:mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\s+"
-            r"(?:uma\s+)?(?:mensagem|msg)\s*(?:para)?\s*",
+            r"(?:(?:uma|um)\s+)?(?:mensagem|msg|whatsapp)\s*(?:(?:no|pelo|para|pro|pra)\s*(?:whatsapp|para)?)?\s*",
             "",
             body,
             flags=re.I,
@@ -10513,6 +10518,18 @@ def execute_agent_tool(tool_call, original_command, local_execute=False, owner_a
         intent = "volume_set"
         command = f"volume do mac para {level}"
 
+    if needs_interactive_confirmation(intent):
+        # A ferramenta escolhida pelo modelo não pode pular a confirmação.
+        confirmation, status = interactive_confirmation_payload(command, intent)
+        confirmation["agent_route"] = {
+            "provider": "openrouter",
+            "tool": name,
+            "intent": intent,
+            "original_request": clean_text(original_command, 500),
+            "execution": "waiting_confirmation",
+        }
+        return confirmation, status
+
     payload, status = dispatch_intent(
         command,
         intent,
@@ -10746,6 +10763,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         )
     for pattern, intent in LOCAL_INTENTS:
         if pattern.search(latest):
+            # /assistant furava a confirmação que /command exige: mensagem e
+            # autoedição saíam direto para o Mac. Mesmo contrato aqui.
+            if needs_interactive_confirmation(intent):
+                return interactive_confirmation_payload(latest, intent)
             return dispatch_intent(
                 latest,
                 intent,
@@ -12092,7 +12113,10 @@ def mission_control_payload(limit=12):
 
 
 IRON_STYLE_PATTERN = re.compile(
-    r"\b(?:estilo|modo|vibe)\s+(?:homem\s+de\s+ferro|iron\s*man|stark)\b", re.I
+    # "modo do Homem de Ferro" é a forma natural: a preposição não pode quebrar.
+    r"\b(?:estilo|modo|vibe)\s+(?:d[oa]s?\s+|de\s+)?"
+    r"(?:homem\s+de\s+ferro|iron\s*man|stark)\b",
+    re.I,
 )
 WEEKDAYS_PT = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
 MONTHS_PT = (
@@ -12162,6 +12186,34 @@ def spoken_list(parts):
     return ", ".join(parts[:-1]) + " e " + parts[-1]
 
 
+def supabase_notes_rows(limit=3):
+    """Últimas anotações do dono. Lista vazia quando a tabela está limpa."""
+    safe_limit = max(1, min(int(limit), 10))
+    rows = supabase_request(
+        query=(
+            "select=id,title,body,created_at&owner_id=eq.theo"
+            f"&archived_at=is.null&order=created_at.desc&limit={safe_limit}"
+        ),
+        table=SUPABASE_NOTES_TABLE,
+    )
+    return rows if isinstance(rows, list) else []
+
+
+def notes_spoken_summary(rows, limit=3):
+    """Anotações em fala curta: só o título (ou o começo do corpo)."""
+    parts = []
+    for row in rows or ():
+        if not isinstance(row, dict):
+            continue
+        text = clean_text(row.get("title"), 80) or clean_text(row.get("body"), 80)
+        if not text:
+            continue
+        parts.append(text[0].lower() + text[1:])
+        if len(parts) >= limit:
+            break
+    return parts
+
+
 def iron_style_payload():
     """Modo Homem de Ferro: Back In Black no ar e a agenda falada.
 
@@ -12182,19 +12234,18 @@ def iron_style_payload():
         items = agenda_spoken_summary(supabase_agenda_rows(8))
     except (OSError, ValueError):
         items = []
+    try:
+        notes = notes_spoken_summary(supabase_notes_rows(3))
+    except (OSError, ValueError):
+        notes = []
 
-    # Duas frases no máximo: o app fala só as duas primeiras, então a agenda
-    # precisa caber na segunda.
-    if items:
-        message = (
-            "Beleza, modo Homem de Ferro ligado e Back in Black tocando. "
-            f"Sua agenda: {spoken_list(items)}."
-        )
-    else:
-        message = (
-            "Beleza, modo Homem de Ferro ligado e Back in Black tocando. "
-            "Agenda limpa, nada pendente."
-        )
+    quadro = [
+        f"Sua agenda: {spoken_list(items)}." if items else "Agenda limpa, nada pendente.",
+    ]
+    if notes:
+        quadro.append(f"Suas anotações: {spoken_list(notes)}.")
+    quadro.append("Como quer seguir hoje?")
+    message = "Beleza, modo Homem de Ferro ligado e Back in Black tocando. " + " ".join(quadro)
 
     queued = None
     try:
@@ -12222,7 +12273,8 @@ def iron_style_payload():
         "visual_state": "success" if queued else "warning",
         "intent": "iron_style",
         "message": screen,
-        "spoken": spoken_clip(screen),
+        # O app fala o `spoken` inteiro (o limite da voz é 400 no fala.js).
+        "spoken": spoken_clip(screen, 380),
         "agenda": items,
         "job": (
             {"id": queued["id"], "status": "pending", "action": "spotify_control", "target": "Back In Black"}
@@ -12580,6 +12632,35 @@ DETERMINISTIC_SHORTCUTS = (
 )
 
 
+def interactive_confirmation_payload(command, intent, origin=""):
+    """Registra o run e devolve o pedido de confirmação — um caminho só.
+
+    Antes isto vivia apenas dentro de command_payload, e /assistant executava
+    message_send e self_edit direto, sem o dono confirmar nada.
+    """
+    action_name = action_name_for_command(command, intent)
+    action = ACTION_REGISTRY.get(action_name) or ACTION_REGISTRY["assistant_chat"]
+    plan = run_plan_for(command, action_name, intent)
+    record = AGENT_RUNS.create(
+        command,
+        action=action_name,
+        source="web",
+        state="waiting_confirmation",
+        plan=plan,
+        metadata={"intent": intent, "origin": clean_text(origin, 200)},
+    )
+    payload = {
+        "ok": True,
+        "endpoint": "POST /command",
+        "status_real": "waiting_confirmation",
+        "visual_state": "planning",
+        "intent": intent,
+        "message": f"Revise e confirme antes de: {action.label.lower()}. Diga “pode” ou toque em confirmar.",
+    }
+    payload.update(run_public_payload(record))
+    return payload, 202
+
+
 def command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False):
     """Run the legacy dispatcher behind the durable JARVIS run contract."""
     command = clean_text(body.get("command") or body.get("prompt"))
@@ -12649,23 +12730,8 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
         }
         status = 200
     elif needs_interactive_confirmation(intent):
-        record = AGENT_RUNS.create(
-            command,
-            action=action_name,
-            source="web",
-            state="waiting_confirmation",
-            plan=plan,
-            metadata={"intent": intent, "origin": clean_text(origin, 200)},
-        )
-        payload = {
-            "ok": True,
-            "endpoint": "POST /command",
-            "status_real": "waiting_confirmation",
-            "visual_state": "planning",
-            "intent": intent,
-            "message": f"Revise e confirme antes de: {action.label.lower()}.",
-        }
-        payload.update(run_public_payload(record))
+        payload, status = interactive_confirmation_payload(command, intent, origin)
+        return payload, status
         return payload, 202
     else:
         payload, status = dispatch_command_payload(
