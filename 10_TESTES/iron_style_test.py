@@ -2,7 +2,6 @@
 """Modo Homem de Ferro: gatilho, faixa do catálogo e agenda que é falada."""
 
 from pathlib import Path
-import re
 import sys
 import unittest
 
@@ -14,19 +13,12 @@ import index as gateway  # noqa: E402
 import spotify_control  # noqa: E402
 
 
-def spoken_reply(text):
-    """Espelha spokenReply() de web/fala.js: só as 2 primeiras frases."""
-    clip = re.sub(r"\s+", " ", str(text or "")).strip()
-    if not clip:
-        return ""
-    parts = re.findall(r"[^.!?…]+[.!?…]*\s*", clip) or [clip]
-    return "".join(parts[:2]).strip()[:300].strip()
-
-
 class IronStyleTriggerTest(unittest.TestCase):
     def test_formas_de_pedir(self):
         for frase in (
             "jarvis estilo homem de ferro",
+            "entrar no modo do Homem de Ferro",
+            "modo do iron man",
             "jarvis, modo Homem de Ferro",
             "vibe stark",
             "modo iron man",
@@ -68,37 +60,59 @@ class AgendaSummaryTest(unittest.TestCase):
 
 
 class IronStyleMessageTest(unittest.TestCase):
-    """O que o app fala é só as 2 primeiras frases — a agenda tem que caber."""
+    """Testa o payload de verdade, não uma cópia da mensagem."""
 
-    def _message(self, rows):
-        items = gateway.agenda_spoken_summary(rows)
-        if items:
-            return (
-                "Beleza, modo Homem de Ferro ligado e Back in Black tocando. "
-                f"Sua agenda: {gateway.spoken_list(items)}."
-            )
-        return (
-            "Beleza, modo Homem de Ferro ligado e Back in Black tocando. "
-            "Agenda limpa, nada pendente."
+    AGENDA = [
+        {"title": "Criar 3 sistemas", "scheduled_for": None},
+        {"title": "Mandar retorno até terça", "scheduled_for": "2026-11-03T12:00:00+00:00"},
+        {"title": "Postar um vídeo sexta-feira", "scheduled_for": "2026-11-06T15:00:00+00:00"},
+    ]
+
+    def _payload(self, agenda=None, notes=None):
+        original = (
+            gateway.supabase_configured,
+            gateway.supabase_agenda_rows,
+            gateway.supabase_notes_rows,
+            gateway.supabase_request,
         )
+        gateway.supabase_configured = lambda: True
+        gateway.supabase_agenda_rows = lambda *_a, **_k: self.AGENDA if agenda is None else agenda
+        gateway.supabase_notes_rows = lambda *_a, **_k: notes or []
+        # Não enfileira nada: teste não pode tocar música no Mac.
+        gateway.supabase_request = lambda *_a, **_k: [{"id": 1, "status": "pending"}]
+        try:
+            return gateway.iron_style_payload()[0]
+        finally:
+            (
+                gateway.supabase_configured,
+                gateway.supabase_agenda_rows,
+                gateway.supabase_notes_rows,
+                gateway.supabase_request,
+            ) = original
 
-    def test_agenda_sobrevive_ao_corte_de_duas_frases(self):
-        rows = [
-            {"title": "Criar 3 sistemas", "scheduled_for": None},
-            {"title": "Mandar retorno até terça", "scheduled_for": "2026-11-03T12:00:00+00:00"},
-            {"title": "Postar um vídeo sexta-feira", "scheduled_for": "2026-11-06T15:00:00+00:00"},
-        ]
-        falado = spoken_reply(self._message(rows))
-        for esperado in ("criar 3 sistemas", "mandar retorno até terça", "postar um vídeo sexta-feira"):
+    def test_agenda_anotacoes_e_pergunta_final(self):
+        payload = self._payload(notes=[{"title": "Revisar contrato do cliente"}])
+        falado = payload["spoken"]
+        for esperado in ("criar 3 sistemas", "mandar retorno até terça", "revisar contrato do cliente"):
             self.assertIn(esperado, falado.lower())
+        self.assertIn("como quer seguir hoje", falado.lower())
         self.assertIn("back in black", falado.lower())
 
+    def test_fala_cabe_no_limite_da_voz(self):
+        payload = self._payload(notes=[{"title": "Revisar contrato do cliente"}])
+        self.assertLessEqual(len(payload["spoken"]), 400)
+
     def test_sem_agenda_avisa_limpa(self):
-        falado = spoken_reply(self._message([]))
+        falado = self._payload(agenda=[])["spoken"]
         self.assertIn("agenda limpa", falado.lower())
+        self.assertIn("como quer seguir hoje", falado.lower())
+
+    def test_sem_anotacao_nao_inventa_secao(self):
+        falado = self._payload(notes=[])["spoken"]
+        self.assertNotIn("anotações", falado.lower())
 
     def test_nao_soa_como_relatorio(self):
-        falado = self._message([{"title": "Criar 3 sistemas", "scheduled_for": None}])
+        falado = self._payload()["spoken"]
         for ruido in ("status_real", "03/11", "http", "worker", "supabase"):
             self.assertNotIn(ruido, falado.lower())
 

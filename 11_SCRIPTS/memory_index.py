@@ -5,13 +5,27 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import os
 import re
 import sqlite3
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_ROOT = ROOT / "03_MEMORIA"
-DEFAULT_DB = ROOT / "05_EXECUCAO" / "65_AGENT_RUNS" / "memory-index.sqlite3"
+
+
+def _default_db() -> Path:
+    """Onde o índice mora.
+
+    No Vercel o filesystem é read-only: criar SQLite sob o repo levantava
+    exceção a cada busca. Mesmo destino temporário que o action_registry usa.
+    """
+    if os.environ.get("VERCEL"):
+        return Path("/tmp/jarvis-agent-runs") / "memory-index.sqlite3"
+    return ROOT / "05_EXECUCAO" / "65_AGENT_RUNS" / "memory-index.sqlite3"
+
+
+DEFAULT_DB = _default_db()
 WORD_PATTERN = re.compile(r"[\wÀ-ÿ-]{2,}", re.UNICODE)
 
 

@@ -4541,6 +4541,31 @@ São Paulo - SP
         self.assertEqual(queued["target"], "5511999999999")
         self.assertNotIn("5511999999999", json.dumps(confirmed))
 
+    def test_assistant_cannot_bypass_interactive_confirmation(self):
+        """/assistant enfileirava message_send direto, sem o dono confirmar."""
+        env = {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}
+        with patch.dict(os.environ, env, clear=False):
+            payload, status = MODULE.assistant_response(
+                {"messages": [{"role": "user", "content": "manda mensagem para 5511999999999 dizendo oi"}]},
+                owner_authenticated=True,
+            )
+        self.assertEqual(status, 202)
+        self.assertEqual(payload.get("status_real"), "waiting_confirmation")
+
+    def test_agent_tool_cannot_bypass_interactive_confirmation(self):
+        tool_call = {
+            "function": {
+                "name": "send_message",
+                "arguments": json.dumps({"recipient": "5511999999999", "message": "oi"}),
+            }
+        }
+        with patch.dict(os.environ, {"JARVIS_OWNER_TOKEN": "x"}, clear=False):
+            payload, status = MODULE.execute_agent_tool(
+                tool_call, "manda mensagem pro Arthur dizendo oi", owner_authenticated=True
+            )
+        self.assertEqual(status, 202)
+        self.assertEqual(payload.get("status_real"), "waiting_confirmation")
+
     def test_message_alias_requires_confirmation_in_every_preposition(self):
         """'pra'/'pro'/'ao' não podem pular a confirmação que 'para' exige."""
         env = {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}
