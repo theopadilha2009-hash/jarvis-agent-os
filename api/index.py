@@ -6116,6 +6116,7 @@ def daily_brief_payload(owner_authenticated=False):
     agenda_count = int(summary.get("agenda_count") or 0)
     memory_count = int(summary.get("memory_count") or 0)
     message = (
+        f"{greeting_for_hour()}. "
         f"Hoje você tem {agenda_count} {'item pendente' if agenda_count == 1 else 'itens pendentes'}; "
         f"o Mac está {'online' if summary.get('worker_online') else 'offline'} e "
         f"{memory_count} {'memória está disponível' if memory_count == 1 else 'memórias estão disponíveis'}."
@@ -12214,6 +12215,52 @@ def notes_spoken_summary(rows, limit=3):
     return parts
 
 
+WEATHER_URL = (
+    "https://api.open-meteo.com/v1/forecast"
+    "?latitude=-23.5505&longitude=-46.6333"
+    "&current=temperature_2m,weather_code&timezone=America%2FSao_Paulo"
+)
+WEATHER_SKY = {
+    0: "céu limpo", 1: "quase limpo", 2: "parcialmente nublado", 3: "nublado",
+    45: "neblina", 48: "neblina", 51: "garoa", 53: "garoa", 55: "garoa",
+    61: "chuva fraca", 63: "chuva", 65: "chuva forte", 80: "pancadas de chuva",
+    81: "pancadas de chuva", 82: "pancadas fortes", 95: "tempestade",
+    96: "tempestade", 99: "tempestade",
+}
+_WEATHER_CACHE = {"text": "", "expires_at": 0.0}
+WEATHER_CACHE_SECONDS = 600.0
+
+
+def greeting_for_hour(when=None):
+    """Bom dia / boa tarde / boa noite pelo relógio do dono, não do servidor."""
+    hour = (when or datetime.now(owner_timezone())).hour
+    if 5 <= hour < 12:
+        return "Bom dia"
+    if 12 <= hour < 18:
+        return "Boa tarde"
+    return "Boa noite"
+
+
+def weather_now():
+    """Clima em uma frase curta. Falha calada: agenda não depende disso."""
+    now = time.monotonic()
+    if now < _WEATHER_CACHE["expires_at"]:
+        return _WEATHER_CACHE["text"]
+    text = ""
+    try:
+        request = Request(WEATHER_URL, headers={"User-Agent": "jarvis-agent-os"})
+        with urlopen(request, timeout=4) as response:
+            payload = json.loads(response.read(20_000).decode("utf-8"))
+        current = payload.get("current") or {}
+        temperature = int(round(float(current.get("temperature_2m"))))
+        code = int(current.get("weather_code") or 0)
+        text = f"{temperature} graus e {WEATHER_SKY.get(code, 'tempo seco')}"
+    except (OSError, ValueError, TypeError, KeyError):
+        text = ""
+    _WEATHER_CACHE.update({"text": text, "expires_at": time.monotonic() + WEATHER_CACHE_SECONDS})
+    return text
+
+
 def iron_style_payload():
     """Modo Homem de Ferro: Back In Black no ar e a agenda falada.
 
@@ -12239,13 +12286,21 @@ def iron_style_payload():
     except (OSError, ValueError):
         notes = []
 
-    quadro = [
-        f"Sua agenda: {spoken_list(items)}." if items else "Agenda limpa, nada pendente.",
-    ]
+    agora = datetime.now(owner_timezone())
+    clima = weather_now()
+
+    # Duas falas: a abertura curta, a música entra, e só depois o quadro.
+    abertura = f"{greeting_for_hour(agora)}. Entrando no modo Homem de Ferro."
+    quadro = [f"Agora são {agora.strftime('%H:%M')}."]
+    if clima:
+        quadro.append(f"Lá fora: {clima}.")
+    quadro.append(
+        f"Sua agenda: {spoken_list(items)}." if items else "Agenda limpa, nada pendente."
+    )
     if notes:
         quadro.append(f"Suas anotações: {spoken_list(notes)}.")
-    quadro.append("Como quer seguir hoje?")
-    message = "Beleza, modo Homem de Ferro ligado e Back in Black tocando. " + " ".join(quadro)
+    quadro.append("Quer que eu abra o Google?")
+    message = f"{abertura} {' '.join(quadro)}"
 
     queued = None
     try:
@@ -12265,6 +12320,18 @@ def iron_style_payload():
     except (OSError, ValueError):
         queued = None
 
+    try:
+        save_preference(
+            "Oferta aberta: abrir o Google no JARVIS web.",
+            {
+                "action": "offer",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "url": "https://www.google.com",
+            },
+        )
+    except (OSError, ValueError):
+        pass
+
     screen = message if queued else message.replace("Back in Black no ar, ", "")
     return {
         "ok": True,
@@ -12273,8 +12340,10 @@ def iron_style_payload():
         "visual_state": "success" if queued else "warning",
         "intent": "iron_style",
         "message": screen,
-        # O app fala o `spoken` inteiro (o limite da voz é 400 no fala.js).
-        "spoken": spoken_clip(screen, 380),
+        # Duas falas: a música ganha uns segundos antes do quadro.
+        "spoken": abertura,
+        "spoken_later": spoken_clip(" ".join(quadro), 500),
+        "spoken_delay_ms": 9000,
         "agenda": items,
         "job": (
             {"id": queued["id"], "status": "pending", "action": "spotify_control", "target": "Back In Black"}
@@ -12621,15 +12690,6 @@ def set_trigger_shortcut(command, owner_authenticated):
     return payload, 202
 
 
-DETERMINISTIC_SHORTCUTS = (
-    # Rascunho aberto captura a resposta antes de qualquer outra coisa.
-    set_draft_shortcut,
-    set_creation_shortcut,
-    set_trigger_shortcut,
-    learned_track_shortcut,
-    learned_note_shortcut,
-    iron_style_shortcut,
-)
 
 
 def interactive_confirmation_payload(command, intent, origin=""):
@@ -12659,6 +12719,66 @@ def interactive_confirmation_payload(command, intent, origin=""):
     }
     payload.update(run_public_payload(record))
     return payload, 202
+
+
+def pending_offer():
+    """Oferta feita e ainda não respondida (últimos 10 minutos)."""
+    for row in learned_preference_rows():
+        metadata = row.get("metadata") if isinstance(row, dict) else None
+        if not isinstance(metadata, dict) or metadata.get("action") != "offer":
+            continue
+        started = clean_text(metadata.get("started_at"), 40)
+        try:
+            when = datetime.fromisoformat(started)
+        except ValueError:
+            return {"id": row.get("id"), **metadata}
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        if (datetime.now(timezone.utc) - when).total_seconds() <= 600:
+            return {"id": row.get("id"), **metadata}
+        archive_preference(row.get("id"))
+        return None
+    return None
+
+
+def offer_shortcut(command, owner_authenticated):
+    """"sim" responde à última oferta ("quer que eu abra o Google?")."""
+    offer = pending_offer()
+    if not offer:
+        return None
+    if personal_sets.CANCEL_PATTERN.match(command) or re.fullmatch(
+        r"\s*(?:n[ãa]o|agora\s+n[ãa]o|deixa)\s*[.!?]*\s*", command, re.I
+    ):
+        archive_preference(offer.get("id"))
+        return {
+            "ok": True, "endpoint": "POST /command", "status_real": "offer_declined",
+            "visual_state": "idle", "intent": "offer",
+            "message": "Beleza, deixo pra lá.", "spoken": "Beleza, deixo pra lá.",
+        }, 200
+    if not re.fullmatch(r"\s*(?:sim|pode|manda|bora|claro|isso|vai)\s*[.!?]*\s*", command, re.I):
+        return None
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    archive_preference(offer.get("id"))
+    url = clean_text(offer.get("url"), 300) or "https://www.google.com"
+    return {
+        "ok": True, "endpoint": "POST /command", "status_real": "offer_accepted",
+        "visual_state": "success", "intent": "offer",
+        "client_action": "open_url", "open_url": url,
+        "message": "Abrindo o Google.", "spoken": "Abrindo o Google.",
+    }, 200
+
+
+DETERMINISTIC_SHORTCUTS = (
+    # Rascunho aberto captura a resposta antes de qualquer outra coisa.
+    set_draft_shortcut,
+    offer_shortcut,
+    set_creation_shortcut,
+    set_trigger_shortcut,
+    learned_track_shortcut,
+    learned_note_shortcut,
+    iron_style_shortcut,
+)
 
 
 def command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False):
