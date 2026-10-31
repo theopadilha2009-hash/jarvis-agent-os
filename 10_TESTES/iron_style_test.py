@@ -97,6 +97,7 @@ class IronStyleMessageTest(unittest.TestCase):
     def test_abertura_curta_para_a_musica_entrar(self):
         payload = self._payload()
         self.assertIn("entrando no modo homem de ferro", payload["spoken"].lower())
+        self.assertIn("senhor", payload["spoken"].lower())
         self.assertGreaterEqual(payload["spoken_delay_ms"], 5000)
         self.assertLess(len(payload["spoken"]), 90)
 
@@ -104,10 +105,12 @@ class IronStyleMessageTest(unittest.TestCase):
         payload = self._payload(notes=[{"title": "Revisar contrato do cliente"}])
         quadro = payload["spoken_later"].lower()
         self.assertIn("agora são", quadro)
-        self.assertIn("17 graus", quadro)
+        self.assertIn("hoje está 17 graus", quadro)
+        self.assertIn("na agenda", quadro)
         self.assertIn("mandar retorno até terça", quadro)
+        self.assertIn("suas anotações para hoje são", quadro)
         self.assertIn("revisar contrato do cliente", quadro)
-        self.assertIn("abra o google", quadro)
+        self.assertIn("abra alguma coisa", quadro)
 
     def test_cada_fala_cabe_no_limite_da_voz(self):
         payload = self._payload(notes=[{"title": "Revisar contrato do cliente"}])
