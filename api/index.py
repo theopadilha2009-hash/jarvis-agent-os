@@ -12290,17 +12290,21 @@ def iron_style_payload():
     clima = weather_now()
 
     # Duas falas: a abertura curta, a música entra, e só depois o quadro.
-    abertura = f"{greeting_for_hour(agora)}. Entrando no modo Homem de Ferro."
+    abertura = f"{greeting_for_hour(agora)}, senhor. Entrando no modo Homem de Ferro."
+    # A ordem é a que o Theo pediu: clima, o que ele tem pra hoje, as anotações
+    # e, no fim, a oferta.
     quadro = [f"Agora são {agora.strftime('%H:%M')}."]
     if clima:
-        quadro.append(f"Lá fora: {clima}.")
+        quadro.append(f"Hoje está {clima}.")
     quadro.append(
-        f"Sua agenda: {spoken_list(items)}." if items else "Agenda limpa, nada pendente."
+        f"Na agenda: {spoken_list(items)}." if items else "Agenda limpa, nada pendente."
     )
-    if notes:
-        quadro.append(f"Suas anotações: {spoken_list(notes)}.")
-    quadro.append("Mais alguma coisa?")
-    quadro.append("Quer que eu abra o Google?")
+    quadro.append(
+        f"Suas anotações para hoje são: {spoken_list(notes)}."
+        if notes
+        else "Nenhuma anotação para hoje."
+    )
+    quadro.append("Quer que eu abra alguma coisa?")
     message = f"{abertura} {' '.join(quadro)}"
 
     queued = None
@@ -12435,7 +12439,19 @@ def iron_style_shortcut(command, owner_authenticated):
         return None
     if owner_pairing_required() and not owner_authenticated:
         return pairing_required_payload()
-    return iron_style_payload()
+    try:
+        return iron_style_payload()
+    except (OSError, ValueError, TypeError, KeyError):
+        # Clima, agenda ou nota podem falhar: o modo não pode virar silêncio.
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "iron_style_degraded",
+            "visual_state": "warning",
+            "intent": "iron_style",
+            "message": "Entrando no modo Homem de Ferro.",
+            "spoken": "Entrando no modo Homem de Ferro.",
+        }, 202
 
 
 SET_DRAFT_TTL_MINUTES = 15
