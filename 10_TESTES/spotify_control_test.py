@@ -8,6 +8,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
+import spotify_control  # noqa: E402
 from spotify_control import command_args, control_requested, public_target  # noqa: E402
 
 
@@ -28,13 +29,13 @@ class SpotifyControlTest(unittest.TestCase):
                 "play-uri", "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
             ],
             "toca a música do homem de ferro": [
-                "play-uri", "spotify:track:2iEGj7kAwH7HAa5epwYwLB",
+                "play-uri", spotify_control.BACK_IN_BLACK_URI,
             ],
             "abre o Spotify com a música do Homem de Ferro": [
-                "play-uri", "spotify:track:2iEGj7kAwH7HAa5epwYwLB",
+                "play-uri", spotify_control.BACK_IN_BLACK_URI,
             ],
             "toque Iron Man no Spotify": [
-                "play-uri", "spotify:track:2iEGj7kAwH7HAa5epwYwLB",
+                "play-uri", spotify_control.BACK_IN_BLACK_URI,
             ],
         }
         for request, expected in cases.items():

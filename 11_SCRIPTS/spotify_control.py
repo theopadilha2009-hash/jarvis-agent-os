@@ -11,14 +11,17 @@ TRACK_URI_PATTERN = re.compile(r"^spotify:track:[A-Za-z0-9]{10,40}$")
 # "/" é necessário para "AC/DC"; ":" continua fora porque separa URI de faixa.
 SAFE_QUERY_PATTERN = re.compile(r"^[\wÀ-ÿ '&.,()_/-]{2,120}$", re.UNICODE)
 # Pedidos falados curtos → faixa allowlisted. Sem busca livre.
-# "Back In Black" — AC/DC, do álbum Iron Man 2. ID conferido por Theo em
-# open.spotify.com/track/2iEGj7kAwH7HAa5epwYwLB (2026-10-30).
-BACK_IN_BLACK_URI = "spotify:track:2iEGj7kAwH7HAa5epwYwLB"
+# "Back In Black" — AC/DC, do álbum Iron Man 2. Este é o ID que o Theo apontou
+# por último como o certo: open.spotify.com/track/08mG3Y1vljYA6bvDt4Wqkj.
+BACK_IN_BLACK_URI = "spotify:track:08mG3Y1vljYA6bvDt4Wqkj"
 # Faixas aposentadas: o modelo já tocou o Iron Man do Black Sabbath duas vezes
 # quando o pedido era Back In Black — inclusive chamando a ferramenta direto com
 # o ID antigo. Qualquer caminho que resolva para um destes IDs cai na faixa certa.
 RETIRED_TRACKS = {
+    # Iron Man do Black Sabbath — o modelo já tocou isso duas vezes.
     "spotify:track:4svkPL62HbvyFgf0nHFXAF": BACK_IN_BLACK_URI,
+    # Mesma faixa, outro lançamento: o Theo apontou este ID como o certo.
+    "spotify:track:2iEGj7kAwH7HAa5epwYwLB": BACK_IN_BLACK_URI,
 }
 
 NAMED_TRACKS = {

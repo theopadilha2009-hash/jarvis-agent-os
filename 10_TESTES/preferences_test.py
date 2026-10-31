@@ -12,8 +12,8 @@ import preferences  # noqa: E402
 import spotify_control  # noqa: E402
 
 
-LINK = "https://open.spotify.com/intl-pt/track/2iEGj7kAwH7HAa5epwYwLB?si=31c1ce569492445d"
-URI = "spotify:track:2iEGj7kAwH7HAa5epwYwLB"
+LINK = "https://open.spotify.com/intl-pt/track/08mG3Y1vljYA6bvDt4Wqkj?si=31c1ce569492445d"
+URI = "spotify:track:08mG3Y1vljYA6bvDt4Wqkj"
 
 
 class ParseTeachingTest(unittest.TestCase):
