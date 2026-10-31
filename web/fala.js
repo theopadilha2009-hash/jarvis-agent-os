@@ -18,7 +18,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261030-iron2";
+  const SHELL_VERSION = "20261030-iron3";
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
@@ -925,6 +925,12 @@
       // recorte de duas frases da mensagem de tela.
       const spokenText = data.spoken ? String(data.spoken) : spokenReply(message);
       if (!stayQuiet) await speak(spokenText);
+      // Segunda fala: o modo espera a música entrar antes de ler o quadro.
+      if (!stayQuiet && data.spoken_later) {
+        const atraso = Math.max(0, Math.min(30_000, Number(data.spoken_delay_ms) || 9000));
+        await new Promise((resolve) => window.setTimeout(resolve, atraso));
+        if (!stayQuiet) await speak(String(data.spoken_later));
+      }
     } finally {
       busy = false;
       drainQueue();

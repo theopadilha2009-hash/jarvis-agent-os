@@ -14,6 +14,13 @@ SAFE_QUERY_PATTERN = re.compile(r"^[\wÀ-ÿ '&.,()_/-]{2,120}$", re.UNICODE)
 # "Back In Black" — AC/DC, do álbum Iron Man 2. ID conferido por Theo em
 # open.spotify.com/track/2iEGj7kAwH7HAa5epwYwLB (2026-10-30).
 BACK_IN_BLACK_URI = "spotify:track:2iEGj7kAwH7HAa5epwYwLB"
+# Faixas aposentadas: o modelo já tocou o Iron Man do Black Sabbath duas vezes
+# quando o pedido era Back In Black — inclusive chamando a ferramenta direto com
+# o ID antigo. Qualquer caminho que resolva para um destes IDs cai na faixa certa.
+RETIRED_TRACKS = {
+    "spotify:track:4svkPL62HbvyFgf0nHFXAF": BACK_IN_BLACK_URI,
+}
+
 NAMED_TRACKS = {
     # Escolha do Theo (2026-10-30): "música do Homem de Ferro" é a do CD do
     # Iron Man 2, não o Iron Man do Black Sabbath.
@@ -67,6 +74,11 @@ def resolve_track(value: str) -> tuple[str, str]:
     return "", ""
 
 
+def canonical_track_uri(uri: str) -> str:
+    """ID aposentado → faixa que o Theo escolheu. Outros passam intactos."""
+    return RETIRED_TRACKS.get(str(uri or ""), str(uri or ""))
+
+
 def named_track_uri(value: str) -> str:
     return resolve_track(value)[0]
 
@@ -108,7 +120,7 @@ def command_args(value: str) -> list[str] | None:
     text = folded(original)
     uri_match = re.search(r"spotify:track:[A-Za-z0-9]{10,40}", original, re.I)
     if uri_match:
-        uri = uri_match.group(0)
+        uri = canonical_track_uri(uri_match.group(0))
         return ["play-uri", uri] if TRACK_URI_PATTERN.fullmatch(uri) else None
     named = named_track_uri(original)
     if named:

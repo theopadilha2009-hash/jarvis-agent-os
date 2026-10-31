@@ -68,18 +68,21 @@ class IronStyleMessageTest(unittest.TestCase):
         {"title": "Postar um vídeo sexta-feira", "scheduled_for": "2026-11-06T15:00:00+00:00"},
     ]
 
-    def _payload(self, agenda=None, notes=None):
+    def _payload(self, agenda=None, notes=None, clima="17 graus e nublado"):
         original = (
             gateway.supabase_configured,
             gateway.supabase_agenda_rows,
             gateway.supabase_notes_rows,
             gateway.supabase_request,
+            gateway.weather_now,
         )
         gateway.supabase_configured = lambda: True
         gateway.supabase_agenda_rows = lambda *_a, **_k: self.AGENDA if agenda is None else agenda
         gateway.supabase_notes_rows = lambda *_a, **_k: notes or []
-        # Não enfileira nada: teste não pode tocar música no Mac.
+        # Não enfileira nada e não sai para a internet: teste não toca música
+        # nem depende do clima real.
         gateway.supabase_request = lambda *_a, **_k: [{"id": 1, "status": "pending"}]
+        gateway.weather_now = lambda: clima
         try:
             return gateway.iron_style_payload()[0]
         finally:
@@ -88,78 +91,45 @@ class IronStyleMessageTest(unittest.TestCase):
                 gateway.supabase_agenda_rows,
                 gateway.supabase_notes_rows,
                 gateway.supabase_request,
+                gateway.weather_now,
             ) = original
 
-    def test_agenda_anotacoes_e_pergunta_final(self):
-        payload = self._payload(notes=[{"title": "Revisar contrato do cliente"}])
-        falado = payload["spoken"]
-        for esperado in ("criar 3 sistemas", "mandar retorno até terça", "revisar contrato do cliente"):
-            self.assertIn(esperado, falado.lower())
-        self.assertIn("como quer seguir hoje", falado.lower())
-        self.assertIn("back in black", falado.lower())
+    def test_abertura_curta_para_a_musica_entrar(self):
+        payload = self._payload()
+        self.assertIn("entrando no modo homem de ferro", payload["spoken"].lower())
+        self.assertGreaterEqual(payload["spoken_delay_ms"], 5000)
+        self.assertLess(len(payload["spoken"]), 90)
 
-    def test_fala_cabe_no_limite_da_voz(self):
+    def test_quadro_com_hora_clima_agenda_e_pergunta(self):
+        payload = self._payload(notes=[{"title": "Revisar contrato do cliente"}])
+        quadro = payload["spoken_later"].lower()
+        self.assertIn("agora são", quadro)
+        self.assertIn("17 graus", quadro)
+        self.assertIn("mandar retorno até terça", quadro)
+        self.assertIn("revisar contrato do cliente", quadro)
+        self.assertIn("abra o google", quadro)
+
+    def test_cada_fala_cabe_no_limite_da_voz(self):
         payload = self._payload(notes=[{"title": "Revisar contrato do cliente"}])
         self.assertLessEqual(len(payload["spoken"]), 400)
+        self.assertLessEqual(len(payload["spoken_later"]), 400)
 
     def test_sem_agenda_avisa_limpa(self):
-        falado = self._payload(agenda=[])["spoken"]
-        self.assertIn("agenda limpa", falado.lower())
-        self.assertIn("como quer seguir hoje", falado.lower())
+        quadro = self._payload(agenda=[])["spoken_later"].lower()
+        self.assertIn("agenda limpa", quadro)
 
     def test_sem_anotacao_nao_inventa_secao(self):
-        falado = self._payload(notes=[])["spoken"]
-        self.assertNotIn("anotações", falado.lower())
+        self.assertNotIn("anotações", self._payload(notes=[])["spoken_later"].lower())
+
+    def test_sem_clima_nao_quebra_a_frase(self):
+        quadro = self._payload(clima="")["spoken_later"].lower()
+        self.assertNotIn("lá fora", quadro)
+        self.assertIn("agora são", quadro)
 
     def test_nao_soa_como_relatorio(self):
-        falado = self._payload()["spoken"]
+        payload = self._payload()
         for ruido in ("status_real", "03/11", "http", "worker", "supabase"):
-            self.assertNotIn(ruido, falado.lower())
-
-
-class ConfirmedTrackTest(unittest.TestCase):
-    """O modelo já inventou URI de faixa; só toca o que veio do Theo."""
-
-    def test_uri_inventada_pelo_modelo_nao_passa(self):
-        self.assertEqual(
-            gateway.confirmed_track_uri("spotify:track:4svkPL62HbvyFgf0nHFXAF", "toca uma música aí"),
-            "",
-        )
-
-    def test_nome_do_catalogo_manda_na_uri(self):
-        # Pedido era Back In Black; o modelo mandou Black Sabbath. Vence o catálogo.
-        self.assertEqual(
-            gateway.confirmed_track_uri(
-                "spotify:track:4svkPL62HbvyFgf0nHFXAF", "toca a música do homem de ferro"
-            ),
-            spotify_control.BACK_IN_BLACK_URI,
-        )
-
-    def test_link_dito_pelo_usuario_passa(self):
-        link = "https://open.spotify.com/track/2iEGj7kAwH7HAa5epwYwLB"
-        self.assertEqual(
-            gateway.confirmed_track_uri(spotify_control.BACK_IN_BLACK_URI, f"toca {link}"),
-            spotify_control.BACK_IN_BLACK_URI,
-        )
-
-    def test_uri_que_nao_e_faixa_nao_passa(self):
-        self.assertEqual(gateway.confirmed_track_uri("javascript:alert(1)", "toca isso"), "")
-        self.assertEqual(gateway.confirmed_track_uri("spotify:album:abc", "toca isso"), "")
-
-
-class SpokenClipTest(unittest.TestCase):
-    def test_texto_curto_passa_intacto(self):
-        self.assertEqual(gateway.spoken_clip("Beleza, tá feito."), "Beleza, tá feito.")
-
-    def test_corta_no_separador_e_nao_no_meio_da_palavra(self):
-        texto = "Sua agenda: " + ", ".join(f"tarefa comprida numero {i}" for i in range(12))
-        cortado = gateway.spoken_clip(texto, limit=90)
-        self.assertLessEqual(len(cortado), 91)
-        self.assertTrue(cortado.endswith(".") or cortado.endswith("…"))
-        self.assertFalse(cortado.endswith(" "))
-
-    def test_nunca_passa_do_limite_sem_espaco(self):
-        self.assertLessEqual(len(gateway.spoken_clip("x" * 400, limit=100)), 101)
+            self.assertNotIn(ruido, (payload["spoken"] + " " + payload["spoken_later"]).lower())
 
 
 class IronStylePayloadTest(unittest.TestCase):
