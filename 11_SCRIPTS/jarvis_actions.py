@@ -54,9 +54,19 @@ def get_battery_status() -> str:
     res = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True)
     out = res.stdout
     percent_match = re.search(r"(\d+)%", out)
-    state = "carregando" if "charging" in out.lower() or "ac attached" in out.lower() else "na bateria"
+    lowered = out.lower()
+    # O pmset diz "Now drawing from 'AC Power'" — não "ac attached".
+    on_power = "ac power" in lowered or "ac attached" in lowered
+    if "charging" in lowered:
+        state = "carregando"
+    elif on_power:
+        state = "na tomada" if "charged" not in lowered else "na tomada, carga completa"
+    else:
+        state = "na bateria"
     time_match = re.search(r"(\d+:\d+) remaining", out)
-    time_left = f", restando cerca de {time_match.group(1)}" if time_match else ""
+    # Com 0:00 e na tomada, "restando cerca de 0:00" só confunde.
+    remaining = time_match.group(1) if time_match else ""
+    time_left = f", restando cerca de {remaining}" if remaining and remaining != "0:00" else ""
     percent = percent_match.group(1) if percent_match else "100"
     return f"A bateria está em {percent}%, {state}{time_left}."
 
@@ -324,7 +334,11 @@ ACTIONS_REGISTRY = [
     (r"(?:muta|mutar|silencia|silenciar)\s+(?:o\s+)?(?:som|audio|mac)", lambda m: mute_volume(True)),
     (r"(?:desmuta|desmutar|ativa\s+o\s+som)", lambda m: mute_volume(False)),
     (r"(?:aumenta|diminui|ajusta)\s+o?\s*brilho", lambda m: set_brightness(0.8)),
-    (r"(?:bateria|carga)", lambda m: get_battery_status()),
+    # Ancorado: "carga" solto também casa "carrega a página", "recarrega",
+    # "carregando" — e a resposta daqui vira fala, repetida a cada frase.
+    (r"^(?:qual\s+[eé]\s+(?:a\s+)?)?(?:bateria|carga\s+(?:da\s+)?bateria|"
+    r"porcentagem\s+(?:da\s+)?bateria|battery)(?:\s+agora)?\s*[?!.]*$",
+     lambda m: get_battery_status()),
     (r"(?:ativa|ativar|liga)\s+o?\s*(?:nao\s+perturbe|modo\s+foco)", lambda m: toggle_do_not_disturb(True)),
     (r"(?:desativa|desativar|desliga)\s+o?\s*(?:nao\s+perturbe|modo\s+foco)", lambda m: toggle_do_not_disturb(False)),
     (r"(?:bloqueia|bloquear|tranca|trancar)\s+(?:o\s+)?(?:mac|computador|tela)", lambda m: lock_screen()),
