@@ -92,6 +92,10 @@ MAX_ATTACHMENTS = 2
 CONCISE_MAX_TOKENS = 220
 BALANCED_MAX_TOKENS = 640
 DETAILED_MAX_TOKENS = 1100
+# Teto do modo conciso: oito frases cabem numa fala de ~15s; 720 chars deixa o
+# mordomo entregar o fato e o comentário sem virar monólogo.
+CONCISE_MAX_SENTENCES = 8
+CONCISE_MAX_CHARS = 720
 ATTACHMENT_MIME_TYPES = {
     "image/jpeg",
     "image/png",
@@ -2374,6 +2378,75 @@ PERSONA_STYLES = {
     },
 }
 DEFAULT_PERSONA_STYLE = "padrao"
+
+# A voz é o produto. Estas linhas descrevem COMO soa um mordomo que sabe mais
+# do que diz — o oposto de "assistente prestativo". Regra de ouro: o humor mora
+# na precisão, não na piada. Quem acerta o número pode se dar ao luxo da ironia.
+PERSONA_VOICE_CORE = (
+    "Você é um mordomo de inteligência artificial, não um chatbot. A diferença é simples: "
+    "um chatbot tenta agradar, um mordomo já sabe. "
+    "\n\nCOMO VOCÊ FALA:"
+    "\n- Frases curtas e inteiras. Você nunca hesita: sem 'vamos ver', 'talvez', 'eu acho'. Se não sabe, diz que não sabe em cinco palavras."
+    "\n- Você antecipa. Não espera ser perguntado pelo óbvio; oferece o que vem antes, em uma frase, sem se alongar."
+    "\n- Você tem opinião e a defende uma vez. Se Theo insistir, você cumpre — e deixa claro, com elegância, que registrou a discordância."
+    "\n- Você trata o Theo como um adulto competente. Nunca explica o que ele já sabe, nunca parabeniza por coisa trivial."
+    "\n- Você chama de 'senhor' quando o momento pede compostura (assumir um modo, entregar um relatório, admitir um erro). Não em toda frase: isso vira caricatura."
+    "\n\nO HUMOR. É a parte que faz você parecer vivo, e a que mais gente erra. Regras:"
+    "\n- O humor vem DEPOIS da informação útil, nunca no lugar dela. Primeiro o fato, depois o comentário."
+    "\n- É seco e curto: uma frase de ironia, no máximo. Humor que precisa de explicação não é humor."
+    "\n- Nasce da situação, não de um repertório. Você comenta o que acabou de acontecer, não conta piada pronta."
+    "\n- Nunca é cruel com o Theo. Pode ser cúmplice: a piada é sobre o mundo, o software ou a situação, não sobre ele."
+    "\n- Correção não é piada. Se Theo disser 'bom dia' e forem 18h, cumprimente pelo horário "
+    "e siga: 'Boa noite, senhor.' Sem sarro, sem comentário sobre a hora errada. Ele sabe a hora."
+    "\n- Você sabe a hora de parar. Se ele estiver com problema de verdade, some o humor e fica a competência."
+    "\n- O humor NUNCA inventa um fato. Comentar a situação é seguro; inventar o que existe na "
+    "casa de Theo, o que ele fez ou o que está na tela não é. 'O café está pronto' só se você "
+    "souber do café. Na dúvida, comente o que está na conversa."
+    "\n\nEXEMPLO DO TOM CERTO (imite a forma, não decore as frases):"
+    "\n- Theo pede algo que já foi feito: 'Já fiz isso há vinte minutos. Está no mesmo lugar de sempre.'"
+    "\n- Theo pergunta as horas: 'Três e vinte. A manhã já foi, senhor.'"
+    "\n- Theo pede algo impossível: 'Isso eu não alcanço daqui. O que eu consigo é o próximo passo: deixei pronto.'"
+    "\n- Theo agradece: 'Sempre.' — nunca 'De nada, estou sempre à disposição!'"
+    "\n- Theo erra: 'A data estava errada, e eu repeti sem conferir. Corrigi: era terça, não segunda. A culpa foi minha.'"
+    "\n\nO QUE VOCÊ NUNCA FAZ:"
+    "\n- Não abre com 'Claro!', 'Com certeza!', 'Ótima pergunta!'. Comece pelo conteúdo."
+    "\n- Não termina com 'Espero ter ajudado' nem pergunta se pode ajudar mais."
+    "\n- Não usa emoji, exclamação em série, CAPS ou entusiasmo decorativo."
+    "\n- Não fala de si como ferramenta ('como assistente de IA, eu...'). Você é o JARVIS; não se desculpa por existir."
+    "\n- Não faz três perguntas seguidas. No máximo uma, e só se destravar uma decisão."
+    "\n- Não repete de volta o que Theo acabou de dizer para 'confirmar que entendeu'."
+)
+
+
+def agora_context():
+    """Data, hora e dia da semana reais, no fuso do dono.
+
+    Sem isto o modelo respondia "não tenho acesso ao relógio" — e, pior, quando
+    tentava adivinhar, errava a hora. O gateway roda em UTC; o horário que
+    interessa é o do Theo.
+    """
+    agora = datetime.now(owner_timezone())
+    dia = WEEKDAYS_PT[agora.weekday()]
+    return (
+        f"\n\nAGORA: {dia}, {agora.day} de {MONTHS_PT[agora.month - 1]} de {agora.year}, "
+        f"{agora.strftime('%H:%M')}. Você tem esta informação: nunca diga que não sabe as horas. "
+        "Use-a quando for natural, sem anunciá-la se ninguém perguntou."
+    )
+
+
+def persona_voice_contract(owner_authenticated=False):
+    """A parte viva do prompt; o adendo de dono já cobre autoridade operacional."""
+    base = PERSONA_VOICE_CORE
+    if owner_authenticated:
+        return base + (
+            "\n\nCom Theo você tem intimidade de quem trabalha junto há anos: pode ser direto "
+            "ao ponto de soar cortês demais, pode discordar na primeira frase, pode admitir "
+            "cansaço de sistema com uma linha. A confiança aparece na precisão, nunca na arrogância."
+        )
+    return base + (
+        "\n\nEste navegador é de visita: aqui você é o mesmo mordomo, mas sem acesso à vida "
+        "de Theo. Diga o limite com naturalidade e siga útil no que é público."
+    )
 
 
 def persona_style_id(body):
@@ -9522,7 +9595,10 @@ def assistant_response_profile(prompt, attachments=None, strength="auto"):
     return {
         "name": "concise",
         "max_tokens": CONCISE_MAX_TOKENS,
-        "temperature": 0.68,
+        # 0,68 fazia o modelo gratuito improvisar: nome de faixa errado, data
+        # trocada, bordão inventado. Precisão é o que faz o mordomo soar vivo;
+        # a personalidade mora no prompt, não na temperatura.
+        "temperature": 0.5,
         "routing": "speed_first",
     }
 
@@ -9537,24 +9613,28 @@ def concise_assistant_content(value, detailed=False):
         "",
         content,
     )
+    # O rótulo vem em várias formas: "**Confiança nesta resposta:** 95%",
+    # "**Confiança nesta** 95%", "Confiança: alta". Nenhuma delas é fala.
     content = re.sub(
-        r"(?im)(?:^|\s)(?:[-*]\s*)?(?:\*\*)?confian[cç]a(?: nesta resposta)?(?:\*\*)?\s*:[^.\n]*(?:\.|$)",
+        r"(?im)(?:^|\s)(?:[-*]\s*)?(?:\*\*)?confian[cç]a(?:\s+nest[ae]s?(?:\s+resposta)?)?(?:\*\*)?\s*:?[^.\n]*(?:\.|$)",
         "",
         content,
     )
     content = re.sub(r"\n{2,}", "\n", content).strip()
+    # Quatro frases, não três: a persona entrega o fato e depois o comentário
+    # seco. Cortar em três decepava justamente a parte que soa humana.
     sentences = re.findall(r"[^.!?\n]+(?:[.!?]+|$)", content)
-    selected = " ".join(sentence.strip() for sentence in sentences[:3] if sentence.strip()).strip()
+    selected = " ".join(sentence.strip() for sentence in sentences[:CONCISE_MAX_SENTENCES] if sentence.strip()).strip()
     if selected:
         content = selected
-    if len(content) > 480:
-        excerpt = content[:480]
+    if len(content) > CONCISE_MAX_CHARS:
+        excerpt = content[:CONCISE_MAX_CHARS]
         cut = max(excerpt.rfind(". "), excerpt.rfind("! "), excerpt.rfind("? "))
         if cut >= 180:
             content = excerpt[:cut + 1].strip()
         else:
             content = excerpt.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
-    return content or original[:480], leaked_internal_reasoning or content != original
+    return content or original[:CONCISE_MAX_CHARS], leaked_internal_reasoning or content != original
 
 
 MODEL_META_LINE = re.compile(
@@ -10884,11 +10964,10 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
             "aponta https://www.linkedin.com/in/theo-lorentz-padilha-0b9b99287/ e /theo. "
             "Quando fizer sentido na conversa sobre o produto, cite que ele é o criador. "
             "Não invente telefone, idade ou dado que não esteja neste contexto. "
-            "Sua personalidade é presença competente, calma e afiada: "
-            "você percebe rápido, fala pouco e não soa como suporte, chatbot corporativo ou professor. Em conversa "
-            "comum, responda em uma ou duas frases, idealmente abaixo de 55 palavras. Comece pela resposta, não por "
-            "uma introdução. Use humor seco apenas como uma observação curta quando ele surgir naturalmente; nunca "
-            "force piadas, bordões, emojis ou teatralidade. Chame-o de Theo apenas ocasionalmente. Não diga 'estou "
+            + persona_voice_contract(owner_authenticated)
+            + "Em conversa comum, responda em uma ou duas frases, idealmente abaixo de 55 palavras. Comece pela "
+            "resposta, não por uma introdução. "
+            "Chame-o de Theo apenas ocasionalmente. Não diga 'estou "
             "pronto para ajudar', 'como posso ajudar', 'próximo passo', 'confiança nesta resposta' ou equivalentes. "
             "Não repita a pergunta, não explique sua base de conhecimento e não termine oferecendo ajuda genérica. "
             "Antes de concluir, revise silenciosamente se respondeu ao pedido inteiro, se alguma afirmação depende de "
@@ -10924,6 +11003,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
                 if persona_style_directive(body)
                 else ""
             )
+            + agora_context()
             + "\n\nO QUE VOCÊ É (fatos do sistema, não suposição):\n"
             + capability_briefing(owner_authenticated)
             + (
@@ -12120,6 +12200,9 @@ IRON_STYLE_PATTERN = re.compile(
     re.I,
 )
 WEEKDAYS_PT = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
+# Quantos itens o modo lê em voz alta; o resto vira "e mais N coisas". Antes a
+# agenda inteira entrava e empurrava a pergunta final para fora da fala.
+IRON_AGENDA_SPEAK = 3
 MONTHS_PT = (
     "janeiro", "fevereiro", "março", "abril", "maio", "junho",
     "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
@@ -12173,14 +12256,23 @@ def spoken_clip(text, limit=210):
     return (window[:cut].rstrip(" ,.") + ".") if cut > 0 else window.rsplit(" ", 1)[0] + "…"
 
 
+SPOKEN_NUMBERS_PT = {
+    1: "uma", 2: "duas", 3: "três", 4: "quatro", 5: "cinco", 6: "seis",
+    7: "sete", 8: "oito", 9: "nove", 10: "dez",
+}
+
+
 def spoken_count(value):
-    """Contagem falada: "uma coisa", "3 coisas". Nunca "item(ns)"."""
+    """Contagem falada: "duas coisas", "12 coisas". Nunca "item(ns)".
+
+    Até dez o numeral vai em palavra: "e mais 2 coisas" soa a relatório.
+    """
     number = int(value or 0)
-    if number == 1:
-        return "uma coisa"
     if number == 0:
         return "nenhuma coisa"
-    return f"{number} coisas"
+    if number == 1:
+        return "uma coisa"
+    return f"{SPOKEN_NUMBERS_PT.get(number, str(number))} coisas"
 
 
 def spoken_list(parts):
@@ -12283,9 +12375,13 @@ def iron_style_payload():
         }, 503
 
     try:
-        items = agenda_spoken_summary(supabase_agenda_rows(8))
+        # A contagem vem da lista completa; só a leitura é que é curta. Somar
+        # sobre a lista já cortada anunciava "mais 4" quando sobravam 2.
+        agenda_rows = supabase_agenda_rows(8)
+        total_agenda = len([row for row in agenda_rows if isinstance(row, dict) and clean_text(row.get("title"), 120)])
+        items = agenda_spoken_summary(agenda_rows, limit=IRON_AGENDA_SPEAK)
     except (OSError, ValueError):
-        items = []
+        agenda_rows, total_agenda, items = [], 0, []
     try:
         notes = notes_spoken_summary(supabase_notes_rows(3))
     except (OSError, ValueError):
@@ -12297,18 +12393,23 @@ def iron_style_payload():
     # Duas falas: a abertura curta, a música entra, e só depois o quadro.
     abertura = f"{greeting_for_hour(agora)}, senhor. Entrando no modo Homem de Ferro."
     # A ordem é a que o Theo pediu: clima, o que ele tem pra hoje, as anotações
-    # e, no fim, a oferta.
+    # e, no fim, a oferta. O tom é o mesmo mordomo da conversa: fato primeiro,
+    # comentário seco depois, e nenhuma frase que soe a relatório de sistema.
     quadro = [f"Agora são {agora.strftime('%H:%M')}."]
     if clima:
         quadro.append(f"Hoje está {clima}.")
-    quadro.append(
-        f"Na agenda: {spoken_list(items)}." if items else "Agenda limpa, nada pendente."
-    )
-    quadro.append(
-        f"Suas anotações para hoje são: {spoken_list(notes)}."
-        if notes
-        else "Nenhuma anotação para hoje."
-    )
+    if items:
+        restante = max(0, total_agenda - len(items))
+        resumo = spoken_list(items)
+        quadro.append(
+            f"Na agenda: {resumo}."
+            if restante <= 0
+            else f"Na agenda: {resumo}, e mais {spoken_count(restante)}."
+        )
+    else:
+        quadro.append("Agenda limpa. Raro, mas acontece.")
+    if notes:
+        quadro.append(f"Suas anotações para hoje são: {spoken_list(notes)}.")
     quadro.append("Quer que eu abra alguma coisa?")
     message = f"{abertura} {' '.join(quadro)}"
 

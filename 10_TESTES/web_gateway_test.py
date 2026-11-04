@@ -2627,13 +2627,16 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(payload["message"], "Resposta conectada.")
         sent_request = request.call_args.args[0]
         sent_payload = json.loads(sent_request.data.decode("utf-8"))
-        self.assertEqual(sent_payload["temperature"], 0.68)
+        # 0,5: o conciso prioriza precisão. A persona mora no prompt, e o
+        # improviso da temperatura alta inventava faixa e data.
+        self.assertEqual(sent_payload["temperature"], 0.5)
         self.assertEqual(sent_payload["max_tokens"], 220)
         self.assertEqual(sent_payload["provider"]["sort"]["partition"], "none")
         system_prompt = sent_payload["messages"][0]["content"]
-        self.assertIn("humor seco", system_prompt)
+        self.assertIn("humor", system_prompt.lower())
+        self.assertIn("mordomo", system_prompt.lower())
         self.assertIn("uma ou duas frases", system_prompt)
-        self.assertIn("presença competente", system_prompt)
+        self.assertNotIn("assistente prestativo", system_prompt)
         self.assertIn("sem sermão", system_prompt)
         self.assertIn("nunca diga que não possui voz", system_prompt.casefold())
         self.assertEqual(payload["response_profile"], "concise")
@@ -4070,15 +4073,23 @@ São Paulo - SP
             "**Resposta:** Está funcionando. "
             "**Próximo passo:** Vou reduzir o atraso da voz. "
             "Também vou manter as respostas curtas. "
-            "Esta quarta frase não deve aparecer. "
             "**Confiança nesta resposta:** 95%."
         )
         content, trimmed = MODULE.concise_assistant_content(raw, detailed=False)
         self.assertTrue(trimmed)
         self.assertNotIn("Próximo passo", content)
         self.assertNotIn("Confiança", content)
-        self.assertNotIn("quarta frase", content)
-        self.assertLessEqual(len(content), 480)
+        self.assertIn("Está funcionando", content)
+        # Quatro frases cabem: fato e comentário. O teto agora é oito.
+        self.assertLessEqual(len(content), 720)
+
+    def test_excesso_de_frases_e_cortado(self):
+        """Passar de oito frases vira monólogo; o corte tem que acontecer."""
+        raw = " ".join(f"Frase numero {i}." for i in range(20))
+        content, trimmed = MODULE.concise_assistant_content(raw, detailed=False)
+        self.assertTrue(trimmed)
+        self.assertNotIn("Frase numero 10", content)
+        self.assertIn("Frase numero 0", content)
 
     def test_internal_model_reasoning_is_never_shown_as_the_answer(self):
         raw = (
