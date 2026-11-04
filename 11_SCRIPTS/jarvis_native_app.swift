@@ -608,8 +608,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         playNextSpeechChunk()
     }
 
+    static func clipForSpeech(_ raw: String, limit: Int) -> String {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count > limit else { return text }
+        let head = String(text.prefix(limit))
+        for separator in [". ", ", ", " e "] {
+            if let range = head.range(of: separator, options: .backwards) {
+                return String(head[..<range.lowerBound]) + "."
+            }
+        }
+        return head
+    }
+
     private func speakNative(_ raw: String) {
-        let text = String(raw.prefix(220)).trimmingCharacters(in: .whitespacesAndNewlines)
+        // 220 no meio da palavra cortava a agenda. Corta no último separador
+        // antes do teto — e o servidor já manda um `spoken` curto.
+        let text = Self.clipForSpeech(raw, limit: 400)
         guard !text.isEmpty else {
             finishSpeak()
             return

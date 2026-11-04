@@ -328,6 +328,11 @@ def daily_executive_briefing() -> str:
 # DISPATCHER CENTRAL DE COMANDOS DE VOZ
 # ==========================================
 
+# Voz reconhecida não é confirmação: quem publica ou apaga não passa por aqui.
+DESTRUCTIVE_REFUSAL = (
+    "Isso eu não faço por voz: é irreversível. Me peça pelo app, com confirmação."
+)
+
 ACTIONS_REGISTRY = [
     # 1-6 Sistema
     (r"(?:aumenta|aumentar|diminui|diminuir|coloca|ajusta)\s+o?\s*volume\s*(?:para|em|no)?\s*(\d+)?", lambda m: set_volume(int(m.group(1)) if m.group(1) else 60)),
@@ -350,7 +355,7 @@ ACTIONS_REGISTRY = [
     (r"(?:abre|abrir)\s+(?:o\s+)?terminal\s+no\s+projeto\s+(.*)", lambda m: open_terminal_project(m.group(1))),
     (r"(?:abre|abrir)\s+no\s+(cursor|vs\s*code)\s+(?:o\s+projeto\s+)?(.*)", lambda m: open_in_editor(m.group(2), m.group(1))),
     (r"(?:git.*status|status.*git|git\s+(?:na|no|do|da)?\s*(.*))", lambda m: git_status_voice(m.group(1) if m.lastindex else "Via_Lux")),
-    (r"(?:faz\s+commit|salva\s+alteracoes)\s+(?:no\s+projeto\s+)?([^\s]+)\s+(?:com\s+a\s+mensagem|com\s+o\s+texto)?\s*(.*)", lambda m: quick_git_commit(m.group(1), m.group(2) or "Ajustes via JARVIS")),
+    (r"^(?:faz\s+commit|salva\s+alteracoes)\s+.*$", lambda m: DESTRUCTIVE_REFUSAL),
     (r"(?:lista|quais\s+sao)\s+(?:os\s+)?(?:meus\s+)?projetos", lambda m: list_projects()),
     (r"(?:roda|inicia|starta)\s+(?:o\s+)?(?:dev|servidor)\s+(?:do\s+projeto\s+|da\s+|no\s+)?(.*)", lambda m: run_dev_server(m.group(1))),
 
@@ -366,7 +371,8 @@ ACTIONS_REGISTRY = [
     (r"(?:troca|muda)\s+(?:a\s+)?voz", lambda m: switch_voice_profile("feminina")),
     (r"(?:fala\s+mais\s+baixo|modo\s+sussurro)", lambda m: set_jarvis_speech_volume(True)),
     (r"(?:diagnostico|status\s+do\s+jarvis|status\s+do\s+sistema)", lambda m: jarvis_system_diagnostics()),
-    (r"(?:limpa\s+o\s+cache|limpar\s+cache|limpeza\s+do\s+jarvis)", lambda m: clean_jarvis_cache()),
+    # "rm -rf /tmp/jarvis*" por voz é destrutivo demais para não ter confirmação.
+    (r"^(?:limpa\s+o\s+cache|limpar\s+cache|limpeza\s+do\s+jarvis)\s*$", lambda m: DESTRUCTIVE_REFUSAL),
     (r"(?:modo\s+reuniao|entrar\s+em\s+reuniao)", lambda m: toggle_meeting_mode(True)),
     (r"(?:ultimos\s+comandos|historico\s+de\s+pedidos)", lambda m: get_last_commands_history()),
 
@@ -375,7 +381,7 @@ ACTIONS_REGISTRY = [
     (r"(?:pesquisa\s+no\s+google|busca\s+no\s+google|procura\s+no\s+google)\s+(.*)", lambda m: google_search(m.group(1))),
     (r"(?:velocidade\s+da\s+internet|como\s+ta\s+a\s+internet|speedtest|teste\s+de\s+rede)", lambda m: test_internet_speed()),
     (r"(?:qual\s+o?\s*meu\s+ip|endereco\s+ip)", lambda m: get_network_info()),
-    (r"(?:esvazia|esvaziar)\s+(?:a\s+)?lixeira", lambda m: empty_mac_trash()),
+    (r"^(?:esvazia|limpa)\s+(?:a\s+)?lixeira\s*$", lambda m: DESTRUCTIVE_REFUSAL),
     (r"(?:resumo\s+do\s+dia|relatorio\s+do\s+dia|briefing\s+executivo|ola\s+jarvis)", lambda m: daily_executive_briefing()),
 ]
 

@@ -1533,7 +1533,14 @@ class WebGatewayTest(unittest.TestCase):
             MODULE.SUPABASE_DEVICE_COMMANDS_TABLE:
                 lambda *_: [{"id": next(ids), "status": "pending"}],
         })
-        with patch.object(MODULE, "supabase_request", side_effect=fake):
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "supabase_request", side_effect=fake
+        ):
             payload, status = MODULE.supabase_device_enqueue_plan(command, steps)
         self.assertEqual(status, 202)
         self.assertEqual(payload["status_real"], "device_run_queued")
@@ -4540,6 +4547,129 @@ São Paulo - SP
         )
         self.assertEqual(queued["target"], "5511999999999")
         self.assertNotIn("5511999999999", json.dumps(confirmed))
+
+    def test_voice_confirms_the_pending_action(self):
+        """"pode" tem que executar o que está esperando confirmação."""
+        capturado = []
+        real = MODULE.supabase_request
+
+        def fake(method="GET", query="", body=None, prefer="", table=MODULE.SUPABASE_MEMORY_TABLE):
+            if body and body.get("action") == "message_send":
+                capturado.append(body.get("request_text"))
+                return [{"id": 900, "status": "pending"}]
+            return real(method, query=query, body=body, prefer=prefer, table=table)
+
+        env = {
+            "SUPABASE_URL": "https://jarvis.example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "private-supabase-key",
+            "JARVIS_OWNER_TOKEN": "owner-pairing-test-value",
+        }
+        # O AGENT_RUNS é um diretório persistente: outros testes (e execuções
+        # anteriores) deixam runs abertos. Este teste aponta o "pode" para o
+        # run dele, sem tocar nos arquivos.
+        run = {
+            "id": "jr-teste-confirmacao",
+            "state": "waiting_confirmation",
+            "command": "manda mensagem para 5511999999999 dizendo oi",
+            "created_at": "2099-01-01T00:00:00+00:00",
+            "metadata": {"intent": "message_send"},
+        }
+        with patch.dict(os.environ, env, clear=False), patch.object(
+            MODULE, "supabase_request", side_effect=fake
+        ), patch.object(MODULE.AGENT_RUNS, "list", lambda: [run]), patch.object(
+            MODULE.AGENT_RUNS, "get", lambda _rid: run
+        ), patch.object(MODULE.AGENT_RUNS, "update", lambda *a, **k: run):
+            pedido, status_pedido = MODULE.command_payload(
+                {"command": "manda mensagem para 5511999999999 dizendo oi"},
+                owner_authenticated=True,
+            )
+            pedido = {**pedido, "run_id": pedido.get("run_id") or run["id"]}
+            confirmado, status_conf = MODULE.command_payload(
+                {"command": "pode"}, owner_authenticated=True
+            )
+        self.assertEqual(status_pedido, 202)
+        self.assertEqual(pedido.get("status_real"), "waiting_confirmation")
+        self.assertIn(status_conf, (200, 202))
+        self.assertEqual(capturado, ["manda mensagem para 5511999999999 dizendo oi"])
+        self.assertNotEqual(confirmado.get("client_action"), "open_url")
+
+    def test_iron_mode_never_waits_for_confirmation(self):
+        """O modo é determinístico: nenhuma variação pode pedir confirmação."""
+        original = (
+            MODULE.supabase_configured,
+            MODULE.supabase_agenda_rows,
+            MODULE.supabase_notes_rows,
+            MODULE.supabase_request,
+            MODULE.weather_now,
+        )
+        MODULE.supabase_configured = lambda: True
+        MODULE.supabase_agenda_rows = lambda *_a, **_k: []
+        MODULE.supabase_notes_rows = lambda *_a, **_k: []
+        MODULE.supabase_request = lambda *_a, **_k: [{"id": 1, "status": "pending"}]
+        MODULE.weather_now = lambda: ""
+        try:
+            for frase in (
+                "entrar no modo Homem de Ferro",
+                "abrir o modo Homem de Ferro",
+                "quero entrar no modo homem de ferro",
+                "modo do homem de ferro",
+            ):
+                with self.subTest(frase=frase):
+                    payload, status = MODULE.command_payload(
+                        {"command": frase}, owner_authenticated=True
+                    )
+                    self.assertEqual(payload.get("status_real"), "iron_style_started", frase)
+                    self.assertNotEqual(payload.get("status_real"), "waiting_confirmation")
+        finally:
+            (
+                MODULE.supabase_configured,
+                MODULE.supabase_agenda_rows,
+                MODULE.supabase_notes_rows,
+                MODULE.supabase_request,
+                MODULE.weather_now,
+            ) = original
+
+    def test_guest_cannot_touch_the_pending_offer(self):
+        """A oferta é dado do dono: visitante não aceita nem descarta."""
+        original = (
+            MODULE.learned_preference_rows,
+            MODULE.archive_preference,
+            MODULE.pending_offer,
+            MODULE.owner_pairing_required,
+        )
+        arquivados = []
+        MODULE.learned_preference_rows = lambda **_k: []
+        MODULE.archive_preference = lambda mid: arquivados.append(mid)
+        MODULE.pending_offer = lambda **_k: {"id": 99, "url": "https://www.google.com"}
+        MODULE.owner_pairing_required = lambda: True
+        try:
+            for frase in ("não", "sim", "cancela"):
+                payload, _status = MODULE.offer_shortcut(frase, owner_authenticated=False)
+                self.assertIsNotNone(payload, frase)
+                self.assertEqual(payload.get("status_real"), "owner_pairing_required", frase)
+        finally:
+            (
+                MODULE.learned_preference_rows,
+                MODULE.archive_preference,
+                MODULE.pending_offer,
+                MODULE.owner_pairing_required,
+            ) = original
+        self.assertEqual(arquivados, [], "visitante arquivou a oferta do dono")
+
+    def test_offer_expiry_is_read_only_without_owner(self):
+        """pending_offer não arquiva por conta própria: só quem já passou o gate."""
+        original = (MODULE.learned_preference_rows, MODULE.archive_preference)
+        velho = [{"id": 7, "metadata": {"action": "offer", "started_at": "2020-01-01T00:00:00+00:00"}}]
+        arquivados = []
+        MODULE.learned_preference_rows = lambda **_k: velho
+        MODULE.archive_preference = lambda mid: arquivados.append(mid)
+        try:
+            self.assertIsNone(MODULE.pending_offer())
+            self.assertEqual(arquivados, [])
+            self.assertIsNone(MODULE.pending_offer(archive_expired=True))
+            self.assertEqual(arquivados, [7])
+        finally:
+            MODULE.learned_preference_rows, MODULE.archive_preference = original
 
     def test_assistant_cannot_bypass_interactive_confirmation(self):
         """/assistant enfileirava message_send direto, sem o dono confirmar."""

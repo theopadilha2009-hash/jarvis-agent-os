@@ -2274,7 +2274,7 @@ SPOTIFY_CONTROL_PATTERN = re.compile(
     r"anteri\w*|volt\w*|volum\w*|status|tocando|bus\w*|procur\w*|pesquis\w*|"
     r"aleat[oó]ri\w*|shuffle|repet\w*)\b.{0,100}\bspotify\b|"
     r"\babr\w*\s+(?:o\s+)?spotify\b|"
-    r"\b(?:homem\s+de\s+ferro|iron\s+man|back\s+in\s+black)\b|"
+    r"(?<!modo )(?<!estilo )(?<!vibe )\b(?:homem\s+de\s+ferro|iron\s+man|back\s+in\s+black)\b|"
     r"\b(?:o\s+que\s+(?:est[aá]|t[aá])\s+tocando|qual\s+(?:m[uú]sica|faixa)|"
     r"paus\w*|to(?:c|q)\w*|pr[oó]xim\w*|(?:m[uú]sica|faixa)\s+anterior|volume)\b"
     r".{0,35}\b(?:m[uú]sica|faixa)\b)",
@@ -11715,7 +11715,7 @@ def assistant_response(body, origin="", local_execute=False, owner_authenticated
         }, 502
 
 
-def dispatch_command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False):
+def dispatch_command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False, confirmed=False):
     command = clean_text(body.get("command") or body.get("prompt"))
     if not command:
         return {"ok": False, "error": "Comando vazio."}, 400
@@ -12132,9 +12132,14 @@ def spoken_date(value):
     if not raw:
         return ""
     try:
-        due = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone()
+        due = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
         return ""
+    if due.tzinfo is None:
+        due = due.replace(tzinfo=timezone.utc)
+    # astimezone() sem argumento usava o fuso do processo (UTC no Vercel) e um
+    # item das 22h locais era falado no dia seguinte.
+    due = due.astimezone(owner_timezone())
     return f"{due.day} de {MONTHS_PT[due.month - 1]}"
 
 
@@ -12347,7 +12352,10 @@ def iron_style_payload():
         "message": screen,
         # Duas falas: a música ganha uns segundos antes do quadro.
         "spoken": abertura,
-        "spoken_later": spoken_clip(" ".join(quadro), 500),
+        "spoken_later": spoken_clip(" ".join(quadro), 390),
+        # Cada pedaço cabe sozinho na voz; a pergunta final nunca fica de fora
+        # por causa de uma agenda longa.
+        "spoken_parts": [spoken_clip(parte, 320) for parte in quadro],
         "spoken_delay_ms": 9000,
         "agenda": items,
         "job": (
@@ -12709,6 +12717,11 @@ def set_trigger_shortcut(command, owner_authenticated):
 
 
 
+def run_id_for(record):
+    """Id do run aberto, do jeito que o app precisa para confirmar."""
+    return clean_text((record or {}).get("id"), 80)
+
+
 def interactive_confirmation_payload(command, intent, origin=""):
     """Registra o run e devolve o pedido de confirmação — um caminho só.
 
@@ -12735,11 +12748,35 @@ def interactive_confirmation_payload(command, intent, origin=""):
         "message": f"Revise e confirme antes de: {action.label.lower()}. Diga “pode” ou toque em confirmar.",
     }
     payload.update(run_public_payload(record))
+    payload["awaiting_confirmation"] = run_id_for(record)
     return payload, 202
 
 
-def pending_offer():
-    """Oferta feita e ainda não respondida (últimos 10 minutos)."""
+OFFER_TTL_SECONDS = 180
+
+
+def pending_run_id():
+    """Run mais recente aguardando confirmação (o "pode" é dele).
+
+    Ordena por data: mais de um run pode estar aberto (um pedido anterior que
+    ficou sem resposta), e o "pode" responde ao último que ele viu.
+    """
+    abertos = [
+        record for record in AGENT_RUNS.list()
+        if isinstance(record, dict) and record.get("state") == "waiting_confirmation"
+    ]
+    if not abertos:
+        return ""
+    abertos.sort(key=lambda r: str(r.get("created_at") or ""), reverse=True)
+    return clean_text(abertos[0].get("id"), 80)
+
+
+def pending_offer(archive_expired=False):
+    """Oferta feita e ainda não respondida (últimos 3 minutos).
+
+    Leitura pura por padrão: arquivar a oferta vencida é escrita no dado do
+    dono, então só quem já passou pelo gate de autorização pede isso.
+    """
     for row in learned_preference_rows():
         metadata = row.get("metadata") if isinstance(row, dict) else None
         if not isinstance(metadata, dict) or metadata.get("action") != "offer":
@@ -12751,16 +12788,51 @@ def pending_offer():
             return {"id": row.get("id"), **metadata}
         if when.tzinfo is None:
             when = when.replace(tzinfo=timezone.utc)
-        if (datetime.now(timezone.utc) - when).total_seconds() <= 600:
+        if (datetime.now(timezone.utc) - when).total_seconds() <= OFFER_TTL_SECONDS:
             return {"id": row.get("id"), **metadata}
-        archive_preference(row.get("id"))
+        if archive_expired:
+            archive_preference(row.get("id"))
         return None
     return None
 
 
+def confirm_shortcut(command, owner_authenticated):
+    """"pode" confirma a ação que está esperando aprovação.
+
+    O pedido de confirmação dizia "diga pode", mas nada escutava isso: o run
+    ficava órfão em waiting_confirmation para sempre.
+    """
+    run_id = pending_run_id()
+    if not run_id:
+        return None
+    if not re.fullmatch(r"\s*(?:sim|pode|pode\s+ir|manda|bora|claro|isso|vai|confirma)\s*[.!?]*\s*", command, re.I):
+        return None
+    if owner_pairing_required() and not owner_authenticated:
+        return pairing_required_payload()
+    record = AGENT_RUNS.get(run_id)
+    if not record or record.get("state") != "waiting_confirmation":
+        return None
+    payload, status = execute_saved_run(
+        record, owner_authenticated=owner_authenticated
+    )
+    payload = dict(payload)
+    payload["status_real"] = payload.get("status_real") or "run_confirmed_by_voice"
+    return payload, status
+
+
 def offer_shortcut(command, owner_authenticated):
     """"sim" responde à última oferta ("quer que eu abra o Google?")."""
-    offer = pending_offer()
+    # Antes de qualquer escrita: a oferta é do dono, e o "não" também arquiva.
+    if owner_pairing_required() and not owner_authenticated:
+        offer = pending_offer()
+        if offer and (
+            personal_sets.CANCEL_PATTERN.match(command)
+            or re.fullmatch(r"\s*(?:n[ãa]o|agora\s+n[ãa]o|deixa)\s*[.!?]*\s*", command, re.I)
+            or re.fullmatch(r"\s*(?:sim|pode|manda|bora|claro|isso|vai)\s*[.!?]*\s*", command, re.I)
+        ):
+            return pairing_required_payload()
+        return None
+    offer = pending_offer(archive_expired=True)
     if not offer:
         return None
     if personal_sets.CANCEL_PATTERN.match(command) or re.fullmatch(
@@ -12772,10 +12844,12 @@ def offer_shortcut(command, owner_authenticated):
             "visual_state": "idle", "intent": "offer",
             "message": "Beleza, deixo pra lá.", "spoken": "Beleza, deixo pra lá.",
         }, 200
+    # "sim" solto é ambíguo: se havia uma confirmação de mensagem/edição aberta,
+    # quem responde é ela; a oferta fica para trás.
+    if pending_run_id():
+        return None
     if not re.fullmatch(r"\s*(?:sim|pode|manda|bora|claro|isso|vai)\s*[.!?]*\s*", command, re.I):
         return None
-    if owner_pairing_required() and not owner_authenticated:
-        return pairing_required_payload()
     archive_preference(offer.get("id"))
     url = clean_text(offer.get("url"), 300) or "https://www.google.com"
     return {
@@ -12787,6 +12861,8 @@ def offer_shortcut(command, owner_authenticated):
 
 
 DETERMINISTIC_SHORTCUTS = (
+    # Confirmação pendente vem antes da oferta: "pode" é do que está esperando.
+    confirm_shortcut,
     # Rascunho aberto captura a resposta antes de qualquer outra coisa.
     set_draft_shortcut,
     offer_shortcut,
@@ -12798,8 +12874,12 @@ DETERMINISTIC_SHORTCUTS = (
 )
 
 
-def command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False):
-    """Run the legacy dispatcher behind the durable JARVIS run contract."""
+def command_payload(body, origin="", local_execute=False, owner_authenticated=False, code_authenticated=False, confirmed=False):
+    """Run the legacy dispatcher behind the durable JARVIS run contract.
+
+    `confirmed=True` significa que o dono já aprovou este pedido: o caminho
+    não reabre a pergunta de confirmação nem recria o run.
+    """
     command = clean_text(body.get("command") or body.get("prompt"))
     if not command:
         return dispatch_command_payload(
@@ -12840,7 +12920,7 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             body, origin, local_execute, owner_authenticated, code_authenticated=code_authenticated
         )
 
-    if intent == "message_send" and not message_send_details(command):
+    if intent == "message_send" and not message_send_details(command) and not confirmed:
         alias_shape = re.search(
             r"(?i)\b(?:mand(?:a|e|ar)|envi(?:a|e|ar)|escrev(?:a|e|er))\b.{0,30}\b(?:para|pra|pro|ao|a)\s+"
             r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ ._-]{1,80}\s+(?:dizendo|falando|com\s+(?:o\s+)?texto)\s+.+",
@@ -12866,10 +12946,9 @@ def command_payload(body, origin="", local_execute=False, owner_authenticated=Fa
             "index": search["index"],
         }
         status = 200
-    elif needs_interactive_confirmation(intent):
+    elif needs_interactive_confirmation(intent) and not confirmed:
         payload, status = interactive_confirmation_payload(command, intent, origin)
         return payload, status
-        return payload, 202
     else:
         payload, status = dispatch_command_payload(
             body, origin, local_execute, owner_authenticated, code_authenticated=code_authenticated
@@ -12909,7 +12988,18 @@ def execute_saved_run(record, *, origin="", local_execute=False, owner_authentic
     """Execute a confirmed persisted request through the same dispatcher."""
     AGENT_RUNS.update(record["id"], state="running", event_type="RUN_CONFIRMED")
     body = {"command": record.get("command", "")}
-    payload, status = dispatch_command_payload(body, origin, local_execute, owner_authenticated)
+    intent = record.get("intent") or (record.get("metadata") or {}).get("intent")
+    if intent in REMOTE_DEVICE_INTENTS and intent not in {"message_send", "self_edit"}:
+        # Já foi confirmado: vai direto para a fila, sem o despachante abrir
+        # outro pedido de confirmação (era o ciclo que deixava o run órfão).
+        payload, status = dispatch_intent(
+            body["command"], intent, local_execute=local_execute,
+            owner_authenticated=owner_authenticated,
+        )
+    else:
+        payload, status = dispatch_command_payload(
+            body, origin, local_execute, owner_authenticated, confirmed=True
+        )
     pending = bool(
         isinstance(payload.get("run"), dict) and not payload["run"].get("terminal")
         or isinstance(payload.get("job"), dict) and payload["job"].get("status") in {"pending", "running"}

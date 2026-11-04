@@ -112,6 +112,20 @@ class IronStyleMessageTest(unittest.TestCase):
         self.assertIn("revisar contrato do cliente", quadro)
         self.assertIn("abra alguma coisa", quadro)
 
+    def test_agenda_longa_nao_engole_a_pergunta_final(self):
+        """Com 5 itens e 3 notas, a pergunta final tem que continuar sendo falada."""
+        agenda = [
+            {"title": f"Revisar o contrato do cliente numero {i} com o time",
+             "scheduled_for": "2026-11-06T15:00:00+00:00"}
+            for i in range(5)
+        ]
+        notas = [{"title": f"anotacao importante {i}"} for i in range(3)]
+        payload = self._payload(agenda=agenda, notes=notas)
+        partes = " ".join(payload["spoken_parts"]).lower()
+        self.assertIn("abra alguma coisa", partes)
+        for parte in payload["spoken_parts"]:
+            self.assertLessEqual(len(parte), 400, parte)
+
     def test_cada_fala_cabe_no_limite_da_voz(self):
         payload = self._payload(notes=[{"title": "Revisar contrato do cliente"}])
         self.assertLessEqual(len(payload["spoken"]), 400)
