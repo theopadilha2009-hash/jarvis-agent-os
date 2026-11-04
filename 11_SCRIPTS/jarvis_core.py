@@ -3347,6 +3347,56 @@ _HELP_TOP = """JARVIS — interface principal (use `./jarvis help --all` para ve
 Produção: nada alterado por este help.
 """
 
+# Atalhos da raiz (./jarvis-doctor, ./jarvis-save...). Existem há meses e não
+# apareciam em help nem no catálogo: quem não leu o código nunca descobria.
+# Lidos do disco para o help não envelhecer quando um atalho nasce.
+ATALHOS_DIR = Path(__file__).resolve().parents[1]
+
+
+def _atalhos_da_raiz():
+    """(nome, script de destino) dos atalhos executáveis da raiz."""
+    alvos = {}
+    try:
+        candidatos = sorted(ATALHOS_DIR.glob("jarvis*"))
+    except OSError:
+        return alvos
+    for caminho in candidatos:
+        nome = caminho.name
+        if nome in {"jarvis", "jarvis.py"} or nome.endswith((".py", ".bat", ".ps1", ".exe")):
+            continue
+        if not caminho.is_file():
+            continue
+        try:
+            texto = caminho.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        match = re.search(r"11_SCRIPTS/([a-z_]+\.py)", texto)
+        if match:
+            alvos[nome] = match.group(1)
+            continue
+        # Só linhas que executam outro atalho contam; texto de uso e comentário
+        # citam nomes demais e viravam encadeamento falso.
+        encadeados = [
+            item for item in re.findall(r"(?m)^\s*[^#\n]*\./(jarvis-[a-z-]+)", texto)
+            if item != nome
+        ]
+        # Vazio quando o atalho só encadeia outros: melhor não prometer destino
+        # do que imprimir um "shell" que não informa nada.
+        alvos[nome] = f"./{encadeados[0]}" if len(encadeados) == 1 else ""
+    return alvos
+
+
+def _help_atalhos():
+    alvos = _atalhos_da_raiz()
+    if not alvos:
+        return
+    print("## Atalhos da raiz (não passam pelo ./jarvis)")
+    largura = max(len(nome) for nome in alvos)
+    for nome in sorted(alvos):
+        destino = alvos[nome]
+        print(f"  ./{nome.ljust(largura)}  -> {destino}" if destino else f"  ./{nome}")
+    print("")
+
 
 def help_msg():
     args = sys.argv[2:] if len(sys.argv) > 2 else []
@@ -3357,6 +3407,7 @@ def help_msg():
 
 
 def _help_full():
+    _help_atalhos()
     print("""Comandos (full):
   ./jarvis doctor                 full health check
   ./jarvis scan-inbox             lista arquivos em 00_COLE_AQUI

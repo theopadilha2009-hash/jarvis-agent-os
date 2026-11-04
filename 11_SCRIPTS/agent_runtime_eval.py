@@ -75,7 +75,10 @@ SCENARIOS = [
     ("adicione comprar café na agenda", "agenda_note", "concise", False, False, 0),
     ("mostre minha agenda", "agenda_view", "concise", False, False, 0),
     ("adicione uma tarefa revisar o Jarvis", "task_add", "concise", False, False, 0),
-    ("mande mensagem no WhatsApp para Arthur", "message_draft", "concise", False, False, 0),
+    # A rota é message_send, mas sem telefone message_send_details() devolve
+    # None e o gateway pede confirmação: nada sai sem o dono aprovar. O teste
+    # dizia message_draft, que é o rótulo do roteador local, não do gateway.
+    ("mande mensagem no WhatsApp para Arthur", "message_send", "concise", False, False, 0),
     ("token=" + "x" * 20, "blocked_secret", "concise", False, False, 0),
 ]
 
