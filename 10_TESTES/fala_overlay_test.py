@@ -237,10 +237,11 @@ class FalaOverlayTest(unittest.TestCase):
 
     def test_second_speech_waits_for_the_music(self):
         """O modo fala a abertura, espera, e só então lê o quadro."""
-        self.assertIn("speakAfterDelay(String(data.spoken_later), atraso)", FALA_JS)
+        self.assertIn("speakAfterDelay(partes, atraso)", FALA_JS)
+        self.assertIn("data.spoken_parts", FALA_JS)
         self.assertIn("data.spoken_delay_ms", FALA_JS)
         # A espera não pode travar o `busy`: seria fila silenciosa de comandos.
-        trecho = re.search(r"if \(!stayQuiet && data\.spoken_later\) \{[\s\S]*?\n      \}", FALA_JS)
+        trecho = re.search(r"if \(!stayQuiet && \(data\.spoken_later \|\| Array\.isArray[\s\S]*?\n      \}", FALA_JS)
         self.assertIsNotNone(trecho)
         self.assertNotIn("await new Promise", trecho.group(0))
 

@@ -373,13 +373,15 @@
   // de rearmar o microfone que o usuário mandou calar.
   let pendingSpeech = null;
 
-  function speakAfterDelay(text, delayMs) {
+  function speakAfterDelay(partes, delayMs) {
+    const fila = Array.isArray(partes) ? partes : [partes];
     const token = ++speechGeneration;
     return new Promise((resolve) => {
       const timer = window.setTimeout(async () => {
-        if (token !== speechGeneration) return resolve();
-        if (stayQuiet) return resolve();
-        await speak(text);
+        for (const parte of fila) {
+          if (token !== speechGeneration || stayQuiet) return resolve();
+          await speak(parte);
+        }
         resolve();
       }, delayMs);
       speakCancelHandlers.add(() => { window.clearTimeout(timer); resolve(); });
@@ -956,9 +958,14 @@
       // Segunda fala: o modo espera a música entrar antes de ler o quadro.
       // A espera NÃO pode segurar o `busy`: com ele travado, "pausa a música"
       // dito nesse intervalo ficava na fila e só rodava depois da leitura.
-      if (!stayQuiet && data.spoken_later) {
+      if (!stayQuiet && (data.spoken_later || Array.isArray(data.spoken_parts))) {
         const atraso = Math.max(0, Math.min(30_000, Number(data.spoken_delay_ms) || 9000));
-        const agendado = speakAfterDelay(String(data.spoken_later), atraso);
+        // Em partes, cada uma curta: a pergunta final não pode ser cortada
+        // por uma agenda longa.
+        const partes = Array.isArray(data.spoken_parts) && data.spoken_parts.length
+          ? data.spoken_parts.map((p) => String(p)).filter(Boolean)
+          : [String(data.spoken_later)];
+        const agendado = speakAfterDelay(partes, atraso);
         pendingSpeech = agendado;
         agendado.catch(() => {});
       }
