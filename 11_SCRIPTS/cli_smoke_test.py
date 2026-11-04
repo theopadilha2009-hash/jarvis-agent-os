@@ -402,9 +402,10 @@ CHECKS = [
     {
         "name": "agenda-add-dry-run",
         "cmd": ["./jarvis", "agenda-add", "amanhã revisar LS", "--dry-run"],
+        # O alvo deixou de ser sempre o arquivo local: com credencial o item vai
+        # para a agenda do app, e o caminho do .md nem aparece na saída.
         "expect": [
             "Agenda Add",
-            "31_AGENDA/AGENDA.md",
             "data inferida:",
             "Modo: --dry-run",
             "Produção: nada alterado",
@@ -413,9 +414,11 @@ CHECKS = [
     {
         "name": "agenda-read",
         "cmd": ["./jarvis", "agenda"],
+        # A agenda passou a ler o Supabase do app (a mesma que a voz fala) e só
+        # cai no arquivo local quando não há credencial. O teste exigia o texto
+        # antigo e falhava com a agenda funcionando.
         "expect": [
-            "Agenda (local)",
-            "31_AGENDA/AGENDA.md",
+            "JARVIS — Agenda",
             "Produção: nada alterado",
         ],
     },
