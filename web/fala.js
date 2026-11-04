@@ -18,7 +18,7 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261030-iron3";
+  const SHELL_VERSION = "20261104-voz4";
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
@@ -369,6 +369,33 @@
     });
   }
 
+  // Fala atrasada que respeita "dorme", quieto, park e um novo pedido: nada
+  // de rearmar o microfone que o usuário mandou calar.
+  let pendingSpeech = null;
+
+  function speakAfterDelay(text, delayMs) {
+    const token = ++speechGeneration;
+    return new Promise((resolve) => {
+      const timer = window.setTimeout(async () => {
+        if (token !== speechGeneration) return resolve();
+        if (stayQuiet) return resolve();
+        await speak(text);
+        resolve();
+      }, delayMs);
+      speakCancelHandlers.add(() => { window.clearTimeout(timer); resolve(); });
+    });
+  }
+
+  function cancelPendingSpeech() {
+    speechGeneration += 1;
+    for (const cancel of speakCancelHandlers) cancel();
+    speakCancelHandlers.clear();
+    pendingSpeech = null;
+  }
+
+  let speechGeneration = 0;
+  const speakCancelHandlers = new Set();
+
   function speak(text) {
     const clip = String(text || "").replace(/\s+/g, " ").trim().slice(0, 400);
     if (!clip) return Promise.resolve();
@@ -707,6 +734,7 @@
 
   function enterQuiet() {
     stayQuiet = true;
+    cancelPendingSpeech();
     speakRunId += 1;
     armed = false;
     askQueue = [];
@@ -926,10 +954,13 @@
       const spokenText = data.spoken ? String(data.spoken) : spokenReply(message);
       if (!stayQuiet) await speak(spokenText);
       // Segunda fala: o modo espera a música entrar antes de ler o quadro.
+      // A espera NÃO pode segurar o `busy`: com ele travado, "pausa a música"
+      // dito nesse intervalo ficava na fila e só rodava depois da leitura.
       if (!stayQuiet && data.spoken_later) {
         const atraso = Math.max(0, Math.min(30_000, Number(data.spoken_delay_ms) || 9000));
-        await new Promise((resolve) => window.setTimeout(resolve, atraso));
-        if (!stayQuiet) await speak(String(data.spoken_later));
+        const agendado = speakAfterDelay(String(data.spoken_later), atraso);
+        pendingSpeech = agendado;
+        agendado.catch(() => {});
       }
     } finally {
       busy = false;
@@ -959,6 +990,7 @@
   }
 
   function parkNow() {
+    cancelPendingSpeech();
     cancelPark();
     holdReply();
     nativeWindow("hide");
@@ -1236,6 +1268,7 @@
       const hit = splitWake(text);
       if (!hit && !(isQuietAsk(text) && (armed || hit))) return;
       stopSpeak();
+      cancelPendingSpeech();
       try { nativeHandlers()?.jarvisListen.postMessage("resume"); } catch { /* web */ }
       takeWake(text, isFinal);
       return;

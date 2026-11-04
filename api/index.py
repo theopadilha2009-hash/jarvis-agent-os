@@ -12352,7 +12352,7 @@ def iron_style_payload():
         "message": screen,
         # Duas falas: a música ganha uns segundos antes do quadro.
         "spoken": abertura,
-        "spoken_later": spoken_clip(" ".join(quadro), 500),
+        "spoken_later": spoken_clip(" ".join(quadro), 390),
         "spoken_delay_ms": 9000,
         "agenda": items,
         "job": (
