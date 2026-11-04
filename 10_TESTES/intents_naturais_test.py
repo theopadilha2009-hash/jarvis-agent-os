@@ -53,6 +53,38 @@ class IntentsDoDiaTest(unittest.TestCase):
         self.assertEqual(gateway.command_intent("toca back in black"), "spotify_control")
 
 
+class BateriaTest(unittest.TestCase):
+    """"carga" solto fazia "carrega a página" responder a bateria — e repetir."""
+
+    def setUp(self):
+        sys.path.insert(0, str(ROOT / "11_SCRIPTS"))
+        import jarvis_actions
+
+        self.actions = jarvis_actions
+
+    def test_frases_de_bateria(self):
+        for frase in ("bateria", "carga da bateria", "qual é a bateria"):
+            self.assertIsNotNone(self.actions.dispatch_command(frase), frase)
+
+    def test_carrega_nao_e_bateria(self):
+        for frase in ("carrega a página", "recarrega", "carregando dados", "carrega o projeto"):
+            self.assertIsNone(self.actions.dispatch_command(frase), frase)
+
+    def test_relogio_zerado_nao_e_falado(self):
+        original = self.actions.subprocess.run
+
+        class Fake:
+            stdout = "Now drawing from 'AC Power'\n -InternalBattery-0 (id=1)\t100%; charged; 0:00 remaining"
+
+        self.actions.subprocess.run = lambda *_a, **_k: Fake()
+        try:
+            saida = self.actions.get_battery_status()
+        finally:
+            self.actions.subprocess.run = original
+        self.assertNotIn("restando", saida)
+        self.assertIn("tomada", saida)
+
+
 class MensagemTest(unittest.TestCase):
     def test_whatsapp_vira_envio_e_nao_rascunho(self):
         self.assertEqual(
