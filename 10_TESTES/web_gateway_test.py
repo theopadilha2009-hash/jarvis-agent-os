@@ -4541,6 +4541,48 @@ São Paulo - SP
         self.assertEqual(queued["target"], "5511999999999")
         self.assertNotIn("5511999999999", json.dumps(confirmed))
 
+    def test_guest_cannot_touch_the_pending_offer(self):
+        """A oferta é dado do dono: visitante não aceita nem descarta."""
+        original = (
+            MODULE.learned_preference_rows,
+            MODULE.archive_preference,
+            MODULE.pending_offer,
+            MODULE.owner_pairing_required,
+        )
+        arquivados = []
+        MODULE.learned_preference_rows = lambda **_k: []
+        MODULE.archive_preference = lambda mid: arquivados.append(mid)
+        MODULE.pending_offer = lambda **_k: {"id": 99, "url": "https://www.google.com"}
+        MODULE.owner_pairing_required = lambda: True
+        try:
+            for frase in ("não", "sim", "cancela"):
+                payload, _status = MODULE.offer_shortcut(frase, owner_authenticated=False)
+                self.assertIsNotNone(payload, frase)
+                self.assertEqual(payload.get("status_real"), "owner_pairing_required", frase)
+        finally:
+            (
+                MODULE.learned_preference_rows,
+                MODULE.archive_preference,
+                MODULE.pending_offer,
+                MODULE.owner_pairing_required,
+            ) = original
+        self.assertEqual(arquivados, [], "visitante arquivou a oferta do dono")
+
+    def test_offer_expiry_is_read_only_without_owner(self):
+        """pending_offer não arquiva por conta própria: só quem já passou o gate."""
+        original = (MODULE.learned_preference_rows, MODULE.archive_preference)
+        velho = [{"id": 7, "metadata": {"action": "offer", "started_at": "2020-01-01T00:00:00+00:00"}}]
+        arquivados = []
+        MODULE.learned_preference_rows = lambda **_k: velho
+        MODULE.archive_preference = lambda mid: arquivados.append(mid)
+        try:
+            self.assertIsNone(MODULE.pending_offer())
+            self.assertEqual(arquivados, [])
+            self.assertIsNone(MODULE.pending_offer(archive_expired=True))
+            self.assertEqual(arquivados, [7])
+        finally:
+            MODULE.learned_preference_rows, MODULE.archive_preference = original
+
     def test_assistant_cannot_bypass_interactive_confirmation(self):
         """/assistant enfileirava message_send direto, sem o dono confirmar."""
         env = {"JARVIS_OWNER_TOKEN": "owner-pairing-test-value"}

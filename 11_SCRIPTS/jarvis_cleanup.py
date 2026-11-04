@@ -151,7 +151,7 @@ def plan_memories(base: str, key: str, days: int) -> list[dict]:
     preferences = rest(
         base, key, MEMORIES_TABLE,
         query=(
-            "select=id,kind,metadata,created_at&kind=eq.preference"
+            "select=id,kind,metadata,created_at&owner_id=eq.theo&kind=eq.preference"
             "&archived_at=is.null&order=created_at.desc&limit=1000"
         ),
     )
@@ -191,7 +191,7 @@ def plan_memories(base: str, key: str, days: int) -> list[dict]:
         items.append({
             "area": "memoria-arquivada",
             "table": MEMORIES_TABLE,
-            "query": f"id=in.({','.join(ids)})",
+            "query": f"owner_id=eq.theo&id=in.({','.join(ids)})",
             "count": len(ids),
             "size": 0,
             "detail": f"{len(ids)} memória(s) arquivada(s) antes de {stamp[:10]}",

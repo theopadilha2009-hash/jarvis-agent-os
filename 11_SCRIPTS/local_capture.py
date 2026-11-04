@@ -403,7 +403,7 @@ def _print_supabase_agenda(base, key):
         print("Produção: nada alterado.")
         return True
     for row in rows:
-        due = str(row.get("scheduled_for") or "")[:16].replace("T", " ") or "sem-data"
+        due = _utc_to_local(str(row.get("scheduled_for") or "")) or "sem-data"
         print(f"- [{due}] {row.get('title', '')}")
     print("")
     print("Produção: nada alterado.")

@@ -12132,9 +12132,14 @@ def spoken_date(value):
     if not raw:
         return ""
     try:
-        due = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone()
+        due = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
         return ""
+    if due.tzinfo is None:
+        due = due.replace(tzinfo=timezone.utc)
+    # astimezone() sem argumento usava o fuso do processo (UTC no Vercel) e um
+    # item das 22h locais era falado no dia seguinte.
+    due = due.astimezone(owner_timezone())
     return f"{due.day} de {MONTHS_PT[due.month - 1]}"
 
 
@@ -12738,8 +12743,12 @@ def interactive_confirmation_payload(command, intent, origin=""):
     return payload, 202
 
 
-def pending_offer():
-    """Oferta feita e ainda não respondida (últimos 10 minutos)."""
+def pending_offer(archive_expired=False):
+    """Oferta feita e ainda não respondida (últimos 10 minutos).
+
+    Leitura pura por padrão: arquivar a oferta vencida é escrita no dado do
+    dono, então só quem já passou pelo gate de autorização pede isso.
+    """
     for row in learned_preference_rows():
         metadata = row.get("metadata") if isinstance(row, dict) else None
         if not isinstance(metadata, dict) or metadata.get("action") != "offer":
@@ -12753,14 +12762,25 @@ def pending_offer():
             when = when.replace(tzinfo=timezone.utc)
         if (datetime.now(timezone.utc) - when).total_seconds() <= 600:
             return {"id": row.get("id"), **metadata}
-        archive_preference(row.get("id"))
+        if archive_expired:
+            archive_preference(row.get("id"))
         return None
     return None
 
 
 def offer_shortcut(command, owner_authenticated):
     """"sim" responde à última oferta ("quer que eu abra o Google?")."""
-    offer = pending_offer()
+    # Antes de qualquer escrita: a oferta é do dono, e o "não" também arquiva.
+    if owner_pairing_required() and not owner_authenticated:
+        offer = pending_offer()
+        if offer and (
+            personal_sets.CANCEL_PATTERN.match(command)
+            or re.fullmatch(r"\s*(?:n[ãa]o|agora\s+n[ãa]o|deixa)\s*[.!?]*\s*", command, re.I)
+            or re.fullmatch(r"\s*(?:sim|pode|manda|bora|claro|isso|vai)\s*[.!?]*\s*", command, re.I)
+        ):
+            return pairing_required_payload()
+        return None
+    offer = pending_offer(archive_expired=True)
     if not offer:
         return None
     if personal_sets.CANCEL_PATTERN.match(command) or re.fullmatch(
@@ -12774,8 +12794,6 @@ def offer_shortcut(command, owner_authenticated):
         }, 200
     if not re.fullmatch(r"\s*(?:sim|pode|manda|bora|claro|isso|vai)\s*[.!?]*\s*", command, re.I):
         return None
-    if owner_pairing_required() and not owner_authenticated:
-        return pairing_required_payload()
     archive_preference(offer.get("id"))
     url = clean_text(offer.get("url"), 300) or "https://www.google.com"
     return {
