@@ -384,6 +384,28 @@ def normalize_loudness(audio: bytes) -> bytes:
     return result.stdout
 
 
+def fix_wav_sizes(audio: bytes) -> bytes:
+    """Corrige o tamanho do WAV que o Pocket devolve em modo streaming.
+
+    O Pocket escreve 0xFFFFFFFF em "RIFF size" e em "data size" quando não
+    sabe o total. O `afplay` ignora e toca; navegador e player que confiam
+    no cabeçalho calculam 89 mil segundos e cortam ou recusam. Os bytes de
+    áudio já estão todos aqui, então é só escrever o tamanho verdadeiro.
+    """
+    if not isinstance(audio, (bytes, bytearray)) or len(audio) < 44:
+        return bytes(audio)
+    dados = bytearray(audio)
+    if dados[:4] != b"RIFF":
+        return bytes(dados)
+    i = dados.find(b"data")
+    if i < 0 or i + 8 > len(dados):
+        return bytes(dados)
+    tamanho_audio = len(dados) - i - 8
+    struct.pack_into("<I", dados, 4, min(len(dados) - 8, 0xFFFFFFFF))
+    struct.pack_into("<I", dados, i + 4, min(tamanho_audio, 0xFFFFFFFF))
+    return bytes(dados)
+
+
 def normalize_edge_audio(audio: bytes) -> bytes:
     """O Edge sai em mp3 mais baixo que o Pocket; mesmo alvo de loudness nos dois."""
     if not audio or not shutil.which("ffmpeg"):
@@ -710,6 +732,10 @@ def make_handler(args, pocket, piper, sample_rate: int, config: dict):
             return
 
         def _send(self, status: int, body: bytes, content_type: str, engine: str = ""):
+            # Todo áudio WAV passa por aqui (cache e síntese nova): é o ponto
+            # único para corrigir o tamanho que o Pocket deixa como streaming.
+            if body[:4] == b"RIFF":
+                body = fix_wav_sizes(body)
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))

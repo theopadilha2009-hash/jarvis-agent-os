@@ -12255,6 +12255,20 @@ def spoken_date(value):
     return f"{due.day} de {MONTHS_PT[due.month - 1]}"
 
 
+def _agenda_atrasada(row):
+    """O item já venceu? Compara só o dia, no fuso do dono."""
+    raw = clean_text(row.get("scheduled_for") if isinstance(row, dict) else "", 40)
+    if not raw:
+        return False
+    try:
+        quando = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if quando.tzinfo is None:
+        quando = quando.replace(tzinfo=timezone.utc)
+    return quando.astimezone(owner_timezone()).date() < datetime.now(owner_timezone()).date()
+
+
 def agenda_spoken_summary(rows, limit=5):
     """Agenda em fala curta: título e dia em palavras, sem jargão de banco."""
     parts = []
@@ -12268,7 +12282,9 @@ def agenda_spoken_summary(rows, limit=5):
         line = title[0].lower() + title[1:]
         when = spoken_date(row.get("scheduled_for"))
         if when:
-            line = f"{line}, dia {when}"
+            # Item vencido não pode soar como compromisso futuro: falar
+            # "dia 3 de novembro" em 5 de novembro soa errado na gravação.
+            line = f"{line}, atrasado desde {when}" if _agenda_atrasada(row) else f"{line}, dia {when}"
         parts.append(line)
         if len(parts) >= limit:
             break
