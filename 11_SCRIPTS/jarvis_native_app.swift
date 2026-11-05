@@ -985,6 +985,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private func startMic(to analyzerFormat: AVAudioFormat?, yield: @escaping (AVAudioPCMBuffer) -> Void) {
         tearDownRecognition()
         let input = engine.inputNode
+        // setVoiceProcessingEnabled trava quando o engine ainda não rodou:
+        // o log parava antes de "modern listening" e o app ficava surdo.
+        // O loop de silêncio já foi resolvido pelo limiar (0.008 -> 0.02);
+        // supressão de eco fica para quando houver um teste com áudio real.
         let micFormat = input.outputFormat(forBus: 0)
         guard micFormat.sampleRate > 0 else {
             logListen("bad mic format")
@@ -1161,9 +1165,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     // que já existiam (clássico reinicia no recognitionTask; moderno reinicia
     // o pipeline pelo mesmo caminho do restart do JS). Sem voz nova, nada
     // acontece: a escuta contínua por wake word segue intacta.
-    private let silenceRmsFloor: Float = 0.008
-    private let silenceStopAfter: TimeInterval = 1.8
+    /// Limiar de "tem voz aqui".
+    ///
+    /// 0.008 é -42 dB: qualquer música de fundo passa dele. Com o Spotify
+    /// tocando, o app achava que havia voz o tempo todo, reiniciava o ciclo
+    /// a cada 1,8s e perdia ~0,6s de áudio em cada reinício — por isso o
+    /// dono falava "sim, pode abrir" e o JARVIS não ouvia.
+    /// 0.02 é -34 dB: acima do ruído de sala e da música baixa, abaixo de
+    /// fala normal a 30cm do microfone.
+    private let silenceRmsFloor: Float = 0.02
+    /// Espera mais antes de fechar o ciclo: 1,8s cortava no meio de uma
+    /// frase com pausa natural ("sim... pode abrir").
+    private let silenceStopAfter: TimeInterval = 2.6
     private var hadVoiceInCycle = false
+    private var voiceProcessingOn = false
     private var silenceStartedAt: TimeInterval = 0
     private var silenceRestarting = false
 
