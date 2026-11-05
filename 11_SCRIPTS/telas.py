@@ -50,6 +50,21 @@ def _rodar(argv, timeout=15):
     return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
 
 
+def _applescript_literal(value):
+    """Escapa texto para entrar como literal AppleScript entre aspas.
+
+    A URL é interpolada no script, então uma aspa crua fecha o literal e o
+    que vier depois é EXECUTADO: `https://x/a" & (do shell script "...") & "`
+    vira comando de shell. O filtro de URL do worker já barra aspas, mas esta
+    função é pública e não pode depender de outra camada.
+    """
+    texto = str(value or "")
+    # Barra primeiro: escapar aspas antes deixaria "\\" virar "\" e quebrar.
+    texto = texto.replace("\\", "\\\\").replace('"', '\\"')
+    # Quebra de linha dentro de literal AppleScript não é permitida.
+    return texto.replace("\n", " ").replace("\r", " ")
+
+
 def listar():
     """[{"indice", "nome", "x", "y", "largura", "altura"}] na ordem do macOS."""
     try:
@@ -127,8 +142,8 @@ def mover_janela(app, tela, indice_janela=1):
     largura, altura = tela["largura"], tela["altura"]
     script = f'''
 tell application "System Events"
-  if not (exists process "{processo}") then return "sem-processo"
-  tell process "{processo}"
+  if not (exists process "{_applescript_literal(processo)}") then return "sem-processo"
+  tell process "{_applescript_literal(processo)}"
     if (count of windows) < {indice_janela} then return "sem-janela"
     set position of window {indice_janela} to {{{x}, {y}}}
     set size of window {indice_janela} to {{{largura}, {altura}}}
@@ -168,8 +183,8 @@ def _indice_da_janela(processo, titulos):
         return 1
     script = f'''
 tell application "System Events"
-  if not (exists process "{processo}") then return ""
-  tell process "{processo}"
+  if not (exists process "{_applescript_literal(processo)}") then return ""
+  tell process "{_applescript_literal(processo)}"
     set out to ""
     repeat with i from 1 to (count of windows)
       try
@@ -247,15 +262,15 @@ def _abrir_na_tela(url, tela, app="Google Chrome"):
         abrir = f'''
 tell application "Safari"
   activate
-  make new document with properties {{URL:"{url}"}}
+  make new document with properties {{URL:"{_applescript_literal(url)}"}}
 end tell
 '''
     else:
         abrir = f'''
-tell application "{processo}"
+tell application "{_applescript_literal(processo)}"
   activate
   set w to make new window
-  set URL of active tab of w to "{url}"
+  set URL of active tab of w to "{_applescript_literal(url)}"
 end tell
 '''
         # O System Events só enxerga as janelas do Space ATIVO: com o Chrome
@@ -277,10 +292,10 @@ end tell
     # Aqui garantimos que exista uma janela antes de tentar mover.
     _time.sleep(0.6)
     garantia = f'''
-tell application "{processo}"
+tell application "{_applescript_literal(processo)}"
   if (count of windows) is 0 then
     set w to make new window
-    set URL of active tab of w to "{url}"
+    set URL of active tab of w to "{_applescript_literal(url)}"
   end if
 end tell
 '''
