@@ -990,6 +990,16 @@
           : [String(data.spoken_later)];
         const agendado = speakAfterDelay(partes, atraso);
         pendingSpeech = agendado;
+        // Ao terminar (ou falhar), libera a marca: senão parkSoon() fica
+        // bloqueado para sempre e a janela nunca mais esconde depois do
+        // primeiro modo. Só limpa se ainda for ESTE agendamento.
+        const liberar = () => {
+          if (pendingSpeech === agendado) pendingSpeech = null;
+          // Agora é a hora de esconder: o park de antes foi pulado de
+          // propósito para não matar o quadro.
+          if (!busy && !speaking && !stayQuiet) parkSoon();
+        };
+        agendado.then(liberar, liberar);
         agendado.catch(() => {});
       }
     } finally {
