@@ -39,15 +39,22 @@ class AgendaSummaryTest(unittest.TestCase):
         self.assertEqual(gateway.spoken_date("amanhã"), "")
         self.assertEqual(gateway.spoken_date(""), "")
 
-    def test_item_vira_fala_corrida(self):
+    def test_item_futuro_vira_fala_corrida(self):
         rows = [
-            {"title": "Mandar retorno até terça", "scheduled_for": "2026-11-03T12:00:00+00:00"},
+            {"title": "Mandar retorno até terça", "scheduled_for": "2099-11-03T12:00:00+00:00"},
             {"title": "Criar 3 sistemas", "scheduled_for": None},
         ]
         self.assertEqual(
             gateway.agenda_spoken_summary(rows),
             ["mandar retorno até terça, dia 3 de novembro", "criar 3 sistemas"],
         )
+
+    def test_item_vencido_nao_soa_como_futuro(self):
+        """Falar "dia 3 de novembro" depois de 3 de novembro soa errado."""
+        rows = [{"title": "Mandar retorno", "scheduled_for": "2020-01-05T12:00:00+00:00"}]
+        fala = gateway.agenda_spoken_summary(rows)[0]
+        self.assertIn("atrasado desde", fala)
+        self.assertNotIn(", dia ", fala)
 
     def test_lista_falada_usa_e_antes_do_ultimo(self):
         self.assertEqual(gateway.spoken_list(["a", "b", "c"]), "a, b e c")
