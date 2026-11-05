@@ -3846,7 +3846,12 @@ def supabase_memory_rows(limit=80):
         "&owner_id=eq.theo&archived_at=is.null"
         f"&order=created_at.desc&limit={safe_limit}"
     )
-    rows = supabase_request(query=query)
+    # Memória é contexto, não pré-requisito: sem ela o chat responde, só
+    # sem lembrar. Deixar a exceção subir derrubava a conversa inteira.
+    try:
+        rows = supabase_request(query=query)
+    except (OSError, ValueError):
+        return []
     return rows if isinstance(rows, list) else []
 
 
@@ -4095,6 +4100,15 @@ def begin_session_turn(session_id):
             }, 429
         hits.append(now)
         _SESSION_HITS[token] = hits[-SESSION_RATE_LIMIT:]
+        # Sem poda cada visitante deixa uma entrada para sempre: numa sala
+        # com o mesmo app, dezenas por aula. A instância é reciclada, mas
+        # até lá o dicionário só cresce.
+        if len(_SESSION_HITS) > 2_000:
+            for stale_token in [
+                key for key, stamps in list(_SESSION_HITS.items())
+                if not stamps or now - stamps[-1] >= SESSION_RATE_WINDOW
+            ]:
+                _SESSION_HITS.pop(stale_token, None)
         _SESSION_INFLIGHT[token] = True
     return True, token, 200
 
@@ -4741,7 +4755,12 @@ def supabase_agenda_rows(limit=20):
         "&owner_id=eq.theo&status=eq.pending"
         f"&order=scheduled_for.asc.nullslast,created_at.desc&limit={safe_limit}"
     )
-    rows = supabase_request(query=query, table=SUPABASE_AGENDA_TABLE)
+    # Leitura de agenda não pode derrubar a request inteira: se o Supabase
+    # piscar, a resposta é "agenda vazia" e o resto do comando segue.
+    try:
+        rows = supabase_request(query=query, table=SUPABASE_AGENDA_TABLE)
+    except (OSError, ValueError):
+        return []
     return rows if isinstance(rows, list) else []
 
 
