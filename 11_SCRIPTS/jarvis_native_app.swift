@@ -288,6 +288,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             } else {
                 resetIdle()
             }
+        } else if message.name == "jarvisDisplay" {
+            // "abre o Google na TV": o navegador não escolhe tela, mas o Mac
+            // sabe. O payload traz a URL e o apelido ("tv", "projetor").
+            let raw = String(describing: message.body)
+            let script = self.displaysScriptPath()
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let dados = raw.data(using: .utf8),
+                      let pedido = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
+                      let url = pedido["url"] as? String,
+                      let tela = pedido["tela"] as? String,
+                      !url.isEmpty, !tela.isEmpty else { return }
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+                proc.arguments = [script, "abrir", url, tela]
+                let pipe = Pipe()
+                proc.standardOutput = pipe
+                try? proc.run()
+                proc.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let saida = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !saida.isEmpty {
+                    DispatchQueue.main.async { self?.speakNative(saida) }
+                }
+            }
         } else if message.name == "jarvisAction" {
             let cmd = String(describing: message.body)
             let script = self.actionsScriptPath()
@@ -405,6 +429,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             return path
         }
         return "/Users/usuario1/Projetos pessoais/jarvis/11_SCRIPTS/jarvis_actions.py"
+    }
+
+    /// telas.py ao lado do jarvis_actions.py: abre a URL na tela pedida.
+    private func displaysScriptPath() -> String {
+        let base = (actionsScriptPath() as NSString).deletingLastPathComponent
+        return (base as NSString).appendingPathComponent("telas.py")
     }
 
     private func setCompact(_ on: Bool) {
