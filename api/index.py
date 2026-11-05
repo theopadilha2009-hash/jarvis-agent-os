@@ -5100,7 +5100,12 @@ def supabase_device_enqueue(command, intent, attachments=None):
                 "intent": intent,
             }, 400
         target = "browser"
-        command = device_actions.payload_json("open_url", url)
+        # A tela vai junto no payload: sem ela, job_open_display devolvia ""
+        # e o ramo de tela do worker era inalcançável.
+        tela = tela_pedida(command)
+        command = device_actions.payload_json(
+            "open_url", url, **({"tela": tela} if tela else {})
+        )
     elif intent == "speak":
         speech = device_actions.speak_text(command)
         if not speech or has_secret_like_text(speech):
