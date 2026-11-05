@@ -385,6 +385,15 @@
   function speakAfterDelay(partes, delayMs) {
     const fila = Array.isArray(partes) ? partes : [partes];
     const token = ++speechGeneration;
+    // Pré-aquece durante a espera: sintetizar as quatro partes do quadro leva
+    // ~8,6s e a espera é de 9s. Sem isto a primeira parte só começa a ser
+    // gerada no fim da espera e a voz entra atrasada, por cima da música.
+    // O servidor tem cache, então o speak() depois acha pronto.
+    if (delayMs > 1500 && window.JarvisLocalVoice?.speakBlob) {
+      for (const parte of fila) {
+        window.JarvisLocalVoice.speakBlob(parte).catch(() => {});
+      }
+    }
     return new Promise((resolve) => {
       const timer = window.setTimeout(async () => {
         for (const parte of fila) {
