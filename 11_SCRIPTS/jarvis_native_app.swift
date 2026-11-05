@@ -256,6 +256,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             } else if body == "resume" {
                 paused = false
                 wantListen = true
+                // Só marcar a flag não religa o motor: se ele parou durante a
+                // fala, o JARVIS fica surdo para sempre. Foi o que aconteceu
+                // no teste com música tocando.
+                if !engine.isRunning || task == nil {
+                    startListen()
+                }
             } else if body == "arm" {
                 wakeOnly = false
                 paused = false
@@ -650,6 +656,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         return head
     }
 
+    // MARK: - Ducking da música
+
+    /// Volume do sistema antes de abaixar, para devolver exatamente o mesmo.
+    private var volumeAntesDaFala: Int?
+
+    /// Abaixa a música enquanto o JARVIS fala.
+    ///
+    /// Sem isto a voz compete com o Spotify no volume cheio: no teste o dono
+    /// não ouvia o JARVIS e o JARVIS não ouvia o dono. Abaixar para 25% deixa
+    /// a música de fundo sem cobrir a fala.
+    private func abaixarMusica() {
+        guard volumeAntesDaFala == nil else { return }
+        let atual = Self.volumeDoSistema()
+        guard atual > 0 else { return }
+        volumeAntesDaFala = atual
+        let alvo = max(8, min(atual, Int(Double(atual) * 0.25)))
+        Self.definirVolume(alvo)
+    }
+
+    /// Devolve o volume que estava antes da fala.
+    private func restaurarMusica() {
+        guard let anterior = volumeAntesDaFala else { return }
+        volumeAntesDaFala = nil
+        Self.definirVolume(anterior)
+    }
+
+    private static func volumeDoSistema() -> Int {
+        let script = NSAppleScript(source: "output volume of (get volume settings)")
+        var erro: NSDictionary?
+        let resultado = script?.executeAndReturnError(&erro)
+        guard erro == nil, let texto = resultado?.stringValue, let valor = Int(texto) else {
+            return 0
+        }
+        return valor
+    }
+
+    private static func definirVolume(_ nivel: Int) {
+        let seguro = max(0, min(100, nivel))
+        let script = NSAppleScript(source: "set volume output volume \(seguro)")
+        var erro: NSDictionary?
+        _ = script?.executeAndReturnError(&erro)
+    }
+
     private func speakNative(_ raw: String) {
         // 220 no meio da palavra cortava a agenda. Corta no último separador
         // antes do teto — e o servidor já manda um `spoken` curto.
@@ -661,6 +710,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         speechGeneration += 1
         speakingNow = true
         player?.stop()
+        // Música de fundo abaixa enquanto ele fala: no teste o Spotify no
+        // volume cheio cobria a voz e o dono não entendia.
+        abaixarMusica()
         speechChunks = speechSentences(text)
         speechAudio = []
         speechFetchInFlight = false
@@ -816,6 +868,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         speechWaiting = false
         speakingNow = false
         paused = false
+        // Devolve a música ao volume de antes assim que a fala termina.
+        restaurarMusica()
         webView?.evaluateJavaScript("window.__jarvisOnSpeakDone && window.__jarvisOnSpeakDone()", completionHandler: nil)
         resetIdle()
     }
