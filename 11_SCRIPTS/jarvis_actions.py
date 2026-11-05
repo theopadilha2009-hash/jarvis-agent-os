@@ -134,6 +134,10 @@ def open_in_editor(project_name: str, editor: str = "Cursor") -> str:
 
 def git_status_voice(project_name: str) -> str:
     """9. Relatório falado do status Git de um projeto."""
+    # Sem nome de projeto, não adivinha: antes caía num alvo qualquer e
+    # respondia sobre um repositório que ninguém pediu.
+    if not project_name or not project_name.strip():
+        return "Qual projeto? Diga o nome depois de 'git status do'."
     p = find_project_path(project_name)
     if not p: return f"Projeto {project_name} não encontrado."
     res = subprocess.run(["git", "-C", str(p), "status", "-s"], capture_output=True, text=True)
@@ -171,11 +175,26 @@ def run_dev_server(project_name: str) -> str:
 # 3. PRODUTIVIDADE PESSOAL & INFORMAÇÕES
 # ==========================================
 
+def _applescript_quote(value: str) -> str:
+    """Escapa um texto para entrar como literal AppleScript entre aspas.
+
+    `replace('"', '\"')` não faz nada em Python (é a mesma string), então uma
+    frase como 'comprar "leite"' quebrava o script (-2741) e o JARVIS dizia
+    "Lembrete criado" sem ter criado nada. Com `" & (do shell script "...")`
+    a injeção era real. A ordem importa: barra primeiro, depois aspas.
+    """
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def create_reminder(text: str) -> str:
     """13. Adiciona um lembrete no app Lembretes do macOS."""
-    clean = text.replace('"', '\"')
+    clean = _applescript_quote(text).replace("\n", " ")
     script = f'tell application "Reminders" to make new reminder with properties {{name:"{clean}"}}'
-    subprocess.run(["osascript", "-e", script], check=False)
+    result = subprocess.run(["osascript", "-e", script], check=False,
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        # Dizer que criou quando falhou é pior do que não criar.
+        return "Não consegui criar o lembrete. O Lembretes recusou o pedido."
     return f"Lembrete criado: {text}."
 
 def get_current_time_date() -> str:
@@ -336,8 +355,10 @@ DESTRUCTIVE_REFUSAL = (
 ACTIONS_REGISTRY = [
     # 1-6 Sistema
     (r"(?:aumenta|aumentar|diminui|diminuir|coloca|ajusta)\s+o?\s*volume\s*(?:para|em|no)?\s*(\d+)?", lambda m: set_volume(int(m.group(1)) if m.group(1) else 60)),
-    (r"(?:muta|mutar|silencia|silenciar)\s+(?:o\s+)?(?:som|audio|mac)", lambda m: mute_volume(True)),
-    (r"(?:desmuta|desmutar|ativa\s+o\s+som)", lambda m: mute_volume(False)),
+    # Desmutar vem ANTES de mutar: `re.search` acha "muta" dentro de
+    # "desmuta", então a ordem invertida mutava quando o pedido era o oposto.
+    (r"^(?:desmuta|desmutar|desativa\s+o\s+mudo|ativa\s+o\s+som)\b", lambda m: mute_volume(False)),
+    (r"^(?:muta|mutar|silencia|silenciar)\b\s*(?:o\s+)?(?:som|audio|mac)?", lambda m: mute_volume(True)),
     (r"(?:aumenta|diminui|ajusta)\s+o?\s*brilho", lambda m: set_brightness(0.8)),
     # Ancorado: "carga" solto também casa "carrega a página", "recarrega",
     # "carregando" — e a resposta daqui vira fala, repetida a cada frase.
@@ -354,7 +375,11 @@ ACTIONS_REGISTRY = [
     # 7-12 Projetos & Dev
     (r"(?:abre|abrir)\s+(?:o\s+)?terminal\s+no\s+projeto\s+(.*)", lambda m: open_terminal_project(m.group(1))),
     (r"(?:abre|abrir)\s+no\s+(cursor|vs\s*code)\s+(?:o\s+projeto\s+)?(.*)", lambda m: open_in_editor(m.group(2), m.group(1))),
-    (r"(?:git.*status|status.*git|git\s+(?:na|no|do|da)?\s*(.*))", lambda m: git_status_voice(m.group(1) if m.lastindex else "Via_Lux")),
+    # "git" solto casava qualquer frase e devolvia o status do projeto
+    # errado ("git status do jarvis" respondia sobre Via_Lux). Agora só
+    # "git status", e o projeto é o que vier depois de do/da/de/no/na.
+    (r"(?:git\s+status|status\s+do\s+git)\s*(?:(?:do|da|de|no|na|projeto)\s+([\w .-]{2,40}))?\s*$",
+     lambda m: git_status_voice(m.group(1).strip() if m.group(1) else "")),
     (r"^(?:faz\s+commit|salva\s+alteracoes)\s+.*$", lambda m: DESTRUCTIVE_REFUSAL),
     (r"(?:lista|quais\s+sao)\s+(?:os\s+)?(?:meus\s+)?projetos", lambda m: list_projects()),
     (r"(?:roda|inicia|starta)\s+(?:o\s+)?(?:dev|servidor)\s+(?:do\s+projeto\s+|da\s+|no\s+)?(.*)", lambda m: run_dev_server(m.group(1))),
@@ -363,7 +388,11 @@ ACTIONS_REGISTRY = [
     (r"(?:me\s+lembra\s+de|cria\s+lembrete\s+para|lembrete)\s+(.*)", lambda m: create_reminder(m.group(1))),
     (r"(?:que\s+horas\s+sao|que\s+dia\s+e\s+hoje|hora\s+atual|data\s+de\s+hoje)", lambda m: get_current_time_date()),
     (r"(?:previsao\s+do\s+tempo|como\s+ta\s+o\s+tempo|vai\s+chover|temperatura)", lambda m: get_weather()),
-    (r"(?:quanto\s+e|calcula|calcular)\s+(.*)", lambda m: quick_calculate(m.group(1))),
+    # Só entra quando há dígito: "quanto é o dólar" é pergunta, não conta, e
+    # caía aqui devolvendo "Não consegui calcular". Sem dígito, devolve None
+    # e o pedido segue para o gateway.
+    (r"(?:quanto\s+[eé]|calcula(?:r)?)\s+((?=[^\n]*\d)[^\n]{1,80})",
+     lambda m: quick_calculate(m.group(1))),
     (r"(?:cotacao|quanto\s+ta\s+o|preco\s+do)\s*(dolar|euro|bitcoin|btc)?", lambda m: get_crypto_currency()),
     (r"(?:le\s+a\s+tela|leitura\s+da\s+tela|analisa\s+a\s+tela)", lambda m: ocr_screen_reading()),
 

@@ -878,6 +878,10 @@
     }
     busy = true;
     lastCommand = command;
+    // Um pedido novo cancela a fala agendada do pedido anterior: o modo
+    // Homem de Ferro agenda o quadro para 9s, e dizer outra coisa nesse
+    // meio fazia as duas falas se sobreporem (com o microfone mudo).
+    cancelPendingSpeech();
     cancelPark();
     try {
       if (isQuietAsk(command)) enterQuiet();
