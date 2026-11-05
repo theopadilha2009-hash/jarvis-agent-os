@@ -17,11 +17,8 @@ Hard rules:
 """
 from __future__ import annotations
 
-import json
-import re
 import subprocess
 import sys
-from pathlib import Path
 
 # NSScreen.frame usa origem embaixo-esquerda (Cocoa) e a janela do System
 # Events usa topo-esquerda. CGDisplayBounds já vem no sistema certo — usar
@@ -65,14 +62,24 @@ def _applescript_literal(value):
     return texto.replace("\n", " ").replace("\r", " ")
 
 
-def listar():
+# Cache curto: `listar()` é chamado várias vezes por abertura (achar a tela,
+# decidir o fallback) e cada chamada sobe um processo swift. Com o swift
+# travado e 60s de timeout, uma tentativa só podia levar minutos.
+_LISTA_CACHE = {"at": 0.0, "telas": []}
+LISTA_CACHE_SEGUNDOS = 5.0
+
+
+def listar(force=False):
     """[{"indice", "nome", "x", "y", "largura", "altura"}] na ordem do macOS."""
+    import time as _t
+    agora = _t.monotonic()
+    if not force and _LISTA_CACHE["telas"] and agora - _LISTA_CACHE["at"] < LISTA_CACHE_SEGUNDOS:
+        return list(_LISTA_CACHE["telas"])
     try:
-        resultado = _rodar(["swift", "-"], timeout=40) if False else None
         # swift lê de stdin quando o arquivo é "-"
         proc = subprocess.run(
             ["swift", "-"], input=SWIFT_TELAS, capture_output=True, text=True,
-            timeout=60, check=False,
+            timeout=10, check=False,
         )
         if proc.returncode != 0:
             return []
@@ -90,6 +97,8 @@ def listar():
                 "indice": int(indice), "nome": nome,
                 "x": x, "y": y, "largura": largura, "altura": altura,
             })
+        if telas:
+            _LISTA_CACHE.update({"at": _t.monotonic(), "telas": list(telas)})
         return telas
     except (OSError, subprocess.SubprocessError, ValueError):
         return []
@@ -173,45 +182,6 @@ end tell
     return False, "Não consegui mover a janela."
 
 
-def _indice_da_janela(processo, titulos):
-    """Índice (1-based) da janela cujo título casa com algum dos procurados.
-
-    Devolve 1 quando não acha: melhor mover a primeira do que não mover nada,
-    mas o normal é achar — o título vem da URL aberta.
-    """
-    if not titulos:
-        return 1
-    script = f'''
-tell application "System Events"
-  if not (exists process "{_applescript_literal(processo)}") then return ""
-  tell process "{_applescript_literal(processo)}"
-    set out to ""
-    repeat with i from 1 to (count of windows)
-      try
-        set out to out & i & "|" & (title of window i) & linefeed
-      end try
-    end repeat
-    return out
-  end tell
-end tell
-'''
-    try:
-        resultado = _rodar(["osascript", "-e", script], timeout=15)
-    except (OSError, subprocess.SubprocessError):
-        return 1
-    for linha in (resultado.stdout or "").splitlines():
-        if "|" not in linha:
-            continue
-        indice, titulo = linha.split("|", 1)
-        baixo = titulo.casefold()
-        if any(t.casefold() in baixo for t in titulos if t):
-            try:
-                return int(indice)
-            except ValueError:
-                continue
-    return 1
-
-
 def abrir_na_tela(url, apelido, app="Google Chrome"):
     """Abre a URL numa janela nova do app e leva para a tela pedida.
 
@@ -242,16 +212,6 @@ def _abrir_na_tela(url, tela, app="Google Chrome"):
     import time as _time
 
     processo = _processo_do_app(app)
-    # Pedaços do título que identificam a janela aberta: o Chrome põe o
-    # domínio e o título da página, então o host basta para achar.
-    host = ""
-    try:
-        from urllib.parse import urlparse
-        host = urlparse(url).netloc.replace("www.", "")
-    except ValueError:
-        host = ""
-    titulos_tela = [host] if host else []
-
     # A receita que funciona de verdade (testada nesta máquina):
     #   1. criar a janela e a URL no app;
     #   2. mover com System Events, que é o único que aplica posição no
@@ -330,8 +290,17 @@ def main():
         return
     if argv[0] == "abrir" and len(argv) >= 3:
         ok, mensagem = abrir_na_tela(argv[1], argv[2])
+        if not ok:
+            # A TV pode estar desligada. O dono pediu o site, não a tela:
+            # abrir na principal é melhor do que não abrir nada.
+            ok_principal, msg_principal = abrir_na_principal(argv[1])
+            if ok_principal:
+                print(f"{msg_principal} (a tela {argv[2]} não está disponível)")
+                sys.exit(0)
+            print(mensagem)
+            sys.exit(1)
         print(mensagem)
-        sys.exit(0 if ok else 1)
+        sys.exit(0)
     if argv[0] == "mover" and len(argv) >= 3:
         tela = encontrar(argv[2])
         if not tela:

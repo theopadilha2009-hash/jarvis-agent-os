@@ -28,6 +28,11 @@
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
     || window.matchMedia("(display-mode: standalone)").matches;
   let busy = false;
+  // Quando o JARVIS falou por último. "sim"/"não" só contam como
+  // resposta dentro desta janela — fora dela é conversa de outra
+  // pessoa na sala, com o microfone armado.
+  let ultimaFalaEm = 0;
+  const JANELA_RESPOSTA_CURTA_MS = 20_000;
   let keepListening = false;
   let armed = false;
   let armUntil = 0;
@@ -250,6 +255,10 @@
     try { nativeHandlers()?.jarvisListen.postMessage("resume"); } catch { /* web */ }
     if (keepListening && !hasNativeListen()) listenLoop();
     drainQueue();
+    // Fim da fala é o momento de esconder. Sem isto, um pedido que terminou
+    // com speaking=true não reagendava o park em lugar nenhum e a janela
+    // ficava aberta para sempre.
+    if (!busy && !stayQuiet) parkSoon();
   }
 
   // Mesma regra do app nativo: frases por . ! ? … e quebra de linha; frase
@@ -401,6 +410,9 @@
   function speak(text) {
     const clip = String(text || "").replace(/\s+/g, " ").trim().slice(0, 400);
     if (!clip) return Promise.resolve();
+    // Marca a hora antes de falar: a partir daqui uma resposta curta do
+    // dono ("sim", "não") conta como resposta a esta fala.
+    ultimaFalaEm = Date.now();
     muteMicForSpeech();
     if (hasNativeSpeak()) {
       return new Promise((resolve) => {
@@ -685,7 +697,11 @@
     // Resposta curta a uma pergunta do JARVIS ("sim", "pode", "não") é
     // comando: o modo Homem de Ferro termina perguntando se pode abrir algo,
     // e sem isto o dono teria que dizer "Jarvis, sim" para responder.
-    if (/^(?:sim|pode|manda|bora|claro|isso|vai|nao|deixa|agora nao)$/.test(folded)) return true;
+    // Só vale logo depois de uma fala dele: numa reunião com o mic armado,
+    // um "sim" solto não pode virar pedido.
+    if (/^(?:sim|pode|manda|bora|claro|isso|vai|nao|deixa|agora nao)$/.test(folded)) {
+      return Date.now() - ultimaFalaEm < JANELA_RESPOSTA_CURTA_MS;
+    }
     if (folded.length < 3) return false;
     if (WAKE_NAME.test(folded)) return true;
     return /^(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|pesquisa|busca|procura|volume|proximo|proxima|silencio|quieto|cala|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|que horas|horas|que dia|data|bateria|clima|tempo|previsao|cotacao|dolar|euro|bitcoin|specs|hardware|noticias|analisa isso|tela cheia|tela inteira)\b/.test(folded);
