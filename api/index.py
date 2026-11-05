@@ -7131,15 +7131,20 @@ def browser_open_payload(command, owner_authenticated=False):
         return None
 
     def payload(url, label, message=None):
+        # "abre o Google na TV" pede tela. Sem isto só o "sim" do modo tinha
+        # destino e o pedido direto abria na tela da frente.
+        tela = tela_pedida(text)
+        rotulo_tela = TELA_FALADA.get(tela, tela)
         return {
             "ok": True,
             "endpoint": "POST /command",
             "status_real": "browser_open",
             "visual_state": "success",
             "intent": "open_url",
-            "message": message or f"Abrindo {label}.",
+            "message": message or f"Abrindo {label} {rotulo_tela}." if tela else (message or f"Abrindo {label}."),
             "client_action": "open_url",
             "open_url": url,
+            "open_display": tela,
             "provider": "jarvis_browser",
             "action_executed": True,
         }
@@ -12375,6 +12380,28 @@ def weather_now():
         text = ""
     _WEATHER_CACHE.update({"text": text, "expires_at": time.monotonic() + WEATHER_CACHE_SECONDS})
     return text
+
+
+# Como o dono chama cada tela falando, e como ela é dita de volta.
+TELA_APELIDOS = (
+    ("tv", r"\b(?:tv|televis[aã]o|samsung)\b"),
+    ("projetor", r"\b(?:projetor|hdmi|vx\s*pro|vx)\b"),
+    ("principal", r"\b(?:tela\s+principal|monitor\s+principal|macbook|notebook)\b"),
+)
+# Preposição junto: "na TV", "no projetor", "na tela principal". Sem isto
+# saía "na projetor".
+TELA_FALADA = {"tv": "na TV", "projetor": "no projetor", "principal": "na tela principal"}
+
+
+def tela_pedida(command):
+    """Tela que o pedido nomeia ("na TV", "no projetor"). "" quando não pede."""
+    text = clean_text(command, 400)
+    if not text:
+        return ""
+    for nome, padrao in TELA_APELIDOS:
+        if re.search(padrao, text, re.I):
+            return nome
+    return ""
 
 
 def iron_style_payload():

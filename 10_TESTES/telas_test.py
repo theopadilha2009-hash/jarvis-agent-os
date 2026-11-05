@@ -71,6 +71,37 @@ class CoordenadasTest(unittest.TestCase):
         self.assertEqual(tv["x"], integrada["x"] + integrada["largura"])
 
 
+class InjecaoAppleScriptTest(unittest.TestCase):
+    """A URL entra num script AppleScript entre aspas.
+
+    Sem escape, uma aspa fecha o literal e o resto vira COMANDO:
+    `https://x/a" & (do shell script "...") & "` executa shell. Foi provado
+    num osascript real antes de corrigir.
+    """
+
+    def test_aspa_vira_texto(self):
+        escape = telas._applescript_literal('a"b')
+        self.assertEqual(escape, 'a\\"b')
+
+    def test_barra_antes_da_aspa(self):
+        """Ordem importa: escapar aspas primeiro deixaria a barra sozinha."""
+        self.assertEqual(telas._applescript_literal("a\\b"), "a\\\\b")
+
+    def test_payload_de_injecao_fica_inofensivo(self):
+        url = 'https://x.com/a" & (do shell script "touch /tmp/PWNED") & "'
+        escape = telas._applescript_literal(url)
+        # Nenhuma aspa crua sobra: todas viraram \"
+        self.assertNotIn('"', escape.replace('\\"', ""))
+
+    def test_quebra_de_linha_e_removida(self):
+        self.assertEqual(telas._applescript_literal("a\nb"), "a b")
+        self.assertEqual(telas._applescript_literal("a\r\nb"), "a  b")
+
+    def test_url_normal_nao_muda(self):
+        url = "https://www.google.com/search?q=cafe"
+        self.assertEqual(telas._applescript_literal(url), url)
+
+
 class AbrirNaTelaTest(unittest.TestCase):
     def test_tela_inexistente_devolve_erro_claro(self):
         with patch.object(telas, "listar", return_value=TELAS_REAIS):

@@ -1488,6 +1488,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.userContentController.add(self, name: "jarvisWindow")
         config.userContentController.add(self, name: "jarvisSee")
         config.userContentController.add(self, name: "jarvisAction")
+        config.userContentController.add(self, name: "jarvisDisplay")
         let controlsScript = """
         (() => {
           function injectJarvisBar() {
