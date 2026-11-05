@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_VERSION = "jarvis-mobile-shell-20261026-deploy5";
+const CACHE_VERSION = "jarvis-mobile-shell-20261105-leve1";
 const SHELL = [
   "/",
   "/cockpit",
@@ -41,7 +41,9 @@ const SHELL = [
   "/ui/aurora.js?v=20260813-apitools1",
   "/ui/strands.js?v=20260813-apitools1",
   "/ui/vendor/ogl/jarvis.js",
-  "/ui/vendor/three.module.js",
+  // three.module.js (652K) saiu do precache: ele só entra quando a cena 3D
+  // roda, e num Chromebook de escola ela nem roda. Baixá-lo no install
+  // travava o primeiro uso e comia a franquia de dados do aluno.
 ];
 
 self.addEventListener("install", (event) => {

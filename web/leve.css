@@ -1,0 +1,229 @@
+/* Modo leve — Chromebook de escola, 4 GB, GPU que não existe.
+ *
+ * A regra: nada de blur, nada de canvas, nada de animação contínua. O fundo
+ * que sobra é o gradiente que o .presence já desenha em CSS puro, então a
+ * tela continua bonita sem gastar um frame de GPU.
+ *
+ * A classe .modo-leve é posta no <html> pelo leve.js antes do primeiro paint.
+ */
+
+html.modo-leve .aurora-visual,
+html.modo-leve .strands-visual,
+html.modo-leve .nuclei-fallback,
+html.modo-leve #sceneRender {
+  display: none !important;
+}
+
+/* O gradiente do .presence fica; só tiramos a transição, que repinta a tela
+   inteira a cada mudança de estado. */
+html.modo-leve .presence {
+  transition: none;
+}
+
+/* Vidro custa blur, e blur num Celeron é o que trava a rolagem. Trocamos por
+   tinta sólida com o mesmo tom — visualmente próximo, custo zero. */
+html.modo-leve .glass,
+html.modo-leve [class*="glass"],
+html.modo-leve .topbar,
+html.modo-leve .dock,
+html.modo-leve .popover,
+html.modo-leve .menu {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Sombra grande também é caro: vira uma borda de 1px no mesmo tom. */
+html.modo-leve * {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+html.modo-leve .card,
+html.modo-leve .panel,
+html.modo-leve .popover {
+  border: 1px solid rgba(160, 140, 255, 0.18);
+}
+
+/* Movimento: só o essencial de estado (hover, foco). Nada decorativo. */
+html.modo-leve *,
+html.modo-leve *::before,
+html.modo-leve *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* O aviso de modo leve: discreto, no rodapé, com o botão de sair. */
+.modo-leve-aviso {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 60;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(20, 16, 34, 0.92);
+  color: #cfc6ff;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html.modo-leve .modo-leve-aviso {
+  display: flex;
+}
+
+.modo-leve-aviso button {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(160, 140, 255, 0.18);
+  color: #e6e0ff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.modo-leve-aviso button:hover {
+  background: rgba(160, 140, 255, 0.3);
+}
+
+/* Tema claro: a tinta escura do aviso destoa, então inverte. */
+html.modo-leve[data-theme="light"] .modo-leve-aviso {
+  background: rgba(255, 255, 255, 0.94);
+  color: #4b3f7a;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+}
+
+html.modo-leve[data-theme="light"] .modo-leve-aviso button {
+  background: rgba(124, 58, 237, 0.12);
+  color: #4b3f7a;
+}
+
+/* ---------- Instalação no Chromebook ----------
+ * Botão cheio na cor, sem contorno (design-theo: "botão só com contorno
+ * parece falso"). Os links de Mac/Windows mantêm o estilo antigo; mexer
+ * neles é outra conversa.
+ */
+.download-grid .instalar-pwa {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: #7c3aed;
+  color: #fff;
+  font: 600 13px inherit;
+  cursor: pointer;
+  grid-column: 1 / -1;
+}
+
+.download-grid .instalar-pwa:hover {
+  background: #6d28d9;
+}
+
+.download-grid .instalar-pwa:focus-visible {
+  outline: 2px solid #c4b5fd;
+  outline-offset: 2px;
+}
+
+.download-grid .instalar-pwa:disabled {
+  background: rgba(124, 58, 237, 0.4);
+  cursor: default;
+}
+
+.download-nota {
+  margin: 10px 0 0;
+  color: var(--muted, #b8a8d8);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.download-nota strong {
+  color: #e6e0ff;
+  font-weight: 600;
+}
+
+/* O esqueleto do avatar escreve "CARREGANDO MECH BUST" e só some quando a
+ * cena 3D monta. No modo leve ela nunca monta, então o texto ficaria girando
+ * para sempre — pior que não ter nada. Aqui ele sai de cena. */
+html.modo-leve .avatar::before,
+html.modo-leve #sceneRender {
+  display: none !important;
+}
+
+/* O centro da cena vira um respiro em gradiente: mesmo tom, custo zero. */
+html.modo-leve .avatar {
+  opacity: 0.5;
+  background:
+    radial-gradient(ellipse at center 55%, rgba(124, 58, 237, 0.16), transparent 62%);
+}
+
+/* ---------- Telas baixas (Chromebook de escola, 768px e menos) ----------
+ * O .welcome tem margin:auto num grid e não encolhe: com 375px de altura
+ * dentro de um feed de 315px, o último botão ("Usar no terminal") ficava
+ * atrás do composer e rolar não o trazia, porque o conteúdo rolável era
+ * menor que o próprio bloco. Aqui ele passa a caber.
+ */
+@media (max-height: 820px) {
+  .conversation-feed {
+    align-content: start;
+  }
+
+  .welcome {
+    margin: 0;
+    gap: 4px;
+  }
+
+  .welcome .starter-actions {
+    margin-top: 5px;
+    gap: 5px;
+  }
+
+  .welcome .starter-actions button {
+    min-height: 32px;
+    padding-block: 4px;
+  }
+}
+
+
+/* O feed é display:flex. Num flex container, o filho com flex-shrink:1
+ * encolhe até o conteúdo transbordar sem criar área rolável — o scrollTop
+ * ficava travado em 0 e os últimos botões eram inalcançáveis. flex:none
+ * devolve a altura real ao filho e a rolagem volta a funcionar. */
+.conversation-feed > .welcome {
+  flex: none;
+}
+
+@media (max-height: 820px) {
+  .conversation-feed {
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  .conversation-feed > .welcome {
+    flex: none;
+    margin-block: 0;
+  }
+}
+
+/* No Chromebook o botão "Baixar o app · Mac e Windows" não leva a nada: o
+ * download é .zip/.dmg e não instala no ChromeOS. Esconder libera 36px, que
+ * é exatamente o que faltava para os atalhos caberem sem rolar. */
+html.modo-leve #welcomeAppButton {
+  display: none;
+}
+
+/* E os atalhos ficam mais compactos: 3 por linha em vez de 2. */
+@media (max-height: 820px) {
+  .welcome .starter-actions {
+    gap: 4px;
+  }
+
+  .welcome .starter-actions button {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+}

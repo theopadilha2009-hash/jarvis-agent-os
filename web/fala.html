@@ -20,6 +20,7 @@
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
   <meta name="jarvis-shell" content="20261104-voz4">
   <link rel="stylesheet" href="/ui/fala.css?v=20261104-voz4">
+  <link rel="stylesheet" href="/ui/fala-tela.css?v=20261105-tela1">
 </head>
 <body>
   <main class="orb-shell">
@@ -56,8 +57,10 @@
       <input id="askInput" type="text" autocomplete="off" placeholder="ou escreva…" aria-label="Pedido para o JARVIS">
     </form>
     <nav class="launch" aria-label="Abrir agora">
+      <!-- Um só botão cheio: o Google é a ação principal (o que ele abre por
+           padrão no modo). Dois cheios lado a lado não têm hierarquia. -->
       <button class="btn btn-accent" type="button" data-open="https://www.google.com">Google</button>
-      <button class="btn btn-accent" type="button" data-open="https://web.whatsapp.com">WhatsApp</button>
+      <button class="btn" type="button" data-open="https://web.whatsapp.com">WhatsApp</button>
     </nav>
     <div class="face-actions">
       <button id="moreButton" class="btn" type="button">mais</button>

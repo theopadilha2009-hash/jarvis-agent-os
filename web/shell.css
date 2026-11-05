@@ -718,3 +718,25 @@
   font-weight: 700;
   letter-spacing: 0;
 }
+
+/* ---------- Tela muito baixa (Chromebook 11", netbook de escola) ----------
+ * 600-640px de altura útil: o painel de 62vh fica pequeno demais e o
+ * composer come os atalhos. Aqui ele cresce e os elementos de moldura
+ * encolhem antes do conteúdo.
+ * A geometria de .conversation mora só neste arquivo (regra do repo).
+ */
+@media (max-height: 640px) {
+  .conversation,
+  .stage.has-conversation .conversation {
+    height: var(--conversation-height, clamp(300px, 78vh, 620px));
+  }
+
+  .conversation-head {
+    min-height: 32px;
+    padding-block: 4px;
+  }
+
+  .composer {
+    padding-block: 6px;
+  }
+}

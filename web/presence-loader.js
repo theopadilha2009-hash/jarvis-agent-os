@@ -75,4 +75,13 @@ const schedulePresence = () => {
   }
 };
 
-schedulePresence();
+// Modo leve (Chromebook de escola): a cena 3D custa 652K de three.js e uma
+// GPU que o aparelho não tem. Esconder no CSS não bastava — o import
+// acontecia de qualquer jeito e baixava tudo. Aqui a decisão é antes do
+// download. O fundo estático do CSS assume o lugar.
+if (window.JarvisLeve?.ativo) {
+  const telemetria = document.getElementById("sceneRender");
+  if (telemetria) telemetria.textContent = "Modo leve";
+} else {
+  schedulePresence();
+}
