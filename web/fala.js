@@ -117,6 +117,38 @@
     if (detail !== undefined) caption.textContent = detail;
   }
 
+  // ---------- Anel em volta do orb ----------
+  // A fala dele vira texto girando ao redor da esfera. O círculo comporta
+  // ~86 caracteres a 13px; acima disso o texto se sobrepõe na volta. Então
+  // cortamos e, se sobrar espaço, repetimos o trecho para fechar o anel —
+  // um arco pela metade parece defeito.
+  const RING_MAX = 84;
+  const RING_VOLTA = 84;
+
+  function paintRing(text, falando) {
+    const stage = document.getElementById("orbStage");
+    const alvo = document.querySelector("#orbRingText textPath");
+    if (!stage || !alvo) return;
+    const limpo = String(text || "").replace(/\s+/g, " ").trim();
+    let trecho = limpo.length > RING_MAX
+      ? `${limpo.slice(0, RING_MAX - 1).replace(/[\s,;:.]+$/, "")}…`
+      : limpo;
+    if (trecho) {
+      // Fecha a volta repetindo o texto com um separador, sem cortar palavra.
+      const unidade = `${trecho}  ·  `;
+      let volta = unidade;
+      while (volta.length < RING_VOLTA) volta += unidade;
+      trecho = volta;
+    }
+    alvo.textContent = trecho;
+    stage.classList.toggle("has-ring", Boolean(limpo));
+    stage.classList.toggle("is-speaking", Boolean(falando));
+  }
+
+  function limparRing() {
+    paintRing("", false);
+  }
+
   function showAnswer(text) {
     const clean = String(text || "").replace(/\s+/g, " ").trim();
     if (!clean) return;
@@ -251,6 +283,9 @@
 
   function unmuteMicAfterSpeech() {
     speaking = false;
+    // O anel continua com a última frase por um instante: some junto com a
+    // fala, não no mesmo frame (senão pisca).
+    window.setTimeout(() => { if (!speaking) limparRing(); }, 1200);
     if (!stayQuiet) keepArmed();
     try { nativeHandlers()?.jarvisListen.postMessage("resume"); } catch { /* web */ }
     if (keepListening && !hasNativeListen()) listenLoop();
@@ -288,9 +323,15 @@
     if (parts.length <= 1) return parts;
     const merged = [];
     let index = 0;
+    // Cada frase é um áudio separado, e entre dois áudios o player para e
+    // espera o próximo chegar: é isso que soa como "pausa branca". Juntar
+    // frases curtas na mesma requisição corta o número de emendas. 8 era
+    // agressivo demais para o ritmo que o dono quer; 22 mantém o fraseado
+    // e tira o silêncio no meio da fala.
+    const MIN_PART_CHARS = 22;
     while (index < parts.length) {
       let piece = parts[index];
-      while (piece.length < 8 && index + 1 < parts.length) {
+      while (piece.length < MIN_PART_CHARS && index + 1 < parts.length) {
         index += 1;
         piece += ` ${parts[index]}`;
       }
@@ -422,6 +463,7 @@
     // Marca a hora antes de falar: a partir daqui uma resposta curta do
     // dono ("sim", "não") conta como resposta a esta fala.
     ultimaFalaEm = Date.now();
+    paintRing(clip, true);
     muteMicForSpeech();
     if (hasNativeSpeak()) {
       return new Promise((resolve) => {
@@ -1703,15 +1745,34 @@
   function restartForUpdate() {
     const url = new URL(location.href);
     url.searchParams.set("r", Date.now().toString(36));
-    try {
-      const native = nativeHandlers() && nativeHandlers().jarvisRestart;
-      if (native) {
-        native.postMessage("now");
-        window.setTimeout(() => location.replace(url.href), 500);
-        return;
-      }
-    } catch { /* web */ }
-    location.replace(url.href);
+    // O fala.js é servido com max-age de 1 ano e immutable: recarregar com
+    // ?r= traz o MESMO arquivo do cache e o aviso nunca some. Aqui limpamos
+    // o cache do app e os service workers antes de recarregar.
+    const recarregar = () => {
+      try {
+        const native = nativeHandlers() && nativeHandlers().jarvisRestart;
+        if (native) {
+          native.postMessage("now");
+          window.setTimeout(() => location.replace(url.href), 500);
+          return;
+        }
+      } catch { /* web */ }
+      location.replace(url.href);
+    };
+    const limpar = async () => {
+      try {
+        if (window.caches?.keys) {
+          const nomes = await window.caches.keys();
+          await Promise.all(nomes.map((n) => window.caches.delete(n)));
+        }
+      } catch { /* sem cache */ }
+      try {
+        const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
+        await Promise.all(regs.map((r) => r.unregister()));
+      } catch { /* sem sw */ }
+      recarregar();
+    };
+    limpar();
   }
 
   function paintShellVersion(live) {
@@ -1726,6 +1787,16 @@
     const toast = document.getElementById("updateToast");
     if (!toast) return;
     toast.hidden = !stale;
+    // Em cima do orb um aviso fixo atrapalha: depois de um tempo ele recua
+    // para uma pílula discreta e volta se houver atualização nova.
+    if (stale && !toast.dataset.recuo) {
+      toast.dataset.recuo = "1";
+      window.setTimeout(() => toast.classList.add("recuando"), 6000);
+    }
+    if (!stale) {
+      toast.classList.remove("recuando");
+      delete toast.dataset.recuo;
+    }
     const versions = document.getElementById("updateToastVersions");
     if (versions && stale) versions.textContent = `você ${localLabel} · no ar v${live}`;
   }

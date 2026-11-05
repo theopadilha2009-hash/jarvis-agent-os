@@ -56,9 +56,13 @@ DEFAULT_VOICE = "rafael"
 DEFAULT_ULTRON_VOICE = "javert"
 DEFAULT_EDGE_JARVIS = "pt-BR-AntonioNeural"
 DEFAULT_EDGE_ULTRON = "pt-BR-AntonioNeural"
+# O dono descreveu a voz como "robótica, parecendo que segura algo no peito".
+# Era o -5% de velocidade com -8Hz de tom: arrastado demais. Testado lado a
+# lado: +5% com tom neutro soa natural e mantém a autoridade. O Ultron fica
+# mais grave de propósito (é outro personagem), mas sem o exagero do -22Hz.
 EDGE_STYLE = {
-    "jarvis": {"rate": "-5%", "pitch": "-8Hz"},
-    "ultron": {"rate": "-12%", "pitch": "-22Hz"},
+    "jarvis": {"rate": "+5%", "pitch": "+0Hz"},
+    "ultron": {"rate": "-6%", "pitch": "-12Hz"},
 }
 DEFAULT_POCKET_PYTHON = Path(".venv-pocket") / "bin" / "python"
 CATALOG_VOICES = {

@@ -18,8 +18,8 @@
   <meta name="creator-seal" content="ggCZbZFBcds2X3zL5N5jloFWuxA=">
   <title>JARVIS</title>
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
-  <meta name="jarvis-shell" content="20261105-modo2">
-  <link rel="stylesheet" href="/ui/fala.css?v=20261105-modo2">
+  <meta name="jarvis-shell" content="20261105-modo3">
+  <link rel="stylesheet" href="/ui/fala.css?v=20261105-modo3">
   <link rel="stylesheet" href="/ui/fala-tela.css?v=20261105-tela1">
 </head>
 <body>
@@ -31,10 +31,22 @@
     </div>
     <div class="halo" aria-hidden="true"></div>
     <div class="viz" aria-hidden="true"><b></b><b></b><b></b><b></b></div>
-    <button id="orb" type="button" aria-label="Falar com o JARVIS">
-      <i></i><i></i>
-      <img src="/ui/jarvis-logo.png?v=20260813-logonative1" width="148" height="148" alt="JARVIS">
-    </button>
+    <!-- Orb no centro, fala em volta: o texto do JARVIS desliza num anel
+         girando ao redor da esfera, como um HUD. Vazio quando ele não fala. -->
+    <div class="orb-stage" id="orbStage">
+      <svg class="orb-ring" id="orbRing" viewBox="0 0 340 340" aria-hidden="true">
+        <defs>
+          <path id="orbRingPath" d="M170,170 m-136,0 a136,136 0 1,1 272,0 a136,136 0 1,1 -272,0" fill="none"/>
+        </defs>
+        <text class="orb-ring-text" id="orbRingText">
+          <textPath href="#orbRingPath" startOffset="0%"></textPath>
+        </text>
+      </svg>
+      <button id="orb" type="button" aria-label="Falar com o JARVIS">
+        <i></i><i></i>
+        <img src="/ui/jarvis-logo.png?v=20260813-logonative1" width="148" height="148" alt="JARVIS">
+      </button>
+    </div>
     <strong id="statusLine">JARVIS<span class="beta-badge" aria-label="versão beta">beta</span></strong>
     <p id="caption">A mesma conta do site.</p>
     <p id="hint" hidden></p>
@@ -81,7 +93,7 @@
       </div>
       <p class="meta">
         <span id="voiceChip" hidden>voz</span>
-        <span id="buildLine" title="Versão desta janela">v20261105-modo2</span>
+        <span id="buildLine" title="Versão desta janela">v20261105-modo3</span>
       </p>
       <nav class="quick">
         <button class="btn" type="button" data-open="https://www.youtube.com">YouTube</button>
@@ -133,6 +145,6 @@
   </script>
   <script src="/ui/creator-seal.js?v=20260817-app1"></script>
   <script src="/ui/local-voice.js?v=20260818-voice2"></script>
-  <script src="/ui/fala.js?v=20261105-modo2"></script>
+  <script src="/ui/fala.js?v=20261105-modo3"></script>
 </body>
 </html>

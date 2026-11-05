@@ -16,3 +16,125 @@
     max-width: 560px;
   }
 }
+
+/* ---------- Orb no centro, fala em volta ----------
+ * O texto do JARVIS desliza num anel girando ao redor da esfera. Antes a
+ * resposta aparecia embaixo, longe de onde o olho está. Aqui ele envolve o
+ * próprio orb, como um HUD.
+ */
+.orb-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 340px;
+  height: 340px;
+  flex: none;
+}
+
+.orb-stage #orb {
+  position: relative;
+  z-index: 2;
+}
+
+.orb-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 420ms var(--ease);
+  animation: orb-ring-spin 26s linear infinite;
+}
+
+/* Só aparece quando há o que dizer: anel parado e vazio seria ruído. */
+.orb-stage.has-ring .orb-ring {
+  opacity: 1;
+}
+
+@keyframes orb-ring-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.orb-ring-text {
+  fill: var(--dim, rgb(251 247 255 / 0.76));
+  font: 600 13px/1 "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-rendering: geometricPrecision;
+}
+
+.orb-stage.is-speaking .orb-ring-text {
+  fill: var(--core, #e9d5ff);
+}
+
+/* Texto muito longo não cabe no círculo: o JS corta, e aqui garantimos que
+   uma frase grande não gere sobreposição ilegível. */
+.orb-ring-text textPath {
+  white-space: pre;
+}
+
+/* Minimizado e janela normal continuam com o anel: é a mesma .orb-stage. */
+html.idle-orb .orb-ring,
+html.app-mode .orb-ring {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-ring { animation: none; }
+  .orb-stage.has-ring .orb-ring { opacity: 0.85; }
+}
+
+/* Tela pequena: o anel encolhe junto com o orb, sem cortar o texto. */
+@media (max-width: 460px), (max-height: 620px) {
+  .orb-stage { width: 260px; height: 260px; }
+  .orb-ring-text { font-size: 11px; letter-spacing: 0.1em; }
+}
+
+/* ---------- Aviso de atualização compacto ----------
+ * O toast ocupava a largura toda da janela e ficava enorme em cima de uma
+ * tela que é só o orb. Aqui ele vira uma pílula no canto, do tamanho do
+ * conteúdo.
+ */
+.update-toast {
+  left: auto;
+  right: 12px;
+  top: 12px;
+  max-width: min(340px, calc(100vw - 24px));
+  padding: 7px 10px;
+  border-radius: 999px;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.update-toast span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.update-toast small,
+.update-toast em {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.update-toast .btn {
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  flex: none;
+}
+
+/* Some sozinho depois de um tempo se o dono não agir: um aviso permanente
+   em cima do orb atrapalha mais do que ajuda. */
+.update-toast.recuando {
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 320ms var(--ease), transform 320ms var(--ease);
+}
