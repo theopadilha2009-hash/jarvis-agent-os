@@ -12977,7 +12977,11 @@ def offer_shortcut(command, owner_authenticated):
     archive_preference(offer.get("id"))
     url = clean_text(offer.get("url"), 300) or "https://www.google.com"
     tela = clean_text(offer.get("tela"), 40)
-    destino = f" na {tela}" if tela else ""
+    # "na tv" soa errado falado; a sigla vai em maiúscula.
+    rotulo = {"tv": "TV", "projetor": "projetor", "principal": "tela principal"}.get(
+        tela.casefold(), tela
+    )
+    destino = f" na {rotulo}" if rotulo else ""
     return {
         "ok": True, "endpoint": "POST /command", "status_real": "offer_accepted",
         "visual_state": "success", "intent": "offer",
