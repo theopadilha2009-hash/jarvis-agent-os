@@ -116,7 +116,10 @@
 
   // Aviso discreto quando o modo leve entrou sozinho. Sem isso o dono acha
   // que o 3D quebrou; com o botão, ele sai quando quiser e a escolha fica.
-  if (!decisao.leve || decisao.motivos[0] === "escolha-manual") return;
+  // Mostra sempre que o modo leve estiver ligado, inclusive quando veio de
+  // ?leve=1: aquela visita grava a escolha, e sem o aviso o dono não teria
+  // como voltar atrás nas próximas. Sempre tem saída visível.
+  if (!decisao.leve) return;
 
   function montarAviso() {
     if (document.querySelector(".modo-leve-aviso")) return;
