@@ -211,6 +211,20 @@ def abrir_na_tela(url, apelido, app="Google Chrome"):
     if not tela:
         disponiveis = ", ".join(t["nome"] for t in listar()) or "nenhuma"
         return False, f"Não achei a tela “{apelido}”. Tenho: {disponiveis}."
+    return _abrir_na_tela(url, tela, app)
+
+
+def abrir_na_principal(url, app="Google Chrome"):
+    """Sem tela pedida disponível: abre na tela principal, mas abre."""
+    telas = listar()
+    if not telas:
+        return False, "Nenhuma tela encontrada."
+    principal = next((t for t in telas if t["x"] == 0 and t["y"] == 0), telas[0])
+    return _abrir_na_tela(url, principal, app)
+
+
+def _abrir_na_tela(url, tela, app="Google Chrome"):
+    import time as _time
 
     processo = _processo_do_app(app)
     # Pedaços do título que identificam a janela aberta: o Chrome põe o
