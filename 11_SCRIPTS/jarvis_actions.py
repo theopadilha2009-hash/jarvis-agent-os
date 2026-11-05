@@ -32,6 +32,29 @@ def set_volume(level: int) -> str:
     subprocess.run(["osascript", "-e", f"set volume output volume {level}"], check=False)
     return f"Volume ajustado para {level}%."
 
+VOLUME_STEP = 15
+
+
+def _current_volume() -> int:
+    try:
+        out = subprocess.run(
+            ["osascript", "-e", "output volume of (get volume settings)"],
+            capture_output=True, text=True, check=False,
+        ).stdout.strip()
+        return max(0, min(100, int(out)))
+    except (ValueError, OSError):
+        return 50
+
+
+def _adjust_volume(direcao: str, alvo) -> str:
+    """"aumenta o volume" sobe, "diminui" desce. Com número, vai direto."""
+    if alvo:
+        return set_volume(int(alvo))
+    atual = _current_volume()
+    sobe = direcao.lower().startswith(("aumenta", "sobe", "subir"))
+    return set_volume(atual + VOLUME_STEP if sobe else atual - VOLUME_STEP)
+
+
 def mute_volume(mute: bool = True) -> str:
     """1b. Muta ou desmuta o som do sistema."""
     flag = "true" if mute else "false"
@@ -354,7 +377,11 @@ DESTRUCTIVE_REFUSAL = (
 
 ACTIONS_REGISTRY = [
     # 1-6 Sistema
-    (r"(?:aumenta|aumentar|diminui|diminuir|coloca|ajusta)\s+o?\s*volume\s*(?:para|em|no)?\s*(\d+)?", lambda m: set_volume(int(m.group(1)) if m.group(1) else 60)),
+    # Sem número, o alvo fixo de 60 fazia "diminui o volume" AUMENTAR o som.
+    # Com direção explícita, soma ou subtrai do volume atual.
+    (r"(?i)\b(aumenta|aumentar|sobe|subir|diminui|diminuir|abaixa|baixa)\s+o?\s*volume\b(?:\s*(?:para|em|no)\s*(\d+))?",
+     lambda m: _adjust_volume(m.group(1), m.group(2))),
+    (r"(?i)\b(?:coloca|ajusta|define)\s+o?\s*volume\s*(?:para|em|no)?\s*(\d+)", lambda m: set_volume(int(m.group(1)))),
     # Desmutar vem ANTES de mutar: `re.search` acha "muta" dentro de
     # "desmuta", então a ordem invertida mutava quando o pedido era o oposto.
     (r"^(?:desmuta|desmutar|desativa\s+o\s+mudo|ativa\s+o\s+som)\b", lambda m: mute_volume(False)),
