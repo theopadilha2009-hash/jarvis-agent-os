@@ -12452,11 +12452,15 @@ def iron_style_payload():
 
     try:
         save_preference(
-            "Oferta aberta: abrir o Google no JARVIS web.",
+            "Oferta aberta: abrir o Google na TV.",
             {
                 "action": "offer",
                 "started_at": datetime.now(timezone.utc).isoformat(),
                 "url": "https://www.google.com",
+                # A TV é o destino natural do modo: o dono está olhando o
+                # Mac, e o Google vai para a tela grande. Sem tela conectada
+                # o worker cai no navegador normal.
+                "tela": "tv",
             },
         )
     except (OSError, ValueError):
@@ -12972,11 +12976,17 @@ def offer_shortcut(command, owner_authenticated):
         return None
     archive_preference(offer.get("id"))
     url = clean_text(offer.get("url"), 300) or "https://www.google.com"
+    tela = clean_text(offer.get("tela"), 40)
+    destino = f" na {tela}" if tela else ""
     return {
         "ok": True, "endpoint": "POST /command", "status_real": "offer_accepted",
         "visual_state": "success", "intent": "offer",
         "client_action": "open_url", "open_url": url,
-        "message": "Abrindo o Google.", "spoken": "Abrindo o Google.",
+        # Tela pedida: o worker do Mac abre a janela nela. Ausente = navegador
+        # normal, que é o comportamento antigo.
+        "open_display": tela,
+        "message": f"Abrindo o Google{destino}.",
+        "spoken": f"Abrindo o Google{destino}.",
     }, 200
 
 

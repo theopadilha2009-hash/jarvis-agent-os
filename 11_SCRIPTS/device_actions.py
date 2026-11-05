@@ -152,7 +152,12 @@ def notify_text(command: str, raw: str = "") -> str:
 SHORT_VOLUME_PATTERN = re.compile(
     r"^\s*(?:jarvis[,\s]+)?(?:"
     r"(?:p[oõ]e|coloca|deixa)\s+(?:no\s+)?mudo|mut[ae]|desmut[ae]|"
-    r"volume\s+(?:para|em|no)?\s*\d{1,3}|volume\s+(?:no\s+)?m[aá]xim[oa]"
+    r"volume\s+(?:para|em|no)?\s*\d{1,3}\s*%?|volume\s+(?:no\s+)?m[aá]xim[oa]|"
+    # Formas naturais de casa: "bota no 60", "coloca em 50%", "põe no 3".
+    # Sem elas o pedido mais comum caía no modelo em vez de ajustar o som.
+    r"(?:bota|botar|p[oõ]e|p[oó]r|coloca|colocar|deixa|deixar|ajusta|ajustar|"
+    r"define|definir|muda|mudar|seta|setar)\s+(?:o\s+)?(?:volume\s+)?"
+    r"(?:em|no|para|pra|a)?\s*\d{1,3}\s*%?"
     r")\s*[.!?]*\s*$",
     re.I,
 )

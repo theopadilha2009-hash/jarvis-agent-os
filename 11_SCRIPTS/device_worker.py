@@ -949,12 +949,34 @@ def job_open_url(job: dict) -> str:
     return extract_https_url(source)
 
 
+def job_open_display(job: dict) -> str:
+    """Tela pedida ("tv", "projetor"). "" quando o pedido não escolhe tela."""
+    source = job_text_source(job)
+    payload = payload_from_text(source)
+    if payload.get("kind") == "open_url":
+        return str(payload.get("tela") or payload.get("display") or "").strip()
+    return ""
+
+
 def execute_open_url_job(job: dict) -> tuple[bool, str]:
     url = job_open_url(job)
     if not url:
         raise WorkerError("URL https válida não encontrada.")
     if platform.system() != "Darwin":
         return False, "Abrir URL no Mac indisponível neste sistema."
+    # Tela específica: "abre o Google na TV" tem que abrir na TV, não na tela
+    # que estiver na frente. Sem telas.py disponível, cai no `open` normal.
+    tela = job_open_display(job)
+    if tela:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            import telas as displays
+            ok, mensagem = displays.abrir_na_tela(url, tela)
+            if ok:
+                return True, f"Aberto no Mac: {url} ({mensagem})"
+            return False, mensagem
+        except (ImportError, OSError, ValueError):
+            pass
     result = subprocess.run(["/usr/bin/open", url], text=True, capture_output=True, check=False, timeout=12)
     if result.returncode != 0:
         return False, "O macOS recusou abrir o endereço."

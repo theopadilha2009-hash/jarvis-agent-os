@@ -681,7 +681,12 @@
   // "contém youtube" fazia conversa casual virar comando.
   function looksLikeCommand(text) {
     const folded = foldSpeech(text);
-    if (!folded || folded.length < 3) return false;
+    if (!folded) return false;
+    // Resposta curta a uma pergunta do JARVIS ("sim", "pode", "não") é
+    // comando: o modo Homem de Ferro termina perguntando se pode abrir algo,
+    // e sem isto o dono teria que dizer "Jarvis, sim" para responder.
+    if (/^(?:sim|pode|manda|bora|claro|isso|vai|nao|deixa|agora nao)$/.test(folded)) return true;
+    if (folded.length < 3) return false;
     if (WAKE_NAME.test(folded)) return true;
     return /^(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|pesquisa|busca|procura|volume|proximo|proxima|silencio|quieto|cala|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|que horas|horas|que dia|data|bateria|clima|tempo|previsao|cotacao|dolar|euro|bitcoin|specs|hardware|noticias|analisa isso|tela cheia|tela inteira)\b/.test(folded);
   }
@@ -932,7 +937,21 @@
         document.documentElement.dataset.theme = value;
         try { localStorage.setItem("jarvis-theme", value); } catch (e) { /* web */ }
       }
-      const opened = data.client_action === "open_url" && data.open_url ? openTarget(data.open_url) : false;
+      // Tela pedida ("abre o Google na TV"): o navegador não escolhe tela, mas
+      // o Mac sabe. Pelo app nativo isso vai para o worker; na web pura não há
+      // como mandar a aba para outro monitor, então abrimos aqui mesmo.
+      let opened = false;
+      if (data.client_action === "open_url" && data.open_url) {
+        if (data.open_display && window.webkit?.messageHandlers?.jarvisDisplay) {
+          try {
+            window.webkit.messageHandlers.jarvisDisplay.postMessage(
+              JSON.stringify({ url: data.open_url, tela: data.open_display })
+            );
+            opened = true;
+          } catch { opened = false; }
+        }
+        if (!opened) opened = openTarget(data.open_url);
+      }
       if (data.client_action === "quiet_mode" || isQuietAsk(command)) {
         enterQuiet();
         if (response.status === 429) {
@@ -1011,8 +1030,14 @@
     cancelPark();
     if (!appMode || !ownerToken()) return;
     if (busy || speaking || meeting || stayQuiet) return;
+    // Fala agendada (o quadro do modo Homem de Ferro chega em 9s): esconder
+    // a janela cancela a fala, então o park espera ela terminar de acontecer.
+    if (pendingSpeech) return;
     parkTimer = window.setTimeout(() => {
       if (busy || speaking || meeting || stayQuiet) return;
+      // A fala agendada pode ter nascido depois deste timer: recheca aqui,
+      // senão o park de 8s mata o quadro de 9s do modo.
+      if (pendingSpeech) return;
       if (document.documentElement.classList.contains("needs-login")) return;
       if (document.activeElement === input) return;
       if (extras && !extras.hidden) return;
