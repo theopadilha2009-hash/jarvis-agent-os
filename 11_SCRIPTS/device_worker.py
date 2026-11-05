@@ -974,8 +974,16 @@ def execute_open_url_job(job: dict) -> tuple[bool, str]:
             ok, mensagem = displays.abrir_na_tela(url, tela)
             if ok:
                 return True, f"Aberto no Mac: {url} ({mensagem})"
+            # A TV pode estar desligada. Abrir na tela principal é melhor do
+            # que não abrir: o dono pediu o Google, não a TV.
+            resultado = subprocess.run(
+                ["/usr/bin/open", url], text=True, capture_output=True,
+                check=False, timeout=12,
+            )
+            if resultado.returncode == 0:
+                return True, f"Aberto no Mac: {url} (a tela {tela} não está disponível)"
             return False, mensagem
-        except (ImportError, OSError, ValueError):
+        except (ImportError, OSError, ValueError, subprocess.SubprocessError):
             pass
     result = subprocess.run(["/usr/bin/open", url], text=True, capture_output=True, check=False, timeout=12)
     if result.returncode != 0:
