@@ -21,7 +21,12 @@
 <link rel="stylesheet" href="/ui/responsive-polish.css?v=20260819-notas1">
 <link rel="stylesheet" href="/ui/shell.css?v=20261026-deploy5">
 <link rel="stylesheet" href="/ui/onboarding.css?v=20261016-onb1">
+<link rel="stylesheet" href="/ui/leve.css?v=20261105-leve1">
 <script src="/ui/creator-seal.js?v=20260817-app1"></script>
+<!-- Modo leve primeiro: decide antes de qualquer módulo carregar, para não
+     baixar a cena 3D e depois sumir com ela num Chromebook. -->
+<script src="/ui/leve.js?v=20261105-leve1"></script>
+<script src="/ui/instalar.js?v=20261105-leve1" defer></script>
 <script>
 (() => {
   try {
@@ -272,6 +277,9 @@
             <span id="welcomeHint">Escreva ou fale naturalmente. Arraste a barra de cima para mover o chat.</span>
             <button class="welcome-login" id="welcomeLogin" type="button">Entrar com login e senha</button>
             <button class="welcome-mac" id="welcomeAppButton" type="button">Baixar o app · Mac e Windows</button>
+            <button class="welcome-mac" id="welcomeChromebookButton" type="button" hidden>
+              Instalar no Chromebook
+            </button>
             <div class="starter-actions" id="starterActions" aria-label="Sugestões para começar"></div>
           </div>
         </div>
@@ -379,9 +387,17 @@
         <div class="download-grid">
           <a href="/download/mac">App Mac</a>
           <a href="/download/windows">App Windows</a>
+          <button type="button" class="instalar-pwa" id="instalarChromebook" hidden>
+            Instalar no Chromebook
+          </button>
           <a href="/download/vscode/mac">Code · Mac</a>
           <a href="/download/vscode/windows">Code · Windows</a>
         </div>
+        <p class="download-nota" id="notaChromebook" hidden>
+          No Chromebook o JARVIS não é um programa: instala pelo Chrome, como
+          qualquer app da Play Store. Abra o menu do Chrome e escolha
+          <strong>Instalar JARVIS</strong>. Funciona offline e abre na dock.
+        </p>
       </section>
     </div>
     <div class="dialog-grid" data-system-panel="mais" hidden>

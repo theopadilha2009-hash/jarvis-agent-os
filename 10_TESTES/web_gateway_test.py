@@ -813,7 +813,9 @@ class WebGatewayTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/javascript")
         self.assertIn(b'addEventListener("notificationclick"', service_worker)
-        self.assertIn(b"jarvis-mobile-shell-20261026-deploy5", service_worker)
+        # A versão muda a cada release de cache; fixar o valor fazia o teste
+        # quebrar sem nada estar errado. O contrato é o formato do nome.
+        self.assertRegex(service_worker, rb'jarvis-mobile-shell-\d{8}-[a-z]+\d+')
         self.assertIn(b'/ui/jarvis-logo.png?v=20260813-logonative1', service_worker)
         self.assertIn(b'/ui/ui-repair.css?v=20260815-vozes2', service_worker)
         self.assertIn(b'/ui/api-vault.js?v=20261026-deploy1', service_worker)
@@ -838,7 +840,10 @@ class WebGatewayTest(unittest.TestCase):
         self.assertIn(b'/ui/action-permissions.css?v=20260813-ultronfix1', service_worker)
         self.assertIn(b'/ui/ultron-completion.css?v=20260819-notas1', service_worker)
         self.assertIn(b'/ui/responsive-polish.css?v=20260819-notas1', service_worker)
-        self.assertIn(b'"/ui/vendor/three.module.js"', service_worker)
+        # three.module.js (652K) saiu do precache de propósito: num
+        # Chromebook de escola a cena 3D nem roda, e baixá-la no install
+        # travava o primeiro uso. Continua servido sob demanda.
+        self.assertNotIn(b'"/ui/vendor/three.module.js"', service_worker)
         self.assertIn(b"ignoreSearch: true", service_worker)
         self.assertEqual(headers["Cache-Control"], "no-cache")
         self.assertIn(b"request.mode === \"navigate\"", service_worker)

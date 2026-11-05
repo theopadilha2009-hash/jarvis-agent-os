@@ -1,0 +1,18 @@
+/* Ajustes do /fala quando aberto no navegador, em tela cheia.
+ *
+ * O app nativo abre numa janela pequena e quer tudo no topo. Na web a
+ * página ocupa a tela inteira, e justify-content:flex-start deixava dois
+ * terços vazios embaixo. Aqui centra só quando sobra altura, então as duas
+ * leituras continuam certas.
+ */
+@media (min-height: 720px) {
+  .orb-shell {
+    justify-content: center;
+    padding-block: 28px;
+    gap: 10px;
+  }
+
+  .dock {
+    max-width: 560px;
+  }
+}
