@@ -337,6 +337,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             } else {
                 speakNative(body)
             }
+        } else if message.name == "jarvisSonda" {
+            logListen("SONDA \(body)")
         } else if message.name == "jarvisOpen" {
             // O `window.open` do WKWebView devolve null porque a janela nova
             // não é criada: o JS anunciava "Popup bloqueado" no meio da tela
@@ -2293,6 +2295,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.websiteDataStore = .default()
         config.userContentController.add(self, name: "jarvisSpeak")
         config.userContentController.add(self, name: "jarvisOpen")
+
+        // Diagnóstico do palco do vídeo: mostra no log o que o painel da
+        // agenda respondeu. Sem isto o painel falhava calado.
+        let sonda = """
+        (() => {
+          window.__jarvisSonda = (msg) => {
+            try { window.webkit.messageHandlers.jarvisSonda.postMessage(String(msg)); } catch(e) {}
+          };
+        })();
+        """
+        config.userContentController.addUserScript(
+            WKUserScript(source: sonda, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        )
+        config.userContentController.add(self, name: "jarvisSonda")
 
         // Roteiro do vídeo: injeta a fala no JARVIS como se ele tivesse
         // ouvido. O microfone deste Mac entrega áudio que o reconhecedor
