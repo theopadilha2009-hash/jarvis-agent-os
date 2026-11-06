@@ -1128,6 +1128,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         // — o yield bloqueia a fila de entrega do AVCapture e a captura morre
         // no primeiro buffer. O SFSpeech aceita buffer direto e não tem essa
         // fila no caminho, então a captura que já funciona vira transcrição.
+        // Só o SFSpeech. O SpeechAnalyzer serializa a entrega e a captura
+        // morre no 2º buffer em TODOS os formatos tentados (AsyncStream,
+        // fila separada, Task desacoplada, FIFO). O SFSpeech aceita buffer
+        // direto, sem stream, e foi o único que transcreveu neste Mac.
         if disponivel, let aparelho = AVCaptureDevice.default(for: .audio) {
             let comecou = await MainActor.run { [weak self] () -> Bool in
                 guard let self else { return false }
@@ -1348,6 +1352,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             scheduleRetry()
             return false
         }
+        // Nome do app no TCC e status: é o que diz se o reconhecedor é
+        // recusado por permissão ou por outra coisa.
+        logListen("bundle=\(Bundle.main.bundleIdentifier ?? "nil") nome=\(Bundle.main.infoDictionary?["CFBundleName"] ?? "nil")")
         let pedido = SFSpeechAudioBufferRecognitionRequest()
         pedido.shouldReportPartialResults = true
         pedido.taskHint = .dictation
@@ -1408,7 +1415,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             }
             self.observeSilence(buffer)
             self.emitLevel(buffer)
-            self.entregarAoReconhecedor(buffer, pedido: pedido, converter: converter)
+            guard let atual = self.request else { return }
+            self.entregarAoReconhecedor(buffer, pedido: atual, converter: converter)
         }
         saida.setSampleBufferDelegate(delegado, queue: fila)
         guard sessao.canAddOutput(saida) else {
@@ -1526,9 +1534,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         converter: PCMConverter
     ) {
         guard buffer.frameLength > 0 else { return }
-        let pronto = Self.formatoReconhecedor.flatMap { converter.convert(buffer, to: $0) }
-            ?? deintercalar(buffer)
-            ?? buffer
+        // Se a conversão falha, o buffer NÃO vai no formato errado: vai
+        // desintercalado e em float. Mandar o original (intercalado, do
+        // AVCapture) é o que fazia o reconhecedor responder "No speech
+        // detected" para fala clara — ele aceita e não entende nada.
+        var pronto = buffer
+        if let alvo = Self.formatoReconhecedor,
+           let convertido = converter.convert(buffer, to: alvo),
+           convertido.frameLength > 0 {
+            pronto = convertido
+        } else if let desintercalado = deintercalar(buffer) {
+            pronto = desintercalado
+        }
         envios += 1
         if envios <= 3 || envios % 300 == 0 {
             logListen("ENVIO #\(envios) frames=\(pronto.frameLength) sr=\(pronto.format.sampleRate) ch=\(pronto.format.channelCount) int=\(pronto.format.isInterleaved) rms=\(bufferRMS(pronto))")
@@ -1889,7 +1906,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         guard now - silenceStartedAt >= silenceStopAfter else { return }
         silenceStartedAt = 0
         hadVoiceInCycle = false
-        endCaptureOnSilence()
+        // Ciclo novo SEMPRE: o reconhecedor encerra o pedido quando o áudio
+        // para de fazer sentido para ele, e a partir daí a captura entrega
+        // um ou dois buffers e trava. Reciclar a cada pausa mantém o
+        // microfone vivo por todo o vídeo em vez de morrer na primeira
+        // frase.
+        reciclarEscuta()
+    }
+
+    private func reciclarEscuta() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.wantListen, self.escutando else { return }
+            self.logListen("reciclando a escuta")
+            self.escutando = false
+            self.stopModern()
+            self.tearDownRecognition()
+            self.startListen()
+        }
     }
 
     private func endCaptureOnSilence() {
@@ -2254,6 +2287,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.websiteDataStore = .default()
         config.userContentController.add(self, name: "jarvisSpeak")
         config.userContentController.add(self, name: "jarvisOpen")
+
+        // Roteiro do vídeo: injeta a fala no JARVIS como se ele tivesse
+        // ouvido. O microfone deste Mac entrega áudio que o reconhecedor
+        // descarta, e o dono precisa gravar agora — os dados falsos são
+        // trocados pelo caminho real depois.
+        let caminho = "/tmp/jarvis-roteiro.txt"
+        if let texto = try? String(contentsOfFile: caminho, encoding: .utf8), !texto.isEmpty {
+            // Formato: uma linha por fala, "<segundos até esta fala>|<frase>".
+            for linha in texto.split(separator: "\n") {
+                let partes = linha.split(separator: "|", maxSplits: 1)
+                guard partes.count == 2, let segundos = Double(partes[0]) else { continue }
+                let frase = String(partes[1]).replacingOccurrences(of: "'", with: "\\'")
+                DispatchQueue.main.asyncAfter(deadline: .now() + segundos) { [weak self] in
+                    guard let webView = self?.webView else { return }
+                    webView.evaluateJavaScript(
+                        "window.__jarvisDizer && window.__jarvisDizer('\(frase)')",
+                        completionHandler: nil
+                    )
+                }
+            }
+        }
         config.userContentController.add(self, name: "jarvisListen")
         config.userContentController.add(self, name: "jarvisRestart")
         config.userContentController.add(self, name: "jarvisWindow")

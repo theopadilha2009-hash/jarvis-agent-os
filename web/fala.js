@@ -1017,15 +1017,22 @@
       // como mandar a aba para outro monitor, então abrimos aqui mesmo.
       let opened = false;
       if (data.client_action === "open_url" && data.open_url) {
-        if (data.open_display && window.webkit?.messageHandlers?.jarvisDisplay) {
-          try {
-            window.webkit.messageHandlers.jarvisDisplay.postMessage(
-              JSON.stringify({ url: data.open_url, tela: data.open_display })
-            );
-            opened = true;
-          } catch { opened = false; }
+        // Projetos do dono aparecem DENTRO do JARVIS, quase em tela cheia.
+        // Só o que não é projeção (Spotify, WhatsApp, Google) abre fora.
+        const projetado = window.__jarvisAbrirSite && window.__jarvisAbrirSite(data.open_url);
+        if (projetado) {
+          opened = true;
+        } else {
+          if (data.open_display && window.webkit?.messageHandlers?.jarvisDisplay) {
+            try {
+              window.webkit.messageHandlers.jarvisDisplay.postMessage(
+                JSON.stringify({ url: data.open_url, tela: data.open_display })
+              );
+              opened = true;
+            } catch { opened = false; }
+          }
+          if (!opened) opened = openTarget(data.open_url);
         }
-        if (!opened) opened = openTarget(data.open_url);
       }
       if (data.client_action === "quiet_mode" || isQuietAsk(command)) {
         enterQuiet();
@@ -1209,6 +1216,47 @@
         orb.classList.add("listening");
         say("Ouvindo.", "Pode falar.");
       }
+    }
+  };
+
+  // Porta única para injetar fala: o modo ensaio usa esta.
+  // No ensaio o JARVIS fica sempre armado: são minutos de gravação e o
+  // `armed` cai sozinho em 45s, o que engolia as frases depois da metade.
+  let ensaioLigado = false;
+  window.__jarvisModoEnsaio = () => {
+    // Desliga a escuta do navegador: no ensaio quem fala é o roteiro, e o
+    // microfone do Chrome só servia para pintar "Toque no brilho" por cima.
+    ensaioLigado = true;
+    armed = true;
+    armUntil = Date.now() + 6 * 60 * 60 * 1000;
+    document.documentElement.classList.add("armed");
+    window.clearTimeout(armTimer);
+    const node = document.getElementById("caption");
+    if (node) node.textContent = "Modo ensaio.";
+    return true;
+  };
+
+  window.__jarvisDizer = (texto) => {
+    if (!armed) window.__jarvisModoEnsaio();
+    hearSpoken(String(texto || ""), true);
+  };
+
+  // ---------- Modo ensaio (só para gravar o vídeo) ----------
+  // O microfone deste Mac entrega áudio que o reconhecedor descarta, então
+  // para o vídeo a fala é injetada direto. `ens = [["bom dia", 2.6], ...]`
+  // dispara cada frase depois do intervalo dado, contado a partir da chamada.
+  window.__jarvisEnsaio = function (roteiro) {
+    const lista = Array.isArray(roteiro) ? roteiro : [];
+    let atraso = 0;
+    for (const item of lista) {
+      const texto = String(item[0] || "");
+      const espera = Number(item[1]) || 0;
+      atraso += espera;
+      window.setTimeout(() => {
+        if (!texto) return;
+        if (window.__jarvisSetIdle) window.__jarvisSetIdle(false);
+        hearSpoken(texto, true);
+      }, atraso);
     }
   };
 
@@ -1548,6 +1596,7 @@
 
   function tryAutoListen() {
     const kick = () => {
+      if (ensaioLigado) return;
       if (!wantsListen() || speaking) return;
       if (!keepListening) startWakeLoop({ silent: true });
       else if (hasNativeListen()) {
@@ -1750,6 +1799,7 @@
   refreshVoiceChip();
   watchShellVersion();
   instalarHud();
+  instalarSite();
   window.setInterval(refreshVoiceChip, 8000);
   tryAutoListen();
   window.setTimeout(() => document.documentElement.classList.remove("booting"), 650);
@@ -1942,6 +1992,59 @@
     window.setTimeout(() => {
       if (!hudAberto) el.painel.hidden = true;
     }, 280);
+  }
+
+  // ---------- Projeção de site dentro do JARVIS ----------
+  // O dono pediu para o vídeo: quando ele manda abrir um site, o site surge
+  // DENTRO do JARVIS, quase em tela cheia — não uma aba nova. Só a agenda e
+  // o Spotify continuam indo para fora, porque são apps de verdade.
+  const SITES_PROJETADOS = [
+    { teste: /sitehunter/i, url: "https://sitehunter-ai-tau.vercel.app", nome: "SiteHunter" },
+    { teste: /github/i, url: "https://github.com/theopadilha2009-hash/jarvis-agent-os", nome: "GitHub · JARVIS" },
+  ];
+
+  function siteProjetado(url) {
+    const alvo = String(url || "");
+    if (!alvo) return null;
+    return SITES_PROJETADOS.find((s) => s.teste.test(alvo)) || null;
+  }
+
+  let siteAberto = null;
+
+  function abrirSite(site) {
+    const painel = document.getElementById("hudSite");
+    const quadro = document.getElementById("hudSiteQuadro");
+    const nome = document.getElementById("hudSiteNome");
+    if (!painel || !quadro) return false;
+    if (siteAberto !== site.url) {
+      quadro.src = site.url;
+      siteAberto = site.url;
+    }
+    if (nome) nome.textContent = site.nome;
+    painel.hidden = false;
+    requestAnimationFrame(() => painel.classList.add("aberto"));
+    return true;
+  }
+
+  function fecharSite() {
+    const painel = document.getElementById("hudSite");
+    if (!painel) return;
+    painel.classList.remove("aberto");
+    window.setTimeout(() => {
+      painel.hidden = true;
+      const quadro = document.getElementById("hudSiteQuadro");
+      if (quadro) quadro.src = "about:blank";
+      siteAberto = null;
+    }, 300);
+  }
+
+  function instalarSite() {
+    const fechar = document.getElementById("hudSiteFechar");
+    if (fechar) fechar.addEventListener("click", fecharSite);
+    window.__jarvisAbrirSite = (url) => {
+      const site = siteProjetado(url);
+      return site ? abrirSite(site) : false;
+    };
   }
 
   function instalarHud() {

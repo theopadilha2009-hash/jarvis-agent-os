@@ -11875,6 +11875,28 @@ def dispatch_command_payload(body, origin="", local_execute=False, owner_authent
 
     if FILE_SEND_PATTERN.search(command):
         return file_send_payload(command)
+    # Agenda vem ANTES de qualquer abertura de site: "abre a minha agenda" é
+    # o painel do JARVIS, não uma aba. Sem esta ordem o browser_open_payload
+    # capturava o pedido e o painel nunca aparecia.
+    if any(padrao.search(command) for padrao, intent in LOCAL_INTENTS if intent == "agenda_view"):
+        # O painel abre com o calendário do mês; a leitura do Supabase só
+        # acrescenta os itens. Sem pareamento ele abre vazio em vez de não
+        # abrir — o dono pediu que a agenda apareça, e os dados reais vêm
+        # depois, quando ele estiver logado.
+        if supabase_configured() and (owner_authenticated or not owner_pairing_required()):
+            return supabase_agenda_command(command, "agenda_view")
+        return {
+            "ok": True,
+            "endpoint": "POST /command",
+            "status_real": "agenda_panel_local",
+            "visual_state": "planning",
+            "intent": "agenda_view",
+            "message": "Sua agenda, senhor.",
+            "spoken": "Sua agenda, senhor. Quer que eu anote alguma coisa nela?",
+            "agenda": [],
+            "client_action": "agenda",
+            "provider": "jarvis_panel",
+        }, 200
     if not compound_device_plan(command):
         web_open = browser_open_payload(command, owner_authenticated=owner_authenticated)
         if web_open:
@@ -12542,6 +12564,11 @@ def iron_style_payload():
         "spoken_parts": [spoken_clip(parte, 320) for parte in quadro],
         "spoken_delay_ms": 9000,
         "agenda": items,
+        # O roteiro do dono: depois do modo, ele responde "sim" e a web abre.
+        # A oferta vai junto para o "sim" ter destino sem passar pelo modelo.
+        "client_action": "open_url",
+        "open_url": "https://www.google.com",
+        "open_display": "tv",
         "job": (
             {"id": queued["id"], "status": "pending", "action": "spotify_control", "target": "Back In Black"}
             if isinstance(queued, dict) and queued.get("id")
@@ -13557,9 +13584,11 @@ class handler(BaseHTTPRequestHandler):
     server_version = "JarvisWeb/1.0"
 
     def _security_headers(self):
+        livre = getattr(self, "_frame_livre", False)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
-        self.send_header("X-Frame-Options", "DENY")
+        if not livre:
+            self.send_header("X-Frame-Options", "DENY")
         self.send_header("X-Permitted-Cross-Domain-Policies", "none")
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
@@ -13575,8 +13604,8 @@ class handler(BaseHTTPRequestHandler):
             "font-src 'self' data:; "
             "worker-src 'self' blob:; "
             "manifest-src 'self'; "
-            "frame-ancestors 'none'; "
-            "base-uri 'self'; "
+            + ("frame-ancestors 'none'; " if not livre else "frame-ancestors 'self'; ")
+            + "base-uri 'self'; "
             "form-action 'self'; "
             "object-src 'none'"
         )
@@ -13723,12 +13752,17 @@ class handler(BaseHTTPRequestHandler):
     def serve_creator_page(self):
         return self.serve_public_page("theo.html", "perfil do criador indisponível")
 
-    def serve_public_page(self, filename, missing):
+    def serve_public_page(self, filename, missing, enquadravel=False):
         target = WEB_DIR / filename
         try:
             body = target.read_bytes()
         except OSError:
             return self.send_json(404, {"ok": False, "error": missing})
+        if enquadravel:
+            # Só a página de ensaio pode viver dentro de um iframe: ela é o
+            # palco do vídeo, que carrega o JARVIS aqui dentro. O resto do
+            # site continua fechado para enquadramento.
+            self._frame_livre = True
         return self.send_bytes(200, body, "text/html; charset=utf-8", "public, max-age=120")
 
     def serve_mac_pack(self):
@@ -13880,7 +13914,15 @@ class handler(BaseHTTPRequestHandler):
             return self.serve_public_page("termos.html", "termos indisponíveis")
         if path in {"/privacidade", "/privacy"}:
             return self.serve_public_page("privacidade.html", "privacidade indisponível")
+        if path in {"/ensaio", "/ensaio.html"}:
+            # Roteiro do vídeo: injeta a fala no JARVIS no tempo certo. É
+            # ensaio explícito, não o assistente — quem abre é o dono.
+            return self.serve_public_page("ensaio.html", "ensaio indisponível", enquadravel=True)
         if path in {"/fala", "/corner"}:
+            # O palco do vídeo (/ensaio) carrega esta página num iframe da
+            # MESMA origem. Sem liberar, o navegador recusa o enquadramento e
+            # o roteiro não consegue falar com o JARVIS.
+            self._frame_livre = True
             return self.serve_public_page("fala.html", "app de fala indisponível")
         if path in {"/app", "/baixar"}:
             return self.serve_public_page("app.html", "página do app indisponível")
