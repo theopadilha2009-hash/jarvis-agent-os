@@ -293,6 +293,16 @@ html.idle-orb.needs-login #loginToggle {
 
 /* Falando: cada barra danca no seu tempo. Duracoes desiguais tiram o efeito
    de metronomo — 16 barras no mesmo compasso parece pisca-pisca. */
+/* Ouvindo: as mesmas barras dançam mais baixas, para a esfera não parecer
+   travada enquanto ele escuta. Ovídeo mostrar o medidor vivo nos dois estados. */
+.orb-stage.is-listening .soundbar b {
+  animation: ondaOuvindo var(--dur, 780ms) ease-in-out infinite alternate;
+}
+@keyframes ondaOuvindo {
+  from { transform: scaleY(.08); }
+  to   { transform: scaleY(.55); }
+}
+
 .orb-stage.is-speaking .soundbar b {
   animation: ondaSom var(--dur, 780ms) ease-in-out infinite alternate;
 }
@@ -306,7 +316,8 @@ html.idle-orb.needs-login #loginToggle {
   to   { transform: scaleY(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .orb-stage.is-speaking .soundbar b { animation: none; }
+  .orb-stage.is-speaking .soundbar b,
+  .orb-stage.is-listening .soundbar b { animation: none; }
 }
 
 /* Modo minimizado: a janela e transparente, so o orbe e as ondas. O orbe

@@ -76,6 +76,26 @@ class AgendaIntentTest(unittest.TestCase):
         self.assertIn('data.client_action === "agenda"', js)
         self.assertIn("abrirHud()", js)
 
+    def test_agenda_e_calendario_nao_vao_pro_google(self):
+        """A agenda mora na UI do JARVIS, não numa aba do Google.
+
+        O dono pediu explicitamente: só vai pro Google quando ele disser
+        "abre no Google". Antes, "calendário" abria o Google Calendar, e
+        pedir a agenda virava uma aba em vez do painel.
+        """
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("jarvis_gateway", GATEWAY)
+        modulo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modulo)
+        for padrao, url, rotulo in modulo.WEB_OPEN_TARGETS:
+            if "calendar.google.com" not in url:
+                continue
+            for frase in ["abre a agenda", "minha agenda", "abre o calendário",
+                          "mostra o calendário", "ver a agenda"]:
+                with self.subTest(frase=frase):
+                    self.assertIsNone(padrao.search(frase),
+                                      f"{frase!r} não pode abrir {rotulo}")
+
 
 if __name__ == "__main__":
     unittest.main()
