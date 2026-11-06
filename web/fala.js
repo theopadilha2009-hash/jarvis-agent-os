@@ -18,7 +18,14 @@
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_KEY = "jarvis-owner-last-active";
   const LISTEN_KEY = "jarvis-fala-listen";
-  const SHELL_VERSION = "20261104-voz4";
+  // A versão de verdade mora no <meta> do fala.html, que o gateway lê para
+  // responder /status. Escrita à mão aqui, ela ficava para trás e o aviso de
+  // "atualização disponível" nunca sumia: o cliente sempre se achava velho.
+  const SHELL_VERSION = (() => {
+    const tag = document.querySelector('meta[name="jarvis-shell"]');
+    const valor = tag?.getAttribute("content")?.trim();
+    return valor || "20261105-modo3";
+  })();
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
@@ -244,6 +251,10 @@
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audio.volume = webVolume();
+      // O dono descreveu "pausas demoradas e muito brancas": cada frase é um
+      // áudio e o `ended` chega depois do silêncio que o encoder gravou no fim
+      // do arquivo. Encostar o próximo fio no anterior costura a fala.
+      audio.preservesPitch = true;
       const finish = () => {
         orb.classList.remove("speaking");
         URL.revokeObjectURL(url);
