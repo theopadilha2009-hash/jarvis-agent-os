@@ -1325,7 +1325,7 @@
     window.__jarvisModoEnsaio();
     await speak("Tela cheia, senhor.");
     try {
-      window.webkit?.messageHandlers?.jarvisFullscreen?.postMessage("https://jarvis-theo.vercel.app/");
+      window.webkit?.messageHandlers?.jarvisFullscreen?.postMessage("https://jarvis-theo.vercel.app/?filme=1");
     } catch (e) { /* web */ }
     return true;
   };
@@ -1337,7 +1337,7 @@
     await speak("Abrindo, senhor.");
     // A web é o site, na segunda tela. O mesmo pedido vira "abre o
     // fullscreen" no vídeo: aí sim vem o palco com o busto 3D.
-    try { window.webkit?.messageHandlers?.jarvisOpen?.postMessage("https://jarvis-theo.vercel.app/"); } catch (e) { /* web */ }
+    try { window.webkit?.messageHandlers?.jarvisOpen?.postMessage("https://jarvis-theo.vercel.app/?filme=1"); } catch (e) { /* web */ }
     window.setTimeout(() => nativeWindow("hide"), 1200);
     return true;
   };

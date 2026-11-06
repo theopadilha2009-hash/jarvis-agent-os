@@ -421,7 +421,7 @@ class UIQualityTest(unittest.TestCase):
         self.assertIn("voiceFirstAudioMs", self.app_js)
         self.assertIn('`Pocket TTS · voz em ${session.voiceFirstAudioMs} ms`', self.app_js)
         self.assertNotIn('ElevenLabs · voz em', self.app_js)
-        self.assertIn('const SHELL_VERSION = "20261106-video5"', self.app_js)
+        self.assertIn('const SHELL_VERSION = "20261106-video6"', self.app_js)
         self.assertIn("restartForUpdate", self.app_js)
         self.assertIn('id="updateToast"', self.html)
         self.assertIn('id="updateReloadButton"', self.html)
@@ -460,11 +460,11 @@ class UIQualityTest(unittest.TestCase):
         self.assertGreaterEqual(self.html.count("20260815-vozes2"), 1)
         self.assertGreaterEqual(self.html.count("20261016-svgfb"), 1)
         self.assertIn("20261016-svgfb", self.html)
-        self.assertIn("20261106-video5", self.html)
+        self.assertIn("20261106-video6", self.html)
         self.assertIn("welcomeLogin", self.html)
         self.assertIn("script interrompido", self.html)
         self.assertIn("local-voice.js", self.html)
-        self.assertGreaterEqual(self.html.count("20261106-video5"), 8)
+        self.assertGreaterEqual(self.html.count("20261106-video6"), 8)
 
     def test_ultron_completion_removes_purple_controls_and_canvas_palette(self):
         self.assertIn('html[data-persona="ultron"]', self.ultron_completion_css)

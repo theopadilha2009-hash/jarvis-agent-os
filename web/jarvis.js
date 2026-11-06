@@ -38,7 +38,7 @@
   const LAST_LOGIN_KEY = "jarvis-last-login";
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
-  const SHELL_VERSION = "20261106-video5";
+  const SHELL_VERSION = "20261106-video6";
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   // v3: a janela nasce como painel à direita. Trocar a chave descarta as
@@ -2769,6 +2769,29 @@
     painel.classList.remove("aberto");
     void painel.offsetWidth;
     requestAnimationFrame(() => painel.classList.add("aberto"));
+  }
+
+  // O roteiro do vídeo roda AQUI, na própria página: o app abre o site em
+  // tela cheia e o site se conduz sozinho. Sem isso a fala ficava no app e a
+  // agenda aparecia na janela dele, não na web.
+  const ROTEIRO_VIDEO = [
+    [3, "ferro"],
+    [31, "agenda"],
+    [50, "sitehunter"],
+  ];
+
+  window.__jarvisRodarRoteiro = () => {
+    document.documentElement.classList.add("modo-filme");
+    for (const [segundos, cena] of ROTEIRO_VIDEO) {
+      window.setTimeout(() => window.__jarvisRoteiro(cena), segundos * 1000);
+    }
+    return true;
+  };
+
+  // `?filme=1` na URL: o site se apresenta como o JARVIS do vídeo e começa
+  // o roteiro sozinho assim que a cena 3D estiver de pé.
+  if (/(?:^|[?&])filme=1(?:&|$)/.test(location.search)) {
+    window.setTimeout(() => window.__jarvisRodarRoteiro(), 2500);
   }
 
   window.__jarvisRoteiro = (nome) => {
