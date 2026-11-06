@@ -4918,6 +4918,10 @@ def supabase_agenda_command(command, intent):
             "intent": intent,
             "provider": "supabase_agenda",
             "agenda": rows,
+            # O app abre o painel holográfico dentro da própria janela quando
+            # o pedido é sobre a agenda — o dono pediu no vídeo, não uma
+            # página separada.
+            "client_action": "agenda",
         }, 200
     except HTTPError as error:
         return {

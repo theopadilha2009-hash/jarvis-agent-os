@@ -991,6 +991,11 @@
         cancelPark();
         nativeWindow("focus");
       }
+      // Agenda: o painel holográfico abre dentro do JARVIS, sobre o orbe.
+      // O servidor marca client_action "agenda" quando o pedido é sobre ela.
+      if (data.client_action === "agenda" || data.agenda_panel === true) {
+        abrirHud();
+      }
       // Set pessoal pode pedir tema ("muda pro claro"): é do app, não do Mac.
       if (data.client_action === "theme" && data.theme) {
         const value = data.theme === "light" ? "light" : "dark";
@@ -1730,6 +1735,7 @@
   refreshAccess();
   refreshVoiceChip();
   watchShellVersion();
+  instalarHud();
   window.setInterval(refreshVoiceChip, 8000);
   tryAutoListen();
   window.setTimeout(() => document.documentElement.classList.remove("booting"), 650);
@@ -1803,6 +1809,142 @@
     } catch {
       paintShellVersion("");
     }
+  }
+
+  // ---------- Painel holográfico da agenda ----------
+  // O dono pediu a agenda DENTRO do JARVIS: uma projeção que abre sobre o
+  // orbe, com calendário de verdade. Página separada ele recusou.
+  const MESES_HUD = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  let hudAberto = false;
+  let hudMesRef = new Date();
+  let hudItens = [];
+
+  function hudElementos() {
+    const painel = document.getElementById("hudAgenda");
+    if (!painel) return null;
+    return {
+      painel,
+      mes: document.getElementById("hudMes"),
+      grade: document.getElementById("hudGrade"),
+      vazio: document.getElementById("hudVazio"),
+      anterior: document.getElementById("hudAnterior"),
+      proximo: document.getElementById("hudProximo"),
+      fechar: document.getElementById("hudFechar"),
+    };
+  }
+
+  function chaveDoDia(data) {
+    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
+  }
+
+  function desenharHud() {
+    const el = hudElementos();
+    if (!el) return;
+    const ano = hudMesRef.getFullYear();
+    const mes = hudMesRef.getMonth();
+    el.mes.textContent = `${MESES_HUD[mes]} ${ano}`;
+
+    // Agrupa os compromissos por dia, para marcar o ponto no calendário.
+    const porDia = new Map();
+    for (const item of hudItens) {
+      const bruto = item?.scheduled_for;
+      if (!bruto) continue;
+      const quando = new Date(bruto);
+      if (Number.isNaN(quando.getTime())) continue;
+      const chave = chaveDoDia(quando);
+      const entrada = porDia.get(chave) || { total: 0, atraso: false };
+      entrada.total += 1;
+      if (quando < new Date()) entrada.atraso = true;
+      porDia.set(chave, entrada);
+    }
+
+    const primeiro = new Date(ano, mes, 1);
+    const inicio = new Date(primeiro);
+    inicio.setDate(1 - primeiro.getDay());
+    const hojeChave = chaveDoDia(new Date());
+    const hojeMes = new Date();
+    const esteMes = hojeMes.getFullYear() === ano && hojeMes.getMonth() === mes;
+
+    el.grade.innerHTML = "";
+    let noMes = 0;
+    for (let i = 0; i < 42; i += 1) {
+      const dia = new Date(inicio);
+      dia.setDate(inicio.getDate() + i);
+      const chave = chaveDoDia(dia);
+      const doMes = dia.getMonth() === mes;
+      const marca = porDia.get(chave);
+      const celula = document.createElement("span");
+      celula.className = "hud-dia";
+      celula.textContent = String(dia.getDate());
+      if (!doMes) celula.classList.add("fora");
+      if (chave === hojeChave) celula.classList.add("hoje");
+      if (marca) {
+        celula.classList.add("tem");
+        if (marca.atraso) celula.classList.add("atraso");
+        celula.title = `${marca.total} compromisso${marca.total > 1 ? "s" : ""}`;
+      }
+      if (doMes) noMes += marca ? marca.total : 0;
+      el.grade.appendChild(celula);
+    }
+    el.vazio.hidden = Boolean(noMes) || !esteMes;
+    if (!noMes) {
+      el.vazio.hidden = false;
+      el.vazio.textContent = "Nada marcado neste mês.";
+    }
+  }
+
+  async function carregarHud() {
+    const el = hudElementos();
+    if (!el) return;
+    const cabecalhos = { "Accept": "application/json" };
+    const token = ownerToken();
+    if (token) cabecalhos["X-Jarvis-Owner-Token"] = token;
+    try {
+      const resposta = await fetch("/agenda", { headers: cabecalhos });
+      const dados = await resposta.json().catch(() => ({}));
+      hudItens = Array.isArray(dados?.agenda) ? dados.agenda : [];
+    } catch {
+      hudItens = [];
+    }
+    desenharHud();
+  }
+
+  function abrirHud() {
+    const el = hudElementos();
+    if (!el || hudAberto) return;
+    hudAberto = true;
+    el.painel.hidden = false;
+    // Um quadro depois de sair do hidden: a transição precisa do estado inicial.
+    requestAnimationFrame(() => el.painel.classList.add("aberto"));
+    carregarHud();
+  }
+
+  function fecharHud() {
+    const el = hudElementos();
+    if (!el || !hudAberto) return;
+    hudAberto = false;
+    el.painel.classList.remove("aberto");
+    window.setTimeout(() => {
+      if (!hudAberto) el.painel.hidden = true;
+    }, 280);
+  }
+
+  function instalarHud() {
+    const el = hudElementos();
+    if (!el) return;
+    el.fechar?.addEventListener("click", fecharHud);
+    el.anterior?.addEventListener("click", () => {
+      hudMesRef.setMonth(hudMesRef.getMonth() - 1);
+      desenharHud();
+    });
+    el.proximo?.addEventListener("click", () => {
+      hudMesRef.setMonth(hudMesRef.getMonth() + 1);
+      desenharHud();
+    });
+    document.addEventListener("keydown", (evento) => {
+      if (evento.key === "Escape" && hudAberto) fecharHud();
+    });
   }
 
   function watchShellVersion() {

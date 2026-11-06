@@ -1141,3 +1141,141 @@ html[data-theme="light"] .theme-icon-sun { display: none; }
 html[data-theme="light"] .theme-icon-moon { display: block; }
 /* No modo bolinha a tela inteira é o orbe: nada de canto. */
 html.idle-orb .theme-toggle { display: none; }
+
+/* ---------- Painel holográfico da agenda ----------
+   Abre DENTRO do JARVIS, flutuando sobre o orbe — não é página separada.
+   A ideia é o núcleo/memória se projetando na frente da esfera. */
+.hud {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(.92);
+  width: min(460px, 92vw);
+  padding: 18px 18px 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(160deg, rgba(var(--glow), .13), rgba(10, 8, 18, .82) 55%);
+  border: 1px solid rgba(var(--glow), .38);
+  box-shadow:
+    0 0 0 1px rgba(var(--glow), .12),
+    0 30px 80px rgba(0, 0, 0, .6),
+    0 0 60px rgba(var(--glow), .22) inset;
+  backdrop-filter: blur(22px) saturate(1.3);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  z-index: 60;
+  opacity: 0;
+  transition: opacity .26s ease, transform .26s cubic-bezier(.16, 1, .3, 1);
+  /* As linhas de varredura dão o ar de projeção, não de app. */
+  background-image:
+    repeating-linear-gradient(0deg,
+      rgba(var(--glow), .045) 0 1px,
+      transparent 1px 3px),
+    linear-gradient(160deg, rgba(var(--glow), .13), rgba(10, 8, 18, .82) 55%);
+}
+.hud[hidden] { display: none; }
+.hud.aberto { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+.hud-topo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.hud-mes {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: rgba(var(--glow), 1);
+  text-shadow: 0 0 14px rgba(var(--glow), .55);
+}
+.hud-seta, .hud-fechar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 1px solid rgba(var(--glow), .28);
+  background: rgba(var(--glow), .09);
+  color: rgba(var(--glow), .95);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: background .15s ease, border-color .15s ease;
+}
+.hud-seta:hover, .hud-fechar:hover {
+  background: rgba(var(--glow), .2);
+  border-color: rgba(var(--glow), .55);
+}
+.hud-fechar { margin-left: 4px; }
+
+.hud-semana {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.hud-semana span {
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: rgba(var(--glow), .62);
+}
+
+.hud-grade {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+.hud-dia {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(234, 230, 245, .82);
+  background: rgba(255, 255, 255, .028);
+  border: 1px solid transparent;
+}
+/* Dia de fora do mês: apagado, sem fundo. */
+.hud-dia.fora { opacity: .26; background: none; }
+/* Hoje: anel brilhante. */
+.hud-dia.hoje {
+  border-color: rgba(var(--glow), .85);
+  box-shadow: 0 0 14px rgba(var(--glow), .45);
+  color: #fff;
+  font-weight: 650;
+}
+/* Dia com compromisso: ponto aceso embaixo do número. */
+.hud-dia.tem::after {
+  content: "";
+  position: absolute;
+  bottom: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--glow), 1);
+  box-shadow: 0 0 8px rgba(var(--glow), .9);
+}
+/* Compromisso atrasado: o ponto vira vermelho. */
+.hud-dia.tem.atraso::after { background: rgb(248, 113, 113); box-shadow: 0 0 8px rgba(248, 113, 113, .9); }
+.hud-dia.selecionado {
+  background: rgba(var(--glow), .24);
+  border-color: rgba(var(--glow), .7);
+}
+
+.hud-vazio {
+  margin: 12px 0 0;
+  font-size: 12px;
+  text-align: center;
+  color: rgba(234, 230, 245, .5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud { transition: none; }
+}
