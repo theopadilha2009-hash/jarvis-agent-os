@@ -38,7 +38,7 @@
   const LAST_LOGIN_KEY = "jarvis-last-login";
   const REMEMBER_KEY = "jarvis-remember-login-v1";
   const OWNER_IDLE_MS = 12 * 60 * 60 * 1000;
-  const SHELL_VERSION = "20261026-deploy1";
+  const SHELL_VERSION = "20261106-video6";
   const CONVERSATION_SESSION_KEY = "jarvis-conversation-session";
   const LOCAL_HISTORY_KEY = "jarvis-conversation-local";
   // v3: a janela nasce como painel à direita. Trocar a chave descarta as
@@ -1958,6 +1958,40 @@
     }).join("");
   }
 
+  // Painel da agenda no site: o mês com os dias marcados e a lista do que
+  // está por vir. É o mesmo desenho do painel holográfico do app — o dono
+  // pediu para ver a agenda DENTRO do JARVIS, não numa aba do Google.
+  function renderAgendaPanel(items) {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth();
+    const porDia = new Map();
+    for (const item of items) {
+      const quando = new Date(item?.scheduled_for || "");
+      if (Number.isNaN(quando.getTime())) continue;
+      const chave = `${quando.getFullYear()}-${quando.getMonth()}-${quando.getDate()}`;
+      porDia.set(chave, (porDia.get(chave) || 0) + 1);
+    }
+    const primeiro = new Date(ano, mes, 1);
+    const inicio = new Date(primeiro);
+    inicio.setDate(1 - primeiro.getDay());
+    let grade = "";
+    for (let i = 0; i < 42; i += 1) {
+      const dia = new Date(inicio);
+      dia.setDate(inicio.getDate() + i);
+      const doMes = dia.getMonth() === mes;
+      const chave = `${dia.getFullYear()}-${dia.getMonth()}-${dia.getDate()}`;
+      const marca = porDia.get(chave) || 0;
+      const ehHoje = dia.toDateString() === hoje.toDateString();
+      grade += `<button type="button" class="agenda-dia${doMes ? "" : " fora"}${ehHoje ? " hoje" : ""}${marca ? " tem" : ""}" ${doMes ? "" : "tabindex='-1'"}>${dia.getDate()}${marca ? "<i></i>" : ""}</button>`;
+    }
+    const lista = items.slice(0, 6).map((item) => {
+      const quando = agendaDate(item.scheduled_for);
+      return `<div class="canvas-row"><i>·</i><span>${escapeHtml(item.title || "item da agenda")}${quando ? `<small>${escapeHtml(quando)}</small>` : ""}</span></div>`;
+    }).join("");
+    return `<div class="agenda-panel"><div class="agenda-head"><b>${new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(hoje).toUpperCase()}</b><span>${items.length} compromisso${items.length > 1 ? "s" : ""}</span></div><div class="agenda-grade">${grade}</div><div class="agenda-lista">${lista}</div></div>`;
+  }
+
   function agendaDate(value) {
     if (!value) return "";
     const date = new Date(value);
@@ -2091,11 +2125,10 @@
       if (data.job.result) html += `<div class="canvas-result">${escapeHtml(data.job.result).slice(0, 1800)}</div>`;
     }
     else if (Array.isArray(data.agenda) && data.agenda.length) {
-      html += data.agenda.slice(0, 8).map((item) => {
-        const scheduled = agendaDate(item.scheduled_for);
-        const label = scheduled ? `${item.title || "item da agenda"} · ${scheduled}` : item.title || "item da agenda";
-        return `<div class="canvas-row"><i>${escapeHtml(item.id || "·")}</i><span>${escapeHtml(label)}</span></div>`;
-      }).join("");
+      // A agenda é o painel do JARVIS, não uma lista solta: o dono pediu
+      // para ver o mês com os dias marcados, do mesmo jeito que o painel
+      // holográfico do app.
+      html += renderAgendaPanel(data.agenda);
     }
     else if (Array.isArray(data.contacts) && data.contacts.length) {
       html += data.contacts.slice(0, 8).map((item, index) => (
@@ -2663,6 +2696,122 @@
     }
     message.querySelector("span").textContent = "A execução continua registrada, mas o Mac não confirmou todas as etapas dentro do tempo de acompanhamento.";
   }
+
+  // ---------- Roteiro do vídeo (cenas encenadas) ----------
+  // O dono está gravando e precisa do vídeo agora: o modo Homem de Ferro, a
+  // agenda e a prévia do SiteHunter são encenados aqui, sem Supabase, sem
+  // catálogo e sem modelo. Quando o modo virar real, é este bloco que sai —
+  // o resto do site já é o caminho de verdade.
+  const AGENDA_DO_VIDEO = () => {
+    const quando = (dias, h, min) => {
+      const d = new Date();
+      d.setDate(d.getDate() + dias);
+      d.setHours(h, min, 0, 0);
+      return d.toISOString();
+    };
+    return [
+      { title: "Postar o vídeo do JARVIS", scheduled_for: quando(0, 21, 0) },
+      { title: "Reunião · VAMOO-AI", scheduled_for: quando(5, 10, 0) },
+      { title: "Revisão do SiteHunter", scheduled_for: quando(6, 14, 0) },
+      { title: "Call · cliente novo", scheduled_for: quando(7, 9, 30) },
+    ];
+  };
+
+  const ROTEIRO_FILME = {
+    ferro: async () => {
+      document.documentElement.classList.add("modo-ferro");
+      window.dispatchEvent(new CustomEvent("jarvis-state", { detail: { state: "listening" } }));
+      byId("sceneEyebrow").textContent = "MODO HOMEM DE FERRO";
+      byId("sceneMission").textContent = "Back in Black";
+      await speak("Bem-vindo ao modo Homem de Ferro, senhor. Back in Black está no ar.");
+      await speak("Agora são vinte e duas e trinta. Você tem duas coisas esperando por uma decisão.");
+      await speak("E quatro conversas na semana que vem, senhor.");
+      await speak("Quer que eu abra a web?");
+      return true;
+    },
+    agenda: async () => {
+      byId("sceneEyebrow").textContent = "AGENDA";
+      byId("sceneMission").textContent = "Sua semana";
+      renderLiveCanvas({ agenda: AGENDA_DO_VIDEO() });
+      await speak("Sua agenda, senhor.");
+      await speak("Você tem que postar o vídeo do JARVIS hoje mesmo.");
+      await speak("Semana que vem: quatro reuniões marcadas. Quer que eu fale com a empresa e dê um ok na agenda?");
+      return true;
+    },
+    sitehunter: async () => {
+      abrirProjecaoSiteHunter();
+      await speak("A prévia do próximo vídeo, senhor.");
+      return true;
+    },
+  };
+
+  // A prévia do próximo vídeo: a animação do SiteHunter sai do meio da tela e
+  // o print do produto aparece atrás — dentro do site, não em outra aba.
+  function abrirProjecaoSiteHunter() {
+    let painel = byId("projecaoSiteHunter");
+    if (!painel) {
+      painel = document.createElement("section");
+      painel.id = "projecaoSiteHunter";
+      painel.className = "projecao-site";
+      painel.innerHTML = `
+        <div class="projecao-quadro">
+          <img class="projecao-print" src="/ui/filme/sitehunter.png" alt="SiteHunter">
+          <img class="projecao-intro" src="/ui/filme/sitehunter-intro.svg" alt="SiteHunter">
+        </div>
+        <button type="button" class="projecao-fechar" aria-label="Fechar prévia">×</button>`;
+      painel.querySelector(".projecao-fechar").addEventListener("click", () => {
+        painel.classList.remove("aberto");
+        window.setTimeout(() => { painel.hidden = true; }, 300);
+      });
+      document.body.appendChild(painel);
+    }
+    painel.hidden = false;
+    painel.classList.remove("aberto");
+    void painel.offsetWidth;
+    requestAnimationFrame(() => painel.classList.add("aberto"));
+  }
+
+  // O roteiro do vídeo roda AQUI, na própria página: o app abre o site em
+  // tela cheia e o site se conduz sozinho. Sem isso a fala ficava no app e a
+  // agenda aparecia na janela dele, não na web.
+  const ROTEIRO_VIDEO = [
+    [3, "ferro"],
+    [31, "agenda"],
+    [50, "sitehunter"],
+  ];
+
+  window.__jarvisRodarRoteiro = () => {
+    document.documentElement.classList.add("modo-filme");
+    for (const [segundos, cena] of ROTEIRO_VIDEO) {
+      window.setTimeout(() => window.__jarvisRoteiro(cena), segundos * 1000);
+    }
+    return true;
+  };
+
+  // `?filme=1` na URL: o site se apresenta como o JARVIS do vídeo e começa
+  // o roteiro sozinho assim que a cena 3D estiver de pé.
+  if (/(?:^|[?&])filme=1(?:&|$)/.test(location.search)) {
+    window.setTimeout(() => window.__jarvisRodarRoteiro(), 2500);
+  }
+
+  window.__jarvisRoteiro = (nome) => {
+    const cena = ROTEIRO_FILME[String(nome || "").trim()];
+    if (!cena) return false;
+    cena();
+    return true;
+  };
+
+  window.__jarvisDizer = (texto) => {
+    const fala = String(texto || "").trim();
+    if (!fala) return false;
+    sendCommand(fala, { source: "voice" });
+    return true;
+  };
+
+  window.__jarvisModoFilme = () => {
+    document.documentElement.classList.add("modo-filme");
+    return true;
+  };
 
   function showResponse(data) {
     if (!data || data.ok === false) {

@@ -169,6 +169,9 @@
   }
 
   function paintHome() {
+    // No ensaio quem manda na legenda é o roteiro: repintar o "Diga Jarvis"
+    // a cada passo piscava por cima da fala sendo lida.
+    if (ensaioLigado) return;
     // O #hint ficou oculto de propósito: a linha "Neste Mac você entra só agora"
     // não dizia nada útil. O elemento continua no HTML por causa do contrato
     // verificado em 10_TESTES/fala_overlay_test.py.
@@ -677,6 +680,8 @@
 
   function localAction(text) {
     const value = String(text || "").toLocaleLowerCase("pt-BR");
+    const cena = cenaDoRoteiro(value);
+    if (cena) return cena;
     if (/^(?:entrar|login|fazer login|conectar)$/.test(value.trim())) {
       return { run: () => revealLogin(), speak: "" };
     }
@@ -758,7 +763,11 @@
     }
     if (folded.length < 3) return false;
     if (WAKE_NAME.test(folded)) return true;
-    return /^(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|pesquisa|busca|procura|volume|proximo|proxima|silencio|quieto|cala|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|que horas|horas|que dia|data|bateria|clima|tempo|previsao|cotacao|dolar|euro|bitcoin|specs|hardware|noticias|analisa isso|tela cheia|tela inteira)\b/.test(folded);
+    // As cenas do roteiro não começam com verbo: "Jarvis entra no modo
+    // Homem de Ferro", "dá uma prévia do próximo vídeo". Sem esta linha a
+    // fala caía no modelo como pergunta e ele respondia outra coisa.
+    if (cenaDoRoteiro(folded)) return true;
+    return /^(?:abre|abrir|abra|fecha|fechar|toca|toque|paus|play|pesquisa|busca|procura|volume|proximo|proxima|silencio|quieto|cala|copia|cockpit|repete|de novo|outra vez|analisa|analise|olha|veja|que horas|horas|que dia|data|bateria|clima|tempo|previsao|cotacao|dolar|euro|bitcoin|specs|hardware|noticias|analisa isso|tela cheia|tela inteira|entra|entrar|modo|da|previa)\b/.test(folded);
   }
 
   function expandCommands(text) {
@@ -1131,6 +1140,10 @@
   function parkSoon() {
     cancelPark();
     if (!appMode || !ownerToken()) return;
+    // Ensaio/filme: o JARVIS está sendo gravado e a janela é o palco. Sem
+    // esta saída ela virava bolinha 8s depois de cada fala e o vídeo ficava
+    // com um orbe de 72px no lugar do quadro.
+    if (ensaioLigado) return;
     if (busy || speaking || meeting || stayQuiet) return;
     // Fala agendada (o quadro do modo Homem de Ferro chega em 9s): esconder
     // a janela cancela a fala, então o park espera ela terminar de acontecer.
@@ -1249,6 +1262,190 @@
   window.__jarvisDizer = (texto) => {
     if (!armed) window.__jarvisModoEnsaio();
     hearSpoken(String(texto || ""), true);
+  };
+
+  // A web do JARVIS na segunda tela é a mesma sessão, mas sem login: a
+  // etiqueta "Visitante" aparecendo no vídeo entregaria que é só um site.
+  // No ensaio ela vira o mesmo rótulo do app.
+  window.__jarvisModoFilme = () => {
+    window.__jarvisModoEnsaio();
+    renderAccess("JARVIS · 3×", true);
+    document.documentElement.classList.add("modo-filme");
+    return true;
+  };
+
+  // Fala do JARVIS no roteiro do vídeo. Não passa pelo servidor: o dono quer
+  // o vídeo agora, e o texto é dele. A ordem de cada passo é a mesma que a
+  // resposta real do /command faz, menos o fetch.
+  window.__jarvisNarra = async (texto) => {
+    window.__jarvisModoEnsaio();
+    const fala = String(texto || "").trim();
+    if (!fala) return false;
+    say("JARVIS", "senhor");
+    await speak(fala);
+    return true;
+  };
+
+  // Modo Homem de Ferro encenado: o Spotify abre pela primeira tela e o
+  // quadro é lido aqui, sem Supabase, sem catálogo e sem modelo. Quando o
+  // modo virar real, é este bloco que sai — o resto já é o caminho de
+  // verdade.
+  const QUADRO_FERRO = [
+    "Agora são vinte e duas e trinta.",
+    "Você tem duas coisas esperando por uma decisão.",
+    "E quatro conversas na semana que vem, senhor.",
+  ];
+
+  window.__jarvisHomemDeFerro = async () => {
+    window.__jarvisModoFilme();
+    window.__jarvisSetIdle?.(false);
+    // Tela cheia: o modo é o palco do vídeo inteiro, na segunda tela.
+    // Vale também navegando pela web, onde não há app para maximizar.
+    document.documentElement.classList.add("modo-ferro");
+    try { window.webkit?.messageHandlers?.jarvisWindow?.postMessage("fullscreen"); } catch (e) { /* web */ }
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+    try {
+      nativeWindow("maximize");
+      nativeWindow("show");
+    } catch (e) { /* web */ }
+    // A primeira tela é a do Spotify: abre o app, e a faixa entra por lá.
+    try { window.webkit?.messageHandlers?.jarvisOpen?.postMessage("spotify:search:Back%20In%20Black"); } catch (e) { /* web */ }
+    await speak("Bem-vindo ao modo Homem de Ferro, senhor. Back in Black está no ar.");
+    for (const parte of QUADRO_FERRO) await speak(parte);
+    await speak("Quer que eu abra a web?");
+    return true;
+  };
+
+  // "abre o fullscreen": a mesma segunda tela, em tela cheia. O app sai de
+  // cima e o site ocupa tudo — é o palco do vídeo, mas quem abre é o app,
+  // como sempre foi (o JARVIS não troca de cara, só mostra o site cheio).
+  window.__jarvisFullscreen = async () => {
+    window.__jarvisModoEnsaio();
+    await speak("Tela cheia, senhor.");
+    try {
+      window.webkit?.messageHandlers?.jarvisFullscreen?.postMessage("https://jarvis-theo.vercel.app/?filme=1");
+    } catch (e) { /* web */ }
+    return true;
+  };
+
+  // O "sim" do dono no roteiro: a web abre na segunda tela e o app sai da
+  // frente, como ele combinou.
+  window.__jarvisAbrirWeb = async () => {
+    window.__jarvisModoEnsaio();
+    await speak("Abrindo, senhor.");
+    // A web é o site, na segunda tela. O mesmo pedido vira "abre o
+    // fullscreen" no vídeo: aí sim vem o palco com o busto 3D.
+    try { window.webkit?.messageHandlers?.jarvisOpen?.postMessage("https://jarvis-theo.vercel.app/?filme=1"); } catch (e) { /* web */ }
+    window.setTimeout(() => nativeWindow("hide"), 1200);
+    return true;
+  };
+
+  // O projeto no GitHub vai para a terceira tela (o "projetor" do arranjo).
+  window.__jarvisAbrirGithub = async () => {
+    window.__jarvisModoEnsaio();
+    await speak("Meu projeto, senhor. Qualquer um pode baixar.");
+    try {
+      window.webkit?.messageHandlers?.jarvisDisplay?.postMessage(
+        JSON.stringify({ url: "https://github.com/theopadilha2009-hash/jarvis-agent-os", tela: "projetor" })
+      );
+    } catch (e) { /* web */ }
+    return true;
+  };
+
+  // Agenda virtual dentro do JARVIS, com o que ele vai dizer no vídeo.
+  // `scheduled_for` é o campo que desenharHud lê para marcar o dia: os
+  // compromissos são montados em cima da data de hoje, não em datas fixas.
+  function agendaDoVideo() {
+    const hora = (dias, h, m) => {
+      const quando = new Date();
+      quando.setDate(quando.getDate() + dias);
+      quando.setHours(h, m, 0, 0);
+      return quando.toISOString();
+    };
+    return [
+      { title: "Postar o vídeo do JARVIS", scheduled_for: hora(0, 21, 0), notes: "edição até as 20h" },
+      { title: "Reunião · VAMOO-AI", scheduled_for: hora(5, 10, 0), notes: "com o Ruan" },
+      { title: "Revisão do SiteHunter", scheduled_for: hora(6, 14, 0), notes: "fechar o escopo" },
+      { title: "Call · cliente novo", scheduled_for: hora(7, 9, 30), notes: "nome a confirmar" },
+    ];
+  }
+
+  window.__jarvisAgendaVideo = async () => {
+    window.__jarvisModoEnsaio();
+    window.__jarvisSetIdle?.(false);
+    hudItens = agendaDoVideo();
+    // O mês do painel pode ter ficado em outro depois de navegar: a agenda
+    // do vídeo é sempre a do mês corrente.
+    hudMesRef = new Date();
+    desenharHud();
+    abrirHud();
+    await speak("Sua agenda, senhor.");
+    await speak("Você tem que postar o vídeo do JARVIS hoje mesmo.");
+    await speak("Semana que vem: quatro reuniões marcadas. Quer que eu fale com a empresa e dê um ok na agenda?");
+    return true;
+  };
+
+  // Gatilhos do roteiro: valem nas duas pontas. Quando ninguém manda o
+  // roteiro (o dono escrevendo na web), a fala também leva à cena — senão só
+  // o arquivo gravado funcionaria e o resto continuava falando por cima.
+  const GATILHOS_FILME = [
+    // "abre o fullscreen" é a segunda tela em tela cheia; "abre a web" é o
+    // site normal. São coisas diferentes e o dono pediu as duas.
+    { teste: /\bfull\s*screen\b|\btela\s+cheia\b/i, cena: "fullscreen" },
+    { teste: /\b(?:modo\s+)?homem\s+de\s+ferro\b|\bmodo\s+ferro\b/i, cena: "ferro" },
+    { teste: /^\s*(?:sim|pode|manda|abre|abrir)\s*[.!]?\s*$/i, cena: "web", precisaFerro: true },
+    { teste: /site\s*hunter|\bsite\s+hunter\b|pr[oó]xima?\s+preview|pr[eé]via\s+do\s+v[ií]deo/i, cena: "sitehunter" },
+    { teste: /\b(?:agenda|calend[aá]rio)\b/i, cena: "agenda" },
+    { teste: /github|projeto\s+(?:no|do)\s+(?:git|github)/i, cena: "github" },
+  ];
+
+  // Estado do roteiro dentro da página. Sem ele, "sim" abriria a web em
+  // qualquer momento — no vídeo ele só responde à pergunta do modo.
+  const filme = { ferro: false, ofertaWeb: false };
+
+  function cenaDoRoteiro(value) {
+    const pedido = String(value || "").trim();
+    if (!pedido) return null;
+    for (const gatilho of GATILHOS_FILME) {
+      if (!gatilho.teste.test(pedido)) continue;
+      // O "sim" só vale como resposta à oferta: fora do vídeo ele continua
+      // indo pro servidor, como sempre foi.
+      if (gatilho.precisaFerro && !filme.ofertaWeb) continue;
+      if (gatilho.cena === "ferro") { filme.ferro = true; filme.ofertaWeb = true; }
+      return {
+        run: () => window.__jarvisRoteiro(gatilho.cena),
+        speak: () => "",
+      };
+    }
+    return null;
+  }
+
+  // Porta única do roteiro gravado no app: cada cena é uma função aqui.
+  window.__jarvisRoteiro = (nome) => {
+    const cena = {
+      ferro: window.__jarvisHomemDeFerro,
+      web: window.__jarvisAbrirWeb,
+      fullscreen: window.__jarvisFullscreen,
+      github: window.__jarvisAbrirGithub,
+      agenda: window.__jarvisAgendaVideo,
+      sitehunter: window.__jarvisSiteHunter,
+    }[String(nome || "").trim()];
+    if (!cena) return false;
+    cena();
+    return true;
+  };
+
+  // Prévia do próximo vídeo: o SiteHunter sai do meio da tela com a
+  // animação e o print do produto aparece atrás.
+  window.__jarvisSiteHunter = async () => {
+    window.__jarvisModoEnsaio();
+    window.__jarvisSetIdle?.(false);
+    fecharHud();
+    await speak("A prévia do próximo vídeo, senhor.");
+    window.__jarvisAbrirSite?.("https://sitehunter-ai-tau.vercel.app");
+    return true;
   };
 
   // ---------- Modo ensaio (só para gravar o vídeo) ----------
@@ -1386,8 +1583,13 @@
     const clip = String(command || "").replace(/\s+/g, " ").trim();
     if (!clip) return;
     const folded = foldSpeech(clip);
+    // "desliga" é do app, não do Python: sem este filtro o processo abria e
+    // o app fechava antes da faixa do modo Homem de Ferro entrar.
+    const doApp = /^(?:acorda|acordar|acorde|volta|voltar)$/.test(folded)
+      || /^(?:desliga|desligar)$|desliga(?:r)?(?:\s+o)?\s*jarvis\b|fechar?\s*(?:o)?\s*jarvis|encerrar?\s*(?:o)?\s*jarvis/i.test(folded)
+      || /(?:vai|va)\s+dormir|^(?:dorme|durma|dormir)$/i.test(folded);
     try {
-      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.jarvisAction) {
+      if (!doApp && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.jarvisAction) {
         window.webkit.messageHandlers.jarvisAction.postMessage(clip);
       }
     } catch(e){}
@@ -2000,6 +2202,9 @@
     el.painel.hidden = false;
     // Um quadro depois de sair do hidden: a transição precisa do estado inicial.
     requestAnimationFrame(() => el.painel.classList.add("aberto"));
+    // Sem rede (vídeo, ida ao servidor falha) a lista não pode ser zerada:
+    // era o que apagava a agenda encenada logo depois de ela aparecer.
+    if (Array.isArray(hudItens) && hudItens.length) return;
     carregarHud();
   }
 
@@ -2019,8 +2224,17 @@
   // o Spotify continuam indo para fora, porque são apps de verdade.
   // Só o SiteHunter é projetado dentro do JARVIS: é o vídeo dele. O GitHub
   // abre na terceira tela, como o dono montou o arranjo.
+  // A cena: a animação sai do meio da tela e, atrás dela, entra o print do
+  // produto. É a prévia do próximo vídeo, não um site — por isso nada de
+  // iframe nem de carregar a página de verdade.
   const SITES_PROJETADOS = [
-    { teste: /sitehunter/i, url: "https://sitehunter-ai-tau.vercel.app", nome: "SiteHunter" },
+    {
+      teste: /sitehunter/i,
+      url: "https://sitehunter-ai-tau.vercel.app",
+      nome: "SiteHunter",
+      print: "/ui/filme/sitehunter.png",
+      abertura: "/ui/filme/sitehunter-intro.svg",
+    },
   ];
 
   function siteProjetado(url) {
@@ -2034,13 +2248,33 @@
   function abrirSite(site) {
     const painel = document.getElementById("hudSite");
     const quadro = document.getElementById("hudSiteQuadro");
+    const filme = document.getElementById("hudSiteFilme");
+    const print = document.getElementById("hudSitePrint");
+    const intro = document.getElementById("hudSiteIntro");
     const nome = document.getElementById("hudSiteNome");
-    if (!painel || !quadro) return false;
+    if (!painel) return false;
+    if (nome) nome.textContent = site.nome;
+    if (site.print) {
+      // Cena de prévia: a animação salta do centro e o print do produto
+      // aparece atrás dela. Reanima do zero a cada pedido — o dono pode
+      // repetir a fala no vídeo quantas vezes quiser.
+      if (quadro) { quadro.hidden = true; quadro.src = "about:blank"; }
+      if (filme) filme.hidden = false;
+      if (print) { print.src = site.print; print.hidden = false; }
+      if (intro) { intro.src = site.abertura || ""; intro.hidden = false; }
+      painel.classList.remove("reproduzindo");
+      void painel.offsetWidth;
+      painel.hidden = false;
+      requestAnimationFrame(() => painel.classList.add("aberto", "reproduzindo"));
+      siteAberto = site.url;
+      return true;
+    }
+    if (!quadro) return false;
+    if (filme) filme.hidden = true;
     if (siteAberto !== site.url) {
       quadro.src = site.url;
       siteAberto = site.url;
     }
-    if (nome) nome.textContent = site.nome;
     painel.hidden = false;
     requestAnimationFrame(() => painel.classList.add("aberto"));
     return true;
@@ -2049,7 +2283,7 @@
   function fecharSite() {
     const painel = document.getElementById("hudSite");
     if (!painel) return;
-    painel.classList.remove("aberto");
+    painel.classList.remove("aberto", "reproduzindo");
     window.setTimeout(() => {
       painel.hidden = true;
       const quadro = document.getElementById("hudSiteQuadro");

@@ -204,6 +204,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private let fullSize = NSSize(width: 268, height: 380)
     /// Roteiro do vídeo carregado: mantém a janela aberta.
     private var roteiroAtivo = false
+    private var roteiroFalou = false
+    /// O palco já foi entregue (a web abriu em tela cheia). A partir daqui o
+    /// app NÃO se mostra mais: cada linha do roteiro chamava revealWindow e
+    /// trazia a janela de volta por cima do site.
+    private var roteiroEntregue = false
+    /// Tamanho do palco pedido pelo roteiro. Enquanto existir, toda
+    /// reaplicação de layout (revealWindow, setCompact) usa ele em vez do
+    /// padrão — senão a janela voltava a 268x380 no meio do vídeo.
+    private var roteiroTamanho: NSSize?
     private let zoomSize = NSSize(width: 320, height: 560)
     private var isZoomed = false
     private let orbSize = NSSize(width: 72, height: 72)
@@ -416,6 +425,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                     DispatchQueue.main.async { self?.speakNative(saida) }
                 }
             }
+        } else if message.name == "jarvisFullscreen" {
+            // "abre o fullscreen": o site do JARVIS ocupa a segunda tela
+            // inteira. O app sai da frente — ele continua sendo o orbe, só
+            // não fica por cima do palco.
+            let raw = String(describing: message.body)
+            let url = URL(string: raw) ?? URL(string: "https://jarvis-theo.vercel.app/")!
+            let script = self.displaysScriptPath()
+            // Palco entregue: daqui pra frente o vídeo é o site, e o app
+            // (que continua ouvindo) sai da frente.
+            self.roteiroEntregue = true
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+                proc.arguments = [script, "abrir", url.absoluteString, "tv"]
+                try? proc.run()
+                proc.waitUntilExit()
+                DispatchQueue.main.async { self?.hideWindow() }
+            }
         } else if message.name == "jarvisAction" {
             let cmd = String(describing: message.body)
             let script = self.actionsScriptPath()
@@ -493,11 +520,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private func revealWindow(takeFocus: Bool = false) {
         setCompact(false)
         guard let window else { return }
+        // A janela do JARVIS mora na segunda tela. Se ela abriu na principal
+        // (o Mac reabre onde o sistema quiser), traz para o lugar certo antes
+        // de aparecer — senão o vídeo mostra o JARVIS na tela errada.
+        if let alvo = telaDoJarvis()?.visibleFrame,
+           !alvo.contains(NSPoint(x: window.frame.midX, y: window.frame.midY)) {
+            layouting = true
+            window.setFrame(frameKeepingPlace(window.frame.size), display: true, animate: false)
+            layouting = false
+        }
         if takeFocus {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         } else {
             window.orderFrontRegardless()
+        }
+    }
+
+    /// Tamanho pedido pelo roteiro do vídeo, ancorado na segunda tela.
+    /// `setCompact(false)` antes: a janela pode estar em modo bolinha.
+    private func encenarTamanho(_ alvo: NSSize) {
+        guard let window else { return }
+        roteiroTamanho = alvo
+        if compact { setCompact(false) }
+        isZoomed = false
+        let destino = frameKeepingPlace(alvo)
+        layouting = true
+        // Sem animação: o setCompact acima já anima para o tamanho padrão, e
+        // as duas animações brigavam — a padrão terminava por último e
+        // devolvia a janela a 268x380 no meio do vídeo.
+        window.setFrame(destino, display: true, animate: false)
+        layouting = false
+        savePark()
+        // Reforço depois da animação do setCompact terminar.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+            guard let self, let window = self.window, !self.compact else { return }
+            if abs(window.frame.width - destino.width) > 2 || abs(window.frame.height - destino.height) > 2 {
+                self.layouting = true
+                window.setFrame(destino, display: true, animate: false)
+                self.layouting = false
+            }
         }
     }
 
@@ -556,7 +618,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         window.level = .floating
         paintChrome(on)
         layouting = true
-        let targetSize = on ? compactFrameSize() : (isZoomed ? zoomSize : fullSize)
+        let targetSize = on ? compactFrameSize() : (roteiroTamanho ?? (isZoomed ? zoomSize : fullSize))
         window.setFrame(frameKeepingPlace(targetSize), display: true, animate: true)
         layouting = false
         paintChrome(on)
@@ -741,6 +803,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         if key == lastOpenedURL && now - lastOpenedAt < 8 { return }
         lastOpenedURL = key
         lastOpenedAt = now
+        // A web que o JARVIS abre é o palco do vídeo: o app precisa sair da
+        // frente dela. "spotify:" continua só abrindo o app.
+        if key.hasPrefix("http") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.hideWindow()
+            }
+        }
         NSWorkspace.shared.open(url)
     }
 
@@ -2314,23 +2383,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         // ouvido. O microfone deste Mac entrega áudio que o reconhecedor
         // descarta, e o dono precisa gravar agora — os dados falsos são
         // trocados pelo caminho real depois.
+        // Formato: uma linha por fala, "<segundos>|<frase>", ou
+        // "<segundos>@<largura>x<altura>|<frase>" quando a linha também
+        // redimensiona a janela. Os segundos são contados do início, então
+        // acrescentar uma fala no meio não empurra as seguintes.
         let caminho = "/tmp/jarvis-roteiro.txt"
         if let texto = try? String(contentsOfFile: caminho, encoding: .utf8), !texto.isEmpty {
             roteiroAtivo = true
-            // Formato: uma linha por fala, "<segundos até esta fala>|<frase>".
             for linha in texto.split(separator: "\n") {
                 let partes = linha.split(separator: "|", maxSplits: 1)
-                guard partes.count == 2, let segundos = Double(partes[0]) else { continue }
+                guard partes.count == 2 else { continue }
+                let cabeca = partes[0].split(separator: "@", maxSplits: 1)
+                guard let segundos = Double(cabeca[0]) else { continue }
+                var alvo: NSSize?
+                if cabeca.count == 2 {
+                    let numeros = cabeca[1].lowercased().split(separator: "x")
+                    if numeros.count == 2, let w = Double(numeros[0]), let h = Double(numeros[1]) {
+                        alvo = NSSize(width: w, height: h)
+                    }
+                }
                 let frase = String(partes[1]).replacingOccurrences(of: "'", with: "\\'")
                 DispatchQueue.main.asyncAfter(deadline: .now() + segundos) { [weak self] in
                     guard let self, let webView = self.webView else { return }
-                    // A janela abre em modo bolinha; sem sair dele o vídeo
-                    // não mostra nada além do orbe.
-                    self.revealWindow(takeFocus: true)
-                    webView.evaluateJavaScript(
-                        "window.__jarvisDizer && window.__jarvisDizer('\(frase)')",
-                        completionHandler: nil
-                    )
+                    // Depois de entregar o palco, o app fica fora do vídeo:
+                    // a web é quem aparece. Só o JS roda, sem janela.
+                    if !self.roteiroEntregue {
+                        // A janela abre em modo bolinha; sem sair dele o vídeo
+                        // não mostra nada além do orbe. O tamanho vem DEPOIS:
+                        // revealWindow reaplica o tamanho padrão e desfazia o
+                        // enquadramento pedido pela linha do roteiro.
+                        self.revealWindow(takeFocus: true)
+                        if let alvo { self.encenarTamanho(alvo) }
+                    }
+                    // Uma linha que começa com "." chama uma função do palco
+                    // (".ferro", ".agenda") em vez de simular uma fala.
+                    var js: String
+                    if frase.hasPrefix(".") {
+                        let nome = String(frase.dropFirst()).trimmingCharacters(in: .whitespaces)
+                        js = "window.__jarvisRoteiro && window.__jarvisRoteiro('\(nome)')"
+                    } else {
+                        js = "window.__jarvisDizer && window.__jarvisDizer('\(frase)')"
+                    }
+                    self.logListen("roteiro \(Int(segundos))s: \(frase)")
+                    webView.evaluateJavaScript(js) { resultado, erro in
+                        if let erro { self.logListen("roteiro erro: \(erro.localizedDescription)") }
+                        // O site ainda não terminou de carregar quando o
+                        // roteiro começa: tenta de novo em vez de perder a cena.
+                        if let resultado, (resultado as? Bool) == false {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                                self?.webView?.evaluateJavaScript(js, completionHandler: nil)
+                            }
+                        }
+                    }
+                    if !self.roteiroFalou {
+                        self.roteiroFalou = true
+                        // A segunda tela precisa se apresentar como o JARVIS,
+                        // não como "Visitante": ela é a mesma sessão.
+                        webView.evaluateJavaScript(
+                            "window.__jarvisModoFilme && window.__jarvisModoFilme()",
+                            completionHandler: nil
+                        )
+                    }
                 }
             }
         }
@@ -2340,6 +2453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.userContentController.add(self, name: "jarvisSee")
         config.userContentController.add(self, name: "jarvisAction")
         config.userContentController.add(self, name: "jarvisDisplay")
+        config.userContentController.add(self, name: "jarvisFullscreen")
         let controlsScript = """
         (() => {
           function injectJarvisBar() {
@@ -2642,13 +2756,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private func frameKeepingPlace(_ size: NSSize) -> NSRect {
         let screen = telaDoJarvis()?.visibleFrame ?? activeScreenFrame()
         var origin: NSPoint
-        if let window {
+        if let window, screen.contains(NSPoint(x: window.frame.midX, y: window.frame.midY)) {
+            // Já está na tela do JARVIS: cresce em volta do centro atual.
             let current = window.frame
             origin = NSPoint(x: current.midX - size.width / 2, y: current.midY - size.height / 2)
-        } else if let saved = parkedOrigin() {
+        } else if let saved = parkedOrigin(), screen.contains(saved) {
             origin = saved
         } else {
-            origin = NSPoint(x: screen.maxX - size.width - 16, y: screen.minY + 24)
+            // A janela do JARVIS mora na segunda tela. Se ela estava em outra
+            // (o dono arrastou, ou o Mac reabriu no monitor errado), volta
+            // para lá em vez de crescer em cima da tela errada.
+            origin = NSPoint(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2)
         }
         var rect = NSRect(origin: origin, size: size)
         if rect.maxX > screen.maxX { rect.origin.x = screen.maxX - size.width }
