@@ -18,8 +18,8 @@
   <meta name="creator-seal" content="ggCZbZFBcds2X3zL5N5jloFWuxA=">
   <title>JARVIS</title>
   <link rel="icon" href="/ui/jarvis-logo.png?v=20260813-logonative1" type="image/png">
-  <meta name="jarvis-shell" content="20261106-waveform1">
-  <link rel="stylesheet" href="/ui/fala.css?v=20261106-waveform1">
+  <meta name="jarvis-shell" content="20261106-hud1">
+  <link rel="stylesheet" href="/ui/fala.css?v=20261106-hud1">
   <link rel="stylesheet" href="/ui/fala-tela.css?v=20261105-tela1">
 </head>
 <body>
@@ -59,6 +59,21 @@
       </span>
       <button id="updateReloadButton" class="btn btn-accent" type="button">Atualizar</button>
     </aside>
+    <!-- Painel que abre DENTRO do JARVIS: projeção holográfica sobre o orbe,
+         não uma página separada. Nasce escondido. -->
+    <section id="hudAgenda" class="hud" hidden aria-label="Agenda do JARVIS">
+      <header class="hud-topo">
+        <button class="hud-seta" id="hudAnterior" type="button" aria-label="Mês anterior">‹</button>
+        <span class="hud-mes" id="hudMes">—</span>
+        <button class="hud-seta" id="hudProximo" type="button" aria-label="Próximo mês">›</button>
+        <button class="hud-fechar" id="hudFechar" type="button" aria-label="Fechar painel">×</button>
+      </header>
+      <div class="hud-semana" aria-hidden="true">
+        <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+      </div>
+      <div class="hud-grade" id="hudGrade"></div>
+      <p class="hud-vazio" id="hudVazio" hidden>Nada marcado neste mês.</p>
+    </section>
     <p id="lastAnswer" hidden></p>
     <button id="retryButton" class="btn" type="button" hidden>tentar de novo</button>
     <div class="dock">
@@ -90,7 +105,7 @@
       </div>
       <p class="meta">
         <span id="voiceChip" hidden>voz</span>
-        <span id="buildLine" title="Versão desta janela">v20261106-waveform1</span>
+        <span id="buildLine" title="Versão desta janela">v20261106-hud1</span>
       </p>
       <nav class="quick">
         <button class="btn" type="button" data-open="https://www.youtube.com">YouTube</button>
@@ -142,6 +157,6 @@
   </script>
   <script src="/ui/creator-seal.js?v=20260817-app1"></script>
   <script src="/ui/local-voice.js?v=20260818-voice2"></script>
-  <script src="/ui/fala.js?v=20261106-waveform1"></script>
+  <script src="/ui/fala.js?v=20261106-hud1"></script>
 </body>
 </html>
