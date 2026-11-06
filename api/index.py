@@ -13870,6 +13870,10 @@ class handler(BaseHTTPRequestHandler):
             return self.serve_public_page("privacidade.html", "privacidade indisponível")
         if path in {"/fala", "/corner"}:
             return self.serve_public_page("fala.html", "app de fala indisponível")
+        if path == "/agenda.html":
+            # A página desenha a agenda com o JARVIS ao lado. Ela busca os
+            # dados em GET /agenda com Accept: application/json.
+            return self.serve_public_page("agenda.html", "agenda indisponível")
         if path in {"/app", "/baixar"}:
             return self.serve_public_page("app.html", "página do app indisponível")
         if path in {"/download/mac", "/download/JARVIS.mac.zip"}:
@@ -14105,6 +14109,11 @@ class handler(BaseHTTPRequestHandler):
             payload, status = device_history_payload((query.get("limit") or ["20"])[0])
             return self.send_json(status, payload)
         if path == "/agenda":
+            # No navegador o dono abre a página; clientes de API pedem JSON.
+            # O Accept separa os dois sem quebrar quem já consome o JSON.
+            aceita = (self.headers.get("Accept") or "").lower()
+            if "text/html" in aceita and "application/json" not in aceita:
+                return self.serve_public_page("agenda.html", "agenda indisponível")
             if owner_pairing_required() and not owner_authenticated:
                 payload, status = pairing_required_payload()
                 payload["endpoint"] = "GET /agenda"
