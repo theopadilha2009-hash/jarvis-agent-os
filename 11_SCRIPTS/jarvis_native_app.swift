@@ -84,6 +84,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var recycleTimer: Timer?
     private var retryTimer: Timer?
     private var engineIniciando = false
+    /// Já existe um pipeline de escuta vivo. Impede abrir um segundo quando
+    /// o JS pede "start" outra vez.
+    private var escutando = false
     private var napActivity: NSObjectProtocol?
     private var startingListen = false
     private var lastPartial = ""
@@ -669,6 +672,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     /// não ouvia o JARVIS e o JARVIS não ouvia o dono. Abaixar para 25% deixa
     /// a música de fundo sem cobrir a fala.
     private func abaixarMusica() {
+        // Com a casa dormindo o dono pediu para não mexer no volume: um
+        // "abaixa a música" automático no meio da noite acorda quem dorme.
+        if UserDefaults.standard.bool(forKey: "jarvisSemMexerNoVolume") { return }
         guard volumeAntesDaFala == nil else { return }
         let atual = Self.volumeDoSistema()
         guard atual > 0 else { return }
@@ -880,9 +886,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     private func startListen() {
         wantListen = true
+        // O JS pede "start" com frequência. Cada pedido criava OUTRO
+        // pipeline de transcrição, e três analyzers no mesmo microfone se
+        // atropelam (o log mostrava modern listening repetido e nenhuma
+        // transcrição). Se já existe um escutando, não cria outro.
+        if escutando { return }
         logListen("startListen")
         if #available(macOS 26.0, *), SpeechTranscriber.isAvailable {
-            if modernTask != nil, engine.isRunning { return }
             startModernListen()
             return
         }
@@ -900,6 +910,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private func stopModern() {
+        escutando = false
         analyzerFinish?()
         analyzerFinish = nil
         modernTask?.cancel()
@@ -911,8 +922,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     @available(macOS 26.0, *)
     private func startModernListen() {
-        useModern = true
+        // stopModern() zera a flag, então ela vem DEPOIS dele: marcada antes,
+        // era apagada na linha seguinte e o JS abria um pipeline por pedido.
         stopModern()
+        escutando = true
         useModern = true
         wantListen = true
         modernTask = Task { [weak self] in
@@ -961,6 +974,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                     let text = String(result.text.characters)
                     guard !text.isEmpty else { continue }
                     let isFinal = result.isFinal
+                    self?.logListen("ouvido: \(text) (final=\(isFinal))")
                     await MainActor.run {
                         self?.deliverHeard(text, final: isFinal)
                     }
@@ -969,37 +983,125 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 self?.logListen("results \(error)")
             }
         }
+        // Antes de montar o tap: o microfone responde? Se outro app o segura,
+        // o startMic travaria a main e o app ficaria surdo sem aviso.
+        var entradaMic: AVAudioInputNode?
+        let disponivel: Bool = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            formatoDoMicComPrazo { formato, no in
+                entradaMic = no
+                cont.resume(returning: formato != nil && no != nil)
+            }
+        }
+        guard disponivel else {
+            logListen("microfone ocupado — aguardando liberar")
+            // Quem reagenda aqui é descartarEngineTravado, numa fila própria.
+            // Chamar scheduleRetry daqui não funciona: quando a consulta
+            // pendura, a main fica presa e nada enfileirado nela roda.
+            return
+        }
+        guard let entrada = entradaMic else {
+            tellJS("microfone_ocupado")
+            scheduleRetry()
+            return
+        }
         await MainActor.run { [weak self] in
-            self?.startMic(to: analyzerFormat) { buffer in
+            self?.startMic(entrada: entrada, to: analyzerFormat) { buffer in
                 continuation.yield(AnalyzerInput(buffer: buffer))
             }
         }
         tellJS("listening")
+        escutando = true
         logListen("modern listening")
         do {
             try await analyzer.start(inputSequence: stream)
         } catch {
             logListen("analyzer \(error)")
+            // O pipeline morreu: libera a flag para o próximo start criar
+            // outro, senão o app fica "escutando" sem escutar.
+            escutando = false
             if !Task.isCancelled {
                 tellJS("error:\(error.localizedDescription)")
             }
         }
     }
 
+    /// Consulta o microfone fora da main thread, com prazo.
+    ///
+    /// `engine.inputNode` trava quando outro app segura o microfone com um
+    /// diálogo aberto (Blender, Roblox): o HAL bloqueia na primeira consulta
+    /// e o log parava calado em "reserve ok", sem nem um erro. Na main thread
+    /// isso congela o app e mata o retry — por isso a consulta sai da main.
+    /// Devolve o formato de entrada, ou nil se travou.
     @available(macOS 26.0, *)
-    private func startMic(to analyzerFormat: AVAudioFormat?, yield: @escaping (AVAudioPCMBuffer) -> Void) {
+    private func formatoDoMicComPrazo(_ concluir: @escaping (AVAudioFormat?, AVAudioInputNode?) -> Void) {
+        let semaforo = DispatchSemaphore(value: 0)
+        var formato: AVAudioFormat?
+        var no: AVAudioInputNode?
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { semaforo.signal(); return }
+            let entrada = self.engine.inputNode
+            let fmt = entrada.outputFormat(forBus: 0)
+            if fmt.sampleRate > 0 { formato = fmt; no = entrada }
+            semaforo.signal()
+        }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            if semaforo.wait(timeout: .now() + 8) == .timedOut {
+                guard let self else { return }
+                self.logListen("mic travou — outro app segura o microfone")
+                // A consulta pendurada prende o engine E a main: qualquer
+                // bloco na main depois disso nunca roda. Então nada de
+                // DispatchQueue.main aqui — descarta o engine numa fila
+                // própria e deixa o retry recriar um limpo.
+                self.descartarEngineTravado()
+                concluir(nil, nil)
+                return
+            }
+            let resultado = formato
+            let noFinal = no
+            DispatchQueue.main.async { concluir(resultado, noFinal) }
+        }
+    }
+
+    /// Descarta o engine quando a consulta do microfone pendurou.
+    ///
+    /// `engine.inputNode` travado prende o objeto e a main thread junto: a
+    /// partir daí nenhum bloco enfileirado na main roda, nem o retry. A saída
+    /// é jogar o engine fora e criar outro limpo, numa fila própria, e
+    /// reagendar a escuta por lá mesmo.
+    private func descartarEngineTravado() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            self.engine.stop()
+            self.engine = AVAudioEngine()
+            self.tapInstalled = false
+            self.modernTask?.cancel()
+            self.modernTask = nil
+            self.escutando = false
+            self.logListen("engine recriado — tentando de novo")
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 3) {
+                self.startListen()
+            }
+        }
+    }
+
+    @available(macOS 26.0, *)
+    private func startMic(entrada: AVAudioInputNode, to analyzerFormat: AVAudioFormat?, yield: @escaping (AVAudioPCMBuffer) -> Void) {
         tearDownRecognition()
-        let input = engine.inputNode
         // setVoiceProcessingEnabled trava quando o engine ainda não rodou:
         // o log parava antes de "modern listening" e o app ficava surdo.
-        // O loop de silêncio já foi resolvido pelo limiar (0.008 -> 0.02);
         // supressão de eco fica para quando houver um teste com áudio real.
-        let micFormat = input.outputFormat(forBus: 0)
-        guard micFormat.sampleRate > 0 else {
+        // O formato já foi consultado com prazo em formatoDoMicComPrazo; aqui
+        // só se usa o que veio. Tocar em engine.inputNode de novo na main é
+        // o que travava tudo quando outro app segurava o microfone.
+        // O formato vem do formatoDoMicComPrazo (já consultado fora da main).
+        // Não tocar em engine.inputNode aqui: é justamente essa consulta que
+        // trava a main quando outro app segura o microfone.
+        guard let micFormat = analyzerFormat, micFormat.sampleRate > 0 else {
             logListen("bad mic format")
             scheduleRetry()
             return
         }
+        let input = entrada
         // O engine inicializa entrada E saída. Com o iMobie virtual como saída
         // padrão o start() trava para sempre — e trava a main thread, então nem
         // o retry roda. Forçar a saída para a placa real do Mac.
@@ -1199,9 +1301,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
     }
 
+    /// Reagenda a escuta depois de uma falha.
+    ///
+    /// `Timer.scheduledTimer` depende do run loop da main estar girando; vindo
+    /// de dentro de uma Task async ele nunca disparava e o app parava de
+    /// tentar depois do primeiro erro — ficava vivo e surdo para sempre.
+    /// `asyncAfter` na main sempre entrega.
     private func scheduleRetry() {
         retryTimer?.invalidate()
-        retryTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [weak self] _ in
+        retryTimer = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             guard let self, self.wantListen else { return }
             self.startListen()
         }
@@ -1311,16 +1420,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     // acontece: a escuta contínua por wake word segue intacta.
     /// Limiar de "tem voz aqui".
     ///
-    /// 0.008 é -42 dB: qualquer música de fundo passa dele. Com o Spotify
-    /// tocando, o app achava que havia voz o tempo todo, reiniciava o ciclo
-    /// a cada 1,8s e perdia ~0,6s de áudio em cada reinício — por isso o
-    /// dono falava "sim, pode abrir" e o JARVIS não ouvia.
-    /// 0.02 é -34 dB: acima do ruído de sala e da música baixa, abaixo de
-    /// fala normal a 30cm do microfone.
-    private let silenceRmsFloor: Float = 0.02
-    /// Espera mais antes de fechar o ciclo: 1,8s cortava no meio de uma
-    /// frase com pausa natural ("sim... pode abrir").
-    private let silenceStopAfter: TimeInterval = 2.6
+    /// Medido no microfone deste Mac, com o tap aberto:
+    ///   silêncio de sala — p50 0.0003, máximo 0.0035
+    ///   fala a 40cm    — p50 0.0020, p90 0.035, máximo 0.047
+    /// 0.012 fica acima do pico de ruído em uso real (o app fechava frase a
+    /// cada 8s com a sala em silêncio no limiar de 0.006) e abaixo do corpo
+    /// da fala (p75 0.026). O 0.02 anterior cortava as sílabas fracas; este
+    /// não, porque só a fala sustentada passa.
+    private let silenceRmsFloor: Float = 0.012
+    /// Espera antes de fechar a frase. 1,8s cortava no meio de uma frase com
+    /// pausa natural ("sim... pode abrir"); 2,6s ainda fechava entre frases
+    /// de uma fala normal. 3,5s dá tempo da pausa ser pausa, não fim.
+    private let silenceStopAfter: TimeInterval = 3.5
     private var hadVoiceInCycle = false
     private var voiceProcessingOn = false
     private var silenceStartedAt: TimeInterval = 0
@@ -1367,20 +1478,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
     }
 
+    /// A pausa na fala só precisa fechar a frase, não derrubar o pipeline.
+    ///
+    /// A versão anterior chamava stopModern/startListen a cada pausa: cada
+    /// volta custava ~0,35s de áudio perdido mais o tempo de recriar o
+    /// analyzer, e o log enchia de "silence stop" + CancellationError. O
+    /// reconhecedor já entrega o texto parcial sozinho; basta sinalizar o
+    /// fim do enunciado e seguir ouvindo no mesmo stream.
     private func finalizeModernOnSilence() {
-        guard wantListen, !silenceRestarting else { return }
-        silenceRestarting = true
-        // Fecha o stream: o transcriber finaliza o pendente e o tearDown
-        // entrega o parcial remanescente como final antes de recomeçar.
-        analyzerFinish?()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-            guard let self else { return }
-            silenceRestarting = false
-            guard wantListen else { return }
-            stopModern()
-            tearDownRecognition()
-            startListen()
-        }
+        guard wantListen, useModern else { return }
+        // Não reinicia nada: só avisa quem escuta que a frase terminou. Se o
+        // reconhecedor já mandou um final, o deliverHeard ignora o repetido.
+        tellJS("utterance_end")
+        hadVoiceInCycle = false
+        silenceStartedAt = 0
+        logListen("frase fechada")
     }
 
     private func emitLevel(_ buffer: AVAudioPCMBuffer) {
@@ -1526,7 +1638,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     private func deliverHeard(_ text: String, final: Bool) {
         let clean = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current).lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if clean.contains("vai dormir") || clean.contains("va dormir") || clean.contains("desliga jarvis") || clean.contains("desligar jarvis") || clean.contains("desligar o jarvis") || clean.contains("fechar jarvis") || clean.contains("fecha o jarvis") || clean.contains("desligar completamente") || clean == "desligar" || clean == "fechar" {
+        // Desligar exige a frase inteira, não um trecho solto.
+        //
+        // O microfone capta o eco do alto-falante: numa conversa qualquer ele
+        // transcreveu "ah tá cê vai dormir ah não então" e se desligou no meio
+        // do teste. Exigir a frase curta e completa evita o desligamento
+        // acidental sem tirar o comando de quem realmente quer fechar.
+        let desligar = ["desliga o jarvis", "desligar o jarvis", "fecha o jarvis",
+                        "fechar o jarvis", "desliga jarvis", "desligar jarvis",
+                        "fecha jarvis", "fechar jarvis", "vai dormir jarvis",
+                        "pode dormir jarvis", "desligar completamente"]
+        if desligar.contains(where: { clean == $0 || clean.hasSuffix(" " + $0) }) {
             if final {
                 speakNative("Até logo, senhor. Desligando.")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {

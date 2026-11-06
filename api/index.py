@@ -2173,7 +2173,11 @@ WEB_OPEN_TARGETS = (
     (re.compile(r"\byoutube\b", re.I), "https://www.youtube.com", "YouTube"),
     (re.compile(r"\bspotify\b", re.I), "https://open.spotify.com", "Spotify"),
     (re.compile(r"\b(?:mapa|maps|como chegar)\b", re.I), "https://maps.google.com", "Google Maps"),
-    (re.compile(r"\b(?:calend[aá]rio|agenda)\b", re.I), "https://calendar.google.com", "Agenda"),
+    # Só "calendário" abre o Google Calendar. "Agenda" é o painel do próprio
+    # JARVIS: com as duas palavras aqui, pedir a agenda abria uma aba do
+    # Google e o painel nunca aparecia.
+    (re.compile(r"\bcalend[aá]rio\b", re.I), "https://calendar.google.com", "Agenda"),
+    (re.compile(r"\bsite\s*hunter\b", re.I), "https://sitehunter-ai-tau.vercel.app/app/prospecting", "SiteHunter"),
     (re.compile(r"\b(?:abre|abrir|abra)\s+(?:o\s+)?gmail\b", re.I), "https://mail.google.com", "Gmail"),
     (re.compile(r"\bgithub\b", re.I), "https://github.com", "GitHub"),
     (re.compile(r"\b(?:instagram|insta)\b", re.I), "https://www.instagram.com", "Instagram"),
@@ -2601,9 +2605,9 @@ LOCAL_INTENTS = (
     (AGENDA_NOTE_PATTERN, "agenda_note"),
     (re.compile(r"\b(conclu(?:a|i|ir)|finaliz(?:a|e|ar)|marc(?:a|e|ar))\b.{0,60}\b(?:item|tarefa|lembrete|agenda)\s*#?\s*\d+\b", re.I), "agenda_complete"),
     (re.compile(
-        r"\b(?:o\s+que|quais)\b.{0,60}\b(?:tenho|tem|h[aá]|est[aá]|est[aã]o)\b"
+        r"\b(?:o\s+que|quais)\b.{0,60}\b(?:tenho|tem|h[aá]|est[aá]|est[aã]o|s[aã]o)\b"
         r".{0,40}\b(?:na|pra|para|nessa|nesta)?\s*(?:a\s+)?(?:agenda|compromissos|eventos)\b|"
-        r"\b(ver|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar))\b.{0,80}\b(agenda|compromissos|eventos)\b|"
+        r"\b(ver|abr(?:e|a|ir)|mostr(?:a|e|ar)|list(?:a|e|ar)|consult(?:a|e|ar)|exib(?:e|ir))\b.{0,80}\b(agenda|compromissos|eventos)\b|"
         r"^\s*(?:minha|a)\s+agenda\s*[?!.]*\s*$",
         re.I,
     ), "agenda_view"),
