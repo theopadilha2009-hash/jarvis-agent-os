@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import CoreAudio
 import CoreGraphics
 import Darwin
 import ScreenCaptureKit
@@ -82,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private var tapInstalled = false
     private var recycleTimer: Timer?
     private var retryTimer: Timer?
+    private var engineIniciando = false
     private var napActivity: NSObjectProtocol?
     private var startingListen = false
     private var lastPartial = ""
@@ -938,6 +940,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 }
             }
             _ = try? await AssetInventory.reserve(locale: locale)
+            logListen("reserve ok")
         } catch {
             logListen("asset error \(error)")
         }
@@ -995,6 +998,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             scheduleRetry()
             return
         }
+        // O engine inicializa entrada E saída. Com o iMobie virtual como saída
+        // padrão o start() trava para sempre — e trava a main thread, então nem
+        // o retry roda. Forçar a saída para a placa real do Mac.
+        fixarSaidaParaHardware()
         let converter = PCMConverter()
         hadVoiceInCycle = false
         silenceStartedAt = 0
@@ -1006,12 +1013,147 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             yield(out)
         }
         tapInstalled = true
+        // start() pode travar (dispositivo ocupado ou driver ruim). Se travar na
+        // main thread, o app fica surdo e mudo de vez: chamar numa fila própria.
+        startEngineComGuarda()
+    }
+
+    /// Aponta a saída do engine para a placa de som do Mac quando o dispositivo
+    /// padrão é virtual (iMobie, Soundflower, Loopback). Sem isso o start trava.
+    private func fixarSaidaParaHardware() {
+        let saida = engine.outputNode
+        guard let placa = Self.placaDeSomDoMac() else { return }
+        let atual = Self.saidaPadraoDoMac()
+        if atual == placa { return }
         do {
-            try engine.start()
-            logListen("mic sr=\(micFormat.sampleRate)")
+            try saida.auAudioUnit.setDeviceID(placa)
+            logListen("saida forcada para \(placa) (padrao era \(atual))")
         } catch {
-            logListen("engine \(error)")
-            scheduleRetry()
+            logListen("nao consegui trocar a saida \(error)")
+        }
+    }
+
+    /// AudioDeviceID da saída padrão do sistema no momento.
+    private static func saidaPadraoDoMac() -> AudioDeviceID {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var devID = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &devID
+        ) == noErr else { return 0 }
+        return devID
+    }
+
+    /// AudioDeviceID do alto-falante embutido, se existir.
+    private static func placaDeSomDoMac() -> AudioDeviceID? {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyTranslateUIDToDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var uid: CFString = "BuiltInSpeakerDevice" as CFString
+        var devID = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = withUnsafeMutablePointer(to: &uid) { ptr -> OSStatus in
+            AudioObjectGetPropertyData(
+                AudioObjectID(kAudioObjectSystemObject), &addr,
+                UInt32(MemoryLayout<CFString>.size), ptr, &size, &devID
+            )
+        }
+        if status == noErr, devID != 0 { return devID }
+        // Plano B: o primeiro dispositivo de saída da fabricante Apple.
+        var lista = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var bytes = UInt32(0)
+        guard AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject), &lista, 0, nil, &bytes
+        ) == noErr, bytes > 0 else { return nil }
+        var ids = [AudioDeviceID](repeating: 0, count: Int(bytes) / MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &lista, 0, nil, &bytes, &ids
+        ) == noErr else { return nil }
+        for id in ids {
+            // "MacBook Air" no nome casa com o microfone também: o que separa
+            // alto-falante de microfone é ter canal de saída de verdade.
+            guard Self.canaisDeSaida(id) > 0 else { continue }
+            var nomeAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioObjectPropertyName,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var nome: CFString = "" as CFString
+            var nSize = UInt32(MemoryLayout<CFString>.size)
+            guard AudioObjectGetPropertyData(id, &nomeAddr, 0, nil, &nSize, &nome) == noErr else { continue }
+            let rotulo = nome as String
+            // "iMobie" e afins são virtuais: nunca servir de saída do engine.
+            if rotulo.localizedCaseInsensitiveContains("iMobie") { continue }
+            if rotulo.localizedCaseInsensitiveContains("MacBook")
+                || rotulo.localizedCaseInsensitiveContains("Alto-falantes")
+                || rotulo.localizedCaseInsensitiveContains("Speakers") {
+                return id
+            }
+        }
+        return nil
+    }
+
+    /// Quantos canais de saída o dispositivo tem (0 = só entrada, ou nenhum).
+    private static func canaisDeSaida(_ id: AudioDeviceID) -> Int {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreamConfiguration,
+            mScope: kAudioDevicePropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var tamanho = UInt32(0)
+        guard AudioObjectGetPropertyDataSize(id, &addr, 0, nil, &tamanho) == noErr,
+              tamanho > 0 else { return 0 }
+        let bruto = UnsafeMutableRawPointer.allocate(
+            byteCount: Int(tamanho), alignment: MemoryLayout<AudioBufferList>.alignment
+        )
+        defer { bruto.deallocate() }
+        guard AudioObjectGetPropertyData(id, &addr, 0, nil, &tamanho, bruto) == noErr else { return 0 }
+        let lista = UnsafeMutableAudioBufferListPointer(
+            bruto.assumingMemoryBound(to: AudioBufferList.self)
+        )
+        return lista.reduce(0) { $0 + Int($1.mNumberChannels) }
+    }
+
+    /// start() fora da main thread, com timeout: travou, derruba e tenta de novo.
+    private func startEngineComGuarda() {
+        guard !engineIniciando else { return }
+        engineIniciando = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let semaforo = DispatchSemaphore(value: 0)
+            var falha: Error?
+            DispatchQueue.global(qos: .userInitiated).async {
+                do { try self.engine.start() } catch { falha = error }
+                semaforo.signal()
+            }
+            if semaforo.wait(timeout: .now() + 8) == .timedOut {
+                self.logListen("engine.start travou — reiniciando")
+                self.engine.stop()
+                DispatchQueue.main.async {
+                    self.engineIniciando = false
+                    self.scheduleRetry()
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                self.engineIniciando = false
+                if let falha {
+                    self.logListen("engine \(falha)")
+                    self.scheduleRetry()
+                } else {
+                    self.logListen("mic sr=\(self.engine.inputNode.outputFormat(forBus: 0).sampleRate)")
+                }
+            }
         }
     }
 
