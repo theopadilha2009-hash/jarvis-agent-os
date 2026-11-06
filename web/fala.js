@@ -1020,13 +1020,17 @@
         // Projetos do dono aparecem DENTRO do JARVIS, quase em tela cheia.
         // Só o que não é projeção (Spotify, WhatsApp, Google) abre fora.
         const projetado = window.__jarvisAbrirSite && window.__jarvisAbrirSite(data.open_url);
+        // No arranjo do dono a web do JARVIS fica na segunda tela e os
+        // projetos abrem na terceira. Sem tela pedida, o projeto vai para lá.
+        const daTelaDoProjeto = /github\.com/i.test(String(data.open_url));
+        const tela = data.open_display || (daTelaDoProjeto ? "projetor" : "");
         if (projetado) {
           opened = true;
         } else {
-          if (data.open_display && window.webkit?.messageHandlers?.jarvisDisplay) {
+          if (tela && window.webkit?.messageHandlers?.jarvisDisplay) {
             try {
               window.webkit.messageHandlers.jarvisDisplay.postMessage(
-                JSON.stringify({ url: data.open_url, tela: data.open_display })
+                JSON.stringify({ url: data.open_url, tela })
               );
               opened = true;
             } catch { opened = false; }
@@ -1521,6 +1525,10 @@
   }
 
   function wantsListen() {
+    // Só o app nativo escuta. A aba do navegador é a MESMA sessão do JARVIS
+    // na segunda tela: se ela também abrisse o microfone, os dois ouviriam a
+    // mesma frase e responderiam juntos. Aqui ela só mostra e fala.
+    if (!hasNativeListen()) return false;
     if (appMode) return true;
     try {
       const stored = window.localStorage.getItem(LISTEN_KEY);
@@ -1998,9 +2006,10 @@
   // O dono pediu para o vídeo: quando ele manda abrir um site, o site surge
   // DENTRO do JARVIS, quase em tela cheia — não uma aba nova. Só a agenda e
   // o Spotify continuam indo para fora, porque são apps de verdade.
+  // Só o SiteHunter é projetado dentro do JARVIS: é o vídeo dele. O GitHub
+  // abre na terceira tela, como o dono montou o arranjo.
   const SITES_PROJETADOS = [
     { teste: /sitehunter/i, url: "https://sitehunter-ai-tau.vercel.app", nome: "SiteHunter" },
-    { teste: /github/i, url: "https://github.com/theopadilha2009-hash/jarvis-agent-os", nome: "GitHub · JARVIS" },
   ];
 
   function siteProjetado(url) {

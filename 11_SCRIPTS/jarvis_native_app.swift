@@ -202,6 +202,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private let idleHideAfter: TimeInterval = 60
     private let kickCooldown: TimeInterval = 90
     private let fullSize = NSSize(width: 268, height: 380)
+    /// Roteiro do vídeo carregado: mantém a janela aberta.
+    private var roteiroAtivo = false
     private let zoomSize = NSSize(width: 320, height: 560)
     private var isZoomed = false
     private let orbSize = NSSize(width: 72, height: 72)
@@ -454,6 +456,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     private func resetIdle() {
         idleTimer?.invalidate()
+        // Com o roteiro do vídeo carregado a janela não se esconde: o timer
+        // de ociosidade fechava a janela e o painel da agenda ia junto,
+        // deixando só o orbe bolinha na tela.
+        if roteiroAtivo { return }
         if (UserDefaults.standard.string(forKey: tokenKey) ?? "").isEmpty { return }
         idleTimer = Timer.scheduledTimer(withTimeInterval: idleHideAfter, repeats: false) { [weak self] _ in
             guard let self else { return }
@@ -2294,13 +2300,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         // trocados pelo caminho real depois.
         let caminho = "/tmp/jarvis-roteiro.txt"
         if let texto = try? String(contentsOfFile: caminho, encoding: .utf8), !texto.isEmpty {
+            roteiroAtivo = true
             // Formato: uma linha por fala, "<segundos até esta fala>|<frase>".
             for linha in texto.split(separator: "\n") {
                 let partes = linha.split(separator: "|", maxSplits: 1)
                 guard partes.count == 2, let segundos = Double(partes[0]) else { continue }
                 let frase = String(partes[1]).replacingOccurrences(of: "'", with: "\\'")
                 DispatchQueue.main.asyncAfter(deadline: .now() + segundos) { [weak self] in
-                    guard let webView = self?.webView else { return }
+                    guard let self, let webView = self.webView else { return }
+                    // A janela abre em modo bolinha; sem sair dele o vídeo
+                    // não mostra nada além do orbe.
+                    self.revealWindow(takeFocus: true)
                     webView.evaluateJavaScript(
                         "window.__jarvisDizer && window.__jarvisDizer('\(frase)')",
                         completionHandler: nil

@@ -2180,7 +2180,11 @@ WEB_OPEN_TARGETS = (
     (re.compile(r"\b(?:abre|abrir|abra)\s+(?:o\s+)?(?:meu\s+)?google\s+calendar\b", re.I),
      "https://calendar.google.com", "Google Calendar"),
     (re.compile(r"\bsite\s*hunter\b", re.I), "https://sitehunter-ai-tau.vercel.app/app/prospecting", "SiteHunter"),
+
     (re.compile(r"\b(?:abre|abrir|abra)\s+(?:o\s+)?gmail\b", re.I), "https://mail.google.com", "Gmail"),
+    # "meu projeto no GitHub" é o repositório do JARVIS; github sozinho é a home.
+    (re.compile(r"\b(?:meu\s+)?projeto\b.{0,20}\bgithub\b|\bgithub\b.{0,20}\bprojeto\b", re.I),
+     "https://github.com/theopadilha2009-hash/jarvis-agent-os", "GitHub"),
     (re.compile(r"\bgithub\b", re.I), "https://github.com", "GitHub"),
     (re.compile(r"\b(?:instagram|insta)\b", re.I), "https://www.instagram.com", "Instagram"),
     (re.compile(r"\b(?:chat\s*gpt|chatgpt)\b", re.I), "https://chatgpt.com", "ChatGPT"),
@@ -12446,6 +12450,10 @@ TELA_APELIDOS = (
 # Preposição junto: "na TV", "no projetor", "na tela principal". Sem isto
 # saía "na projetor".
 TELA_FALADA = {"tv": "na TV", "projetor": "no projetor", "principal": "na tela principal"}
+# No arranjo do dono a terceira tela é onde projetos abrem: a web do JARVIS
+# fica na segunda e a TV é a de 1920x1080. "projetor" é o apelido que já
+# aponta para a tela menor ao lado, fora da principal.
+TELA_DO_PROJETO = "projetor"
 
 
 def tela_pedida(command):
