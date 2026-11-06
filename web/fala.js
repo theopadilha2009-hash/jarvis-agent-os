@@ -485,6 +485,16 @@
     if (href === lastOpenUrl && now - lastOpenAt < 8000) return true;
     lastOpenUrl = href;
     lastOpenAt = now;
+    // No app nativo o `window.open` sempre devolve null (a janela nova não é
+    // criada), e o aviso "Popup bloqueado" aparecia no meio da tela em vez do
+    // site. Lá o link vai pelo handler nativo, que abre no navegador.
+    const nativo = window.webkit?.messageHandlers?.jarvisOpen;
+    if (nativo) {
+      try {
+        nativo.postMessage(href);
+        return true;
+      } catch (e) { /* cai no window.open */ }
+    }
     const popup = window.open(href, "_blank", "noopener,noreferrer");
     if (popup) return true;
     showAnswerLink("Popup bloqueado.", href, "Toque para abrir");
@@ -1191,6 +1201,10 @@
     if (raw === "listening" || raw === "waiting") {
       keepListening = true;
       listenPainted = true;
+      // O soundbar também dança enquanto ele ouve: no vídeo a esfera com as
+      // barras paradas parecia travada. `is-listening` reusa a mesma animação.
+      const stage = document.getElementById("orbStage");
+      if (stage) stage.classList.toggle("is-listening", raw === "listening");
       if (armed) {
         orb.classList.add("listening");
         say("Ouvindo.", "Pode falar.");

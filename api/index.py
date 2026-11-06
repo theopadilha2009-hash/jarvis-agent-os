@@ -2173,10 +2173,12 @@ WEB_OPEN_TARGETS = (
     (re.compile(r"\byoutube\b", re.I), "https://www.youtube.com", "YouTube"),
     (re.compile(r"\bspotify\b", re.I), "https://open.spotify.com", "Spotify"),
     (re.compile(r"\b(?:mapa|maps|como chegar)\b", re.I), "https://maps.google.com", "Google Maps"),
-    # Só "calendário" abre o Google Calendar. "Agenda" é o painel do próprio
-    # JARVIS: com as duas palavras aqui, pedir a agenda abria uma aba do
-    # Google e o painel nunca aparecia.
-    (re.compile(r"\bcalend[aá]rio\b", re.I), "https://calendar.google.com", "Agenda"),
+    # "Agenda" e "calendário" são o painel do próprio JARVIS, nunca o Google.
+    # O dono foi explícito: a agenda aparece na UI dele, e só vai pro Google
+    # quando ele pedir "abre no Google". Por isso nenhuma das duas palavras
+    # está aqui — quem trata as duas é o painel holográfico.
+    (re.compile(r"\b(?:abre|abrir|abra)\s+(?:o\s+)?(?:meu\s+)?google\s+calendar\b", re.I),
+     "https://calendar.google.com", "Google Calendar"),
     (re.compile(r"\bsite\s*hunter\b", re.I), "https://sitehunter-ai-tau.vercel.app/app/prospecting", "SiteHunter"),
     (re.compile(r"\b(?:abre|abrir|abra)\s+(?:o\s+)?gmail\b", re.I), "https://mail.google.com", "Gmail"),
     (re.compile(r"\bgithub\b", re.I), "https://github.com", "GitHub"),
@@ -4862,6 +4864,8 @@ def supabase_agenda_command(command, intent):
                     "status": clean_text(saved.get("status"), 40),
                     "scheduled_for": clean_text(saved.get("scheduled_for"), 80),
                 }],
+                # Anotar também abre o painel: o dono vê a tarefa entrar.
+                "client_action": "agenda",
             }, 201
         if intent == "agenda_complete":
             item_id = agenda_item_id(command)
