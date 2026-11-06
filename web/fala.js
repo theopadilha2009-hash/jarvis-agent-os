@@ -1318,13 +1318,25 @@
     return true;
   };
 
+  // "abre o fullscreen": a mesma segunda tela, em tela cheia. O app sai de
+  // cima e o site ocupa tudo — é o palco do vídeo, mas quem abre é o app,
+  // como sempre foi (o JARVIS não troca de cara, só mostra o site cheio).
+  window.__jarvisFullscreen = async () => {
+    window.__jarvisModoEnsaio();
+    await speak("Tela cheia, senhor.");
+    try {
+      window.webkit?.messageHandlers?.jarvisFullscreen?.postMessage("https://jarvis-theo.vercel.app/");
+    } catch (e) { /* web */ }
+    return true;
+  };
+
   // O "sim" do dono no roteiro: a web abre na segunda tela e o app sai da
   // frente, como ele combinou.
   window.__jarvisAbrirWeb = async () => {
     window.__jarvisModoEnsaio();
     await speak("Abrindo, senhor.");
-    // A "web" do vídeo é o site do JARVIS (o palco com o busto 3D), não a
-    // página de voz: é lá que a agenda e o resto aparecem.
+    // A web é o site, na segunda tela. O mesmo pedido vira "abre o
+    // fullscreen" no vídeo: aí sim vem o palco com o busto 3D.
     try { window.webkit?.messageHandlers?.jarvisOpen?.postMessage("https://jarvis-theo.vercel.app/"); } catch (e) { /* web */ }
     window.setTimeout(() => nativeWindow("hide"), 1200);
     return true;
@@ -1379,6 +1391,9 @@
   // roteiro (o dono escrevendo na web), a fala também leva à cena — senão só
   // o arquivo gravado funcionaria e o resto continuava falando por cima.
   const GATILHOS_FILME = [
+    // "abre o fullscreen" é a segunda tela em tela cheia; "abre a web" é o
+    // site normal. São coisas diferentes e o dono pediu as duas.
+    { teste: /\bfull\s*screen\b|\btela\s+cheia\b/i, cena: "fullscreen" },
     { teste: /\b(?:modo\s+)?homem\s+de\s+ferro\b|\bmodo\s+ferro\b/i, cena: "ferro" },
     { teste: /^\s*(?:sim|pode|manda|abre|abrir)\s*[.!]?\s*$/i, cena: "web", precisaFerro: true },
     { teste: /site\s*hunter|\bsite\s+hunter\b|pr[oó]xima?\s+preview|pr[eé]via\s+do\s+v[ií]deo/i, cena: "sitehunter" },
@@ -1412,6 +1427,7 @@
     const cena = {
       ferro: window.__jarvisHomemDeFerro,
       web: window.__jarvisAbrirWeb,
+      fullscreen: window.__jarvisFullscreen,
       github: window.__jarvisAbrirGithub,
       agenda: window.__jarvisAgendaVideo,
       sitehunter: window.__jarvisSiteHunter,

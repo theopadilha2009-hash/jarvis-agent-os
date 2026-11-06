@@ -9,7 +9,7 @@ import Speech
 import WebKit
 
 private let bundleID = "ai.theopadilha.jarvis.cockpit"
-private let fallbackURL = "https://jarvis-theo.vercel.app/"
+private let fallbackURL = "https://jarvis-theo.vercel.app/fala?app=1"
 
 final class PCMConverter {
     private var conversor: AVAudioConverter?
@@ -420,6 +420,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                    !saida.isEmpty {
                     DispatchQueue.main.async { self?.speakNative(saida) }
                 }
+            }
+        } else if message.name == "jarvisFullscreen" {
+            // "abre o fullscreen": o site do JARVIS ocupa a segunda tela
+            // inteira. O app sai da frente — ele continua sendo o orbe, só
+            // não fica por cima do palco.
+            let raw = String(describing: message.body)
+            let url = URL(string: raw) ?? URL(string: "https://jarvis-theo.vercel.app/")!
+            let script = self.displaysScriptPath()
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+                proc.arguments = [script, "abrir", url.absoluteString, "principal"]
+                try? proc.run()
+                proc.waitUntilExit()
+                DispatchQueue.main.async { self?.hideWindow() }
             }
         } else if message.name == "jarvisAction" {
             let cmd = String(describing: message.body)
@@ -2418,6 +2433,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.userContentController.add(self, name: "jarvisSee")
         config.userContentController.add(self, name: "jarvisAction")
         config.userContentController.add(self, name: "jarvisDisplay")
+        config.userContentController.add(self, name: "jarvisFullscreen")
         let controlsScript = """
         (() => {
           function injectJarvisBar() {
