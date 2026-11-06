@@ -205,6 +205,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     /// Roteiro do vídeo carregado: mantém a janela aberta.
     private var roteiroAtivo = false
     private var roteiroFalou = false
+    /// O palco já foi entregue (a web abriu em tela cheia). A partir daqui o
+    /// app NÃO se mostra mais: cada linha do roteiro chamava revealWindow e
+    /// trazia a janela de volta por cima do site.
+    private var roteiroEntregue = false
     /// Tamanho do palco pedido pelo roteiro. Enquanto existir, toda
     /// reaplicação de layout (revealWindow, setCompact) usa ele em vez do
     /// padrão — senão a janela voltava a 268x380 no meio do vídeo.
@@ -428,10 +432,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             let raw = String(describing: message.body)
             let url = URL(string: raw) ?? URL(string: "https://jarvis-theo.vercel.app/")!
             let script = self.displaysScriptPath()
+            // Palco entregue: daqui pra frente o vídeo é o site, e o app
+            // (que continua ouvindo) sai da frente.
+            self.roteiroEntregue = true
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-                proc.arguments = [script, "abrir", url.absoluteString, "principal"]
+                proc.arguments = [script, "abrir", url.absoluteString, "tv"]
                 try? proc.run()
                 proc.waitUntilExit()
                 DispatchQueue.main.async { self?.hideWindow() }
@@ -2398,12 +2405,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 let frase = String(partes[1]).replacingOccurrences(of: "'", with: "\\'")
                 DispatchQueue.main.asyncAfter(deadline: .now() + segundos) { [weak self] in
                     guard let self, let webView = self.webView else { return }
-                    // A janela abre em modo bolinha; sem sair dele o vídeo
-                    // não mostra nada além do orbe. O tamanho vem DEPOIS:
-                    // revealWindow reaplica o tamanho padrão e desfazia o
-                    // enquadramento pedido pela linha do roteiro.
-                    self.revealWindow(takeFocus: true)
-                    if let alvo { self.encenarTamanho(alvo) }
+                    // Depois de entregar o palco, o app fica fora do vídeo:
+                    // a web é quem aparece. Só o JS roda, sem janela.
+                    if !self.roteiroEntregue {
+                        // A janela abre em modo bolinha; sem sair dele o vídeo
+                        // não mostra nada além do orbe. O tamanho vem DEPOIS:
+                        // revealWindow reaplica o tamanho padrão e desfazia o
+                        // enquadramento pedido pela linha do roteiro.
+                        self.revealWindow(takeFocus: true)
+                        if let alvo { self.encenarTamanho(alvo) }
+                    }
                     // Uma linha que começa com "." chama uma função do palco
                     // (".ferro", ".agenda") em vez de simular uma fala.
                     var js: String

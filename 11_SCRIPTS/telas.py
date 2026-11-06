@@ -194,8 +194,14 @@ def abrir_na_tela(url, apelido, app="Google Chrome"):
 
     tela = encontrar(apelido)
     if not tela:
-        disponiveis = ", ".join(t["nome"] for t in listar()) or "nenhuma"
-        return False, f"Não achei a tela “{apelido}”. Tenho: {disponiveis}."
+        # Tela desconectada (o dono desliga o projetor, o HDMI cai) não pode
+        # virar pedido perdido: abre na principal, que é o que ele está vendo.
+        telas = listar()
+        if not telas:
+            return False, "Nenhuma tela encontrada."
+        principal = next((t for t in telas if t["x"] == 0 and t["y"] == 0), telas[0])
+        ok, msg = _abrir_na_tela(url, principal, app)
+        return ok, f"{msg} (a tela “{apelido}” não está conectada)"
     return _abrir_na_tela(url, tela, app)
 
 
