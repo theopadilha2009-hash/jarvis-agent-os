@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import CoreAudio
 import CoreGraphics
+import CoreMedia
 import Darwin
 import ScreenCaptureKit
 import Speech
@@ -36,6 +37,45 @@ final class PCMConverter {
 // Padrão Handy: overlay é NSPanel com .nonactivatingPanel — recebe clique e
 // digitação sem ativar o app nem roubar o foco do que estava em uso. O roubo
 // de foco explícito fica isolado em revealWindow(takeFocus: true).
+/// Recebe o áudio do AVCaptureSession e entrega como AVAudioPCMBuffer.
+///
+/// O SpeechAnalyzer trabalha com AVAudioPCMBuffer; o AVCapture entrega
+/// CMSampleBuffer. A conversão é só trocar o invólucro — os samples já são
+/// float32 mono no formato que o analyzer pediu.
+final class CapturaDelegate: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
+    private let aoChegar: (AVAudioPCMBuffer) -> Void
+
+    init(aoChegar: @escaping (AVAudioPCMBuffer) -> Void) {
+        self.aoChegar = aoChegar
+    }
+
+    func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput sampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
+        guard let bloco = CMSampleBufferGetDataBuffer(sampleBuffer),
+              let formato = CMSampleBufferGetFormatDescription(sampleBuffer),
+              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formato)
+        else { return }
+        let bytes = CMBlockBufferGetDataLength(bloco)
+        guard bytes > 0,
+              let avFormato = AVAudioFormat(streamDescription: asbd),
+              let buffer = AVAudioPCMBuffer(
+                  pcmFormat: avFormato,
+                  frameCapacity: AVAudioFrameCount(bytes / MemoryLayout<Float>.size)
+              )
+        else { return }
+        buffer.frameLength = buffer.frameCapacity
+        guard let destino = buffer.floatChannelData?[0] else { return }
+        let copiou = CMBlockBufferCopyDataBytes(
+            bloco, atOffset: 0, dataLength: bytes, destination: destino
+        )
+        guard copiou == noErr else { return }
+        aoChegar(buffer)
+    }
+}
+
 final class OverlayWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -87,6 +127,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     /// Já existe um pipeline de escuta vivo. Impede abrir um segundo quando
     /// o JS pede "start" outra vez.
     private var escutando = false
+    /// Sessão de captura quando o áudio vem por AVCapture em vez do engine.
+    private var capturaSessao: AVCaptureSession?
+    private var delegadoCaptura: CapturaDelegate?
     private var napActivity: NSObjectProtocol?
     private var startingListen = false
     private var lastPartial = ""
@@ -988,12 +1031,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
         // Antes de montar o tap: o microfone responde? Se outro app o segura,
         // o startMic travaria a main e o app ficaria surdo sem aviso.
+        // Quem manda no microfone é o AVCapture, que abre este HAL onde o
+        // engine trava. Só cai no engine se nem o AVCapture existir.
         var entradaMic: AVAudioInputNode?
+        var temAparelho = false
+        var formatoMic: AVAudioFormat?
         let disponivel: Bool = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-            formatoDoMicComPrazo { formato, no in
-                entradaMic = no
-                cont.resume(returning: formato != nil && no != nil)
+            DispatchQueue.global(qos: .userInitiated).async {
+                // O AVCaptureDevice às vezes ainda não enxerga o microfone no
+                // primeiro segundo do app. Tenta por alguns segundos antes de
+                // concluir que não há aparelho.
+                var aparelho = AVCaptureDevice.default(for: .audio)
+                var tentativas = 0
+                while aparelho == nil && tentativas < 6 {
+                    Thread.sleep(forTimeInterval: 0.5)
+                    aparelho = AVCaptureDevice.default(for: .audio)
+                    tentativas += 1
+                }
+                if let aparelho,
+                   let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(
+                       aparelho.activeFormat.formatDescription
+                   ) {
+                    formatoMic = AVAudioFormat(streamDescription: asbd)
+                }
+                let aut = AVCaptureDevice.authorizationStatus(for: .audio)
+                self.logListen("aparelho=\(aparelho?.localizedName ?? "nil") autorizacao=\(aut.rawValue)")
+                if aut == .notDetermined {
+                    // O status 0 é "nunca perguntaram": o app só consultava e
+                    // por isso ficava sem permissão para sempre. Aqui pede.
+                    self.logListen("pedindo permissao de microfone")
+                    AVCaptureDevice.requestAccess(for: .audio) { liberou in
+                        self.logListen("permissao de microfone: \(liberou)")
+                        DispatchQueue.main.async {
+                            cont.resume(returning: liberou && aparelho != nil)
+                        }
+                    }
+                    return
+                }
+                temAparelho = aparelho != nil && aut == .authorized
+                DispatchQueue.main.async { cont.resume(returning: temAparelho) }
             }
+        }
+        if !disponivel {
+            logListen("microfone indisponivel — sem aparelho ou sem permissao")
+        }
+        if disponivel, let formatoMic, let aparelho = AVCaptureDevice.default(for: .audio) {
+            let capturado = await MainActor.run { [weak self] () -> Bool in
+                guard let self else { return false }
+                let converter = PCMConverter()
+                self.hadVoiceInCycle = false
+                self.silenceStartedAt = 0
+                let ok = self.iniciarCapturaAv(converter: converter, para: analyzerFormat) { buffer in
+                    continuation.yield(AnalyzerInput(buffer: buffer))
+                }
+                if ok {
+                    self.tapInstalled = true
+                    self.logListen("capturando por AVCapture (\(aparelho.localizedName))")
+                    self.tellJS("listening")
+                    self.escutando = true
+                }
+                return ok
+            }
+            if capturado {
+                do {
+                    try await analyzer.start(inputSequence: stream)
+                } catch {
+                    logListen("analyzer \(error)")
+                    escutando = false
+                }
+                return
+            }
+            logListen("AVCapture falhou — caindo no engine")
         }
         guard disponivel else {
             logListen("microfone ocupado — aguardando liberar")
@@ -1104,14 +1212,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             scheduleRetry()
             return
         }
+        // O AVAudioEngine trava neste Mac: engine.inputNode pendura o HAL e
+        // leva a main junto. AVCaptureSession abre o MESMO microfone sem
+        // problema — testado lado a lado, session.isRunning == true onde o
+        // engine travava. Ele é o caminho principal; o engine fica de reserva.
+        hadVoiceInCycle = false
+        silenceStartedAt = 0
+        let converter = PCMConverter()
+        if iniciarCapturaAv(converter: converter, para: analyzerFormat, yield: yield) {
+            tapInstalled = true
+            logListen("capturando por AVCapture")
+            return
+        }
+        logListen("AVCapture falhou — tentando o engine")
         let input = entrada
         // O engine inicializa entrada E saída. Com o iMobie virtual como saída
         // padrão o start() trava para sempre — e trava a main thread, então nem
         // o retry roda. Forçar a saída para a placa real do Mac.
         fixarSaidaParaHardware()
-        let converter = PCMConverter()
-        hadVoiceInCycle = false
-        silenceStartedAt = 0
         input.installTap(onBus: 0, bufferSize: 4096, format: micFormat) { [weak self] buffer, _ in
             if self?.paused == true { return }
             self?.observeSilence(buffer)
@@ -1123,6 +1241,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         // start() pode travar (dispositivo ocupado ou driver ruim). Se travar na
         // main thread, o app fica surdo e mudo de vez: chamar numa fila própria.
         startEngineComGuarda()
+    }
+
+    /// Captura o microfone por AVCaptureSession.
+    ///
+    /// O AVAudioEngine pendura neste HAL; o AVCapture não. Cada buffer que
+    /// chega passa pelo mesmo caminho do engine — nível, detecção de silêncio
+    /// e conversão para o formato do analyzer — então o resto do app não
+    /// precisa saber por qual dos dois veio o áudio.
+    @available(macOS 26.0, *)
+    private func iniciarCapturaAv(
+        converter: PCMConverter,
+        para analyzerFormat: AVAudioFormat?,
+        yield: @escaping (AVAudioPCMBuffer) -> Void
+    ) -> Bool {
+        guard let aparelho = AVCaptureDevice.default(for: .audio) else { return false }
+        let sessao = AVCaptureSession()
+        sessao.beginConfiguration()
+        guard let entradaAv = try? AVCaptureDeviceInput(device: aparelho),
+              sessao.canAddInput(entradaAv) else {
+            sessao.commitConfiguration()
+            return false
+        }
+        sessao.addInput(entradaAv)
+
+        let saidaAv = AVCaptureAudioDataOutput()
+        let fila = DispatchQueue(label: "jarvis.captura.audio", qos: .userInitiated)
+        let delegado = CapturaDelegate { [weak self] buffer in
+            guard let self, !self.paused else { return }
+            self.observeSilence(buffer)
+            self.emitLevel(buffer)
+            let out = analyzerFormat.flatMap { converter.convert(buffer, to: $0) } ?? buffer
+            yield(out)
+        }
+        saidaAv.setSampleBufferDelegate(delegado, queue: fila)
+        guard sessao.canAddOutput(saidaAv) else {
+            sessao.commitConfiguration()
+            return false
+        }
+        sessao.addOutput(saidaAv)
+        sessao.commitConfiguration()
+        sessao.startRunning()
+        guard sessao.isRunning else { return false }
+        capturaSessao = sessao
+        delegadoCaptura = delegado
+        return true
     }
 
     /// Aponta a saída do engine para a placa de som do Mac quando o dispositivo
