@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ensaio · JARVIS</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #07060c; overflow: hidden; }
+  iframe { width: 100%; height: 100%; border: 0; display: block; }
+  #painel {
+    position: fixed; left: 12px; bottom: 12px; z-index: 9999;
+    display: flex; gap: 8px; align-items: center;
+    font: 12px/1.2 ui-sans-serif, system-ui, sans-serif;
+    padding: 8px 10px; border-radius: 12px;
+    background: rgba(12, 9, 20, .86); color: #e9e2ff;
+    border: 1px solid rgba(168, 85, 247, .45);
+    backdrop-filter: blur(10px);
+  }
+  #painel button {
+    font: inherit; padding: 5px 10px; border-radius: 8px; cursor: pointer;
+    border: 1px solid rgba(168, 85, 247, .5);
+    background: rgba(168, 85, 247, .22); color: #fff;
+  }
+  #painel button:disabled { opacity: .45; cursor: default; }
+</style>
+</head>
+<body>
+<iframe id="jarvis" src="/fala?app=1" allow="microphone"></iframe>
+<div id="painel">
+  <span id="estado">pronto</span>
+  <button id="iniciar" type="button">rodar roteiro</button>
+</div>
+<script>
+  // Roteiro do vídeo: cada linha é [frase falada, espera até a próxima].
+  // A frase entra como se o JARVIS tivesse ouvido. Tudo é ensaio: não
+  // depende do microfone, então o vídeo sai sempre igual.
+  const ROTEIRO = [
+    ["Jarvis", 2500],
+    ["entra no modo homem de ferro", 14000],
+    ["sim", 9000],
+    ["abre o meu projeto no GitHub", 16000],
+    ["abre a minha agenda", 20000],
+    ["mostra o SiteHunter", 18000],
+  ];
+  const quadro = document.getElementById("jarvis");
+  const estado = document.getElementById("estado");
+  const botao = document.getElementById("iniciar");
+
+  function dizer(texto) {
+    // O quadro é same-origin, então dá para chamar direto.
+    try {
+      quadro.contentWindow.__jarvisDizer(texto);
+      return true;
+    } catch (e) {
+      estado.textContent = "sem acesso: " + e.message.slice(0, 40);
+      return false;
+    }
+  }
+
+  function rodar() {
+    botao.disabled = true;
+    let espera = 0;
+    ROTEIRO.forEach(([frase, atraso]) => {
+      window.setTimeout(() => {
+        estado.textContent = "fala: " + frase;
+        dizer(frase);
+      }, espera);
+      espera += atraso;
+    });
+    window.setTimeout(() => {
+      estado.textContent = "roteiro concluído";
+      botao.disabled = false;
+    }, espera);
+  }
+
+  botao.addEventListener("click", rodar);
+</script>
+</body>
+</html>
