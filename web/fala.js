@@ -124,31 +124,13 @@
     if (detail !== undefined) caption.textContent = detail;
   }
 
-  // ---------- Anel em volta do orb ----------
-  // A fala dele vira texto girando ao redor da esfera. O círculo comporta
-  // ~86 caracteres a 13px; acima disso o texto se sobrepõe na volta. Então
-  // cortamos e, se sobrar espaço, repetimos o trecho para fechar o anel —
-  // um arco pela metade parece defeito.
-  const RING_MAX = 84;
-  const RING_VOLTA = 84;
-
-  function paintRing(text, falando) {
+  // ---------- Soundbar em volta do orb ----------
+  // O dono pediu o medidor de voz do JARVIS: as barras em volta da esfera
+  // dançando enquanto ele fala. Texto girando foi tentado antes e ele recusou
+  // ("eu só queria o soundbar"). A fala continua na legenda abaixo.
+  function paintRing(_text, falando) {
     const stage = document.getElementById("orbStage");
-    const alvo = document.querySelector("#orbRingText textPath");
-    if (!stage || !alvo) return;
-    const limpo = String(text || "").replace(/\s+/g, " ").trim();
-    let trecho = limpo.length > RING_MAX
-      ? `${limpo.slice(0, RING_MAX - 1).replace(/[\s,;:.]+$/, "")}…`
-      : limpo;
-    if (trecho) {
-      // Fecha a volta repetindo o texto com um separador, sem cortar palavra.
-      const unidade = `${trecho}  ·  `;
-      let volta = unidade;
-      while (volta.length < RING_VOLTA) volta += unidade;
-      trecho = volta;
-    }
-    alvo.textContent = trecho;
-    stage.classList.toggle("has-ring", Boolean(limpo));
+    if (!stage) return;
     stage.classList.toggle("is-speaking", Boolean(falando));
   }
 

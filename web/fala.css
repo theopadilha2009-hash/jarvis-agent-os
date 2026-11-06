@@ -232,48 +232,100 @@ html.idle-orb.needs-login #loginToggle {
   display: none !important;
 }
 
-/* O anel de fala em volta do orbe. O HTML e o JS já existiam, mas sem CSS o
-   anel nunca apareceu — nem no modo normal, nem no minimizado. */
+/* O texto girando em volta do orbe saiu: o dono não queria letra, queria o
+   soundbar — as ondas de som pulsando em volta da esfera. */
 .orb-stage {
   position: relative;
   display: grid;
   place-items: center;
   -webkit-app-region: no-drag;
 }
-.orb-ring {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity .35s ease;
-  overflow: visible;
-}
-/* O anel só ocupa o palco; o orbe cresce por cima sem empurrar nada. */
 .orb-stage > #orb {
   position: relative;
   z-index: 1;
 }
-.orb-ring-text {
-  fill: rgba(var(--glow), .92);
-  font-family: var(--font, ui-sans-serif, system-ui);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: .045em;
-  text-transform: none;
+.orb-ring { display: none; }
+
+/* Waveform: as barras de identidade sonora. Crescem do centro para cima e
+   para baixo, mais altas no meio e sumindo nas pontas — a assinatura de audio
+   que o dono mostrou. Em repouso e uma linha fina; quando ele fala, pulsa. */
+.soundbar {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  pointer-events: none;
+  opacity: .9;
 }
-/* O texto corre pelo arco inteiro e, na metade de baixo, fica de cabeça para
-   baixo. Ancorado a 25% do path (o ponto mais alto) com metade da volta, ele
-   ocupa só o arco de cima e a leitura fica sempre na horizontal certa. */
-.orb-stage .orb-ring textPath {
-  startOffset: -25%;
+.soundbar b {
+  display: block;
+  width: 4px;
+  height: 100%;
+  max-height: 96px;
+  border-radius: 999px;
+  background: linear-gradient(180deg,
+    rgba(232, 121, 249, .95),
+    rgba(var(--glow), .95),
+    rgba(59, 130, 246, .95));
+  box-shadow: 0 0 10px rgba(var(--glow), .55);
+  transform: scaleY(var(--h, .12));
+  transition: transform .18s ease, opacity .18s ease;
 }
-.orb-stage.has-ring .orb-ring { opacity: 1; }
-.orb-stage.is-speaking .orb-ring-text {
-  fill: rgba(var(--glow), 1);
-  filter: drop-shadow(0 0 6px rgba(var(--glow), .55));
+/* Perfil de repouso: alto no meio, quase nada nas pontas. */
+.soundbar b:nth-child(1)  { --h: .10; }
+.soundbar b:nth-child(2)  { --h: .18; }
+.soundbar b:nth-child(3)  { --h: .28; }
+.soundbar b:nth-child(4)  { --h: .44; }
+.soundbar b:nth-child(5)  { --h: .62; }
+.soundbar b:nth-child(6)  { --h: .82; }
+.soundbar b:nth-child(7)  { --h: 1.00; }
+.soundbar b:nth-child(8)  { --h: .82; }
+.soundbar b:nth-child(9)  { --h: .82; }
+.soundbar b:nth-child(10) { --h: 1.00; }
+.soundbar b:nth-child(11) { --h: .82; }
+.soundbar b:nth-child(12) { --h: .62; }
+.soundbar b:nth-child(13) { --h: .44; }
+.soundbar b:nth-child(14) { --h: .28; }
+.soundbar b:nth-child(15) { --h: .18; }
+.soundbar b:nth-child(16) { --h: .10; }
+
+/* Falando: cada barra danca no seu tempo. Duracoes desiguais tiram o efeito
+   de metronomo — 16 barras no mesmo compasso parece pisca-pisca. */
+.orb-stage.is-speaking .soundbar b {
+  animation: ondaSom var(--dur, 780ms) ease-in-out infinite alternate;
 }
+.orb-stage.is-speaking .soundbar b:nth-child(odd)  { --dur: 620ms; }
+.orb-stage.is-speaking .soundbar b:nth-child(3n)   { --dur: 840ms; }
+.orb-stage.is-speaking .soundbar b:nth-child(4n+1) { --dur: 520ms; }
+.orb-stage.is-speaking .soundbar b:nth-child(5n+2) { --dur: 980ms; }
+
+@keyframes ondaSom {
+  from { transform: scaleY(.18); }
+  to   { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb-stage.is-speaking .soundbar b { animation: none; }
+}
+
+/* Modo minimizado: a janela e transparente, so o orbe e as ondas. O orbe
+   encolhe para 58% do palco para o waveform ter para onde aparecer embaixo,
+   como assinatura sonora — nao em volta nem atras. */
+html.idle-orb .orb-stage > #orb {
+  width: 58%;
+  height: 58%;
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+}
+html.idle-orb .soundbar {
+  inset: auto 8% 4%;
+  height: 52px;
+  opacity: .9;
+}
+html.idle-orb .soundbar b { max-height: 46px; width: 4px; }
 /* Escala do palco acompanha o orbe em cada modo. */
 .orb-stage { width: 340px; height: 340px; }
 html.idle-orb .orb-stage {
