@@ -128,7 +128,13 @@ class BridgeSwiftTest(unittest.TestCase):
         self.assertFalse(faltando, f"handler usado no JS e não registrado no Swift: {faltando}")
 
     def test_js_envia_json_com_url_e_tela(self):
-        self.assertIn('JSON.stringify({ url: data.open_url, tela: data.open_display })', self.FALA)
+        """O pedido vai com a tela resolvida, não só a que veio no payload.
+
+        Projeto do GitHub não pede tela na fala, mas abre na terceira tela do
+        arranjo do dono — por isso o JS resolve o destino antes de mandar.
+        """
+        self.assertIn("JSON.stringify({ url: data.open_url, tela })", self.FALA)
+        self.assertIn('const tela = data.open_display ||', self.FALA)
 
     def test_swift_roda_telas_py_sem_shell(self):
         """argv direto: nada de interpolar a URL numa linha de shell."""
