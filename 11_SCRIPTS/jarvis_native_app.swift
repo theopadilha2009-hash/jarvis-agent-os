@@ -2610,8 +2610,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         return NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
     }
 
+    /// Tela onde o JARVIS mora: a segunda do arranjo do dono.
+    ///
+    /// Ele montou três telas — Spotify na primeira, a web do JARVIS na
+    /// segunda, GitHub na terceira. A janela nasce na segunda e não fica
+    /// pulando para a principal a cada abertura.
+    private func telaDoJarvis() -> NSScreen? {
+        let telas = NSScreen.screens
+        guard telas.count > 1 else { return NSScreen.main }
+        // Ordena por posição horizontal: a segunda da esquerda para a direita.
+        let ordenadas = telas.sorted { $0.frame.minX < $1.frame.minX }
+        return ordenadas[1]
+    }
+
     private func frameKeepingPlace(_ size: NSSize) -> NSRect {
-        let screen = activeScreenFrame()
+        let screen = telaDoJarvis()?.visibleFrame ?? activeScreenFrame()
         var origin: NSPoint
         if let window {
             let current = window.frame
