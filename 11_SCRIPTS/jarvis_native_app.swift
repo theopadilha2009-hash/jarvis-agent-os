@@ -12,9 +12,23 @@ private let bundleID = "ai.theopadilha.jarvis.cockpit"
 private let fallbackURL = "https://jarvis-theo.vercel.app/fala?app=1"
 
 final class PCMConverter {
+    private var conversor: AVAudioConverter?
+
     func convert(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
-        guard buffer.format != format else { return buffer }
-        guard let converter = AVAudioConverter(from: buffer.format, to: format) else { return nil }
+        // Comparar valores, não objetos: dois AVAudioFormat diferentes podem
+        // representar o mesmo formato. Com `!=` entre objetos o conversor
+        // rodava à toa entre formatos idênticos e devolvia silêncio.
+        //
+        // O interleaving entra na conta: o AVCapture entrega intercalado e o
+        // SFSpeech só aceita plano. Só a taxa igual não basta — o buffer
+        // passava direto e o reconhecedor respondia "No speech detected".
+        if buffer.format.sampleRate == format.sampleRate,
+           buffer.format.isInterleaved == format.isInterleaved,
+           buffer.format.channelCount == format.channelCount {
+            return buffer
+        }
+        if conversor == nil { conversor = AVAudioConverter(from: buffer.format, to: format) }
+        guard let converter = conversor else { return nil }
         let ratio = format.sampleRate / buffer.format.sampleRate
         let frames = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up) + 64)
         guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: max(frames, 1)) else { return nil }
@@ -58,20 +72,47 @@ final class CapturaDelegate: NSObject, AVCaptureAudioDataOutputSampleBufferDeleg
               let formato = CMSampleBufferGetFormatDescription(sampleBuffer),
               let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formato)
         else { return }
+        // O AVCapture entrega PCM de 16 bits por padrão: dividir os bytes por
+        // MemoryLayout<Float>.size dava metade das amostras e o
+        // floatChannelData vinha nulo — o áudio chegava e sumia.
         let bytes = CMBlockBufferGetDataLength(bloco)
-        guard bytes > 0,
-              let avFormato = AVAudioFormat(streamDescription: asbd),
+        // Ponteiro de onde saem as amostras: o CMBlockBuffer pode não ser
+        // contíguo, então pedir o ponteiro real em vez de copiar às cegas. O
+        // CMBlockBufferCopyDataBytes devolvia noErr e deixava o buffer todo
+        // zerado — o reconhecedor ficava surdo sem um único erro no log.
+        var tamanhoTotal = 0
+        var ponteiro: UnsafeMutablePointer<Int8>?
+        guard CMBlockBufferGetDataPointer(
+            bloco, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &tamanhoTotal, dataPointerOut: &ponteiro
+        ) == noErr, let base = ponteiro, tamanhoTotal >= bytes else { return }
+        guard bytes > 0, let avFormato = AVAudioFormat(streamDescription: asbd) else { return }
+        let porAmostra = max(1, Int(asbd.pointee.mBitsPerChannel) / 8)
+        let canais = max(1, Int(asbd.pointee.mChannelsPerFrame))
+        let frames = bytes / (porAmostra * canais)
+        guard frames > 0,
               let buffer = AVAudioPCMBuffer(
                   pcmFormat: avFormato,
-                  frameCapacity: AVAudioFrameCount(bytes / MemoryLayout<Float>.size)
-              )
+                  frameCapacity: AVAudioFrameCount(frames)
+              ),
+              let destinoCru = buffer.mutableAudioBufferList.pointee.mBuffers.mData
         else { return }
         buffer.frameLength = buffer.frameCapacity
-        guard let destino = buffer.floatChannelData?[0] else { return }
-        let copiou = CMBlockBufferCopyDataBytes(
-            bloco, atOffset: 0, dataLength: bytes, destination: destino
-        )
-        guard copiou == noErr else { return }
+        memcpy(destinoCru, base, bytes)
+        // O AVCapture entrega Float32 intercalado; o resto do app (nível,
+        // silêncio, analyzer) trabalha com float desintercalado. O
+        // deinterleave acontece aqui, uma vez.
+        guard let intercalado = buffer.floatChannelData?[0] else { return }
+        if canais > 1 {
+            guard let saida = AVAudioPCMBuffer(pcmFormat: avFormato, frameCapacity: buffer.frameLength),
+                  let planos = saida.floatChannelData else { return }
+            saida.frameLength = buffer.frameLength
+            let n = Int(buffer.frameLength)
+            for c in 0..<min(canais, Int(avFormato.channelCount)) {
+                for i in 0..<n { planos[c][i] = intercalado[i * canais + c] }
+            }
+            aoChegar(saida)
+            return
+        }
         aoChegar(buffer)
     }
 }
@@ -294,6 +335,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             } else {
                 speakNative(body)
             }
+        } else if message.name == "jarvisOpen" {
+            // O `window.open` do WKWebView devolve null porque a janela nova
+            // não é criada: o JS anunciava "Popup bloqueado" no meio da tela
+            // em vez de abrir o site. Aqui o link vai direto pro navegador.
+            if let url = URL(string: body) { openExternal(url) }
         } else if message.name == "jarvisListen" {
             if body == "start" {
                 startListen()
@@ -1075,32 +1121,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         if !disponivel {
             logListen("microfone indisponivel — sem aparelho ou sem permissao")
         }
-        if disponivel, let formatoMic, let aparelho = AVCaptureDevice.default(for: .audio) {
-            let capturado = await MainActor.run { [weak self] () -> Bool in
+        // AVCapture + SFSpeech, não pelo analyzer.
+        //
+        // O AsyncStream entre a captura e o analyzer era o próprio problema:
+        // medido, 16.800 buffers chegavam sem o `yield` e exatamente 1 com ele
+        // — o yield bloqueia a fila de entrega do AVCapture e a captura morre
+        // no primeiro buffer. O SFSpeech aceita buffer direto e não tem essa
+        // fila no caminho, então a captura que já funciona vira transcrição.
+        if disponivel, let aparelho = AVCaptureDevice.default(for: .audio) {
+            let comecou = await MainActor.run { [weak self] () -> Bool in
                 guard let self else { return false }
-                let converter = PCMConverter()
                 self.hadVoiceInCycle = false
                 self.silenceStartedAt = 0
-                let ok = self.iniciarCapturaAv(converter: converter, para: analyzerFormat) { buffer in
-                    continuation.yield(AnalyzerInput(buffer: buffer))
-                }
+                let ok = self.iniciarReconhecimentoAv(aparelho: aparelho)
                 if ok {
                     self.tapInstalled = true
-                    self.logListen("capturando por AVCapture (\(aparelho.localizedName))")
+                    self.logListen("reconhecendo por AVCapture (\(aparelho.localizedName))")
                     self.tellJS("listening")
                     self.escutando = true
+                    self.useModern = false
                 }
                 return ok
             }
-            if capturado {
-                do {
-                    try await analyzer.start(inputSequence: stream)
-                } catch {
-                    logListen("analyzer \(error)")
-                    escutando = false
-                }
-                return
-            }
+            if comecou { return }
             logListen("AVCapture falhou — caindo no engine")
         }
         guard disponivel else {
@@ -1286,6 +1329,224 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         capturaSessao = sessao
         delegadoCaptura = delegado
         return true
+    }
+
+    /// Abre o microfone pelo AVCapture e entrega o áudio ao SFSpeech.
+    ///
+    /// É o caminho que funciona neste Mac: o engine pendura no HAL e o
+    /// analyzer trava na fila de entrega do AVCapture. O SFSpeech recebe
+    /// buffer direto, sem stream no meio — o mesmo formato que o analyzer
+    /// pediria, só que sem o gargalo.
+    private func iniciarReconhecimentoAv(aparelho: AVCaptureDevice) -> Bool {
+        guard let recognizer else {
+            logListen("sem recognizer")
+            return false
+        }
+        guard recognizer.isAvailable else {
+            logListen("recognizer indisponivel")
+            tellJS("waiting")
+            scheduleRetry()
+            return false
+        }
+        let pedido = SFSpeechAudioBufferRecognitionRequest()
+        pedido.shouldReportPartialResults = true
+        pedido.taskHint = .dictation
+        if #available(macOS 13.0, *) {
+            // Rede de segurança: sem on-device o reconhecedor precisa de rede.
+            pedido.requiresOnDeviceRecognition = false
+            pedido.contextualStrings = ["Jarvis", "JARVIS", "agenda", "SiteHunter"]
+        }
+        // Só o analyzer pedia autorização de fala; por este caminho o app
+        // ficava com o microfone aberto e o reconhecedor sempre em recusa,
+        // sem um erro que dissesse isso.
+        logListen("autorizacao de fala=\(SFSpeechRecognizer.authorizationStatus().rawValue)")
+        if SFSpeechRecognizer.authorizationStatus() != .authorized {
+            SFSpeechRecognizer.requestAuthorization { [weak self] status in
+                DispatchQueue.main.async {
+                    self?.logListen("speech auth \(status.rawValue)")
+                    if status == .authorized {
+                        self?.escutando = false
+                        self?.fecharCapturaAv()
+                        self?.startListen()
+                    } else {
+                        self?.tellJS("denied")
+                    }
+                }
+            }
+            return false
+        }
+        request = pedido
+        let converter = PCMConverter()
+        let sessao = AVCaptureSession()
+        sessao.beginConfiguration()
+        guard let entrada = try? AVCaptureDeviceInput(device: aparelho),
+              sessao.canAddInput(entrada) else {
+            sessao.commitConfiguration()
+            logListen("AVCapture sem entrada")
+            return false
+        }
+        sessao.addInput(entrada)
+        let saida = AVCaptureAudioDataOutput()
+        // Sem forçar Float32 o AVCapture entrega Int16 e o floatChannelData
+        // vem nulo: o áudio chega e some sem erro nenhum.
+        saida.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsNonInterleaved: false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVSampleRateKey: 16000,
+            AVNumberOfChannelsKey: 1,
+        ]
+        let fila = DispatchQueue(label: "jarvis.captura.reconhecimento", qos: .userInitiated)
+        var conta = 0
+        let delegado = CapturaDelegate { [weak self] buffer in
+            guard let self, !self.paused else { return }
+            conta += 1
+            if conta <= 2 || conta % 200 == 0 {
+                self.logListen("REC #\(conta) frames=\(buffer.frameLength) rms=\(self.bufferRMS(buffer))")
+            }
+            self.observeSilence(buffer)
+            self.emitLevel(buffer)
+            self.entregarAoReconhecedor(buffer, pedido: pedido, converter: converter)
+        }
+        saida.setSampleBufferDelegate(delegado, queue: fila)
+        guard sessao.canAddOutput(saida) else {
+            sessao.commitConfiguration()
+            logListen("AVCapture sem saida")
+            return false
+        }
+        sessao.addOutput(saida)
+        sessao.commitConfiguration()
+        sessao.startRunning()
+        guard sessao.isRunning else {
+            logListen("AVCapture nao iniciou")
+            return false
+        }
+        capturaSessao = sessao
+        delegadoCaptura = delegado
+        let task = recognizer.recognitionTask(with: pedido) { [weak self] result, error in
+            guard let self else { return }
+            if let error {
+                DispatchQueue.main.async { self.logListen("task \(error.localizedDescription)") }
+            }
+            if let texto = result?.bestTranscription.formattedString, !texto.isEmpty {
+                let final = result?.isFinal == true
+                DispatchQueue.main.async { self.deliverHeard(texto, final: final) }
+            }
+            if error != nil || result?.isFinal == true {
+                // "No speech detected" chega em menos de 1s quando o
+                // reconhecedor não recebeu áudio utilizável. Reiniciar na
+                // hora virava um laço de 5 ciclos por segundo, cada um
+                // derrubando a captura antes de qualquer fala entrar.
+                let semFala = (error as NSError?)?.code == 1110
+                let espera: TimeInterval = semFala ? 1.5 : 0.2
+                DispatchQueue.main.asyncAfter(deadline: .now() + espera) {
+                    guard self.wantListen, self.escutando else { return }
+                    self.escutando = false
+                    self.fecharCapturaAv()
+                    self.startListen()
+                }
+            }
+        }
+        self.task = task
+        logListen("reconhecimento AVCapture ativo")
+        return true
+    }
+
+    /// Formato que o SFSpeech espera: PCM float 16 kHz mono.
+    ///
+    /// Precisa ser exatamente o padrão do Core Audio — Float32, plano, 16 kHz
+    /// mono. Um AVAudioFormat montado só com commonFormat/rate/channels sai
+    /// com flag de assinatura (0x9) e não bate com o formato canônico (0x29):
+    /// o conversor devolvia o buffer original e o reconhecedor não entendia.
+    private static let formatoReconhecedor: AVAudioFormat? = {
+        var asbd = AudioStreamBasicDescription(
+            mSampleRate: 16000,
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved,
+            mBytesPerPacket: 4,
+            mFramesPerPacket: 1,
+            mBytesPerFrame: 4,
+            mChannelsPerFrame: 1,
+            mBitsPerChannel: 32,
+            mReserved: 0
+        )
+        return AVAudioFormat(streamDescription: &asbd)
+    }()
+
+    private func deintercalar(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard let alvo = Self.formatoReconhecedor else { return nil }
+        let n = Int(buffer.frameLength)
+        guard n > 0, let saida = AVAudioPCMBuffer(pcmFormat: alvo, frameCapacity: buffer.frameCapacity) else { return nil }
+        saida.frameLength = buffer.frameLength
+        guard let destino = saida.floatChannelData?[0] else { return nil }
+        if buffer.format.isInterleaved {
+            guard let cru = buffer.floatChannelData?[0] else { return nil }
+            let canais = max(1, Int(buffer.format.channelCount))
+            for i in 0..<n { destino[i] = cru[i * canais] }
+        } else {
+            guard let plano = buffer.floatChannelData?[0] else { return nil }
+            for i in 0..<n { destino[i] = plano[i] }
+        }
+        return saida
+    }
+
+    /// Diagnóstico: o SFSpeech recusa tudo com "No speech detected" mesmo com
+    /// fala clara no buffer. Grava o que está sendo entregue para medir se o
+    /// problema é o conteúdo ou o formato.
+    private static let wavDiagnostico = URL(fileURLWithPath: "/tmp/jarvis-reconhecedor.wav")
+    private static var diagnosticoPronto = false
+    private var arquivoDiagnostico: AVAudioFile?
+    private var gravados = 0
+    private func gravarDiagnostico(_ buffer: AVAudioPCMBuffer) {
+        guard !Self.diagnosticoPronto else { return }
+        // O arquivo fica aberto: recriar a cada buffer truncava o WAV e o
+        // diagnóstico saía com 10ms em vez dos 5s entregues.
+        if arquivoDiagnostico == nil {
+            arquivoDiagnostico = try? AVAudioFile(
+                forWriting: Self.wavDiagnostico,
+                settings: buffer.format.settings,
+                commonFormat: buffer.format.commonFormat,
+                interleaved: buffer.format.isInterleaved
+            )
+        }
+        guard let arquivo = arquivoDiagnostico else { return }
+        try? arquivo.write(from: buffer)
+        gravados += 1
+        if gravados >= 500 {
+            Self.diagnosticoPronto = true
+            logListen("wav de diagnostico gravado: \(Self.wavDiagnostico.path) \(buffer.format.sampleRate)Hz \(buffer.format.channelCount)ch intercalado=\(buffer.format.isInterleaved)")
+        }
+    }
+
+    private func entregarAoReconhecedor(
+        _ buffer: AVAudioPCMBuffer,
+        pedido: SFSpeechAudioBufferRecognitionRequest,
+        converter: PCMConverter
+    ) {
+        guard buffer.frameLength > 0 else { return }
+        let pronto = Self.formatoReconhecedor.flatMap { converter.convert(buffer, to: $0) }
+            ?? deintercalar(buffer)
+            ?? buffer
+        envios += 1
+        if envios <= 3 || envios % 300 == 0 {
+            logListen("ENVIO #\(envios) frames=\(pronto.frameLength) sr=\(pronto.format.sampleRate) ch=\(pronto.format.channelCount) int=\(pronto.format.isInterleaved) rms=\(bufferRMS(pronto))")
+        }
+        gravarDiagnostico(pronto)
+        pedido.append(pronto)
+    }
+
+    private func fecharCapturaAv() {
+        if let sessao = capturaSessao {
+            if sessao.isRunning { sessao.stopRunning() }
+            capturaSessao = nil
+        }
+        delegadoCaptura = nil
+        request?.endAudio()
+        request = nil
+        task?.cancel()
+        task = nil
     }
 
     /// Aponta a saída do engine para a placa de som do Mac quando o dispositivo
@@ -1488,10 +1749,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
         lastPartial = ""
         lastWasFinal = false
-        task?.cancel()
-        task = nil
-        request?.endAudio()
-        request = nil
+        // A captura por AVCapture é dona da sessão: fechar aqui é o que evita
+        // duas sessões no mesmo microfone quando o ciclo reinicia.
+        fecharCapturaAv()
         if tapInstalled {
             engine.inputNode.removeTap(onBus: 0)
             tapInstalled = false
@@ -1577,6 +1837,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private var lastLevelAt: TimeInterval = 0
+    /// Quantos buffers já foram entregues ao reconhecedor neste app.
+    private var envios = 0
 
     // Padrão Handy: auto-stop por silêncio. Depois de voz detectada (RMS acima
     // do piso), 1.8s contínuos abaixo do piso fecham a captura corrente — o
@@ -1991,6 +2253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.mediaTypesRequiringUserActionForPlayback = []
         config.websiteDataStore = .default()
         config.userContentController.add(self, name: "jarvisSpeak")
+        config.userContentController.add(self, name: "jarvisOpen")
         config.userContentController.add(self, name: "jarvisListen")
         config.userContentController.add(self, name: "jarvisRestart")
         config.userContentController.add(self, name: "jarvisWindow")
