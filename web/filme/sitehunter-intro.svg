@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1200" width="800" height="1200">
+  <defs>
+    <radialGradient id="nucleo" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#f6fbff" stop-opacity=".95"/>
+      <stop offset="28%" stop-color="#7fdcff" stop-opacity=".8"/>
+      <stop offset="62%" stop-color="#2b8cff" stop-opacity=".45"/>
+      <stop offset="100%" stop-color="#0a1030" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="anel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a8ecff"/>
+      <stop offset="45%" stop-color="#2f9bff"/>
+      <stop offset="100%" stop-color="#7b3bff"/>
+    </linearGradient>
+    <linearGradient id="estria" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#c9f2ff" stop-opacity=".85"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="brilho" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="suave" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3.5"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#suave)" opacity=".55">
+    <ellipse cx="400" cy="500" rx="300" ry="300" fill="#1b6dff" opacity=".22"/>
+    <ellipse cx="400" cy="560" rx="190" ry="190" fill="#7de3ff" opacity=".25"/>
+  </g>
+
+  <g fill="none" stroke="url(#anel)" stroke-linecap="round" filter="url(#brilho)">
+    <circle cx="400" cy="520" r="250" stroke-width="1.4" opacity=".55"/>
+    <circle cx="400" cy="520" r="213" stroke-width="3" opacity=".8" stroke-dasharray="18 26"/>
+    <circle cx="400" cy="520" r="176" stroke-width="1.2" opacity=".45" stroke-dasharray="4 12"/>
+    <ellipse cx="400" cy="520" rx="268" ry="86" stroke-width="2" opacity=".7"/>
+    <ellipse cx="400" cy="520" rx="120" ry="250" stroke-width="1.6" opacity=".45"/>
+  </g>
+
+  <g stroke="url(#anel)" stroke-width="2" fill="none" opacity=".9" filter="url(#brilho)">
+    <path d="M400 270 L400 300 M400 740 L400 770 M150 520 L180 520 M620 520 L650 520"/>
+    <path d="M232 352 L254 374 M546 666 L568 688 M232 688 L254 666 M546 374 L568 352"/>
+  </g>
+
+  <circle cx="400" cy="520" r="150" fill="url(#nucleo)"/>
+
+  <g transform="translate(400 520)">
+    <path d="M-74 -48 L0 -92 L74 -48 L74 48 L0 92 L-74 48 Z" fill="none" stroke="#eaf8ff" stroke-width="4.5" opacity=".92"/>
+    <circle r="44" fill="none" stroke="#eaf8ff" stroke-width="3.5"/>
+    <path d="M-22 -22 L22 -22 M-30 0 L30 0 M-22 22 L22 22" stroke="#eaf8ff" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M-44 0 A44 44 0 0 1 44 0" fill="none" stroke="#7de3ff" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <g font-family="Helvetica Neue, Arial, sans-serif" text-anchor="middle" fill="#eaf8ff">
+    <text x="400" y="880" font-size="86" font-weight="700" letter-spacing="14">SITEHUNTER</text>
+    <text x="400" y="930" font-size="26" letter-spacing="8" fill="#7de3ff" opacity=".9">CAÇADOR DE OPORTUNIDADES</text>
+  </g>
+
+  <rect x="352" y="392" width="96" height="256" fill="url(#estria)" opacity=".35"/>
+</svg>

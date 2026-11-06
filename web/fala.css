@@ -198,11 +198,18 @@ html.idle-orb .orb-shell {
 }
 /* No modo bolinha só o orbe aparece — mas o painel da agenda e a projeção
    do site são a exceção: eles são o conteúdo que o dono pediu para ver. */
-html.idle-orb:not(.has-reply) .orb-shell > :not(#orb):not(.halo):not(.hud):not(.hud-site) {
+html.idle-orb:not(.has-reply) .orb-shell > :not(#orb):not(.halo):not(.hud):not(.hud-site):not(#statusLine):not(#caption):not(#heardLine) {
   display: none !important;
 }
-html.idle-orb.has-reply .orb-shell > :not(#orb):not(.halo):not(#lastAnswer):not(.hud):not(.hud-site) {
+html.idle-orb.has-reply .orb-shell > :not(#orb):not(.halo):not(#lastAnswer):not(.hud):not(.hud-site):not(#statusLine):not(#caption):not(#heardLine) {
   display: none !important;
+}
+/* O modo Homem de Ferro é o quadro do vídeo: nome e fala do JARVIS ficam
+   visíveis mesmo parado, senão a tela cheia mostra um orbe mudo. */
+html.modo-ferro .orb-shell > #statusLine,
+html.modo-ferro .orb-shell > #caption,
+html.modo-ferro .orb-shell > #heardLine {
+  display: block !important;
 }
 html.idle-orb .viz { display: none !important; }
 html.idle-orb,
@@ -1337,4 +1344,145 @@ html.idle-orb .theme-toggle { display: none; }
   width: 100%;
   border: 0;
   background: #0b0912;
+}
+/* Prévia do próximo vídeo: a animação do SiteHunter sai do centro da tela e
+   o print do produto entra atrás. O pedido do dono foi "aparecer quase em
+   tela cheia, saindo dele" — por isso a escala grande e o fundo escuro. */
+.hud-site-filme {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(120% 80% at 50% 40%, rgba(var(--glow), .1), transparent 62%), #07060c;
+  overflow: hidden;
+}
+.hud-site-filme[hidden] { display: none; }
+.hud-site-print {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  filter: blur(14px) brightness(.7);
+  transform: scale(.94);
+}
+.hud-site-intro {
+  position: relative;
+  width: min(70%, 900px);
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 60px rgba(var(--glow), .5));
+  opacity: 0;
+  transform: scale(.2);
+}
+/* O print entra primeiro, desfocado; a animação cresce por cima e depois
+   se dissipa, deixando o print nítido. */
+.hud-site.reproduzindo .hud-site-print {
+  animation: printEntra .9s cubic-bezier(.16, 1, .3, 1) .25s forwards;
+}
+.hud-site.reproduzindo .hud-site-intro {
+  animation: introSalta 3.6s cubic-bezier(.16, 1, .3, 1) forwards;
+}
+@keyframes printEntra {
+  0% { opacity: 0; filter: blur(14px) brightness(.7); transform: scale(.94); }
+  100% { opacity: 1; filter: blur(0) brightness(1); transform: scale(1); }
+}
+@keyframes introSalta {
+  0% { opacity: 0; transform: scale(.2) rotate(-6deg); }
+  18% { opacity: 1; transform: scale(1.04) rotate(0deg); }
+  30% { transform: scale(1) rotate(0deg); }
+  70% { opacity: 1; transform: scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: scale(1.35) rotate(2deg); }
+}
+
+/* ---------- Modo filme (vídeo do JARVIS) ----------
+   Na segunda tela o JARVIS é o palco: sem borda de janela, sem etiqueta de
+   conta e com a mesma cara do app. `modo-ferro` é o quadro do modo Homem de
+   Ferro, que ocupa a tela inteira enquanto o roteiro roda. */
+html.modo-filme,
+html.modo-filme body {
+  border-radius: 0;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(var(--glow), .16), transparent 60%), #08060e;
+}
+html.modo-filme body {
+  box-shadow: none;
+}
+html.modo-filme .mac-traffic-lights,
+html.modo-filme .theme-toggle {
+  display: none;
+}
+html.modo-filme .orb-shell {
+  padding: 26px 32px 34px;
+}
+html.modo-ferro {
+  --glow: 120, 220, 255;
+}
+html.modo-ferro .orb-shell {
+  justify-content: center;
+  gap: 26px;
+}
+html.modo-ferro #orb {
+  filter: drop-shadow(0 0 46px rgba(var(--glow), .55));
+}
+html.modo-ferro .soundbar {
+  opacity: 1;
+}
+html.modo-ferro #statusLine {
+  font-size: 20px;
+  letter-spacing: .34em;
+  color: rgba(214, 246, 255, .95);
+  text-shadow: 0 0 26px rgba(var(--glow), .65);
+}
+html.modo-ferro #caption {
+  font-size: 18px;
+  line-height: 1.55;
+  max-width: 22ch;
+  color: rgba(236, 250, 255, .92);
+}
+html.modo-ferro .dock {
+  opacity: .999;
+}
+html.modo-ferro.idle-orb:not(.has-reply) .dock,
+html.modo-ferro.idle-orb:not(.has-reply) #askInput {
+  display: none;
+}
+
+/* No ensaio a janela é grande: o painel acompanha em vez de ficar nos 460px
+   desenhados para o modo bolinha de 268. */
+html.modo-filme .hud {
+  width: min(760px, 92vw);
+  max-height: 86vh;
+  overflow: auto;
+  padding: 22px 24px 18px;
+}
+html.modo-filme .hud-grade {
+  font-size: 15px;
+}
+html.modo-filme .hud-grade button {
+  min-height: 46px;
+}
+/* O app não entra em fullscreen de verdade (é uma janela borderless): o
+   tamanho do quadro do vídeo vem da linha do roteiro, então quem manda no
+   layout aqui é o tamanho da janela, não a tela do Mac. */
+html.modo-ferro .orb-shell,
+html.modo-ferro body {
+  height: 100%;
+  overflow: hidden;
+}
+html.modo-ferro .orb-shell {
+  padding: 18px 22px 20px;
+}
+html.modo-ferro #orb {
+  width: min(150px, 26vh);
+  height: min(150px, 26vh);
+}
+html.modo-ferro #caption {
+  max-width: 46ch;
+  font-size: 15px;
+}
+html.modo-ferro #statusLine {
+  font-size: 14px;
+  letter-spacing: .28em;
 }
