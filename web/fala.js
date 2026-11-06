@@ -1986,6 +1986,11 @@
     const el = hudElementos();
     if (!el || hudAberto) return;
     hudAberto = true;
+    // O painel é conteúdo: a janela precisa sair do modo bolinha para
+    // mostrá-lo, senão ele abre atrás de um orbe de 72px.
+    if (window.webkit?.messageHandlers?.jarvisWindow) {
+      try { window.webkit.messageHandlers.jarvisWindow.postMessage("show"); } catch (e) { /* web */ }
+    }
     el.painel.hidden = false;
     // Um quadro depois de sair do hidden: a transição precisa do estado inicial.
     requestAnimationFrame(() => el.painel.classList.add("aberto"));

@@ -196,10 +196,12 @@ html.idle-orb .orb-shell {
   justify-content: center;
   gap: 0;
 }
-html.idle-orb:not(.has-reply) .orb-shell > :not(#orb):not(.halo) {
+/* No modo bolinha só o orbe aparece — mas o painel da agenda e a projeção
+   do site são a exceção: eles são o conteúdo que o dono pediu para ver. */
+html.idle-orb:not(.has-reply) .orb-shell > :not(#orb):not(.halo):not(.hud):not(.hud-site) {
   display: none !important;
 }
-html.idle-orb.has-reply .orb-shell > :not(#orb):not(.halo):not(#lastAnswer) {
+html.idle-orb.has-reply .orb-shell > :not(#orb):not(.halo):not(#lastAnswer):not(.hud):not(.hud-site) {
   display: none !important;
 }
 html.idle-orb .viz { display: none !important; }
