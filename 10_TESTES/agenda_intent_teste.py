@@ -51,6 +51,10 @@ class AgendaIntentTest(unittest.TestCase):
             "minha agenda",
             "ver minha agenda",
             "quais são meus compromissos",
+            # "calendário" é o mesmo painel: só o Google sai da UI, e só
+            # quando o dono pede isso explicitamente.
+            "abre o calendário",
+            "meu calendário",
         ]:
             with self.subTest(frase=frase):
                 self.assertTrue(casa_agenda(frase, self.padroes), frase)

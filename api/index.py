@@ -2585,6 +2585,11 @@ LOCAL_INTENTS = (
     (re.compile(r"\b(?:espa[çc]o\s+(?:livre|em\s+disco|no\s+disco)|disco\s+cheio|quanto\s+(?:de\s+)?espa[çc]o)\b", re.I), "storage_scan"),
     (re.compile(r"\b(?:mem[oó]ria\s+(?:do|no|livre)\s+(?:mac|computador)|quanto\s+(?:de\s+)?mem[oó]ria|ram\s+(?:do|no)\s+mac)\b", re.I), "system_memory"),
     (re.compile(r"\b(?:o\s+que|quais)\b.{0,40}\b(?:tenho|tem)\b.{0,25}\b(?:hoje|amanh[ãa]|essa\s+semana|esta\s+semana)\b", re.I), "agenda_view"),
+    # "calendário" é o MESMO painel da agenda, não o Google. O dono foi
+    # explícito: a agenda mora na web do JARVIS e só sai de lá se ele pedir
+    # "no Google" — o que ele diz que não vai pedir.
+    (re.compile(r"\b(?:abr(?:a|e|ir)|mostr(?:a|e|ar)|ver|exib(?:a|e|ir))\b.{0,40}\bcalend[aá]rio\b", re.I), "agenda_view"),
+    (re.compile(r"^\s*(?:o\s+)?meu\s+calend[aá]rio\s*[?!.]*\s*$", re.I), "agenda_view"),
     (OPEN_URL_MAC_PATTERN, "open_url"),
     (re.compile(r"\b(tir(?:a|e|ar)|captur(?:a|e|ar)|faz(?:er)?)\b.{0,40}\b(print|screenshot|tela)\b", re.I), "screen_capture"),
     (re.compile(r"\b(abr(?:a|e|ir)|inici(?:a|e|ar)|grav(?:a|e|ar))\b.{0,50}\b(gravador|grava[cç][aã]o|tela)\b", re.I), "screen_record"),
