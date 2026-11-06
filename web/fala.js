@@ -1004,7 +1004,13 @@
       // Agenda: o painel holográfico abre dentro do JARVIS, sobre o orbe.
       // O servidor marca client_action "agenda" quando o pedido é sobre ela.
       if (data.client_action === "agenda" || data.agenda_panel === true) {
+        if (window.__jarvisSonda) {
+          window.__jarvisSonda(`agenda pedida: painel=${Boolean(document.getElementById("hudAgenda"))} aberto=${hudAberto}`);
+        }
         abrirHud();
+        if (window.__jarvisSonda) {
+          window.__jarvisSonda(`depois de abrirHud: aberto=${hudAberto} hidden=${document.getElementById("hudAgenda")?.hidden}`);
+        }
       }
       // Set pessoal pode pedir tema ("muda pro claro"): é do app, não do Mac.
       if (data.client_action === "theme" && data.theme) {
