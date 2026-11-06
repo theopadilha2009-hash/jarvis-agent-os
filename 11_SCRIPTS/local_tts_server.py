@@ -20,6 +20,7 @@ servidor quando a voz paga não está disponível.
 from __future__ import annotations
 
 import argparse
+import array
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
@@ -47,7 +48,15 @@ VOICE_PROFILE = (
 # Pocket: um semitom mais grave. Se o ffmpeg atrasar, devolve o WAV cru.
 POCKET_ADULT = "asetrate={rate}*0.96,aresample={rate},atempo=1.00,highpass=f=85,volume=1.06"
 # Pocket sai em loudness de sussurro (~-28 dB médio); alvo é fala de conversa.
-LOUDNESS_FILTER = "loudnorm=I=-18:TP=-1.5:LRA=7,aresample={rate}"
+# -14 LUFS em vez de -18: medido, a voz ficava só 2,7 dB acima da música — o
+# dono ouvia "a música fica mais alto que a voz". -14 é o nível que as
+# plataformas usam e deixa a fala na frente sem estourar o pico.
+# O compressor antes do normalizador aproxima as sílabas fortes e fracas: é
+# isso que tira a sensação de voz "segurando algo no peito".
+LOUDNESS_FILTER = (
+    "acompressor=threshold=-20dB:ratio=3:attack=12:release=180:makeup=2,"
+    "loudnorm=I=-14:TP=-1.5:LRA=9,aresample={rate}"
+)
 LOUDNESS_TIMEOUT = 6.0
 MAX_TEXT = 2_200
 DEFAULT_ENGINE = "auto"
@@ -386,6 +395,63 @@ def normalize_loudness(audio: bytes) -> bytes:
     if result.returncode != 0 or not result.stdout or result.stdout[:4] != b"RIFF":
         return audio
     return result.stdout
+
+
+def apara_silencio(audio: bytes, cauda_max_ms: int = 90, cabeca_max_ms: int = 40) -> bytes:
+    """Corta o silencio que o Edge deixa no comeco e no fim de cada frase.
+
+    Medido neste Mac: uma frase de 4,6s trazia 825ms de silencio no fim. Cada
+    frase vira um audio separado, entao tres frases somavam ~2,5s de pausa
+    muda — o "pausas demoradas e muito brancas" que o dono relatou.
+
+    So corta o silencio das PONTAS: as pausas de dentro da fala sao ritmo e
+    ficam intactas.
+    """
+    if not isinstance(audio, (bytes, bytearray)) or len(audio) < 1000:
+        return bytes(audio)
+    dados = bytearray(audio)
+    if dados[:4] != b"RIFF":
+        return bytes(dados)
+    i = dados.find(b"data")
+    if i < 0 or i + 8 > len(dados):
+        return bytes(dados)
+    inicio_audio = i + 8
+    corpo = dados[inicio_audio:]
+    if len(corpo) % 2:
+        corpo = corpo[:-1]
+    if len(corpo) < 1000:
+        return bytes(dados)
+    amostras = array.array("h")
+    amostras.frombytes(bytes(corpo))
+    if not amostras:
+        return bytes(dados)
+
+    # Limiar relativo ao proprio audio: -40 dB do pico e silencio.
+    pico = max(abs(v) for v in amostras) or 1
+    limiar = max(180, int(pico * 0.01))
+
+    def mudo(v: int) -> bool:
+        return abs(v) < limiar
+
+    ini = 0
+    while ini < len(amostras) and mudo(amostras[ini]):
+        ini += 1
+    fim = len(amostras) - 1
+    while fim > 0 and mudo(amostras[fim]):
+        fim -= 1
+    if ini >= fim:
+        return bytes(dados)
+
+    # Deixa um respiro minimo para a fala nao comecar e terminar no osso.
+    respiro_ini = max(0, ini - int(0.015 * 24000))
+    respiro_fim = min(len(amostras) - 1, fim + int(0.02 * 24000))
+    corte_ini = respiro_ini * 2
+    corte_fim = (len(amostras) - 1 - respiro_fim) * 2
+    if corte_ini + corte_fim < 4:
+        return bytes(dados)
+    novo_corpo = bytes(corpo[corte_ini:len(corpo) - corte_fim])
+    resultado = bytearray(dados[:inicio_audio]) + bytearray(novo_corpo)
+    return fix_wav_sizes(bytes(resultado))
 
 
 def fix_wav_sizes(audio: bytes) -> bytes:
@@ -739,7 +805,7 @@ def make_handler(args, pocket, piper, sample_rate: int, config: dict):
             # Todo áudio WAV passa por aqui (cache e síntese nova): é o ponto
             # único para corrigir o tamanho que o Pocket deixa como streaming.
             if body[:4] == b"RIFF":
-                body = fix_wav_sizes(body)
+                body = apara_silencio(body)
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))

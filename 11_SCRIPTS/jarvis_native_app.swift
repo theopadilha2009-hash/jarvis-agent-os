@@ -352,10 +352,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             }
         } else if message.name == "jarvisSee" {
             captureScreen { [weak self] payload in
-                self?.webView?.evaluateJavaScript(
-                    "window.__jarvisOnScreen && window.__jarvisOnScreen(\(self?.jsString(payload) ?? "\"empty\""))",
-                    completionHandler: nil
-                )
+                // Vem de fila de fundo: WebKit exige a main.
+                DispatchQueue.main.async {
+                    self?.webView?.evaluateJavaScript(
+                        "window.__jarvisOnScreen && window.__jarvisOnScreen(\(self?.jsString(payload) ?? "\"empty\""))",
+                        completionHandler: nil
+                    )
+                }
             }
         }
     }
@@ -1508,10 +1511,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     }
 
     private func tellJS(_ state: String) {
-        webView?.evaluateJavaScript(
-            "window.__jarvisNativeListen && window.__jarvisNativeListen(\(jsString(state)))",
-            completionHandler: nil
-        )
+        // WKWebView não é thread-safe: chamar de fila de fundo derrubava o app
+        // com EXC_BAD_ACCESS na main, dentro do RemoteLayerTree do WebKit.
+        // Várias chamadas (mic ocupado, frase fechada) vêm de filas próprias.
+        let script = "window.__jarvisNativeListen && window.__jarvisNativeListen(\(jsString(state)))"
+        if Thread.isMainThread {
+            webView?.evaluateJavaScript(script, completionHandler: nil)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.webView?.evaluateJavaScript(script, completionHandler: nil)
+            }
+        }
     }
 
     private func captureScreen(done: @escaping (String) -> Void) {
