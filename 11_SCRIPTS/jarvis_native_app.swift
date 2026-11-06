@@ -513,6 +513,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private func revealWindow(takeFocus: Bool = false) {
         setCompact(false)
         guard let window else { return }
+        // A janela do JARVIS mora na segunda tela. Se ela abriu na principal
+        // (o Mac reabre onde o sistema quiser), traz para o lugar certo antes
+        // de aparecer — senão o vídeo mostra o JARVIS na tela errada.
+        if let alvo = telaDoJarvis()?.visibleFrame,
+           !alvo.contains(NSPoint(x: window.frame.midX, y: window.frame.midY)) {
+            layouting = true
+            window.setFrame(frameKeepingPlace(window.frame.size), display: true, animate: false)
+            layouting = false
+        }
         if takeFocus {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
