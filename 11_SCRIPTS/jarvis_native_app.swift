@@ -673,7 +673,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         let atual = Self.volumeDoSistema()
         guard atual > 0 else { return }
         volumeAntesDaFala = atual
-        let alvo = max(8, min(atual, Int(Double(atual) * 0.25)))
+        // 25% ainda deixava a música na frente da voz no teste do dono. 15%
+        // mantém a trilha audível sem competir com a fala.
+        let alvo = max(5, min(atual, Int(Double(atual) * 0.15)))
         Self.definirVolume(alvo)
     }
 

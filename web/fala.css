@@ -231,6 +231,72 @@ html.idle-orb .halo {
 html.idle-orb.needs-login #loginToggle {
   display: none !important;
 }
+
+/* O anel de fala em volta do orbe. O HTML e o JS já existiam, mas sem CSS o
+   anel nunca apareceu — nem no modo normal, nem no minimizado. */
+.orb-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  -webkit-app-region: no-drag;
+}
+.orb-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .35s ease;
+  overflow: visible;
+}
+/* O anel só ocupa o palco; o orbe cresce por cima sem empurrar nada. */
+.orb-stage > #orb {
+  position: relative;
+  z-index: 1;
+}
+.orb-ring-text {
+  fill: rgba(var(--glow), .92);
+  font-family: var(--font, ui-sans-serif, system-ui);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .045em;
+  text-transform: none;
+}
+/* O texto corre pelo arco inteiro e, na metade de baixo, fica de cabeça para
+   baixo. Ancorado a 25% do path (o ponto mais alto) com metade da volta, ele
+   ocupa só o arco de cima e a leitura fica sempre na horizontal certa. */
+.orb-stage .orb-ring textPath {
+  startOffset: -25%;
+}
+.orb-stage.has-ring .orb-ring { opacity: 1; }
+.orb-stage.is-speaking .orb-ring-text {
+  fill: rgba(var(--glow), 1);
+  filter: drop-shadow(0 0 6px rgba(var(--glow), .55));
+}
+/* Escala do palco acompanha o orbe em cada modo. */
+.orb-stage { width: 340px; height: 340px; }
+html.idle-orb .orb-stage {
+  width: min(100vw, 100vh);
+  height: min(100vw, 100vh);
+}
+html.idle-orb.has-reply .orb-stage {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+}
+html.idle-orb.has-reply .orb-ring-text { font-size: 9px; }
+
+@keyframes girarAnel {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.orb-stage.is-speaking .orb-ring {
+  animation: girarAnel 14s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb-stage.is-speaking .orb-ring { animation: none; }
+}
 html.idle-orb.has-reply,
 html.idle-orb.has-reply body {
   background: #120c1c !important;
