@@ -160,12 +160,29 @@ def sign_app(app: Path) -> None:
     codesign = shutil.which("codesign")
     if not codesign:
         return
-    subprocess.run(
+    result = subprocess.run(
         [codesign, "--force", "--sign", "-", "--deep", str(app)],
         capture_output=True,
         timeout=30,
         check=False,
+        text=True,
     )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "codesign falhou").strip()[-500:]
+        raise RuntimeError(f"assinatura falhou: {detail}")
+    # Assinatura inválida não aparece na instalação: o app só morre no dyld
+    # com "Code Signature Invalid" na primeira abertura. Verificar aqui é o
+    # único ponto em que dá para falhar alto em vez de entregar app quebrado.
+    verify = subprocess.run(
+        [codesign, "--verify", "--deep", "--strict", str(app)],
+        capture_output=True,
+        timeout=30,
+        check=False,
+        text=True,
+    )
+    if verify.returncode != 0:
+        detail = (verify.stderr or verify.stdout or "assinatura inválida").strip()[-500:]
+        raise RuntimeError(f"assinatura inválida depois de assinar: {detail}")
 
 
 _NATIVE_BYTES: bytes | None = None
