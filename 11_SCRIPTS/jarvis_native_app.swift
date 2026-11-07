@@ -1445,6 +1445,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         // sem um erro que dissesse isso.
         logListen("autorizacao de fala=\(SFSpeechRecognizer.authorizationStatus().rawValue)")
         if SFSpeechRecognizer.authorizationStatus() != .authorized {
+            // O macOS só mostra o popup de permissão com o app em primeiro
+            // plano. Pedindo em segundo plano, o pedido ficava pendurado em
+            // silêncio e o reconhecedor nunca era autorizado.
+            NSApp.activate(ignoringOtherApps: true)
             SFSpeechRecognizer.requestAuthorization { [weak self] status in
                 DispatchQueue.main.async {
                     self?.logListen("speech auth \(status.rawValue)")
