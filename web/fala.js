@@ -340,12 +340,36 @@
   // Web: busca o blob da frase 1 e toca; em paralelo pré-busca a próxima
   // (no máximo 1 fetch em voo, como no app) e encadeia playBlob sequencial.
   // Frase com erro é pulada e a fila segue; o unmute fica no .finally de speak.
+  // Frases lengthas ("Bem-vindo ao modo Homem de Ferro, senhor.") esperavam o
+  // áudio inteiro antes de soar: 2 a 3,3s de silêncio medidos no servidor
+  // local. A primeira frase de cada fala vai inteira (é ela que o dono ouve
+  // primeiro); as seguintes são divididas na vírgula para o som começar
+  // enquanto o resto ainda é sintetizado.
+  const DIVIDE_NA_VIRGULA = 80;
+
+  function primeiroPedacoCurto(chunks) {
+    if (chunks.length !== 1) return chunks;
+    const frase = chunks[0];
+    if (frase.length <= DIVIDE_NA_VIRGULA) return chunks;
+    // Só vale a primeira vírgula: dividir em todas picava a frase em pedaços
+    // sem sentido ("às três," / "quatro e cinco da tarde") e cada áudio novo
+    // é uma emenda que se ouve.
+    const corte = frase.search(/,\s/);
+    if (corte < 12) return chunks;
+    const inicio = frase.slice(0, corte + 1).trim();
+    const resto = frase.slice(corte + 1).trim();
+    // O resto precisa continuar sendo fala: um "senhor." de 7 chars não é.
+    return resto.length >= 12 ? [inicio, resto] : chunks;
+  }
+
   function speakChunksQueue(chunks, persona) {
+    chunks = primeiroPedacoCurto(chunks);
     let next = 0;
     const ready = [];
     let fetching = false;
     let waiting = false;
     let finish = null;
+    let semVozLocal = false;
     // Cancelamento: enterQuiet/stopSpeak incrementam o run global e a fila
     // inteira abandona o resto (antes "fica quieto" continuava falando).
     const myRun = speakRunId;
@@ -375,8 +399,13 @@
         pending = Promise.reject(new Error("speakBlob"));
       }
       pending.then(
-        (blob) => { if (blob && !aborted()) ready.push(blob); },
-        () => { /* frase falha: pula */ }
+        (blob) => {
+          // Sem áudio a fila seguia em silêncio e o JARVIS parecia travado:
+          // registro a falha e falo pelo navegador em vez de não falar nada.
+          if (!blob) semVozLocal = true;
+          if (blob && !aborted()) ready.push(blob);
+        },
+        () => { semVozLocal = true; /* frase falha: pula */ }
       ).then(() => {
         fetching = false;
         fetchNext();
@@ -397,6 +426,13 @@
           fetchNext();
           waiting = true;
           return;
+        }
+        // Fila vazia porque a voz local não devolveu áudio: aviso na tela em vez
+        // de deixar o JARVIS mudo sem ninguém entender por quê. Não uso a voz
+        // do navegador de propósito — o /fala é só a voz local do JARVIS.
+        if (semVozLocal && !aborted()) {
+          semVozLocal = false;
+          say("Sem voz.", "O servidor local de voz não respondeu. Abra com debug=1 para ver.");
         }
         finish();
         return;
@@ -1291,28 +1327,29 @@
   // modo virar real, é este bloco que sai — o resto já é o caminho de
   // verdade.
   const QUADRO_FERRO = [
-    "Agora são vinte e duas e trinta.",
-    "Você tem duas coisas esperando por uma decisão.",
+    "O céu está nublado e chuvoso, vinte graus.",
+    "Tenho anotado aqui que você tem três reuniões hoje, às três, quatro e cinco da tarde.",
     "E quatro conversas na semana que vem, senhor.",
   ];
 
   window.__jarvisHomemDeFerro = async () => {
     window.__jarvisModoFilme();
     window.__jarvisSetIdle?.(false);
-    // Tela cheia: o modo é o palco do vídeo inteiro, na segunda tela.
-    // Vale também navegando pela web, onde não há app para maximizar.
     document.documentElement.classList.add("modo-ferro");
-    try { window.webkit?.messageHandlers?.jarvisWindow?.postMessage("fullscreen"); } catch (e) { /* web */ }
-    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    }
+    try { nativeWindow("show"); } catch (e) { /* web */ }
+    // A primeira tela é a do Spotify: a faixa vai pela URI do catálogo.
+    // "spotify:search:" só abria a busca — o app abria e ficava em silêncio,
+    // que foi exatamente o que o dono viu no teste.
     try {
-      nativeWindow("maximize");
-      nativeWindow("show");
+      window.webkit?.messageHandlers?.jarvisOpen?.postMessage("spotify:track:08mG3Y1vljYA6bvDt4Wqkj");
     } catch (e) { /* web */ }
-    // A primeira tela é a do Spotify: abre o app, e a faixa entra por lá.
-    try { window.webkit?.messageHandlers?.jarvisOpen?.postMessage("spotify:search:Back%20In%20Black"); } catch (e) { /* web */ }
-    await speak("Bem-vindo ao modo Homem de Ferro, senhor. Back in Black está no ar.");
+    // Pré-aquece o quadro: a síntese leva ~2s por frase nova e, sem isto, a
+    // segunda frase só começa a ser gerada quando a primeira termina de tocar.
+    for (const parte of QUADRO_FERRO) {
+      window.JarvisLocalVoice?.speakBlob?.(parte, { persona: "jarvis" })?.catch?.(() => {});
+    }
+    await speak("Bem-vindo ao modo Homem de Ferro, senhor.");
+    await speak("Back in Black está no ar.");
     for (const parte of QUADRO_FERRO) await speak(parte);
     await speak("Quer que eu abra a web?");
     return true;
@@ -1366,9 +1403,9 @@
     };
     return [
       { title: "Postar o vídeo do JARVIS", scheduled_for: hora(0, 21, 0), notes: "edição até as 20h" },
-      { title: "Reunião · VAMOO-AI", scheduled_for: hora(5, 10, 0), notes: "com o Ruan" },
-      { title: "Revisão do SiteHunter", scheduled_for: hora(6, 14, 0), notes: "fechar o escopo" },
-      { title: "Call · cliente novo", scheduled_for: hora(7, 9, 30), notes: "nome a confirmar" },
+      { title: "Reunião · VAMOO-AI", scheduled_for: hora(0, 15, 0), notes: "com o Ruan" },
+      { title: "Revisão do SiteHunter", scheduled_for: hora(0, 16, 0), notes: "fechar o escopo" },
+      { title: "Call · cliente novo", scheduled_for: hora(0, 17, 0), notes: "nome a confirmar" },
     ];
   }
 
@@ -1383,27 +1420,46 @@
     abrirHud();
     await speak("Sua agenda, senhor.");
     await speak("Você tem que postar o vídeo do JARVIS hoje mesmo.");
-    await speak("Semana que vem: quatro reuniões marcadas. Quer que eu fale com a empresa e dê um ok na agenda?");
+    // O roteiro do dono: depois de mostrar a agenda ele oferece ajuda de
+    // verdade em vez de encerrar a cena.
+    await speak("E tem três reuniões marcadas pra hoje, às três, quatro e cinco da tarde.");
+    await speak("Quer que eu crie um roteiro pra alguma delas? Posso analisar suas anotações, ou a gente treina.");
     return true;
   };
 
   // Gatilhos do roteiro: valem nas duas pontas. Quando ninguém manda o
   // roteiro (o dono escrevendo na web), a fala também leva à cena — senão só
   // o arquivo gravado funcionaria e o resto continuava falando por cima.
+  // Resposta afirmativa à oferta do JARVIS. Aceita o nome no fim ("sim,
+  // Jarvis") porque é assim que o dono responde quando fala com o app.
+  const RESPOSTA_ABRIR = /^\s*(?:sim|pode|pode abrir|pode ser|manda|manda ver|claro|bora|isso|beleza|vai|vamos)(?:[\s,!.]+(?:jarvis|senhor))?[\s.!]*$/i;
+
   const GATILHOS_FILME = [
     // "abre o fullscreen" é a segunda tela em tela cheia; "abre a web" é o
     // site normal. São coisas diferentes e o dono pediu as duas.
     { teste: /\bfull\s*screen\b|\btela\s+cheia\b/i, cena: "fullscreen" },
     { teste: /\b(?:modo\s+)?homem\s+de\s+ferro\b|\bmodo\s+ferro\b/i, cena: "ferro" },
-    { teste: /^\s*(?:sim|pode|manda|abre|abrir)\s*[.!]?\s*$/i, cena: "web", precisaFerro: true },
-    { teste: /site\s*hunter|\bsite\s+hunter\b|pr[oó]xima?\s+preview|pr[eé]via\s+do\s+v[ií]deo/i, cena: "sitehunter" },
+    // O dono responde de vários jeitos ao "quer que eu abra a web?": "pode",
+    // "pode abrir", "sim, Jarvis", "manda ver". Antes só quatro palavras
+    // exatas passavam, e "pode abrir" caía no modelo em vez de abrir a tela.
+    { teste: RESPOSTA_ABRIR, cena: "web", precisaFerro: true },
+    // "prévia do próximo vídeo" é como o dono pede — o padrão antigo exigia
+  // "prévia DO vídeo" e não casava com a palavra "próximo" no meio.
+  { teste: /site\s*hunter|pr[eé]via\s+(?:d[eo]\s+)?(?:pr[oó]xim[oa]\s+)?v[ií]deo|pr[oó]xim[oa]\s+preview/i, cena: "sitehunter" },
     { teste: /\b(?:agenda|calend[aá]rio)\b/i, cena: "agenda" },
     { teste: /github|projeto\s+(?:no|do)\s+(?:git|github)/i, cena: "github" },
   ];
 
   // Estado do roteiro dentro da página. Sem ele, "sim" abriria a web em
   // qualquer momento — no vídeo ele só responde à pergunta do modo.
-  const filme = { ferro: false, ofertaWeb: false };
+  const filme = { ferro: false, ofertaWeb: false, ofertaEm: 0 };
+
+  // A oferta expira: microfone armado numa sala pode ouvir um "pode" solto
+  // minutos depois, e ele não pode abrir a segunda tela do nada.
+  function ofertaViva() {
+    if (!filme.ofertaWeb) return false;
+    return Date.now() - filme.ofertaEm < JANELA_RESPOSTA_CURTA_MS * 3;
+  }
 
   function cenaDoRoteiro(value) {
     const pedido = String(value || "").trim();
@@ -1412,8 +1468,12 @@
       if (!gatilho.teste.test(pedido)) continue;
       // O "sim" só vale como resposta à oferta: fora do vídeo ele continua
       // indo pro servidor, como sempre foi.
-      if (gatilho.precisaFerro && !filme.ofertaWeb) continue;
-      if (gatilho.cena === "ferro") { filme.ferro = true; filme.ofertaWeb = true; }
+      if (gatilho.precisaFerro && !ofertaViva()) continue;
+      if (gatilho.cena === "ferro") {
+        filme.ferro = true;
+        filme.ofertaWeb = true;
+        filme.ofertaEm = Date.now();
+      }
       return {
         run: () => window.__jarvisRoteiro(gatilho.cena),
         speak: () => "",
@@ -1563,7 +1623,10 @@
       return;
     }
     if (armed && Date.now() <= armUntil) {
-      if (!looksLikeCommand(text)) return;
+      // A cena do roteiro vem ANTES do filtro de comando: "pode abrir" é a
+      // resposta à pergunta do JARVIS e não começa com verbo, então o
+      // looksLikeCommand descartava a resposta e a web nunca abria.
+      if (!looksLikeCommand(text) && !cenaDoRoteiro(text)) return;
       if (!isFinal) {
         say("Ouvindo.", text);
         return;
@@ -1651,7 +1714,12 @@
     if (armed || woke) paintHeard(text);
     if (speaking) {
       const hit = splitWake(text);
-      if (!hit && !(isQuietAsk(text) && (armed || hit))) return;
+      // Falar por cima do JARVIS já interrompe — mas só se a fala nova for
+      // um pedido. A resposta curta ao "quer que eu abra a web?" era tratada
+      // como interrupção atrás da palavra "Jarvis": o dono respondia "pode
+      // abrir" enquanto o quadro ainda falava e a resposta era descartada.
+      const aceita = hit || cenaDoRoteiro(text) || (isQuietAsk(text) && armed);
+      if (!aceita) return;
       stopSpeak();
       cancelPendingSpeech();
       try { nativeHandlers()?.jarvisListen.postMessage("resume"); } catch { /* web */ }
