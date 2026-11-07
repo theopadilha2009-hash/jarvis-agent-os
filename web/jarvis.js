@@ -2711,11 +2711,20 @@
     };
     return [
       { title: "Postar o vídeo do JARVIS", scheduled_for: quando(0, 21, 0) },
-      { title: "Reunião · VAMOO-AI", scheduled_for: quando(5, 10, 0) },
-      { title: "Revisão do SiteHunter", scheduled_for: quando(6, 14, 0) },
-      { title: "Call · cliente novo", scheduled_for: quando(7, 9, 30) },
+      { title: "Reunião · VAMOO-AI", scheduled_for: quando(0, 15, 0) },
+      { title: "Revisão do SiteHunter", scheduled_for: quando(0, 16, 0) },
+      { title: "Call · cliente novo", scheduled_for: quando(0, 17, 0) },
     ];
   };
+
+  // Ações nativas do app. O site é o palco do vídeo: quem escolhe a tela é o
+  // Mac, não o navegador. Sem o app (site aberto no Chrome) nada acontece.
+  function pedirTela(handler, payload) {
+    try {
+      window.webkit?.messageHandlers?.[handler]?.postMessage(payload);
+      return true;
+    } catch (e) { return false; }
+  }
 
   const ROTEIRO_FILME = {
     ferro: async () => {
@@ -2723,19 +2732,42 @@
       window.dispatchEvent(new CustomEvent("jarvis-state", { detail: { state: "listening" } }));
       byId("sceneEyebrow").textContent = "MODO HOMEM DE FERRO";
       byId("sceneMission").textContent = "Back in Black";
-      await speak("Bem-vindo ao modo Homem de Ferro, senhor. Back in Black está no ar.");
-      await speak("Agora são vinte e duas e trinta. Você tem duas coisas esperando por uma decisão.");
-      await speak("E quatro conversas na semana que vem, senhor.");
+      // A faixa vai pela URI do catálogo: "spotify:search:" só abria a busca.
+      pedirTela("jarvisOpen", "spotify:track:08mG3Y1vljYA6bvDt4Wqkj");
+      await speak("Bem-vindo ao modo Homem de Ferro, senhor.");
+      await speak("Back in Black está no ar.");
+      await speak("O céu está nublado e chuvoso, vinte graus.");
+      await speak("Tenho anotado aqui que você tem três reuniões hoje, às três, quatro e cinco da tarde.");
       await speak("Quer que eu abra a web?");
+      return true;
+    },
+    // O "sim" do dono: a web do JARVIS ocupa a segunda tela inteira.
+    web: async () => {
+      byId("sceneEyebrow").textContent = "WEB";
+      byId("sceneMission").textContent = "Segunda tela";
+      await speak("Abrindo, senhor.");
+      pedirTela("jarvisFullscreen", "https://jarvis-theo.vercel.app/?filme=1");
+      return true;
+    },
+    // O projeto no GitHub vai para a terceira tela (o "projetor" do arranjo).
+    github: async () => {
+      byId("sceneEyebrow").textContent = "GITHUB";
+      byId("sceneMission").textContent = "Terceira tela";
+      await speak("Meu projeto, senhor. Qualquer um pode baixar.");
+      pedirTela("jarvisDisplay", JSON.stringify({
+        url: "https://github.com/theopadilha2009-hash/jarvis-agent-os",
+        tela: "projetor",
+      }));
       return true;
     },
     agenda: async () => {
       byId("sceneEyebrow").textContent = "AGENDA";
-      byId("sceneMission").textContent = "Sua semana";
+      byId("sceneMission").textContent = "Hoje";
       renderLiveCanvas({ agenda: AGENDA_DO_VIDEO() });
       await speak("Sua agenda, senhor.");
       await speak("Você tem que postar o vídeo do JARVIS hoje mesmo.");
-      await speak("Semana que vem: quatro reuniões marcadas. Quer que eu fale com a empresa e dê um ok na agenda?");
+      await speak("E tem três reuniões marcadas pra hoje, às três, quatro e cinco da tarde.");
+      await speak("Quer que eu crie um roteiro pra alguma delas? Posso analisar suas anotações, ou a gente treina.");
       return true;
     },
     sitehunter: async () => {
@@ -2774,10 +2806,12 @@
   // O roteiro do vídeo roda AQUI, na própria página: o app abre o site em
   // tela cheia e o site se conduz sozinho. Sem isso a fala ficava no app e a
   // agenda aparecia na janela dele, não na web.
+  // Só o que o dono pede por voz depois de abrir a web: o modo Homem de Ferro
+  // já aconteceu no /fala antes desta página existir. Repetir "ferro" aqui
+  // reabria o Spotify e falava a saudação de novo no meio do vídeo.
   const ROTEIRO_VIDEO = [
-    [3, "ferro"],
-    [31, "agenda"],
-    [50, "sitehunter"],
+    [3, "agenda"],
+    [22, "sitehunter"],
   ];
 
   window.__jarvisRodarRoteiro = () => {
