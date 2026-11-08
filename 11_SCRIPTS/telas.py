@@ -17,8 +17,13 @@ Hard rules:
 """
 from __future__ import annotations
 
+import json
+import os
+import re
 import subprocess
 import sys
+
+CONFIG_PADRAO = os.path.expanduser("~/.jarvis/telas.json")
 
 # NSScreen.frame usa origem embaixo-esquerda (Cocoa) e a janela do System
 # Events usa topo-esquerda. CGDisplayBounds já vem no sistema certo — usar
@@ -104,6 +109,36 @@ def listar(force=False):
         return []
 
 
+def carregar_config():
+    """~/.jarvis/telas.json: {"1": "SAMSUNG", "2": "Built-in", "3": "HDMI"}.
+
+    Mapeia o número que o dono fala ("tela 3") para um pedaço do nome da tela.
+    Sem o arquivo, o número vale a posição da esquerda para a direita.
+    """
+    caminho = os.environ.get("JARVIS_TELAS_CONFIG") or CONFIG_PADRAO
+    try:
+        with open(caminho, encoding="utf-8") as arquivo:
+            dados = json.load(arquivo)
+    except (OSError, ValueError):
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+def _numero_da_tela(alvo):
+    achou = re.fullmatch(r"(?:tela\s*)?(\d{1,2})", alvo)
+    return int(achou.group(1)) if achou else None
+
+
+def _tela_numerada(numero, telas):
+    nome = str(carregar_config().get(str(numero)) or "").strip().casefold()
+    if nome:
+        # Configurada e desconectada não cai na posição: devolver outra tela
+        # aqui mandaria a janela para onde o dono não pediu.
+        return next((t for t in telas if nome in t["nome"].casefold()), None)
+    ordenadas = sorted(telas, key=lambda t: (t["x"], t["y"]))
+    return ordenadas[numero - 1] if 1 <= numero <= len(ordenadas) else None
+
+
 def encontrar(apelido):
     """A tela que o apelido aponta, ou None."""
     alvo = str(apelido or "").strip().casefold()
@@ -112,6 +147,10 @@ def encontrar(apelido):
     telas = listar()
     if not telas:
         return None
+    # Número antes do nome: "3" aparece em nomes como "DELL U2723QE".
+    numero = _numero_da_tela(alvo)
+    if numero is not None:
+        return _tela_numerada(numero, telas)
     # Nome exato primeiro ("samsung" casa com a SAMSUNG).
     for tela in telas:
         if alvo in tela["nome"].casefold():
