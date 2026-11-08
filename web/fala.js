@@ -1372,6 +1372,7 @@
     // A oferta vale a partir da pergunta, não do "entra no modo".
     filme.ofertaWeb = true;
     filme.ofertaEm = Date.now();
+    seguirRoteiroAuto();
     return true;
   };
 
@@ -1458,6 +1459,7 @@
     // "para a música" não pode cair em outra cena. Sem elas o mp3 e a tela
     // cheia ficavam sem como parar.
     { teste: /\b(?:para|pare|parar|fecha|fechar|desliga|desligar|tira|tirar|chega\s+de|silencia)\b.*\b(?:m[uú]sica|mp3|trilha|som)\b|\b(?:m[uú]sica|mp3|trilha)\b.*\b(?:para|pare|chega)\b/i, cena: "parar_musica" },
+    { teste: /\b(?:para|pare|parar|cancela|cancelar|interrompe)\b.*\broteiro\b/i, cena: "parar_roteiro" },
     { teste: /\b(?:sai|sair|saia|fecha|fechar|desliga|desligar|tira|tirar|volta|voltar)\b.*\b(?:full\s*screen|tela\s+cheia)\b/i, cena: "sair_fullscreen" },
     // "abre o fullscreen" é a segunda tela em tela cheia; "abre a web" é o
     // site normal. São coisas diferentes e o dono pediu as duas.
@@ -1514,8 +1516,9 @@
   }
 
   // Porta única do roteiro gravado no app: cada cena é uma função aqui.
-  window.__jarvisRoteiro = (nome) => {
-    const chave = String(nome || "").trim();
+  // Devolve a promessa da cena (ou null se o nome não existe) para o roteiro
+  // automático esperar uma terminar antes de contar a espera da próxima.
+  function iniciarCena(chave) {
     const cena = {
       ferro: window.__jarvisHomemDeFerro,
       web: window.__jarvisAbrirWeb,
@@ -1528,31 +1531,69 @@
         try { window.webkit?.messageHandlers?.jarvisMusic?.postMessage("stop"); } catch (e) { /* web */ }
         return speak("Música desligada.");
       },
+      parar_roteiro: () => {
+        rodadaAuto += 1;
+        return Promise.resolve();
+      },
       sair_fullscreen: () => {
         nativeWindow("fullscreen");
         return Promise.resolve();
       },
     }[chave];
-    if (!cena) return false;
+    if (!cena) return null;
     // A mesma frase chega mais de uma vez (parcial e final do reconhecedor,
     // eco, retry do app): a cena em andamento, ou que acabou de rodar, não
     // roda de novo. Era o JARVIS repetindo a fala dele duas vezes.
     const estado = (cenasRodando[chave] ||= { rodando: false, fim: 0 });
-    if (estado.rodando || Date.now() - estado.fim < REPETIR_CENA_MS) return true;
+    if (estado.rodando || Date.now() - estado.fim < REPETIR_CENA_MS) return Promise.resolve();
     estado.rodando = true;
+    // Recomeçar o modo zera o que já foi feito e cancela o roteiro anterior;
+    // escolher a web (ou mandar parar) cancela o resto do automático.
+    if (chave === "ferro") {
+      rodadaAuto += 1;
+      filme.feitas = new Set();
+    }
+    if (chave === "web") rodadaAuto += 1;
+    (filme.feitas ||= new Set()).add(chave);
     // A pergunta do modo Homem de Ferro morre quando a cena seguinte começa:
     // sem isto, o "modo web" do pedido do GitHub ainda contava como resposta.
     if (chave !== "ferro") filme.ofertaWeb = false;
     const terminou = () => { estado.rodando = false; estado.fim = Date.now(); };
     try {
-      Promise.resolve(cena()).catch(() => {}).finally(terminou);
+      return Promise.resolve(cena()).catch(() => {}).finally(terminou);
     } catch (e) {
       terminou();
+      return Promise.resolve();
     }
-    return true;
-  };
+  }
+
+  window.__jarvisRoteiro = (nome) => iniciarCena(String(nome || "").trim()) !== null;
   const cenasRodando = {};
   const REPETIR_CENA_MS = 4000;
+
+  // Depois do "entra no modo Homem de Ferro" o resto roda sozinho, sem o app
+  // ouvir nada: o dono fala por cima no vídeo e as telas abrem no tempo certo.
+  // [espera antes da cena (ms), cena]. A espera conta do fim da cena anterior.
+  const ROTEIRO_AUTO = [
+    [4000, "fullscreen"],   // ele responde "fullscreen"
+    [6000, "github"],       // "abre seu projeto no GitHub..." (5 a 6 s de fala)
+    [9000, "agenda"],       // pausa em silêncio + "abre uma agenda virtual"
+    [4000, "recusa"],       // "Não, agora não, obrigado"
+    [4000, "sitehunter"],   // "dá uma prévia do próximo vídeo"
+  ];
+  let rodadaAuto = 0;
+
+  async function seguirRoteiroAuto() {
+    const minha = ++rodadaAuto;
+    for (const [espera, nome] of ROTEIRO_AUTO) {
+      await new Promise((resolve) => window.setTimeout(resolve, espera));
+      if (minha !== rodadaAuto) return;
+      // O dono pode ter pedido a cena por voz antes do tempo.
+      if (filme.feitas?.has(nome)) continue;
+      await iniciarCena(nome);
+      if (minha !== rodadaAuto) return;
+    }
+  }
 
   // "Não, agora não, obrigado" depois do "Deseja confirmar?" da agenda.
   window.__jarvisRecusa = async () => {

@@ -111,6 +111,7 @@ class RoteiroDoVideoTest(unittest.TestCase):
             ("para a música", False, "parar_musica"),
             ("Jarvis, fecha o mp3", False, "parar_musica"),
             ("desliga a música", False, "parar_musica"),
+            ("cancela o roteiro", False, "parar_roteiro"),
             ("fecha o fullscreen", False, "sair_fullscreen"),
             ("sai da tela cheia", False, "sair_fullscreen"),
             ("tela cheia", False, "fullscreen"),
@@ -144,6 +145,16 @@ class NomeDoJarvisTest(unittest.TestCase):
 
 
 class RoteiroEncenadoTest(unittest.TestCase):
+    def test_roteiro_automatico_segue_a_ordem_do_video(self):
+        """Depois do Homem de Ferro o resto roda sozinho, sem o app ouvir."""
+        bloco = _bloco(r"const ROTEIRO_AUTO = \[", r"\n  \];")
+        self.assertEqual(
+            re.findall(r'\[\d+, "(\w+)"\]', bloco),
+            ["fullscreen", "github", "agenda", "recusa", "sitehunter"],
+        )
+        cena = _bloco(r"window.__jarvisHomemDeFerro = async", r"\n  \};")
+        self.assertIn("seguirRoteiroAuto()", cena)
+
     def test_cena_repetida_e_ignorada(self):
         self.assertIn("REPETIR_CENA_MS", FALA_JS)
         self.assertIn("estado.rodando", FALA_JS)
