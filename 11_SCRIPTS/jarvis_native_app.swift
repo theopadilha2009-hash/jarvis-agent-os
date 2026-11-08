@@ -900,8 +900,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         return nil
     }
 
-    /// Back in Black do modo Homem de Ferro. Sem o mp3 cai no Spotify, que é
-    /// o que existia antes (precisa de internet e do app logado).
+    /// Back in Black do modo Homem de Ferro, do mp3 local. Sem o mp3 fica em
+    /// silêncio e registra o motivo: o Spotify precisa de internet e de login.
     private func tocarMusica() {
         logListen("musica: pedido de play")
         musica?.stop()
@@ -914,8 +914,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         } catch {
             // O erro aparece no log: a pasta Downloads pede permissão do
             // macOS e o `try?` escondia isso.
-            logListen("musica: falhou (\(error.localizedDescription)), abrindo o Spotify")
-            if let url = URL(string: "spotify:track:08mG3Y1vljYA6bvDt4Wqkj") { openExternal(url) }
+            logListen("musica: falhou (\(error.localizedDescription))")
             return
         }
         tocador.numberOfLoops = 0
