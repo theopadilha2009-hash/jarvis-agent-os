@@ -903,9 +903,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     /// Back in Black do modo Homem de Ferro. Sem o mp3 cai no Spotify, que é
     /// o que existia antes (precisa de internet e do app logado).
     private func tocarMusica() {
+        logListen("musica: pedido de play")
         musica?.stop()
-        guard let arquivo = arquivoDaMusica(), let tocador = try? AVAudioPlayer(contentsOf: arquivo) else {
-            logListen("musica: mp3 não encontrado, abrindo o Spotify")
+        let tocador: AVAudioPlayer
+        do {
+            guard let arquivo = arquivoDaMusica() else {
+                throw NSError(domain: "jarvis", code: 1, userInfo: [NSLocalizedDescriptionKey: "mp3 não encontrado"])
+            }
+            tocador = try AVAudioPlayer(contentsOf: arquivo)
+        } catch {
+            // O erro aparece no log: a pasta Downloads pede permissão do
+            // macOS e o `try?` escondia isso.
+            logListen("musica: falhou (\(error.localizedDescription)), abrindo o Spotify")
             if let url = URL(string: "spotify:track:08mG3Y1vljYA6bvDt4Wqkj") { openExternal(url) }
             return
         }
@@ -914,9 +923,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         // entrar de uma vez por cima da voz que acabou de falar.
         tocador.volume = 0
         tocador.prepareToPlay()
-        tocador.play()
+        let tocou = tocador.play()
         tocador.setVolume(speakingNow ? Self.musicaVolumeFala : Self.musicaVolumeFundo, fadeDuration: 1.5)
         musica = tocador
+        logListen("musica: play=\(tocou) dur=\(Int(tocador.duration))s")
     }
 
     private func pararMusica() {
