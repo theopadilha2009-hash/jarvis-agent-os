@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Telas: achar a TV pelo apelido e não confundir com o projetor."""
 
+import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -56,6 +59,44 @@ class ApelidosTest(unittest.TestCase):
     def test_sem_telas_nao_quebra(self):
         with patch.object(telas, "listar", return_value=[]):
             self.assertIsNone(telas.encontrar("tv"))
+
+
+class NumeroDaTelaTest(unittest.TestCase):
+    """O dono fala "tela 1/2/3": TV, MacBook e a terceira, nessa ordem."""
+
+    def _achar(self, apelido, config=None):
+        with tempfile.TemporaryDirectory() as pasta:
+            caminho = Path(pasta) / "telas.json"
+            if config is not None:
+                caminho.write_text(json.dumps(config), encoding="utf-8")
+            with patch.dict(os.environ, {"JARVIS_TELAS_CONFIG": str(caminho)}), \
+                    patch.object(telas, "listar", return_value=TELAS_REAIS):
+                return telas.encontrar(apelido)
+
+    def test_config_mapeia_numero_para_nome(self):
+        config = {"1": "SAMSUNG", "2": "Built-in", "3": "HDMI"}
+        self.assertEqual(self._achar("1", config)["nome"], "SAMSUNG")
+        self.assertIn("Built-in", self._achar("tela 2", config)["nome"])
+        self.assertEqual(self._achar("tela3", config)["nome"], "HDMI")
+
+    def test_sem_config_vale_a_posicao_da_esquerda_para_a_direita(self):
+        self.assertIn("Built-in", self._achar("1")["nome"])
+        self.assertEqual(self._achar("2")["nome"], "SAMSUNG")
+        self.assertEqual(self._achar("3")["nome"], "HDMI")
+
+    def test_numero_fora_do_arranjo_nao_inventa_tela(self):
+        self.assertIsNone(self._achar("4"))
+
+    def test_tela_configurada_e_desconectada_nao_cai_na_posicao(self):
+        self.assertIsNone(self._achar("3", {"3": "Projector X"}))
+
+    def test_config_quebrada_cai_na_posicao(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            caminho = Path(pasta) / "telas.json"
+            caminho.write_text("{não é json", encoding="utf-8")
+            with patch.dict(os.environ, {"JARVIS_TELAS_CONFIG": str(caminho)}), \
+                    patch.object(telas, "listar", return_value=TELAS_REAIS):
+                self.assertEqual(telas.encontrar("2")["nome"], "SAMSUNG")
 
 
 class CoordenadasTest(unittest.TestCase):

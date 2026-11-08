@@ -209,6 +209,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     /// app NÃO se mostra mais: cada linha do roteiro chamava revealWindow e
     /// trazia a janela de volta por cima do site.
     private var roteiroEntregue = false
+    /// A janela cobre a tela do JARVIS (cena "fullscreen" do roteiro).
+    private var telaCheia = false
+    /// Back in Black do modo Homem de Ferro, tocado aqui para o volume dele
+    /// ficar sempre abaixo da voz (o Spotify só deixava abaixar o Mac todo).
+    private var musica: AVAudioPlayer?
+    private static let musicaVolumeFundo: Float = 0.28
+    private static let musicaVolumeFala: Float = 0.10
     /// Tamanho do palco pedido pelo roteiro. Enquanto existir, toda
     /// reaplicação de layout (revealWindow, setCompact) usa ele em vez do
     /// padrão — senão a janela voltava a 268x380 no meio do vídeo.
@@ -420,28 +427,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
                 try? proc.run()
                 proc.waitUntilExit()
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                // Quem abre uma tela a pedido do dono não comenta o resultado
+                // ("Aberto na HDMI."): no vídeo o GitHub abre em silêncio.
                 if let saida = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !saida.isEmpty {
-                    DispatchQueue.main.async { self?.speakNative(saida) }
+                    DispatchQueue.main.async { self?.logListen("telas: \(saida)") }
                 }
             }
         } else if message.name == "jarvisFullscreen" {
-            // "abre o fullscreen": o site do JARVIS ocupa a segunda tela
-            // inteira. O app sai da frente — ele continua sendo o orbe, só
-            // não fica por cima do palco.
-            let raw = String(describing: message.body)
-            let url = URL(string: raw) ?? URL(string: "https://jarvis-theo.vercel.app/")!
-            let script = self.displaysScriptPath()
-            // Palco entregue: daqui pra frente o vídeo é o site, e o app
-            // (que continua ouvindo) sai da frente.
-            self.roteiroEntregue = true
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                let proc = Process()
-                proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-                proc.arguments = [script, "abrir", url.absoluteString, "tv"]
-                try? proc.run()
-                proc.waitUntilExit()
-                DispatchQueue.main.async { self?.hideWindow() }
+            // "abre o fullscreen": o próprio JARVIS se amplia e cobre a tela
+            // dele (a 2). Antes isto abria o site no Chrome da TV e escondia o
+            // app, que era o oposto do que o dono quer ver no vídeo.
+            revealWindow(takeFocus: true)
+            toggleFullscreen(forceOn: true)
+        } else if message.name == "jarvisMusic" {
+            if body == "stop" {
+                pararMusica()
+            } else {
+                tocarMusica()
             }
         } else if message.name == "jarvisAction" {
             let cmd = String(describing: message.body)
@@ -576,17 +579,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     // nem efeito garantido: cobrir o frame da tela é o "tela cheia" real.
     // Se ela já cobre (ou está no fullscreen do sistema), volta ao tamanho
     // normal; se entrou no fullscreen do sistema, sai pelo toggle nativo.
-    private func toggleFullscreen() {
+    private func toggleFullscreen(forceOn: Bool = false) {
         guard let window else { return }
         if compact { setCompact(false) }
         if window.styleMask.contains(.fullScreen) {
             window.toggleFullScreen(nil)
             return
         }
-        guard let screen = window.screen ?? NSScreen.main else { return }
+        guard let screen = telaDoJarvis() ?? window.screen ?? NSScreen.main else { return }
         let target = NSRect(origin: screen.frame.origin, size: screen.frame.size)
         let covering = abs(window.frame.width - target.width) < 2
             && abs(window.frame.height - target.height) < 2
+        // O roteiro pede "ligar", não alternar: a mesma frase dita duas vezes
+        // não pode devolver a janela ao tamanho pequeno.
+        if covering && forceOn { return }
+        // Lembrado para o `show` das cenas seguintes (agenda, SiteHunter):
+        // sem isto o setCompact(false) devolvia a janela a 268x380.
+        telaCheia = !covering
         layouting = true
         window.setFrame(covering ? frameKeepingPlace(fullSize) : target, display: true, animate: true)
         layouting = false
@@ -619,7 +628,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         paintChrome(on)
         layouting = true
         let targetSize = on ? compactFrameSize() : (roteiroTamanho ?? (isZoomed ? zoomSize : fullSize))
-        window.setFrame(frameKeepingPlace(targetSize), display: true, animate: true)
+        let cobrindo = (!on && telaCheia) ? telaDoJarvis()?.frame : nil
+        window.setFrame(cobrindo ?? frameKeepingPlace(targetSize), display: true, animate: true)
         layouting = false
         paintChrome(on)
         let flag = on ? "true" : "false"
@@ -841,6 +851,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     /// não ouvia o JARVIS e o JARVIS não ouvia o dono. Abaixar para 25% deixa
     /// a música de fundo sem cobrir a fala.
     private func abaixarMusica() {
+        // Música do próprio app: baixa só ela. O volume do Mac derrubava a voz
+        // junto e a proporção música/voz não mudava.
+        if let musica, musica.isPlaying {
+            musica.setVolume(Self.musicaVolumeFala, fadeDuration: 0.3)
+            return
+        }
         // Com a casa dormindo o dono pediu para não mexer no volume: um
         // "abaixa a música" automático no meio da noite acorda quem dorme.
         if UserDefaults.standard.bool(forKey: "jarvisSemMexerNoVolume") { return }
@@ -856,9 +872,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
 
     /// Devolve o volume que estava antes da fala.
     private func restaurarMusica() {
+        if let musica, musica.isPlaying {
+            musica.setVolume(Self.musicaVolumeFundo, fadeDuration: 0.8)
+        }
         guard let anterior = volumeAntesDaFala else { return }
         volumeAntesDaFala = nil
         Self.definirVolume(anterior)
+    }
+
+    /// ~/.jarvis/telas.json (ou JARVIS_TELAS_CONFIG): chaves "1", "2", "3" com
+    /// o nome da tela e "musica" com o caminho do mp3.
+    private static func configDoRoteiro() -> [String: String] {
+        let caminho = ProcessInfo.processInfo.environment["JARVIS_TELAS_CONFIG"]
+            ?? (NSHomeDirectory() as NSString).appendingPathComponent(".jarvis/telas.json")
+        guard let dados = try? Data(contentsOf: URL(fileURLWithPath: caminho)),
+              let json = try? JSONSerialization.jsonObject(with: dados) as? [String: Any] else { return [:] }
+        return json.compactMapValues { $0 as? String }
+    }
+
+    private func arquivoDaMusica() -> URL? {
+        let padrao = (NSHomeDirectory() as NSString)
+            .appendingPathComponent("Downloads/(24 Bit)ACDC-Back In Black-06-Back In Black.mp3")
+        let pedido = Self.configDoRoteiro()["musica"].map { ($0 as NSString).expandingTildeInPath }
+        for caminho in [pedido, padrao].compactMap({ $0 }) where FileManager.default.fileExists(atPath: caminho) {
+            return URL(fileURLWithPath: caminho)
+        }
+        return nil
+    }
+
+    /// Back in Black do modo Homem de Ferro. Sem o mp3 cai no Spotify, que é
+    /// o que existia antes (precisa de internet e do app logado).
+    private func tocarMusica() {
+        musica?.stop()
+        guard let arquivo = arquivoDaMusica(), let tocador = try? AVAudioPlayer(contentsOf: arquivo) else {
+            logListen("musica: mp3 não encontrado, abrindo o Spotify")
+            if let url = URL(string: "spotify:track:08mG3Y1vljYA6bvDt4Wqkj") { openExternal(url) }
+            return
+        }
+        tocador.numberOfLoops = 0
+        // Entra mudo e sobe: a faixa começa no solo de guitarra e estoura se
+        // entrar de uma vez por cima da voz que acabou de falar.
+        tocador.volume = 0
+        tocador.prepareToPlay()
+        tocador.play()
+        tocador.setVolume(speakingNow ? Self.musicaVolumeFala : Self.musicaVolumeFundo, fadeDuration: 1.5)
+        musica = tocador
+    }
+
+    private func pararMusica() {
+        guard let tocador = musica else { return }
+        tocador.setVolume(0, fadeDuration: 1.2)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) { [weak self] in
+            tocador.stop()
+            if self?.musica === tocador { self?.musica = nil }
+        }
     }
 
     private static func volumeDoSistema() -> Int {
@@ -2458,6 +2525,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         config.userContentController.add(self, name: "jarvisAction")
         config.userContentController.add(self, name: "jarvisDisplay")
         config.userContentController.add(self, name: "jarvisFullscreen")
+        config.userContentController.add(self, name: "jarvisMusic")
         let controlsScript = """
         (() => {
           function injectJarvisBar() {
@@ -2752,6 +2820,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
     private func telaDoJarvis() -> NSScreen? {
         let telas = NSScreen.screens
         guard telas.count > 1 else { return NSScreen.main }
+        // Config do dono: a tela 2 é a que ele nomeou (o MacBook), não a que
+        // por acaso é a segunda da esquerda para a direita.
+        if let nome = Self.configDoRoteiro()["2"]?.lowercased(), !nome.isEmpty,
+           let achada = telas.first(where: { $0.localizedName.lowercased().contains(nome) }) {
+            return achada
+        }
         // Ordena por posição horizontal: a segunda da esquerda para a direita.
         let ordenadas = telas.sorted { $0.frame.minX < $1.frame.minX }
         return ordenadas[1]
