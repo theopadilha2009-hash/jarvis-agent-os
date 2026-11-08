@@ -106,6 +106,23 @@ class RoteiroDoVideoTest(unittest.TestCase):
             ("mostra o sitehunter", False, "sitehunter"),
         ])
 
+    def test_saidas_da_musica_e_do_fullscreen(self):
+        self._esperar([
+            ("para a música", False, "parar_musica"),
+            ("Jarvis, fecha o mp3", False, "parar_musica"),
+            ("desliga a música", False, "parar_musica"),
+            ("fecha o fullscreen", False, "sair_fullscreen"),
+            ("sai da tela cheia", False, "sair_fullscreen"),
+            ("tela cheia", False, "fullscreen"),
+        ])
+
+    def test_fala_do_proprio_jarvis_nao_para_nada(self):
+        """O eco da fala dele não pode desligar a música nem a tela."""
+        self._esperar([
+            ("Bom dia, senhor. Hoje o tempo está nublado, 22 graus e perfeito para trabalhar.", False, None),
+            ("Entrando no modo Homem de Ferro.", False, "ferro"),
+        ])
+
     def test_conversa_comum_nao_dispara_cena(self):
         self._esperar([("que horas são", False, None), ("sim", False, None)])
 

@@ -1454,6 +1454,11 @@
   const RESPOSTA_ABRIR = /^\s*(?:sim|pode|pode abrir|pode ser|manda|manda ver|claro|bora|isso|beleza|vai|vamos)(?:[\s,!.]+(?:jarvis|senhor))?[\s.!]*$/i;
 
   const GATILHOS_FILME = [
+    // Saídas primeiro: "fecha o fullscreen" também contém "fullscreen", e
+    // "para a música" não pode cair em outra cena. Sem elas o mp3 e a tela
+    // cheia ficavam sem como parar.
+    { teste: /\b(?:para|pare|parar|fecha|fechar|desliga|desligar|tira|tirar|chega\s+de|silencia)\b.*\b(?:m[uú]sica|mp3|trilha|som)\b|\b(?:m[uú]sica|mp3|trilha)\b.*\b(?:para|pare|chega)\b/i, cena: "parar_musica" },
+    { teste: /\b(?:sai|sair|saia|fecha|fechar|desliga|desligar|tira|tirar|volta|voltar)\b.*\b(?:full\s*screen|tela\s+cheia)\b/i, cena: "sair_fullscreen" },
     // "abre o fullscreen" é a segunda tela em tela cheia; "abre a web" é o
     // site normal. São coisas diferentes e o dono pediu as duas.
     { teste: /\bfull\s*screen\b|\btela\s+cheia\b/i, cena: "fullscreen" },
@@ -1519,6 +1524,14 @@
       agenda: window.__jarvisAgendaVideo,
       sitehunter: window.__jarvisSiteHunter,
       recusa: window.__jarvisRecusa,
+      parar_musica: () => {
+        try { window.webkit?.messageHandlers?.jarvisMusic?.postMessage("stop"); } catch (e) { /* web */ }
+        return speak("Música desligada.");
+      },
+      sair_fullscreen: () => {
+        nativeWindow("fullscreen");
+        return Promise.resolve();
+      },
     }[chave];
     if (!cena) return false;
     // A mesma frase chega mais de uma vez (parcial e final do reconhecedor,
