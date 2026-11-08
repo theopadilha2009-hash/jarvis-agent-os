@@ -29,7 +29,10 @@
   const WEB_VOLUME_KEY = "jarvis-web-volume";
   // Variantes fonéticas mínimas: "jarbas" é nome de pessoa e "ja viu" é
   // homófono de frase comum — as duas fontes de disparo falso relatadas.
-  const WAKE_NAME = /\b(?:jarvis|jarvius|jarbis|javis)\b/;
+  // O reconhecedor em pt-BR escreve o nome de vários jeitos ("já vis",
+  // "Jarbas", "Gervais"): só "jarvis" exato deixava o app surdo ao nome.
+  const WAKE_ALT = "j[aá]\\s?r?\\s?v[ií][sz]|jarvius|jarbis|jarbas|jarves|javis|garvis|gervais|gervis|djarvis|iarvis|charvis|xarvis";
+  const WAKE_NAME = new RegExp("\\b(?:" + WAKE_ALT + ")\\b");
   const WAKE_CALL = /(?:^|\s)(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)(?:\s+|$)/g;
   const WAKE_ONLY = /^(?:oi|ola|eae|eai|e ai|ei|hey|fala|eita|alou|iae)$/;
   const appMode = new URLSearchParams(window.location.search).get("app") === "1"
@@ -1462,7 +1465,8 @@
     // "modo web" como resposta ao "web ou fullscreen?". Ancorado e curto: o
     // dono diz "além do modo web que é gratuito" no pedido do GitHub, e isso
     // não pode abrir a web.
-    { teste: /^\s*(?:(?:abre|abrir|abra|quero|pode abrir)\s+)?(?:o\s+)?(?:modo\s+)?web[\s,.!]*(?:jarvis|senhor)?[\s.!]*$/i, cena: "web", precisaFerro: true },
+    // "pode abrir no web", "abre o modo web", "web".
+    { teste: /^\s*(?:(?:pode|quero|vamos|bora)\s+)?(?:(?:abre|abrir|abra)\s+)?(?:(?:no|na|o|a|em)\s+)?(?:modo\s+)?web[\s,.!]*(?:jarvis|senhor)?[\s.!]*$/i, cena: "web", precisaFerro: true },
     // "prévia do próximo vídeo" é como o dono pede — o padrão antigo exigia
   // "prévia DO vídeo" e não casava com a palavra "próximo" no meio.
   { teste: /site\s*hunter|pr[eé]via\s+(?:d[eo]\s+)?(?:pr[oó]xim[oa]\s+)?v[ií]deo|pr[oó]xim[oa]\s+preview/i, cena: "sitehunter" },
@@ -1517,12 +1521,25 @@
       recusa: window.__jarvisRecusa,
     }[chave];
     if (!cena) return false;
+    // A mesma frase chega mais de uma vez (parcial e final do reconhecedor,
+    // eco, retry do app): a cena em andamento, ou que acabou de rodar, não
+    // roda de novo. Era o JARVIS repetindo a fala dele duas vezes.
+    const estado = (cenasRodando[chave] ||= { rodando: false, fim: 0 });
+    if (estado.rodando || Date.now() - estado.fim < REPETIR_CENA_MS) return true;
+    estado.rodando = true;
     // A pergunta do modo Homem de Ferro morre quando a cena seguinte começa:
     // sem isto, o "modo web" do pedido do GitHub ainda contava como resposta.
     if (chave !== "ferro") filme.ofertaWeb = false;
-    cena();
+    const terminou = () => { estado.rodando = false; estado.fim = Date.now(); };
+    try {
+      Promise.resolve(cena()).catch(() => {}).finally(terminou);
+    } catch (e) {
+      terminou();
+    }
     return true;
   };
+  const cenasRodando = {};
+  const REPETIR_CENA_MS = 4000;
 
   // "Não, agora não, obrigado" depois do "Deseja confirmar?" da agenda.
   window.__jarvisRecusa = async () => {
@@ -1746,6 +1763,9 @@
   function hearSpoken(spoken, isFinal = true) {
     const text = String(spoken || "").trim();
     if (!text) return;
+    // Vai para /tmp/jarvis-listen.log: sem isto não dá para saber o que o
+    // reconhecedor entendeu quando "ele não escuta".
+    try { nativeHandlers()?.jarvisSonda.postMessage("ouvi: " + text.slice(0, 120)); } catch { /* web */ }
     // Eco da própria voz não é comando do dono, nem com o nome dele no meio.
     if (ecoDaPropriaFala(text)) return;
     const woke = Boolean(splitWake(text));
@@ -1775,7 +1795,7 @@
       takeWake(text, false);
       // 550ms cortava quem respira depois do nome. Pausa depois de "Jarvis,"
       // é natural e ganha mais folga; frase em andamento ganha 1,4s.
-      const justWake = /^\s*(?:jarvis|jarvius|jarbis|javis)\s*[,.]?\s*$/i.test(text);
+      const justWake = new RegExp("^\\s*(?:" + WAKE_ALT + ")\\s*[,.]?\\s*$", "i").test(text);
       heardTimer = window.setTimeout(
         () => hearSpoken(pendingHeard, true),
         justWake ? 1800 : 1400,

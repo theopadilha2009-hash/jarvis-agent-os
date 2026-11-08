@@ -81,6 +81,8 @@ class RoteiroDoVideoTest(unittest.TestCase):
             ("fullscreen", True, "fullscreen"),
             ("abre o modo fullscreen", True, "fullscreen"),
             ("modo web", True, "web"),
+            ("pode abrir no web", True, "web"),
+            ("abre no modo web, Jarvis", True, "web"),
             ("pode abrir", True, "web"),
             ("modo web", False, None),
         ])
@@ -108,7 +110,27 @@ class RoteiroDoVideoTest(unittest.TestCase):
         self._esperar([("que horas são", False, None), ("sim", False, None)])
 
 
+@unittest.skipUnless(shutil.which("node"), "node não instalado")
+class NomeDoJarvisTest(unittest.TestCase):
+    """O reconhecedor erra o nome; o app não pode ficar surdo a ele."""
+
+    def test_variantes_do_reconhecedor(self):
+        alt = re.search(r'const WAKE_ALT = "(.*?)";', FALA_JS).group(1)
+        programa = (
+            f'const r = new RegExp("\\\\b(?:" + "{alt}" + ")\\\\b");'
+            'console.log(JSON.stringify(process.argv.slice(1).map(t => r.test(t))));'
+        )
+        frases = ["jarvis", "ja vis", "jarbas", "gervais", "jarves", "jarvius", "ola", "ja vi", "ja visto"]
+        proc = subprocess.run(["node", "-e", programa, *frases], capture_output=True, text=True, timeout=30)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout), [True] * 6 + [False] * 3)
+
+
 class RoteiroEncenadoTest(unittest.TestCase):
+    def test_cena_repetida_e_ignorada(self):
+        self.assertIn("REPETIR_CENA_MS", FALA_JS)
+        self.assertIn("estado.rodando", FALA_JS)
+
     """O roteiro não pode depender de rede nem de modelo."""
 
     def test_falas_exatas_do_pedido(self):
