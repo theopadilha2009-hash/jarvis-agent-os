@@ -1541,11 +1541,15 @@
       },
     }[chave];
     if (!cena) return null;
+    window.__jarvisSonda?.(`cena: ${chave}`);
     // A mesma frase chega mais de uma vez (parcial e final do reconhecedor,
     // eco, retry do app): a cena em andamento, ou que acabou de rodar, não
     // roda de novo. Era o JARVIS repetindo a fala dele duas vezes.
     const estado = (cenasRodando[chave] ||= { rodando: false, fim: 0 });
-    if (estado.rodando || Date.now() - estado.fim < REPETIR_CENA_MS) return Promise.resolve();
+    if (estado.rodando || Date.now() - estado.fim < REPETIR_CENA_MS) {
+      window.__jarvisSonda?.(`cena repetida ignorada: ${chave}`);
+      return Promise.resolve();
+    }
     estado.rodando = true;
     // Recomeçar o modo zera o que já foi feito e cancela o roteiro anterior;
     // escolher a web (ou mandar parar) cancela o resto do automático.
@@ -1589,7 +1593,10 @@
       await new Promise((resolve) => window.setTimeout(resolve, espera));
       if (minha !== rodadaAuto) return;
       // O dono pode ter pedido a cena por voz antes do tempo.
-      if (filme.feitas?.has(nome)) continue;
+      if (filme.feitas?.has(nome)) {
+        window.__jarvisSonda?.(`roteiro auto: ${nome} já feita, pulando`);
+        continue;
+      }
       await iniciarCena(nome);
       if (minha !== rodadaAuto) return;
     }

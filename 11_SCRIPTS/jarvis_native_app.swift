@@ -413,6 +413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             // sabe. O payload traz a URL e o apelido ("tv", "projetor").
             let raw = String(describing: message.body)
             let script = self.displaysScriptPath()
+            logListen("telas: pedido \(raw)")
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 guard let dados = raw.data(using: .utf8),
                       let pedido = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
@@ -438,8 +439,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             // "abre o fullscreen": o próprio JARVIS se amplia e cobre a tela
             // dele (a 2). Antes isto abria o site no Chrome da TV e escondia o
             // app, que era o oposto do que o dono quer ver no vídeo.
+            logListen("fullscreen: pedido, telas=\(NSScreen.screens.count)")
             revealWindow(takeFocus: true)
             toggleFullscreen(forceOn: true)
+            logListen("fullscreen: janela=\(NSStringFromRect(window?.frame ?? .zero))")
         } else if message.name == "jarvisMusic" {
             if body == "stop" {
                 pararMusica()
