@@ -144,13 +144,34 @@ class NomeDoJarvisTest(unittest.TestCase):
         self.assertEqual(json.loads(proc.stdout), [True] * 6 + [False] * 3)
 
 
+@unittest.skipUnless(shutil.which("node"), "node não instalado")
+class HoraDoBomDiaTest(unittest.TestCase):
+    def _fala(self, hora, minuto):
+        funcoes = _bloco(r"function horaFalada\(agora\) \{", r"\n  \}\n  function bomDiaFerro.*?\n  \}")
+        programa = funcoes + f"\nconsole.log(bomDiaFerro(new Date(2026, 10, 10, {hora}, {minuto})));"
+        proc = subprocess.run(["node", "-e", programa], capture_output=True, text=True, timeout=30)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return proc.stdout.strip()
+
+    def test_manha_diz_a_hora_do_mac(self):
+        fala = self._fala(10, 42)
+        self.assertTrue(fala.startswith("Bom dia, senhor. Hoje o tempo está nublado, são 10 horas e 42 da manhã, 22 graus"), fala)
+        self.assertTrue(fala.endswith("Quer que eu abra o modo web ou o modo fullscreen?"))
+
+    def test_hora_cheia_e_outros_periodos(self):
+        self.assertIn("são 3 horas da tarde,", self._fala(15, 0))
+        self.assertIn("é 1 hora e 5 da madrugada,", self._fala(1, 5))
+        self.assertTrue(self._fala(20, 30).startswith("Boa noite, senhor."))
+        self.assertIn("são 12 horas da tarde,", self._fala(12, 0))
+
+
 class RoteiroEncenadoTest(unittest.TestCase):
     def test_roteiro_automatico_segue_a_ordem_do_video(self):
         """Depois do Homem de Ferro o resto roda sozinho, sem o app ouvir."""
         bloco = _bloco(r"const ROTEIRO_AUTO = \[", r"\n  \];")
         self.assertEqual(
             re.findall(r'\[\d+, "(\w+)"\]', bloco),
-            ["fullscreen", "github", "agenda", "recusa", "sitehunter"],
+            ["web", "github", "agenda", "recusa", "sitehunter"],
         )
         cena = _bloco(r"window.__jarvisHomemDeFerro = async", r"\n  \};")
         self.assertIn("seguirRoteiroAuto()", cena)
@@ -163,10 +184,11 @@ class RoteiroEncenadoTest(unittest.TestCase):
 
     def test_falas_exatas_do_pedido(self):
         self.assertIn('"Entrando no modo Homem de Ferro."', FALA_JS)
-        self.assertIn("Bom dia, senhor. Hoje o tempo está nublado, 22 graus e perfeito para trabalhar.", FALA_JS)
+        self.assertIn("Hoje o tempo está nublado, ${horaFalada(agora)}, 22 graus e perfeito para trabalhar.", FALA_JS)
         self.assertIn("Quer que eu abra o modo web ou o modo fullscreen?", FALA_JS)
         self.assertIn(
-            "Você tem três reuniões marcadas, uma pra segunda, uma pra quarta e uma pra quinta-feira. Deseja confirmar?",
+            "Você tem três reuniões marcadas para essa semana, senhor. Uma para amanhã, uma para sexta-feira "
+            "e uma para domingo. Deseja confirmar ou saber qual é qual?",
             FALA_JS,
         )
 
@@ -179,10 +201,30 @@ class RoteiroEncenadoTest(unittest.TestCase):
         self.assertNotIn("spotify:", cena)
         self.assertNotIn("jarvisOpen", cena)
 
-    def test_github_abre_na_tela_3_e_em_silencio(self):
+    def test_github_abre_na_tela_central_e_avisa(self):
         cena = _bloco(r"window.__jarvisAbrirGithub = async", r"\n  \};")
+        self.assertIn('tela: "1"', cena)
+        self.assertIn("Abrindo meu projeto na tela central", cena)
+
+    def test_web_toca_o_clipe_na_tela_do_mac_sem_abrir_o_site(self):
+        cena = _bloco(r"window.__jarvisAbrirWeb = async", r"\n  \};")
+        self.assertIn("jarvis:modo-web", cena)
+        self.assertNotIn("jarvisOpen", cena)
+        self.assertNotIn("rodadaAuto", cena)
+        self.assertTrue((ROOT / "web" / "filme" / "modo-web.mp4").is_file())
+
+    def test_previa_do_proximo_video_vai_para_a_tela_3(self):
+        cena = _bloco(r"window.__jarvisSiteHunter = async", r"\n  \};")
         self.assertIn('tela: "3"', cena)
-        self.assertNotIn("speak(", cena)
+        self.assertIn("PREVIA_PROXIMO_VIDEO", cena)
+        self.assertIn("/ui/filme/sitehunter.png", FALA_JS)
+
+    def test_agenda_do_filme_fica_roxa_por_cima_do_clipe(self):
+        css = (ROOT / "web" / "fala.css").read_text(encoding="utf-8")
+        regra = re.search(r"html\.modo-ferro \.hud \{(.*?)\}", css, re.S)
+        self.assertIsNotNone(regra)
+        self.assertIn("--glow: 168, 85, 247", regra.group(1))
+        self.assertIn("z-index: 80", regra.group(1))
 
     def test_fullscreen_nao_abre_o_chrome_da_tv(self):
         cena = _bloco(r"window.__jarvisFullscreen = async", r"\n  \};")
