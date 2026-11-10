@@ -1358,6 +1358,15 @@ html.idle-orb .theme-toggle { display: none; }
   overflow: hidden;
 }
 .hud-site-filme[hidden] { display: none; }
+.hud-site-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #07060c;
+}
+.hud-site-video[hidden] { display: none; }
 .hud-site-print {
   position: absolute;
   inset: 0;
@@ -1418,6 +1427,12 @@ html.modo-filme .orb-shell {
 }
 html.modo-ferro {
   --glow: 120, 220, 255;
+}
+/* A agenda é do JARVIS, não do quadro azul do modo: roxa, e acima do clipe
+   do modo web (.hud-site, z-index 70) que fica por baixo dela. */
+html.modo-ferro .hud {
+  --glow: 168, 85, 247;
+  z-index: 80;
 }
 html.modo-ferro .orb-shell {
   justify-content: center;

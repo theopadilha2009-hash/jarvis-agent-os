@@ -469,6 +469,7 @@ ASSET_TYPES = {
     ".jpg": "image/jpeg",
     ".js": "text/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
+    ".mp4": "video/mp4",
     ".obj": "model/obj",
     ".png": "image/png",
     ".svg": "image/svg+xml",
@@ -13883,9 +13884,44 @@ class handler(BaseHTTPRequestHandler):
             content_type = ASSET_TYPES.get(target.suffix.lower())
             if not content_type:
                 content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+            if target.suffix.lower() == ".mp4":
+                return self.send_video(target.read_bytes(), content_type, ui_cache_policy(target))
             return self.send_bytes(200, target.read_bytes(), content_type, ui_cache_policy(target))
         except OSError:
             return self.send_json(404, {"ok": False, "error": "web asset not found"})
+
+    def send_video(self, body, content_type, cache):
+        """WKWebView só toca <video> de servidor que responde Range (206)."""
+        total = len(body)
+        pedido = re.match(r"bytes=(\d*)-(\d*)$", (self.headers.get("Range") or "").strip())
+        if not pedido or not (pedido.group(1) or pedido.group(2)):
+            self.send_response(200)
+            self.send_header("Content-Length", str(total))
+            parte = body
+        else:
+            if pedido.group(1):
+                inicio = int(pedido.group(1))
+                fim = min(int(pedido.group(2)), total - 1) if pedido.group(2) else total - 1
+            else:
+                inicio = max(total - int(pedido.group(2)), 0)
+                fim = total - 1
+            if inicio >= total or inicio > fim:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{total}")
+                self.send_header("Content-Length", "0")
+                self._security_headers()
+                self.end_headers()
+                return
+            parte = body[inicio:fim + 1]
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes {inicio}-{fim}/{total}")
+            self.send_header("Content-Length", str(len(parte)))
+        self.send_header("Content-Type", content_type)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Cache-Control", cache)
+        self._security_headers()
+        self.end_headers()
+        self._write_body(parte)
 
     def do_OPTIONS(self):
         self.send_response(204)

@@ -413,6 +413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             // sabe. O payload traz a URL e o apelido ("tv", "projetor").
             let raw = String(describing: message.body)
             let script = self.displaysScriptPath()
+            logListen("telas: pedido \(raw)")
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 guard let dados = raw.data(using: .utf8),
                       let pedido = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
@@ -438,8 +439,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
             // "abre o fullscreen": o próprio JARVIS se amplia e cobre a tela
             // dele (a 2). Antes isto abria o site no Chrome da TV e escondia o
             // app, que era o oposto do que o dono quer ver no vídeo.
+            logListen("fullscreen: pedido, telas=\(NSScreen.screens.count)")
             revealWindow(takeFocus: true)
             toggleFullscreen(forceOn: true)
+            logListen("fullscreen: janela=\(NSStringFromRect(window?.frame ?? .zero))")
         } else if message.name == "jarvisMusic" {
             if body == "stop" {
                 pararMusica()
@@ -900,8 +903,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         return nil
     }
 
-    /// Back in Black do modo Homem de Ferro. Sem o mp3 cai no Spotify, que é
-    /// o que existia antes (precisa de internet e do app logado).
+    /// Back in Black do modo Homem de Ferro, do mp3 local. Sem o mp3 fica em
+    /// silêncio e registra o motivo: o Spotify precisa de internet e de login.
     private func tocarMusica() {
         logListen("musica: pedido de play")
         musica?.stop()
@@ -914,8 +917,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         } catch {
             // O erro aparece no log: a pasta Downloads pede permissão do
             // macOS e o `try?` escondia isso.
-            logListen("musica: falhou (\(error.localizedDescription)), abrindo o Spotify")
-            if let url = URL(string: "spotify:track:08mG3Y1vljYA6bvDt4Wqkj") { openExternal(url) }
+            logListen("musica: falhou (\(error.localizedDescription))")
             return
         }
         tocador.numberOfLoops = 0

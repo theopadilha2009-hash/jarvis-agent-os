@@ -1351,7 +1351,20 @@
   // modo virar real, é este bloco que sai — o resto já é o caminho de
   // verdade.
   const ABERTURA_FERRO = "Entrando no modo Homem de Ferro.";
-  const BOM_DIA_FERRO = "Bom dia, senhor. Hoje o tempo está nublado, 22 graus e perfeito para trabalhar. Quer que eu abra o modo web ou o modo fullscreen?";
+  // A hora é a do Mac na hora de gravar; o clima continua encenado.
+  function horaFalada(agora) {
+    const h = agora.getHours();
+    const m = agora.getMinutes();
+    const periodo = h < 6 ? "da madrugada" : h < 12 ? "da manhã" : h < 18 ? "da tarde" : "da noite";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const horas = h12 === 1 ? "é 1 hora" : `são ${h12} horas`;
+    return `${horas}${m ? ` e ${m}` : ""} ${periodo}`;
+  }
+  function bomDiaFerro(agora = new Date()) {
+    const h = agora.getHours();
+    const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+    return `${saudacao}, senhor. Hoje o tempo está nublado, ${horaFalada(agora)}, 22 graus e perfeito para trabalhar. Quer que eu abra o modo web ou o modo fullscreen?`;
+  }
   // A música toca sozinha este tempo antes de ele falar o bom dia.
   const ESPERA_MUSICA_FERRO_MS = 9000;
 
@@ -1362,13 +1375,14 @@
     try { nativeWindow("show"); } catch (e) { /* web */ }
     // Pré-aquece o bom dia: a síntese leva ~2s por frase nova e a fala tem
     // que sair no segundo 9 da música, não no 11.
-    window.JarvisLocalVoice?.speakBlob?.(BOM_DIA_FERRO, { persona: "jarvis" })?.catch?.(() => {});
+    const bomDia = bomDiaFerro();
+    window.JarvisLocalVoice?.speakBlob?.(bomDia, { persona: "jarvis" })?.catch?.(() => {});
     await speak(ABERTURA_FERRO);
     // Back in Black vem de um mp3 local tocado pelo app, que mantém o volume
     // dele sempre abaixo da voz. Sem internet, sem Spotify.
     try { window.webkit?.messageHandlers?.jarvisMusic?.postMessage("play"); } catch (e) { /* web */ }
     await new Promise((resolve) => window.setTimeout(resolve, ESPERA_MUSICA_FERRO_MS));
-    await speak(BOM_DIA_FERRO);
+    await speak(bomDia);
     // A oferta vale a partir da pergunta, não do "entra no modo".
     filme.ofertaWeb = true;
     filme.ofertaEm = Date.now();
@@ -1389,28 +1403,29 @@
     return true;
   };
 
-  // O "sim" do dono no roteiro: a web abre na segunda tela e o app sai da
-  // frente, como ele combinou.
+  // O "sim" do dono no roteiro: a web é encenada. Em vez de abrir o site de
+  // verdade, o MacBook (tela 2) mostra o clipe gravado do modo web em tela
+  // cheia, e as cenas seguintes (agenda) abrem por cima dele.
   window.__jarvisAbrirWeb = async () => {
     window.__jarvisModoEnsaio();
+    // Sem fullscreen a janela tem 268x380 e o clipe não cabe: ela cobre a
+    // tela dela antes do vídeo entrar.
+    try { window.webkit?.messageHandlers?.jarvisFullscreen?.postMessage("on"); } catch (e) { /* web */ }
+    window.__jarvisAbrirSite?.("jarvis:modo-web");
     await speak("Abrindo, senhor.");
-    // A web é o site normal, o que qualquer um abre de graça. Sem o
-    // `?filme=1`: ele rodava agenda e SiteHunter sozinho na página, fora da
-    // ordem em que o dono pede cada cena por voz.
-    try { window.webkit?.messageHandlers?.jarvisOpen?.postMessage("https://jarvis-theo.vercel.app/"); } catch (e) { /* web */ }
-    window.setTimeout(() => nativeWindow("hide"), 1200);
     return true;
   };
 
-  // O projeto no GitHub abre na tela 3 (~/.jarvis/telas.json) e o JARVIS não
-  // diz nada: quem fala é o dono, o app só abre.
+  // O projeto no GitHub abre na tela 1, a TV (~/.jarvis/telas.json), e o
+  // JARVIS avisa onde: a tela central é a que o dono mostra no vídeo.
   window.__jarvisAbrirGithub = async () => {
     window.__jarvisModoEnsaio();
     try {
       window.webkit?.messageHandlers?.jarvisDisplay?.postMessage(
-        JSON.stringify({ url: "https://github.com/theopadilha2009-hash/jarvis-agent-os", tela: "3" })
+        JSON.stringify({ url: "https://github.com/theopadilha2009-hash/jarvis-agent-os", tela: "1" })
       );
     } catch (e) { /* web */ }
+    await speak("Abrindo meu projeto na tela central.");
     return true;
   };
 
@@ -1418,8 +1433,8 @@
   // `scheduled_for` é o campo que desenharHud lê para marcar o dia: os
   // compromissos são montados em cima da data de hoje, não em datas fixas.
   function agendaDoVideo() {
-    // Segunda, quarta e quinta da semana corrente (0 = domingo). Se o dia já
-    // passou, vale o da semana que vem: a agenda nunca mostra reunião no
+    // Amanhã, sexta-feira e domingo (0 = domingo), como o JARVIS diz. Se o dia
+    // já passou na semana, vale o da próxima: a agenda nunca mostra reunião no
     // passado.
     const diaDaSemana = (dow, h, m) => {
       const quando = new Date();
@@ -1427,10 +1442,13 @@
       quando.setHours(h, m, 0, 0);
       return quando.toISOString();
     };
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    amanha.setHours(10, 0, 0, 0);
     return [
-      { title: "Reunião · VAMOO-AI", scheduled_for: diaDaSemana(1, 10, 0), notes: "com o Ruan" },
-      { title: "Revisão do SiteHunter", scheduled_for: diaDaSemana(3, 15, 0), notes: "fechar o escopo" },
-      { title: "Call · cliente novo", scheduled_for: diaDaSemana(4, 11, 0), notes: "nome a confirmar" },
+      { title: "Reunião · VAMOO-AI", scheduled_for: amanha.toISOString(), notes: "com o Ruan" },
+      { title: "Revisão do SiteHunter", scheduled_for: diaDaSemana(5, 15, 0), notes: "fechar o escopo" },
+      { title: "Call · cliente novo", scheduled_for: diaDaSemana(0, 11, 0), notes: "nome a confirmar" },
     ];
   }
 
@@ -1443,7 +1461,7 @@
     hudMesRef = new Date();
     desenharHud();
     abrirHud();
-    await speak("Você tem três reuniões marcadas, uma pra segunda, uma pra quarta e uma pra quinta-feira. Deseja confirmar?");
+    await speak("Você tem três reuniões marcadas para essa semana, senhor. Uma para amanhã, uma para sexta-feira e uma para domingo. Deseja confirmar ou saber qual é qual?");
     return true;
   };
 
@@ -1541,19 +1559,22 @@
       },
     }[chave];
     if (!cena) return null;
+    window.__jarvisSonda?.(`cena: ${chave}`);
     // A mesma frase chega mais de uma vez (parcial e final do reconhecedor,
     // eco, retry do app): a cena em andamento, ou que acabou de rodar, não
     // roda de novo. Era o JARVIS repetindo a fala dele duas vezes.
     const estado = (cenasRodando[chave] ||= { rodando: false, fim: 0 });
-    if (estado.rodando || Date.now() - estado.fim < REPETIR_CENA_MS) return Promise.resolve();
+    if (estado.rodando || Date.now() - estado.fim < REPETIR_CENA_MS) {
+      window.__jarvisSonda?.(`cena repetida ignorada: ${chave}`);
+      return Promise.resolve();
+    }
     estado.rodando = true;
-    // Recomeçar o modo zera o que já foi feito e cancela o roteiro anterior;
-    // escolher a web (ou mandar parar) cancela o resto do automático.
+    // Recomeçar o modo zera o que já foi feito e cancela o roteiro anterior.
+    // A web é uma cena do automático (o clipe), então não o cancela.
     if (chave === "ferro") {
       rodadaAuto += 1;
       filme.feitas = new Set();
     }
-    if (chave === "web") rodadaAuto += 1;
     (filme.feitas ||= new Set()).add(chave);
     // A pergunta do modo Homem de Ferro morre quando a cena seguinte começa:
     // sem isto, o "modo web" do pedido do GitHub ainda contava como resposta.
@@ -1575,7 +1596,7 @@
   // ouvir nada: o dono fala por cima no vídeo e as telas abrem no tempo certo.
   // [espera antes da cena (ms), cena]. A espera conta do fim da cena anterior.
   const ROTEIRO_AUTO = [
-    [4000, "fullscreen"],   // ele responde "fullscreen"
+    [4000, "web"],          // ele responde "web": o clipe toca no MacBook
     [6000, "github"],       // "abre seu projeto no GitHub..." (5 a 6 s de fala)
     [9000, "agenda"],       // pausa em silêncio + "abre uma agenda virtual"
     [4000, "recusa"],       // "Não, agora não, obrigado"
@@ -1589,7 +1610,10 @@
       await new Promise((resolve) => window.setTimeout(resolve, espera));
       if (minha !== rodadaAuto) return;
       // O dono pode ter pedido a cena por voz antes do tempo.
-      if (filme.feitas?.has(nome)) continue;
+      if (filme.feitas?.has(nome)) {
+        window.__jarvisSonda?.(`roteiro auto: ${nome} já feita, pulando`);
+        continue;
+      }
       await iniciarCena(nome);
       if (minha !== rodadaAuto) return;
     }
@@ -1602,16 +1626,17 @@
     return true;
   };
 
-  // Prévia do próximo vídeo: o SiteHunter sai do meio da tela com a
-  // animação e o print do produto aparece atrás.
+  // Prévia do próximo vídeo: o print do SiteHunter abre sozinho na tela 3.
+  const PREVIA_PROXIMO_VIDEO = "https://jarvis-theo.vercel.app/ui/filme/sitehunter.png";
   window.__jarvisSiteHunter = async () => {
     window.__jarvisModoEnsaio();
-    window.__jarvisSetIdle?.(false);
     fecharHud();
-    // Depois do fullscreen a janela pode estar em bolinha: a animação rodava
-    // dentro de 72px e o vídeo não mostrava nada.
-    nativeWindow("show");
-    window.__jarvisAbrirSite?.("https://sitehunter-ai-tau.vercel.app");
+    // A prévia é só a imagem, na tela 3 (HDMI). O MacBook segue com o clipe.
+    try {
+      window.webkit?.messageHandlers?.jarvisDisplay?.postMessage(
+        JSON.stringify({ url: PREVIA_PROXIMO_VIDEO, tela: "3" })
+      );
+    } catch (e) { /* web */ }
     await speak("A prévia do próximo vídeo, senhor.");
     return true;
   };
@@ -2416,6 +2441,13 @@
       print: "/ui/filme/sitehunter.png",
       abertura: "/ui/filme/sitehunter-intro.svg",
     },
+    // O "modo web" do vídeo: um clipe gravado, não o site de verdade.
+    {
+      teste: /^jarvis:modo-web$/,
+      url: "jarvis:modo-web",
+      nome: "JARVIS · Web",
+      video: "/ui/filme/modo-web.mp4",
+    },
   ];
 
   function siteProjetado(url) {
@@ -2434,8 +2466,27 @@
     const intro = document.getElementById("hudSiteIntro");
     const nome = document.getElementById("hudSiteNome");
     if (!painel) return false;
+    const clipe = document.getElementById("hudSiteVideo");
     if (nome) nome.textContent = site.nome;
+    if (clipe && !site.video) { clipe.pause(); clipe.hidden = true; }
+    if (site.video && clipe) {
+      // Clipe do modo web: toca mudo e em laço por baixo da agenda.
+      if (quadro) { quadro.hidden = true; quadro.src = "about:blank"; }
+      if (print) print.hidden = true;
+      if (intro) intro.hidden = true;
+      if (filme) filme.hidden = false;
+      if (!clipe.getAttribute("src")) clipe.src = site.video;
+      clipe.hidden = false;
+      clipe.currentTime = 0;
+      clipe.play().catch(() => {});
+      painel.classList.remove("reproduzindo");
+      painel.hidden = false;
+      requestAnimationFrame(() => painel.classList.add("aberto"));
+      siteAberto = site.url;
+      return true;
+    }
     if (site.print) {
+      if (clipe) clipe.hidden = true;
       // Cena de prévia: a animação salta do centro e o print do produto
       // aparece atrás dela. Reanima do zero a cada pedido — o dono pode
       // repetir a fala no vídeo quantas vezes quiser.
