@@ -1631,7 +1631,9 @@
   window.__jarvisSiteHunter = async () => {
     window.__jarvisModoEnsaio();
     fecharHud();
-    // A prévia é só a imagem, na tela 3 (HDMI). O MacBook segue com o clipe.
+    // É a última cena: o clipe do modo web sai do MacBook e a imagem vai
+    // sozinha para a tela 3 (HDMI).
+    fecharSite();
     try {
       window.webkit?.messageHandlers?.jarvisDisplay?.postMessage(
         JSON.stringify({ url: PREVIA_PROXIMO_VIDEO, tela: "3" })
