@@ -1551,6 +1551,7 @@
       },
       parar_roteiro: () => {
         rodadaAuto += 1;
+        autoRodando = false;
         return Promise.resolve();
       },
       sair_fullscreen: () => {
@@ -1563,6 +1564,14 @@
     // A mesma frase chega mais de uma vez (parcial e final do reconhecedor,
     // eco, retry do app): a cena em andamento, ou que acabou de rodar, não
     // roda de novo. Era o JARVIS repetindo a fala dele duas vezes.
+    // O microfone ouve a voz do próprio JARVIS ("Entrando no modo Homem de
+    // Ferro") e ela casava de novo com o gatilho: o modo recomeçava no meio,
+    // com a música reiniciando e a pergunta repetida. Com o roteiro andando,
+    // só "para o roteiro" o interrompe.
+    if (chave === "ferro" && autoRodando) {
+      window.__jarvisSonda?.("cena ferro ignorada: roteiro em andamento");
+      return Promise.resolve();
+    }
     const estado = (cenasRodando[chave] ||= { rodando: false, fim: 0 });
     if (estado.rodando || Date.now() - estado.fim < REPETIR_CENA_MS) {
       window.__jarvisSonda?.(`cena repetida ignorada: ${chave}`);
@@ -1603,9 +1612,11 @@
     [8000, "sitehunter"],   // "dá uma prévia do próximo vídeo"
   ];
   let rodadaAuto = 0;
+  let autoRodando = false;
 
   async function seguirRoteiroAuto() {
     const minha = ++rodadaAuto;
+    autoRodando = true;
     for (const [espera, nome] of ROTEIRO_AUTO) {
       await new Promise((resolve) => window.setTimeout(resolve, espera));
       if (minha !== rodadaAuto) return;
@@ -1617,6 +1628,7 @@
       await iniciarCena(nome);
       if (minha !== rodadaAuto) return;
     }
+    autoRodando = false;
   }
 
   // "Não, agora não, obrigado" depois do "Deseja confirmar?" da agenda.

@@ -257,10 +257,44 @@ def abrir_na_principal(url, app="Google Chrome"):
     return _abrir_na_tela(url, principal, app)
 
 
+def _abrir_chrome_isolado(url, tela):
+    """Abre a URL numa janela de app do Chrome já posicionada na tela.
+
+    O Chrome recebe `--window-position/--window-size` na linha de comando, em
+    um perfil só do JARVIS (um por tela): não mexe nas janelas do dono e não
+    precisa de Acessibilidade nem de Automação, que o macOS invalida a cada
+    reinstalação do app (assinatura ad-hoc). Devolve (ok, mensagem).
+    """
+    chrome = "/Applications/Google Chrome.app"
+    if not os.path.isdir(chrome) or not str(url).startswith(("http://", "https://")):
+        return False, "Chrome indisponível."
+    perfil = os.path.expanduser(f"~/.jarvis/chrome-telas/{tela['indice']}")
+    os.makedirs(perfil, exist_ok=True)
+    try:
+        resultado = _rodar([
+            "open", "-n", "-a", chrome, "--args",
+            f"--user-data-dir={perfil}",
+            "--no-first-run", "--no-default-browser-check",
+            "--disable-features=Translate", "--lang=pt-BR",
+            f"--window-position={tela['x']},{tela['y']}",
+            f"--window-size={tela['largura']},{tela['altura']}",
+            f"--app={url}",
+        ], timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return False, "Não consegui abrir o Chrome."
+    if resultado.returncode != 0:
+        return False, (resultado.stderr or "").strip() or "O Chrome não abriu."
+    return True, f"Aberto na {tela['nome']}."
+
+
 def _abrir_na_tela(url, tela, app="Google Chrome"):
     import time as _time
 
     processo = _processo_do_app(app)
+    if processo == "Google Chrome":
+        ok, mensagem = _abrir_chrome_isolado(url, tela)
+        if ok:
+            return ok, mensagem
     # A receita que funciona de verdade (testada nesta máquina):
     #   1. criar a janela e a URL no app;
     #   2. mover com System Events, que é o único que aplica posição no
