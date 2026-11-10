@@ -1596,11 +1596,11 @@
   // ouvir nada: o dono fala por cima no vídeo e as telas abrem no tempo certo.
   // [espera antes da cena (ms), cena]. A espera conta do fim da cena anterior.
   const ROTEIRO_AUTO = [
-    [4000, "web"],          // ele responde "web": o clipe toca no MacBook
-    [6000, "github"],       // "abre seu projeto no GitHub..." (5 a 6 s de fala)
-    [9000, "agenda"],       // pausa em silêncio + "abre uma agenda virtual"
-    [4000, "recusa"],       // "Não, agora não, obrigado"
-    [4000, "sitehunter"],   // "dá uma prévia do próximo vídeo"
+    [8000, "web"],          // ele responde "web": o clipe toca no MacBook
+    [12000, "github"],      // "abre seu projeto no GitHub..." (pedido de ~10 s)
+    [12000, "agenda"],      // pausa em silêncio + "abre uma agenda virtual"
+    [8000, "recusa"],       // "Não, agora não, obrigado"
+    [8000, "sitehunter"],   // "dá uma prévia do próximo vídeo"
   ];
   let rodadaAuto = 0;
 
