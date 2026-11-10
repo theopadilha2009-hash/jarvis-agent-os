@@ -159,5 +159,33 @@ class AbrirNaTelaTest(unittest.TestCase):
         self.assertFalse(ok)
 
 
+class ChromeIsoladoTest(unittest.TestCase):
+    """A janela nasce na tela certa sem Acessibilidade (que a reinstalação zera)."""
+
+    def test_posiciona_pela_linha_de_comando(self):
+        samsung = TELAS_REAIS[2]
+        chamadas = []
+
+        def falso(argv, timeout=15):
+            chamadas.append(argv)
+            return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with patch.object(telas, "_rodar", side_effect=falso), \
+                patch.object(telas.os, "makedirs"):
+            ok, msg = telas._abrir_na_tela("https://github.com/x/y", samsung)
+        self.assertTrue(ok, msg)
+        self.assertEqual(len(chamadas), 1, "não pode cair no System Events")
+        argv = chamadas[0]
+        self.assertEqual(argv[0], "open")
+        self.assertIn("--window-position=1440,0", argv)
+        self.assertIn("--window-size=1920,1080", argv)
+        self.assertIn("--app=https://github.com/x/y", argv)
+        self.assertIn("--disable-features=Translate", argv)
+
+    def test_so_abre_http(self):
+        ok, _ = telas._abrir_chrome_isolado("file:///etc/passwd", TELAS_REAIS[2])
+        self.assertFalse(ok)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

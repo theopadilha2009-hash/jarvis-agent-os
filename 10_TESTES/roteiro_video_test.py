@@ -176,6 +176,13 @@ class RoteiroEncenadoTest(unittest.TestCase):
         cena = _bloco(r"window.__jarvisHomemDeFerro = async", r"\n  \};")
         self.assertIn("seguirRoteiroAuto()", cena)
 
+    def test_ferro_nao_recomeca_no_meio_do_roteiro(self):
+        """A voz do JARVIS volta pelo microfone e casava de novo com "Homem de Ferro"."""
+        despachante = _bloco(r"function iniciarCena\(chave\) \{", r"\n  \}\n\n  window.__jarvisRoteiro")
+        self.assertIn('chave === "ferro" && autoRodando', despachante)
+        self.assertLess(despachante.index("autoRodando"), despachante.index("cenasRodando[chave]"))
+        self.assertIn("autoRodando = false", _bloco(r"parar_roteiro: \(\) =>", r"\},"))
+
     def test_cena_repetida_e_ignorada(self):
         self.assertIn("REPETIR_CENA_MS", FALA_JS)
         self.assertIn("estado.rodando", FALA_JS)
