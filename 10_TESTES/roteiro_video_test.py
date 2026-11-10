@@ -217,6 +217,7 @@ class RoteiroEncenadoTest(unittest.TestCase):
         cena = _bloco(r"window.__jarvisSiteHunter = async", r"\n  \};")
         self.assertIn('tela: "3"', cena)
         self.assertIn("PREVIA_PROXIMO_VIDEO", cena)
+        self.assertIn("fecharSite()", cena)
         self.assertIn("/ui/filme/sitehunter.png", FALA_JS)
 
     def test_agenda_do_filme_fica_roxa_por_cima_do_clipe(self):
