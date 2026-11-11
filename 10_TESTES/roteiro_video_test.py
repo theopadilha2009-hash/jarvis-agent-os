@@ -209,9 +209,9 @@ class RoteiroEncenadoTest(unittest.TestCase):
         self.assertNotIn("spotify:", cena)
         self.assertNotIn("jarvisOpen", cena)
 
-    def test_github_abre_na_tv_do_meio_e_nas_telas_2_e_3(self):
+    def test_github_abre_na_tv_do_meio_e_na_hdmi_nao_no_mac(self):
         cena = _bloco(r"window.__jarvisAbrirGithub = async", r"\n  \};")
-        self.assertIn('["1", "2", "3"]', cena)
+        self.assertIn('["1", "3"]', cena)
         self.assertIn("fecharHud()", cena)
         self.assertIn("fecharSite()", cena)
 
