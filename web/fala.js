@@ -1353,7 +1353,9 @@
   // Hora e clima encenados: o vídeo se passa às 10:32 da manhã, seja qual
   // for a hora em que o dono gravar. Sem pergunta no fim: o vídeo tem um
   // minuto e a web e a agenda abrem direto.
-  const BOM_DIA_FERRO = "Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar. Abrindo o modo web e os seus compromissos.";
+  const BOM_DIA_FERRO = "Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar.";
+  // Dita já com o clipe da web abrindo, não depois dele: ganha uns 2 s.
+  const ANUNCIO_WEB_FERRO = "Abrindo o modo web e os seus compromissos.";
   // O bom dia entra no segundo 4 da música. A música abaixa sozinha enquanto
   // ele fala (abaixarMusica no app nativo).
   const ESPERA_MUSICA_FERRO_MS = 4000;
@@ -1367,12 +1369,12 @@
     // que sair no segundo 4, não no 6.
     const bomDia = BOM_DIA_FERRO;
     window.JarvisLocalVoice?.speakBlob?.(bomDia, { persona: "jarvis" })?.catch?.(() => {});
+    window.JarvisLocalVoice?.speakBlob?.(ANUNCIO_WEB_FERRO, { persona: "jarvis" })?.catch?.(() => {});
     try { window.webkit?.messageHandlers?.jarvisMusic?.postMessage("play"); } catch (e) { /* web */ }
     await new Promise((resolve) => window.setTimeout(resolve, ESPERA_MUSICA_FERRO_MS));
     await speak(bomDia);
-    // A oferta vale a partir da pergunta, não do "entra no modo".
-    filme.ofertaWeb = true;
-    filme.ofertaEm = Date.now();
+    iniciarCena("web");
+    await speak(ANUNCIO_WEB_FERRO);
     seguirRoteiroAuto();
     return true;
   };
@@ -1419,7 +1421,7 @@
         );
       } catch (e) { /* web */ }
     }
-    await speak("Abrindo o projeto, senhor. Código aberto para todo mundo.");
+    // Sem fala: o dono acabou de pedir, e a prévia vem 3 s depois.
     return true;
   };
 
@@ -1601,10 +1603,10 @@
   // O vídeo inteiro cabe em um minuto: ~4 s de música, bom dia, web e
   // agenda colados, e só a fala do dono separa as cenas.
   const ROTEIRO_AUTO = [
-    [0, "web"],             // o clipe toca no MacBook logo depois do bom dia
+    // A web abre no meio do bom dia, dentro da cena ferro.
     [300, "agenda"],        // a agenda abre por cima do clipe
-    [10000, "github"],      // "não, mas abre meu projeto no GitHub..." (~9 s)
-    [7000, "sitehunter"],   // pausa + "dá uma breve do próximo vídeo"
+    [9000, "github"],       // "não, mas abre meu projeto no GitHub..." (~8 s)
+    [3000, "sitehunter"],   // 3 s com o GitHub na TV e vem a prévia
   ];
   let rodadaAuto = 0;
   let autoRodando = false;

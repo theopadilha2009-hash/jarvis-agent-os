@@ -121,7 +121,7 @@ class RoteiroDoVideoTest(unittest.TestCase):
         """O eco da fala dele não pode desligar a música nem a tela."""
         self._esperar([
             ("Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar. Abrindo o modo web e os seus compromissos.", False, None),
-            ("Abrindo o projeto, senhor. Código aberto para todo mundo.", False, None),
+            ("Abrindo o modo web e os seus compromissos.", False, None),
             ("Entrando no modo Homem de Ferro.", False, "ferro"),
             ("dá uma breve do próximo vídeo aí pra todo mundo também", False, "sitehunter"),
         ])
@@ -150,8 +150,7 @@ class BomDiaTest(unittest.TestCase):
     def test_hora_e_clima_fixos_do_video(self):
         """O vídeo se passa às 10:32, seja qual for a hora da gravação."""
         self.assertIn(
-            '"Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar. '
-            'Abrindo o modo web e os seus compromissos."',
+            '"Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar."',
             FALA_JS,
         )
         self.assertNotIn("horaFalada", FALA_JS)
@@ -163,10 +162,12 @@ class RoteiroEncenadoTest(unittest.TestCase):
         bloco = _bloco(r"const ROTEIRO_AUTO = \[", r"\n  \];")
         self.assertEqual(
             re.findall(r'\[\d+, "(\w+)"\]', bloco),
-            ["web", "agenda", "github", "sitehunter"],
+            ["agenda", "github", "sitehunter"],
         )
         cena = _bloco(r"window.__jarvisHomemDeFerro = async", r"\n  \};")
-        self.assertIn("seguirRoteiroAuto()", cena)
+        # A web abre junto com o anúncio, antes do automático seguir.
+        self.assertLess(cena.index('iniciarCena("web")'), cena.index("speak(ANUNCIO_WEB_FERRO)"))
+        self.assertLess(cena.index("speak(ANUNCIO_WEB_FERRO)"), cena.index("seguirRoteiroAuto()"))
 
     def test_ferro_nao_recomeca_no_meio_do_roteiro(self):
         """A voz do JARVIS volta pelo microfone e casava de novo com "Homem de Ferro"."""
@@ -212,6 +213,7 @@ class RoteiroEncenadoTest(unittest.TestCase):
     def test_github_abre_na_tv_do_meio_e_na_hdmi_nao_no_mac(self):
         cena = _bloco(r"window.__jarvisAbrirGithub = async", r"\n  \};")
         self.assertIn('["1", "3"]', cena)
+        self.assertNotIn("speak(", cena)
         self.assertIn("fecharHud()", cena)
         self.assertIn("fecharSite()", cena)
 
