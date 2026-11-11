@@ -120,7 +120,7 @@ class RoteiroDoVideoTest(unittest.TestCase):
     def test_fala_do_proprio_jarvis_nao_para_nada(self):
         """O eco da fala dele não pode desligar a música nem a tela."""
         self._esperar([
-            ("Bom dia, senhor. Hoje o tempo está nublado, 22 graus e perfeito para trabalhar.", False, None),
+            ("Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar.", False, None),
             ("Entrando no modo Homem de Ferro.", False, "ferro"),
         ])
 
@@ -144,25 +144,15 @@ class NomeDoJarvisTest(unittest.TestCase):
         self.assertEqual(json.loads(proc.stdout), [True] * 6 + [False] * 3)
 
 
-@unittest.skipUnless(shutil.which("node"), "node não instalado")
-class HoraDoBomDiaTest(unittest.TestCase):
-    def _fala(self, hora, minuto):
-        funcoes = _bloco(r"function horaFalada\(agora\) \{", r"\n  \}\n  function bomDiaFerro.*?\n  \}")
-        programa = funcoes + f"\nconsole.log(bomDiaFerro(new Date(2026, 10, 10, {hora}, {minuto})));"
-        proc = subprocess.run(["node", "-e", programa], capture_output=True, text=True, timeout=30)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        return proc.stdout.strip()
-
-    def test_manha_diz_a_hora_do_mac(self):
-        fala = self._fala(10, 42)
-        self.assertTrue(fala.startswith("Bom dia, senhor. Hoje o tempo está nublado, são 10 horas e 42 da manhã, 22 graus"), fala)
-        self.assertTrue(fala.endswith("Quer que eu abra o modo web ou o modo fullscreen?"))
-
-    def test_hora_cheia_e_outros_periodos(self):
-        self.assertIn("são 3 horas da tarde,", self._fala(15, 0))
-        self.assertIn("é 1 hora e 5 da madrugada,", self._fala(1, 5))
-        self.assertTrue(self._fala(20, 30).startswith("Boa noite, senhor."))
-        self.assertIn("são 12 horas da tarde,", self._fala(12, 0))
+class BomDiaTest(unittest.TestCase):
+    def test_hora_e_clima_fixos_do_video(self):
+        """O vídeo se passa às 10:32, seja qual for a hora da gravação."""
+        self.assertIn(
+            '"Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar. '
+            'Quer que eu abra o modo web ou o modo fullscreen?"',
+            FALA_JS,
+        )
+        self.assertNotIn("horaFalada", FALA_JS)
 
 
 class RoteiroEncenadoTest(unittest.TestCase):
@@ -191,7 +181,6 @@ class RoteiroEncenadoTest(unittest.TestCase):
 
     def test_falas_exatas_do_pedido(self):
         self.assertIn('"Entrando no modo Homem de Ferro."', FALA_JS)
-        self.assertIn("Hoje o tempo está nublado, ${horaFalada(agora)}, 22 graus e perfeito para trabalhar.", FALA_JS)
         self.assertIn("Quer que eu abra o modo web ou o modo fullscreen?", FALA_JS)
         self.assertIn(
             "Você tem três reuniões marcadas para essa semana, senhor. Uma para amanhã, uma para sexta-feira "
@@ -202,9 +191,10 @@ class RoteiroEncenadoTest(unittest.TestCase):
     def test_nove_segundos_de_musica_antes_do_bom_dia(self):
         self.assertIn("ESPERA_MUSICA_FERRO_MS = 9000", FALA_JS)
 
-    def test_musica_local_e_nao_spotify(self):
+    def test_musica_fica_para_a_edicao(self):
+        """O mp3 saía fora de tempo no vídeo: a música entra na edição."""
         cena = _bloco(r"window.__jarvisHomemDeFerro = async", r"\n  \};")
-        self.assertIn("jarvisMusic", cena)
+        self.assertNotIn("jarvisMusic", cena)
         self.assertNotIn("spotify:", cena)
         self.assertNotIn("jarvisOpen", cena)
 
@@ -219,6 +209,16 @@ class RoteiroEncenadoTest(unittest.TestCase):
         self.assertNotIn("jarvisOpen", cena)
         self.assertNotIn("rodadaAuto", cena)
         self.assertTrue((ROOT / "web" / "filme" / "modo-web.mp4").is_file())
+
+    @unittest.skipUnless(shutil.which("ffprobe"), "ffprobe não instalado")
+    def test_clipe_web_sem_os_2s_finais(self):
+        """Nos 2 s finais o dono aparece mexendo e entrega que é um vídeo."""
+        proc = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+             str(ROOT / "web" / "filme" / "modo-web.mp4")],
+            capture_output=True, text=True, timeout=30,
+        )
+        self.assertLess(float(proc.stdout), 15.5)
 
     def test_previa_do_proximo_video_vai_para_a_tela_3(self):
         cena = _bloco(r"window.__jarvisSiteHunter = async", r"\n  \};")
