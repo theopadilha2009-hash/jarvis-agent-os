@@ -1403,8 +1403,8 @@
     return true;
   };
 
-  // O projeto no GitHub abre na tela 2 (MacBook) e na 3 (HDMI), números de
-  // ~/.jarvis/telas.json. A agenda e o clipe saem e o JARVIS deixa a tela
+  // O projeto no GitHub abre na TV do meio (tela 1), no MacBook (2) e na
+  // HDMI (3), números de ~/.jarvis/telas.json. A agenda e o clipe saem e o JARVIS deixa a tela
   // cheia, senão cobriria o GitHub do MacBook.
   const GITHUB_PROJETO = "https://github.com/theopadilha2009-hash/jarvis-agent-os";
   window.__jarvisAbrirGithub = async () => {
@@ -1412,7 +1412,7 @@
     fecharHud();
     fecharSite();
     nativeWindow("fullscreen");
-    for (const tela of ["2", "3"]) {
+    for (const tela of ["1", "2", "3"]) {
       try {
         window.webkit?.messageHandlers?.jarvisDisplay?.postMessage(
           JSON.stringify({ url: GITHUB_PROJETO, tela })
