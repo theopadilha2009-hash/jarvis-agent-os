@@ -1350,13 +1350,13 @@
   // quadro é lido aqui, sem Supabase, sem catálogo e sem modelo. Quando o
   // modo virar real, é este bloco que sai — o resto já é o caminho de
   // verdade.
-  const ABERTURA_FERRO = "Entrando no modo Homem de Ferro.";
   // Hora e clima encenados: o vídeo se passa às 10:32 da manhã, seja qual
-  // for a hora em que o dono gravar.
-  const BOM_DIA_FERRO = "Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar. Quer que eu abra o modo web ou o modo fullscreen?";
-  // Silêncio antes do bom dia: é onde a música entra na edição. O app não
-  // toca mais o mp3 aqui, ele saía fora de tempo conforme o vídeo andava.
-  const ESPERA_MUSICA_FERRO_MS = 9000;
+  // for a hora em que o dono gravar. Sem pergunta no fim: o vídeo tem um
+  // minuto e a web e a agenda abrem direto.
+  const BOM_DIA_FERRO = "Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar. Abrindo o modo web e os seus compromissos.";
+  // O bom dia entra no segundo 4 da música. A música abaixa sozinha enquanto
+  // ele fala (abaixarMusica no app nativo).
+  const ESPERA_MUSICA_FERRO_MS = 4000;
 
   window.__jarvisHomemDeFerro = async () => {
     window.__jarvisModoFilme();
@@ -1364,10 +1364,10 @@
     document.documentElement.classList.add("modo-ferro");
     try { nativeWindow("show"); } catch (e) { /* web */ }
     // Pré-aquece o bom dia: a síntese leva ~2s por frase nova e a fala tem
-    // que sair no segundo 9, não no 11.
+    // que sair no segundo 4, não no 6.
     const bomDia = BOM_DIA_FERRO;
     window.JarvisLocalVoice?.speakBlob?.(bomDia, { persona: "jarvis" })?.catch?.(() => {});
-    await speak(ABERTURA_FERRO);
+    try { window.webkit?.messageHandlers?.jarvisMusic?.postMessage("play"); } catch (e) { /* web */ }
     await new Promise((resolve) => window.setTimeout(resolve, ESPERA_MUSICA_FERRO_MS));
     await speak(bomDia);
     // A oferta vale a partir da pergunta, não do "entra no modo".
@@ -1398,21 +1398,28 @@
     // Sem fullscreen a janela tem 268x380 e o clipe não cabe: ela cobre a
     // tela dela antes do vídeo entrar.
     try { window.webkit?.messageHandlers?.jarvisFullscreen?.postMessage("on"); } catch (e) { /* web */ }
+    // Sem fala: o bom dia já anunciou, e a agenda abre logo em seguida.
     window.__jarvisAbrirSite?.("jarvis:modo-web");
-    await speak("Abrindo, senhor.");
     return true;
   };
 
-  // O projeto no GitHub abre na tela 1, a TV (~/.jarvis/telas.json), e o
-  // JARVIS avisa onde: a tela central é a que o dono mostra no vídeo.
+  // O projeto no GitHub abre na tela 2 (MacBook) e na 3 (HDMI), números de
+  // ~/.jarvis/telas.json. A agenda e o clipe saem e o JARVIS deixa a tela
+  // cheia, senão cobriria o GitHub do MacBook.
+  const GITHUB_PROJETO = "https://github.com/theopadilha2009-hash/jarvis-agent-os";
   window.__jarvisAbrirGithub = async () => {
     window.__jarvisModoEnsaio();
-    try {
-      window.webkit?.messageHandlers?.jarvisDisplay?.postMessage(
-        JSON.stringify({ url: "https://github.com/theopadilha2009-hash/jarvis-agent-os", tela: "1" })
-      );
-    } catch (e) { /* web */ }
-    await speak("Abrindo meu projeto na tela central.");
+    fecharHud();
+    fecharSite();
+    nativeWindow("fullscreen");
+    for (const tela of ["2", "3"]) {
+      try {
+        window.webkit?.messageHandlers?.jarvisDisplay?.postMessage(
+          JSON.stringify({ url: GITHUB_PROJETO, tela })
+        );
+      } catch (e) { /* web */ }
+    }
+    await speak("Abrindo o projeto, senhor. Código aberto para todo mundo.");
     return true;
   };
 
@@ -1481,7 +1488,7 @@
     { teste: /^\s*(?:(?:pode|quero|vamos|bora)\s+)?(?:(?:abre|abrir|abra)\s+)?(?:(?:no|na|o|a|em)\s+)?(?:modo\s+)?web[\s,.!]*(?:jarvis|senhor)?[\s.!]*$/i, cena: "web", precisaFerro: true },
     // "prévia do próximo vídeo" é como o dono pede — o padrão antigo exigia
   // "prévia DO vídeo" e não casava com a palavra "próximo" no meio.
-  { teste: /site\s*hunter|pr[eé]via\s+(?:d[eo]\s+)?(?:pr[oó]xim[oa]\s+)?v[ií]deo|pr[oó]xim[oa]\s+preview/i, cena: "sitehunter" },
+  { teste: /site\s*hunter|(?:pr[eé]via|breve)\s+(?:d[eo]\s+)?(?:pr[oó]xim[oa]\s+)?v[ií]deo|pr[oó]xim[oa]\s+preview/i, cena: "sitehunter" },
     { teste: /\b(?:agenda|calend[aá]rio)\b/i, cena: "agenda" },
     { teste: /github|projeto\s+(?:no|do)\s+(?:git|github)/i, cena: "github" },
     // Resposta ao "Deseja confirmar?" da agenda: "não, agora não, obrigado".
@@ -1591,12 +1598,13 @@
   // Depois do "entra no modo Homem de Ferro" o resto roda sozinho, sem o app
   // ouvir nada: o dono fala por cima no vídeo e as telas abrem no tempo certo.
   // [espera antes da cena (ms), cena]. A espera conta do fim da cena anterior.
+  // O vídeo inteiro cabe em um minuto: ~4 s de música, bom dia, web e
+  // agenda colados, e só a fala do dono separa as cenas.
   const ROTEIRO_AUTO = [
-    [11000, "web"],          // ele responde "web": o clipe toca no MacBook
-    [15000, "github"],      // "abre seu projeto no GitHub..." (pedido de ~10 s)
-    [15000, "agenda"],      // pausa em silêncio + "abre uma agenda virtual"
-    [11000, "recusa"],       // "Não, agora não, obrigado"
-    [11000, "sitehunter"],   // "dá uma prévia do próximo vídeo"
+    [0, "web"],             // o clipe toca no MacBook logo depois do bom dia
+    [300, "agenda"],        // a agenda abre por cima do clipe
+    [10000, "github"],      // "não, mas abre meu projeto no GitHub..." (~9 s)
+    [7000, "sitehunter"],   // pausa + "dá uma breve do próximo vídeo"
   ];
   let rodadaAuto = 0;
   let autoRodando = false;
