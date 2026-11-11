@@ -120,8 +120,10 @@ class RoteiroDoVideoTest(unittest.TestCase):
     def test_fala_do_proprio_jarvis_nao_para_nada(self):
         """O eco da fala dele não pode desligar a música nem a tela."""
         self._esperar([
-            ("Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar.", False, None),
+            ("Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar. Abrindo o modo web e os seus compromissos.", False, None),
+            ("Abrindo o projeto, senhor. Código aberto para todo mundo.", False, None),
             ("Entrando no modo Homem de Ferro.", False, "ferro"),
+            ("dá uma breve do próximo vídeo aí pra todo mundo também", False, "sitehunter"),
         ])
 
     def test_conversa_comum_nao_dispara_cena(self):
@@ -149,7 +151,7 @@ class BomDiaTest(unittest.TestCase):
         """O vídeo se passa às 10:32, seja qual for a hora da gravação."""
         self.assertIn(
             '"Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar. '
-            'Quer que eu abra o modo web ou o modo fullscreen?"',
+            'Abrindo o modo web e os seus compromissos."',
             FALA_JS,
         )
         self.assertNotIn("horaFalada", FALA_JS)
@@ -161,7 +163,7 @@ class RoteiroEncenadoTest(unittest.TestCase):
         bloco = _bloco(r"const ROTEIRO_AUTO = \[", r"\n  \];")
         self.assertEqual(
             re.findall(r'\[\d+, "(\w+)"\]', bloco),
-            ["web", "github", "agenda", "recusa", "sitehunter"],
+            ["web", "agenda", "github", "sitehunter"],
         )
         cena = _bloco(r"window.__jarvisHomemDeFerro = async", r"\n  \};")
         self.assertIn("seguirRoteiroAuto()", cena)
@@ -180,28 +182,38 @@ class RoteiroEncenadoTest(unittest.TestCase):
     """O roteiro não pode depender de rede nem de modelo."""
 
     def test_falas_exatas_do_pedido(self):
-        self.assertIn('"Entrando no modo Homem de Ferro."', FALA_JS)
-        self.assertIn("Quer que eu abra o modo web ou o modo fullscreen?", FALA_JS)
+        self.assertNotIn("Quer que eu abra o modo web", FALA_JS)
         self.assertIn(
             "Você tem três reuniões marcadas para essa semana, senhor. Uma para amanhã, uma para sexta-feira "
             "e uma para domingo. Deseja confirmar ou saber qual é qual?",
             FALA_JS,
         )
 
-    def test_nove_segundos_de_musica_antes_do_bom_dia(self):
-        self.assertIn("ESPERA_MUSICA_FERRO_MS = 9000", FALA_JS)
-
-    def test_musica_fica_para_a_edicao(self):
-        """O mp3 saía fora de tempo no vídeo: a música entra na edição."""
+    def test_bom_dia_no_segundo_4_da_musica(self):
+        self.assertIn("ESPERA_MUSICA_FERRO_MS = 4000", FALA_JS)
         cena = _bloco(r"window.__jarvisHomemDeFerro = async", r"\n  \};")
-        self.assertNotIn("jarvisMusic", cena)
+        self.assertLess(cena.index('jarvisMusic?.postMessage("play")'), cena.index("ESPERA_MUSICA_FERRO_MS"))
+
+    def test_video_cabe_em_um_minuto(self):
+        bloco = _bloco(r"const ROTEIRO_AUTO = \[", r"\n  \];")
+        esperas = sum(int(n) for n in re.findall(r'\[(\d+), "\w+"\]', bloco))
+        self.assertLessEqual(esperas, 20000)
+
+    def test_musica_abaixa_quando_ele_fala(self):
+        swift = (ROOT / "11_SCRIPTS" / "jarvis_native_app.swift").read_text(encoding="utf-8")
+        fala = swift[swift.index("private func speakNative"):]
+        self.assertIn("abaixarMusica()", fala[:1500])
+
+    def test_musica_local_e_nao_spotify(self):
+        cena = _bloco(r"window.__jarvisHomemDeFerro = async", r"\n  \};")
         self.assertNotIn("spotify:", cena)
         self.assertNotIn("jarvisOpen", cena)
 
-    def test_github_abre_na_tela_central_e_avisa(self):
+    def test_github_abre_nas_telas_2_e_3(self):
         cena = _bloco(r"window.__jarvisAbrirGithub = async", r"\n  \};")
-        self.assertIn('tela: "1"', cena)
-        self.assertIn("Abrindo meu projeto na tela central", cena)
+        self.assertIn('["2", "3"]', cena)
+        self.assertIn("fecharHud()", cena)
+        self.assertIn("fecharSite()", cena)
 
     def test_web_toca_o_clipe_na_tela_do_mac_sem_abrir_o_site(self):
         cena = _bloco(r"window.__jarvisAbrirWeb = async", r"\n  \};")
