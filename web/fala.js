@@ -1351,21 +1351,11 @@
   // modo virar real, é este bloco que sai — o resto já é o caminho de
   // verdade.
   const ABERTURA_FERRO = "Entrando no modo Homem de Ferro.";
-  // A hora é a do Mac na hora de gravar; o clima continua encenado.
-  function horaFalada(agora) {
-    const h = agora.getHours();
-    const m = agora.getMinutes();
-    const periodo = h < 6 ? "da madrugada" : h < 12 ? "da manhã" : h < 18 ? "da tarde" : "da noite";
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    const horas = h12 === 1 ? "é 1 hora" : `são ${h12} horas`;
-    return `${horas}${m ? ` e ${m}` : ""} ${periodo}`;
-  }
-  function bomDiaFerro(agora = new Date()) {
-    const h = agora.getHours();
-    const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
-    return `${saudacao}, senhor. Hoje o tempo está nublado, ${horaFalada(agora)}, 22 graus e perfeito para trabalhar. Quer que eu abra o modo web ou o modo fullscreen?`;
-  }
-  // A música toca sozinha este tempo antes de ele falar o bom dia.
+  // Hora e clima encenados: o vídeo se passa às 10:32 da manhã, seja qual
+  // for a hora em que o dono gravar.
+  const BOM_DIA_FERRO = "Bom dia, senhor. São 10 horas e 32 da manhã, 26 graus e ensolarado, dia incrível para trabalhar. Quer que eu abra o modo web ou o modo fullscreen?";
+  // Silêncio antes do bom dia: é onde a música entra na edição. O app não
+  // toca mais o mp3 aqui, ele saía fora de tempo conforme o vídeo andava.
   const ESPERA_MUSICA_FERRO_MS = 9000;
 
   window.__jarvisHomemDeFerro = async () => {
@@ -1374,13 +1364,10 @@
     document.documentElement.classList.add("modo-ferro");
     try { nativeWindow("show"); } catch (e) { /* web */ }
     // Pré-aquece o bom dia: a síntese leva ~2s por frase nova e a fala tem
-    // que sair no segundo 9 da música, não no 11.
-    const bomDia = bomDiaFerro();
+    // que sair no segundo 9, não no 11.
+    const bomDia = BOM_DIA_FERRO;
     window.JarvisLocalVoice?.speakBlob?.(bomDia, { persona: "jarvis" })?.catch?.(() => {});
     await speak(ABERTURA_FERRO);
-    // Back in Black vem de um mp3 local tocado pelo app, que mantém o volume
-    // dele sempre abaixo da voz. Sem internet, sem Spotify.
-    try { window.webkit?.messageHandlers?.jarvisMusic?.postMessage("play"); } catch (e) { /* web */ }
     await new Promise((resolve) => window.setTimeout(resolve, ESPERA_MUSICA_FERRO_MS));
     await speak(bomDia);
     // A oferta vale a partir da pergunta, não do "entra no modo".
@@ -2460,7 +2447,7 @@
       teste: /^jarvis:modo-web$/,
       url: "jarvis:modo-web",
       nome: "JARVIS · Web",
-      video: "/ui/filme/modo-web.mp4",
+      video: "/ui/filme/modo-web.mp4?v=20261110-corte2s",
     },
   ];
 
